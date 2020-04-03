@@ -14,3 +14,4 @@ USER gitpod
 # And it seems like keyboard shortcuts don't work propperly yet with neo 2.
 
 RUN bash -cl "rustup default nightly"
+RUN bash -cl "npm install -g elm@latest-0.19.1 elm-live@next elm-format"
