@@ -13,4 +13,4 @@ USER gitpod
 # I'll also need to switch to nightly rust to support Rocket
 # And it seems like keyboard shortcuts don't work propperly yet with neo 2.
 
-RUN bash -cl "rustup toolchain install nightly"
+RUN bash -cl "rustup default nightly"
