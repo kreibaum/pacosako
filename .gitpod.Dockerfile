@@ -12,3 +12,5 @@ USER gitpod
 # TODO: I'll need to install elm, I guess this is not available by default.
 # I'll also need to switch to nightly rust to support Rocket
 # And it seems like keyboard shortcuts don't work propperly yet with neo 2.
+
+RUN bash -cl "rustup toolchain install nightly"
