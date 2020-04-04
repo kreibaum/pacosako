@@ -19,4 +19,5 @@ When running manually, follow those instructions
     elm-live src/Main.elm --no-server -- --output=../target/elm.js
 
     # In a second terminal, run the backend server
-    # I'll include instructions when I add the backend to this repo.
+    cd backend
+    cargo run
