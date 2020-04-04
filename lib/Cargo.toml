@@ -1,0 +1,27 @@
+[package]
+name = "pacosako-rust"
+version = "0.1.0"
+authors = ["rolf"]
+edition = "2018"
+default-run = "pacosako-example"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+name = "pacosako"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pacosako-example"
+path = "src/main.rs"
+
+[dependencies]
+colored = "1.8.0"
+rand = "0.7.3"
+nom = "5.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+quickcheck = "0.8"
+quickcheck_macros = "0.8"
