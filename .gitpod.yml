@@ -22,3 +22,6 @@ github:
     addBadge: false
     # add a label once the prebuild is ready to pull requests (defaults to false)
     addLabel: prebuilt-in-gitpod
+vscode:
+  extensions:
+    - elmTooling.elm-ls-vscode@0.10.1:JA0fT25NCF4z7Jgpb0Yzsw==
