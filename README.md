@@ -14,6 +14,7 @@ automatically and the frontend will be rebuild when you save.
 When running manually, follow those instructions
 
     # In one terminal, run elm-live to continuously rebuild the elm code
+    mkdir frontend
     cp frontend/static/* target/
     cd frontend
     elm-live src/Main.elm --no-server -- --output=../target/elm.js
