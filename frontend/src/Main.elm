@@ -212,16 +212,21 @@ type alias SmartToolModel =
     { highlight : Maybe ( Tile, Highlight )
     , dragStartTile : Maybe Tile
     , dragDelta : Maybe SvgCoord
-    , draggingPieces : List PacoPiece
+    , draggingPieces : DraggingPieces
     , hover : Maybe Tile
     }
+
+
+type DraggingPieces
+    = DraggingPiecesNormal (List PacoPiece)
+    | DraggingPiecesLifted PacoPiece
 
 
 smartToolRemoveDragInfo : SmartToolModel -> SmartToolModel
 smartToolRemoveDragInfo tool =
     { tool
         | dragStartTile = Nothing
-        , draggingPieces = []
+        , draggingPieces = DraggingPiecesNormal []
         , dragDelta = Nothing
     }
 
@@ -273,7 +278,7 @@ initSmartTool =
     { highlight = Nothing
     , dragStartTile = Nothing
     , dragDelta = Nothing
-    , draggingPieces = []
+    , draggingPieces = DraggingPiecesNormal []
     , hover = Nothing
     }
 
@@ -1257,12 +1262,22 @@ updateSmartToolStartDrag position startTile model =
             pieceHighlighted startTile highlightType piece
 
         newPosition =
-            { position
-                | pieces = List.filter (not << deleteAction) position.pieces
-            }
+            case position.liftedPiece of
+                Just _ ->
+                    { position | liftedPiece = Nothing }
+
+                Nothing ->
+                    { position
+                        | pieces = List.filter (not << deleteAction) position.pieces
+                    }
 
         draggingPieces =
-            List.filter deleteAction position.pieces
+            case position.liftedPiece of
+                Just liftedPiece ->
+                    DraggingPiecesLifted liftedPiece
+
+                Nothing ->
+                    DraggingPiecesNormal (List.filter deleteAction position.pieces)
     in
     ( { model | dragStartTile = Just startTile, draggingPieces = draggingPieces }
     , ToolPreview newPosition
@@ -1833,25 +1848,47 @@ toolDecoration model =
      ]
         |> List.filterMap identity
     )
-        ++ (model.smartTool.draggingPieces
-                |> List.map
-                    (\piece ->
-                        let
-                            (SvgCoord dx dy) =
-                                model.smartTool.dragDelta
-                                    |> Maybe.withDefault (SvgCoord 0 0)
+        ++ (case model.smartTool.draggingPieces of
+                DraggingPiecesNormal pieceList ->
+                    List.map
+                        (\piece ->
+                            let
+                                (SvgCoord dx dy) =
+                                    model.smartTool.dragDelta
+                                        |> Maybe.withDefault (SvgCoord 0 0)
 
-                            (SvgCoord x y) =
-                                coordinateOfTile piece.position
-                        in
-                        DragPiece
-                            { color = piece.color
-                            , pieceType = piece.pieceType
-                            , coord = SvgCoord (x + dx) (y + dy)
-                            }
-                    )
+                                (SvgCoord x y) =
+                                    coordinateOfTile piece.position
+                            in
+                            DragPiece
+                                { color = piece.color
+                                , pieceType = piece.pieceType
+                                , coord = SvgCoord (x + dx) (y + dy)
+                                }
+                        )
+                        pieceList
+
+                DraggingPiecesLifted singlePiece ->
+                    let
+                        (SvgCoord dx dy) =
+                            model.smartTool.dragDelta
+                                |> Maybe.withDefault (SvgCoord 0 0)
+
+                        (SvgCoord x y) =
+                            coordinateOfTile singlePiece.position
+
+                        ( offset_x, offset_y ) =
+                            handCoordinateOffset singlePiece.color
+                    in
+                    [ DragPiece
+                        { color = singlePiece.color
+                        , pieceType = singlePiece.pieceType
+                        , coord = SvgCoord (x + dx + offset_x) (y + dy + offset_y)
+                        }
+                    ]
            )
-        ++ (P.getC model.game
+        ++ (model.preview
+                |> Maybe.withDefault (P.getC model.game)
                 |> .liftedPiece
                 |> Maybe.map (\p -> [ LiftedPieceDecoration p ])
                 |> Maybe.withDefault []
