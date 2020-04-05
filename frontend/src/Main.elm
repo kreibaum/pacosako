@@ -1112,15 +1112,25 @@ updateSmartToolClick position tile model =
     case model.highlight of
         Just ( highlightTile, highlight ) ->
             if highlightTile == tile then
-                updateSmartToolSelection position highlightTile model
+                if position.liftedPiece == Nothing then
+                    updateSmartToolSelection position highlightTile model
+
+                else
+                    -- If a piece is lifted, we can't remove the highlight
+                    ( smartToolRemoveDragInfo model, ToolRollback )
 
             else
                 case doMoveAction highlightTile highlight tile position of
                     MoveIsIllegal ->
-                        ( smartToolRemoveDragInfo
-                            { model | highlight = Nothing }
-                        , ToolRollback
-                        )
+                        if position.liftedPiece == Nothing then
+                            ( smartToolRemoveDragInfo
+                                { model | highlight = Nothing }
+                            , ToolRollback
+                            )
+
+                        else
+                            -- If a piece is lifted, we can't remove the highlight
+                            ( smartToolRemoveDragInfo model, ToolRollback )
 
                     NoSourcePieceFound ->
                         ( smartToolRemoveDragInfo
