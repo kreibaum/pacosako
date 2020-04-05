@@ -289,6 +289,7 @@ type BoardDecoration
     = HighlightTile ( Tile, Highlight )
     | DropTarget Tile
     | DragPiece DragPieceData
+    | LiftedPieceDecoration PacoPiece
 
 
 type alias DragPieceData =
@@ -328,6 +329,16 @@ getDragPiece decoration =
             Nothing
 
 
+getPacoHand : BoardDecoration -> Maybe PacoPiece
+getPacoHand decoration =
+    case decoration of
+        LiftedPieceDecoration maybePiece ->
+            Just maybePiece
+
+        _ ->
+            Nothing
+
+
 type alias BlogModel =
     { saveState : SaveState
     , content : Article
@@ -343,6 +354,7 @@ type PositionParseResult
 type alias PacoPosition =
     { moveNumber : Int
     , pieces : List PacoPiece
+    , liftedPiece : Maybe PacoPiece
     }
 
 
@@ -362,6 +374,7 @@ initialPosition : PacoPosition
 initialPosition =
     { moveNumber = 0
     , pieces = Sako.defaultInitialPosition
+    , liftedPiece = Nothing
     }
 
 
@@ -369,6 +382,7 @@ emptyPosition : PacoPosition
 emptyPosition =
     { moveNumber = 0
     , pieces = []
+    , liftedPiece = Nothing
     }
 
 
@@ -1105,18 +1119,8 @@ updateSmartToolClick position tile model =
                     sourcePieces =
                         List.filter (pieceHighlighted highlightTile highlight) position.pieces
 
-                    involvedPieces =
-                        List.filter (Sako.isAt tile) position.pieces ++ sourcePieces
-
-                    moveAction piece =
-                        if pieceHighlighted highlightTile highlight piece then
-                            { piece | position = tile }
-
-                        else
-                            piece
-
                     newPosition =
-                        { position | pieces = List.map moveAction position.pieces }
+                        doMoveAction highlightTile highlight tile position
                 in
                 if sourcePieces == [] then
                     ( smartToolRemoveDragInfo
@@ -1124,17 +1128,19 @@ updateSmartToolClick position tile model =
                     , ToolRollback
                     )
 
-                else if isMoveBlocked involvedPieces then
-                    ( smartToolRemoveDragInfo
-                        { model | highlight = Nothing }
-                    , ToolRollback
-                    )
-
                 else
-                    ( smartToolRemoveDragInfo
-                        { model | highlight = Nothing }
-                    , ToolCommit newPosition
-                    )
+                    case newPosition of
+                        Just successNewPosition ->
+                            ( smartToolRemoveDragInfo
+                                { model | highlight = Nothing }
+                            , ToolCommit successNewPosition
+                            )
+
+                        Nothing ->
+                            ( smartToolRemoveDragInfo
+                                { model | highlight = Nothing }
+                            , ToolRollback
+                            )
 
         Nothing ->
             ( smartToolRemoveDragInfo
@@ -1277,7 +1283,7 @@ updateSmartToolStopDrag position startTile targetTile model =
                 Nothing ->
                     HighlightBoth
     in
-    case movePiecesIfPermitted highlightType startTile targetTile position of
+    case doMoveAction startTile highlightType targetTile position of
         Just newPosition ->
             ( smartToolRemoveDragInfo { model | highlight = Nothing }
             , ToolCommit newPosition
@@ -1314,36 +1320,74 @@ updateSmartToolSelection position highlightTile model =
         )
 
 
-movePiecesIfPermitted : Highlight -> Tile -> Tile -> PacoPosition -> Maybe PacoPosition
-movePiecesIfPermitted highlightType startTile targetTile position =
+type MoveExecutionType
+    = SimpleMove PacoPosition
+    | MoveIsIllegal
+    | MoveEndsWithLift PacoPosition PacoPiece
+
+
+{-| Tries to move the highlighted pieces at the source tile to the target tile,
+following standard Paco Ŝako rules. If this is not possible, this method returns
+Nothing instead of executing the move.
+-}
+doMoveAction : Tile -> Highlight -> Tile -> PacoPosition -> Maybe PacoPosition
+doMoveAction sourceTile highlight targetTile position =
     let
         sourcePieces =
-            List.filter (pieceHighlighted startTile highlightType) position.pieces
+            List.filter (pieceHighlighted sourceTile highlight) position.pieces
 
-        involvedPieces =
-            List.filter (Sako.isAt targetTile) position.pieces ++ sourcePieces
+        targetPieces =
+            List.filter (Sako.isAt targetTile) position.pieces
 
-        moveAction piece =
-            if pieceHighlighted startTile highlightType piece then
+        liftPartner singlePiece =
+            targetPieces |> List.filter (Sako.isColor singlePiece.color) |> List.head
+
+        pieceMoveAction piece =
+            if pieceHighlighted sourceTile highlight piece then
                 { piece | position = targetTile }
 
             else
                 piece
 
-        newPosition =
-            { position | pieces = List.map moveAction position.pieces }
+        doSimpleMove () =
+            Just { position | pieces = List.map pieceMoveAction position.pieces }
+
+        doMoveWithLift singlePiece () =
+            Just
+                { position
+                    | pieces =
+                        position.pieces
+                            |> List.filter (\p -> Just p /= liftPartner singlePiece)
+                            |> List.map pieceMoveAction
+                    , liftedPiece = liftPartner singlePiece
+                }
     in
-    if sourcePieces == [] || isMoveBlocked involvedPieces then
-        Nothing
+    case sourcePieces of
+        [ singlePiece ] ->
+            if List.isEmpty targetPieces then
+                -- The target is empty, we do a simple move action.
+                doSimpleMove ()
 
-    else
-        Just newPosition
+            else if List.length targetPieces == 2 then
+                doMoveWithLift singlePiece ()
 
+            else if not (List.any (Sako.isColor singlePiece.color) targetPieces) then
+                -- There is only a piece of the opposite color on the target square.
+                -- We can still do a simple move action.
+                doSimpleMove ()
 
-isMoveBlocked : List PacoPiece -> Bool
-isMoveBlocked involvedPieces =
-    (List.count (Sako.isColor Sako.White) involvedPieces > 1)
-        || (List.count (Sako.isColor Sako.Black) involvedPieces > 1)
+            else
+                Nothing
+
+        [ _, _ ] ->
+            if List.isEmpty targetPieces then
+                doSimpleMove ()
+
+            else
+                Nothing
+
+        _ ->
+            Nothing
 
 
 {-| Adds a new state, storing the current state in the history. If there currently is a redo chain
@@ -1727,6 +1771,11 @@ toolDecoration model =
                             }
                     )
            )
+        ++ (P.getC model.game
+                |> .liftedPiece
+                |> Maybe.map (\p -> [ LiftedPieceDecoration p ])
+                |> Maybe.withDefault []
+           )
 
 
 
@@ -2036,6 +2085,7 @@ positionSvg taco config =
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
         , piecesSvg config.colorScheme config.position
+        , handLayer taco config.decoration
         , dragLayer taco config.decoration
         ]
 
@@ -2125,6 +2175,46 @@ piecesSvg colorScheme pacoPosition =
         |> sortBlacksFirst
         |> List.map (pieceSvg colorScheme)
         |> Svg.g []
+
+
+handLayer : Taco -> List BoardDecoration -> Svg a
+handLayer taco decorations =
+    decorations
+        |> List.filterMap getPacoHand
+        |> List.map (pacoHandSvg taco.colorScheme)
+        |> Svg.g []
+
+
+pacoHandSvg : Pieces.ColorScheme -> PacoPiece -> Svg msg
+pacoHandSvg colorScheme piece =
+    let
+        (SvgCoord tile_x tile_y) =
+            coordinateOfTile piece.position
+
+        ( offset_x, offset_y ) =
+            handCoordinateOffset piece.color
+    in
+    Svg.g
+        [ Svg.Attributes.transform
+            ("translate("
+                ++ String.fromInt (tile_x + offset_x)
+                ++ ", "
+                ++ String.fromInt (tile_y + offset_y)
+                ++ ")"
+            )
+        ]
+        [ Pieces.figure colorScheme piece.pieceType piece.color
+        ]
+
+
+handCoordinateOffset : Sako.Color -> ( Int, Int )
+handCoordinateOffset color =
+    case color of
+        Sako.White ->
+            ( -25, -50 )
+
+        Sako.Black ->
+            ( 25, -50 )
 
 
 {-| When rendering a union the black piece must appear below the white piece. Reorder the pieces
