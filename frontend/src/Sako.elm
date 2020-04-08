@@ -61,6 +61,7 @@ type alias PacoPiece =
     { pieceType : Type
     , color : Color
     , position : Tile
+    , identity : String
     }
 
 
@@ -85,7 +86,7 @@ isColor color piece =
 
 pacoPiece : Color -> Type -> Tile -> PacoPiece
 pacoPiece color pieceType position =
-    { pieceType = pieceType, color = color, position = position }
+    { pieceType = pieceType, color = color, position = position, identity = "" }
 
 
 defaultInitialPosition : List PacoPiece
@@ -123,6 +124,18 @@ defaultInitialPosition =
     , pacoPiece Black Knight (Tile 6 7)
     , pacoPiece Black Rook (Tile 7 7)
     ]
+        |> enumeratePieceIdentity
+
+
+{-| In order to get animations right, we need to render the lists with Svg.Keyed.
+We assign a unique ID to each piece that will allow us to track the identity of
+pieces across different board states.
+-}
+enumeratePieceIdentity : List PacoPiece -> List PacoPiece
+enumeratePieceIdentity pieces =
+    List.indexedMap
+        (\i p -> { p | identity = "enumerate" ++ String.fromInt i })
+        pieces
 
 
 
@@ -248,6 +261,7 @@ gridAsPacoPosition tiles =
     indexedMapNest2 tileAsPacoPiece tiles
         |> List.concat
         |> List.concat
+        |> enumeratePieceIdentity
 
 
 tileAsPacoPiece : Int -> Int -> TileState -> List PacoPiece
@@ -261,14 +275,14 @@ tileAsPacoPiece row col tile =
             []
 
         WhiteTile w ->
-            [ { pieceType = w, color = White, position = position } ]
+            [ pacoPiece White w position ]
 
         BlackTile b ->
-            [ { pieceType = b, color = Black, position = position } ]
+            [ pacoPiece Black b position ]
 
         PairTile w b ->
-            [ { pieceType = w, color = White, position = position }
-            , { pieceType = b, color = Black, position = position }
+            [ pacoPiece White w position
+            , pacoPiece Black b position
             ]
 
 

@@ -31,6 +31,7 @@ import Sako exposing (PacoPiece, Tile(..))
 import StaticText
 import Svg exposing (Svg)
 import Svg.Attributes
+import Svg.Keyed
 import Task
 
 
@@ -214,6 +215,7 @@ type alias SmartToolModel =
     , dragDelta : Maybe SvgCoord
     , draggingPieces : DraggingPieces
     , hover : Maybe Tile
+    , identityCounter : Int
     }
 
 
@@ -280,6 +282,7 @@ initSmartTool =
     , dragDelta = Nothing
     , draggingPieces = DraggingPiecesNormal []
     , hover = Nothing
+    , identityCounter = 0
     }
 
 
@@ -293,14 +296,17 @@ type ToolOutputMsg
 type BoardDecoration
     = HighlightTile ( Tile, Highlight )
     | DropTarget Tile
-    | DragPiece DragPieceData
-    | LiftedPieceDecoration PacoPiece
+
+
+
+-- | DragPiece DragPieceData
 
 
 type alias DragPieceData =
     { color : Sako.Color
     , pieceType : Sako.Type
     , coord : SvgCoord
+    , identity : String
     }
 
 
@@ -319,26 +325,6 @@ getDropTarget decoration =
     case decoration of
         DropTarget tile ->
             Just tile
-
-        _ ->
-            Nothing
-
-
-getDragPiece : BoardDecoration -> Maybe DragPieceData
-getDragPiece decoration =
-    case decoration of
-        DragPiece data ->
-            Just data
-
-        _ ->
-            Nothing
-
-
-getPacoHand : BoardDecoration -> Maybe PacoPiece
-getPacoHand decoration =
-    case decoration of
-        LiftedPieceDecoration maybePiece ->
-            Just maybePiece
 
         _ ->
             Nothing
@@ -1230,12 +1216,19 @@ updateSmartToolAdd position color pieceType model =
                 newPosition =
                     { position
                         | pieces =
-                            { color = color, position = highlightTile, pieceType = pieceType }
+                            { color = color
+                            , position = highlightTile
+                            , pieceType = pieceType
+                            , identity = "addTool" ++ String.fromInt model.identityCounter
+                            }
                                 :: List.filter deleteAction position.pieces
                     }
             in
             ( smartToolRemoveDragInfo
-                { model | highlight = Just ( highlightTile, HighlightLingering ) }
+                { model
+                    | highlight = Just ( highlightTile, HighlightLingering )
+                    , identityCounter = model.identityCounter + 1
+                }
             , ToolCommit newPosition
             )
 
@@ -1747,6 +1740,7 @@ loadPositionPreview taco position =
                     , viewMode = CleanBoard
                     , nodeId = Nothing
                     , decoration = []
+                    , dragPieceData = []
                     , withEvents = False
                     }
                 )
@@ -1831,6 +1825,7 @@ positionView taco editor drag =
                         , viewMode = editor.viewMode
                         , nodeId = Just sakoEditorId
                         , decoration = toolDecoration editor
+                        , dragPieceData = dragPieceData editor
                         , withEvents = True
                         }
                     ]
@@ -1841,58 +1836,54 @@ positionView taco editor drag =
 
 toolDecoration : EditorModel -> List BoardDecoration
 toolDecoration model =
-    ([ model.smartTool.highlight |> Maybe.map HighlightTile
-     , model.smartTool.hover |> Maybe.map DropTarget
-     , model.smartTool.dragStartTile
+    [ model.smartTool.highlight |> Maybe.map HighlightTile
+    , model.smartTool.hover |> Maybe.map DropTarget
+    , model.smartTool.dragStartTile
         |> Maybe.map (\tile -> HighlightTile ( tile, HighlightBoth ))
-     ]
+    ]
         |> List.filterMap identity
-    )
-        ++ (case model.smartTool.draggingPieces of
-                DraggingPiecesNormal pieceList ->
-                    List.map
-                        (\piece ->
-                            let
-                                (SvgCoord dx dy) =
-                                    model.smartTool.dragDelta
-                                        |> Maybe.withDefault (SvgCoord 0 0)
 
-                                (SvgCoord x y) =
-                                    coordinateOfTile piece.position
-                            in
-                            DragPiece
-                                { color = piece.color
-                                , pieceType = piece.pieceType
-                                , coord = SvgCoord (x + dx) (y + dy)
-                                }
-                        )
-                        pieceList
 
-                DraggingPiecesLifted singlePiece ->
+dragPieceData : EditorModel -> List DragPieceData
+dragPieceData model =
+    case model.smartTool.draggingPieces of
+        DraggingPiecesNormal pieceList ->
+            List.map
+                (\piece ->
                     let
                         (SvgCoord dx dy) =
                             model.smartTool.dragDelta
                                 |> Maybe.withDefault (SvgCoord 0 0)
 
                         (SvgCoord x y) =
-                            coordinateOfTile singlePiece.position
-
-                        ( offset_x, offset_y ) =
-                            handCoordinateOffset singlePiece.color
+                            coordinateOfTile piece.position
                     in
-                    [ DragPiece
-                        { color = singlePiece.color
-                        , pieceType = singlePiece.pieceType
-                        , coord = SvgCoord (x + dx + offset_x) (y + dy + offset_y)
-                        }
-                    ]
-           )
-        ++ (model.preview
-                |> Maybe.withDefault (P.getC model.game)
-                |> .liftedPiece
-                |> Maybe.map (\p -> [ LiftedPieceDecoration p ])
-                |> Maybe.withDefault []
-           )
+                    { color = piece.color
+                    , pieceType = piece.pieceType
+                    , coord = SvgCoord (x + dx) (y + dy)
+                    , identity = piece.identity
+                    }
+                )
+                pieceList
+
+        DraggingPiecesLifted singlePiece ->
+            let
+                (SvgCoord dx dy) =
+                    model.smartTool.dragDelta
+                        |> Maybe.withDefault (SvgCoord 0 0)
+
+                (SvgCoord x y) =
+                    coordinateOfTile singlePiece.position
+
+                ( offset_x, offset_y ) =
+                    handCoordinateOffset singlePiece.color
+            in
+            [ { color = singlePiece.color
+              , pieceType = singlePiece.pieceType
+              , coord = SvgCoord (x + dx + offset_x) (y + dy + offset_y)
+              , identity = singlePiece.identity
+              }
+            ]
 
 
 
@@ -2162,10 +2153,13 @@ positionSvg :
         { position : PacoPosition
         , sideLength : Int
         , colorScheme : Pieces.ColorScheme
+
+        -- TODO: Looks like .drag is no longer required.
         , drag : DragState
         , viewMode : ViewMode
         , nodeId : Maybe String
         , decoration : List BoardDecoration
+        , dragPieceData : List DragPieceData
         , withEvents : Bool
         }
     -> Html EditorMsg
@@ -2201,9 +2195,7 @@ positionSvg taco config =
         [ board config.viewMode
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
-        , piecesSvg config.colorScheme config.position
-        , handLayer taco config.decoration
-        , dragLayer taco config.decoration
+        , piecesSvg config.colorScheme config.dragPieceData config.position
         ]
 
 
@@ -2233,7 +2225,7 @@ highlightSvg ( tile, highlight ) =
                     Svg.Attributes.d "m 50 0 l 50 50 l -50 50 l -50 -50 z"
     in
     Svg.path
-        [ tileTransform tile
+        [ tileTransform NoAnimation tile
         , shape
         , Svg.Attributes.fill "rgb(255, 255, 100)"
         ]
@@ -2259,12 +2251,13 @@ dropTargetSvg (Tile x y) =
         []
 
 
-dragLayer : Taco -> List BoardDecoration -> Svg a
-dragLayer taco decorations =
-    decorations
-        |> List.filterMap getDragPiece
-        |> List.map (dragSvg taco.colorScheme)
-        |> Svg.g []
+
+-- dragLayer : Taco -> List BoardDecoration -> Svg a
+-- dragLayer taco decorations =
+--     decorations
+--         |> List.filterMap getDragPiece
+--         |> List.map (dragSvg taco.colorScheme)
+--         |> Svg.g []
 
 
 dragSvg : Pieces.ColorScheme -> DragPieceData -> Svg a
@@ -2274,32 +2267,69 @@ dragSvg colorScheme data =
             data.coord
     in
     Svg.g
-        [ Svg.Attributes.transform
-            ("translate("
-                ++ String.fromInt x
-                ++ ", "
-                ++ String.fromInt y
-                ++ ")"
-            )
-        ]
+        [ transform NoAnimation x y ]
         [ Pieces.figure colorScheme data.pieceType data.color
         ]
 
 
-piecesSvg : Pieces.ColorScheme -> PacoPosition -> Svg msg
-piecesSvg colorScheme pacoPosition =
+{-| Decides if the css translate property should be animated or not.
+-}
+type AnimationStyle
+    = NoAnimation
+    | SmoothAnimation
+
+
+transform : AnimationStyle -> Int -> Int -> Svg.Attribute msg
+transform style x y =
+    let
+        transformation =
+            "transform: translate("
+                ++ String.fromInt x
+                ++ "px, "
+                ++ String.fromInt y
+                ++ "px)"
+    in
+    case style of
+        NoAnimation ->
+            Svg.Attributes.style transformation
+
+        SmoothAnimation ->
+            Svg.Attributes.style
+                (transformation
+                    ++ "; transition: transform 0.2s ease-in-out;"
+                )
+
+
+piecesSvg : Pieces.ColorScheme -> List DragPieceData -> PacoPosition -> Svg msg
+piecesSvg colorScheme dragedPieces pacoPosition =
     pacoPosition.pieces
         |> sortBlacksFirst
-        |> List.map (pieceSvg colorScheme)
-        |> Svg.g []
+        |> List.map (\p -> ( p.identity, pieceSvg colorScheme p ))
+        |> addMaybe (liftedPieceSvg colorScheme pacoPosition)
+        |> List.append (List.map (draggedPieceSvg colorScheme) dragedPieces)
+        |> List.sortBy (\( i, _ ) -> i)
+        |> Svg.Keyed.node "g" []
 
 
-handLayer : Taco -> List BoardDecoration -> Svg a
-handLayer taco decorations =
-    decorations
-        |> List.filterMap getPacoHand
-        |> List.map (pacoHandSvg taco.colorScheme)
-        |> Svg.g []
+addMaybe : Maybe a -> List a -> List a
+addMaybe maybeA list =
+    case maybeA of
+        Just element ->
+            element :: list
+
+        Nothing ->
+            list
+
+
+liftedPieceSvg : Pieces.ColorScheme -> PacoPosition -> Maybe ( String, Svg msg )
+liftedPieceSvg colorScheme pacoPosition =
+    pacoPosition.liftedPiece
+        |> Maybe.map (\p -> ( p.identity, pacoHandSvg colorScheme p ))
+
+
+draggedPieceSvg : Pieces.ColorScheme -> DragPieceData -> ( String, Svg msg )
+draggedPieceSvg colorScheme dragData =
+    ( dragData.identity, dragSvg colorScheme dragData )
 
 
 pacoHandSvg : Pieces.ColorScheme -> PacoPiece -> Svg msg
@@ -2312,14 +2342,7 @@ pacoHandSvg colorScheme piece =
             handCoordinateOffset piece.color
     in
     Svg.g
-        [ Svg.Attributes.transform
-            ("translate("
-                ++ String.fromInt (tile_x + offset_x)
-                ++ ", "
-                ++ String.fromInt (tile_y + offset_y)
-                ++ ")"
-            )
-        ]
+        [ transform SmoothAnimation (tile_x + offset_x) (tile_y + offset_y) ]
         [ Pieces.figure colorScheme piece.pieceType piece.color
         ]
 
@@ -2345,9 +2368,8 @@ sortBlacksFirst pieces =
 
 pieceSvg : Pieces.ColorScheme -> PacoPiece -> Svg msg
 pieceSvg colorScheme piece =
-    Svg.g [ tileTransform piece.position ]
-        [ Pieces.figure colorScheme piece.pieceType piece.color
-        ]
+    Svg.g [ tileTransform SmoothAnimation piece.position ]
+        [ Pieces.figure colorScheme piece.pieceType piece.color ]
 
 
 coordinateOfTile : Tile -> SvgCoord
@@ -2355,19 +2377,13 @@ coordinateOfTile (Tile x y) =
     SvgCoord (100 * x) (700 - 100 * y)
 
 
-tileTransform : Tile -> Svg.Attribute a
-tileTransform tile =
+tileTransform : AnimationStyle -> Tile -> Svg.Attribute a
+tileTransform style tile =
     let
         (SvgCoord x y) =
             coordinateOfTile tile
     in
-    Svg.Attributes.transform
-        ("translate("
-            ++ String.fromInt x
-            ++ ", "
-            ++ String.fromInt y
-            ++ ")"
-        )
+    transform style x y
 
 
 board : ViewMode -> Svg msg
@@ -2497,6 +2513,7 @@ parsedMarkdownPaste taco model =
                                 , viewMode = CleanBoard
                                 , nodeId = Nothing
                                 , decoration = []
+                                , dragPieceData = []
                                 , withEvents = False
                                 }
                             )
