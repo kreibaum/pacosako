@@ -1,5 +1,6 @@
 module Main exposing (main)
 
+import Animation exposing (Timeline)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
@@ -33,6 +34,7 @@ import Svg exposing (Svg)
 import Svg.Attributes
 import Svg.Keyed
 import Task
+import Time exposing (Posix)
 
 
 main : Program Decode.Value Model Msg
@@ -198,6 +200,7 @@ type alias EditorModel =
     { saveState : SaveState
     , game : Pivot PacoPosition
     , preview : Maybe PacoPosition
+    , timeline : Timeline (List VisualPacoPiece)
     , drag : DragState
     , windowSize : ( Int, Int )
     , userPaste : String
@@ -361,6 +364,13 @@ type SvgCoord
     = SvgCoord Int Int
 
 
+{-| Add two SVG coordinates, this is applied to each coordinate individually.
+-}
+addSvgCoord : SvgCoord -> SvgCoord -> SvgCoord
+addSvgCoord (SvgCoord x1 y1) (SvgCoord x2 y2) =
+    SvgCoord (x1 + x2) (y1 + y2)
+
+
 initialPosition : PacoPosition
 initialPosition =
     { moveNumber = 0
@@ -413,6 +423,7 @@ type Msg
     | EditArticle Article
     | PostArticleVisibility Article
     | GotArticleVisibility Article
+    | AnimationTick Time.Posix
 
 
 {-| Messages that may only affect data in the position editor page.
@@ -485,6 +496,7 @@ initialEditor flags =
     { saveState = SaveNotRequired
     , game = P.singleton initialPosition
     , preview = Nothing
+    , timeline = Animation.init (initVisualPacoPosition initialPosition)
     , drag = Nothing
     , windowSize = parseWindowSize flags
     , userPaste = ""
@@ -582,6 +594,9 @@ update msg model =
     case msg of
         GlobalNoOp ->
             ( model, Cmd.none )
+
+        AnimationTick newTime ->
+            ( updateTimeline newTime model, Cmd.none )
 
         EditorMsgWrapper editorMsg ->
             let
@@ -1490,14 +1505,17 @@ addHistoryState newState p =
         p |> P.setR [] |> P.appendGoR newState
 
 
-subscriptions : model -> Sub Msg
-subscriptions _ =
+subscriptions : Model -> Sub Msg
+subscriptions model =
     Sub.batch
         [ Browser.Events.onResize WindowResize
+            |> Sub.map EditorMsgWrapper
         , Browser.Events.onKeyUp (Decode.map KeyUp decodeKeyStroke)
+            |> Sub.map EditorMsgWrapper
         , Ports.responseSvgNodeContent SvgReadyForDownload
+            |> Sub.map EditorMsgWrapper
+        , Animation.subscription model.editor.timeline AnimationTick
         ]
-        |> Sub.map EditorMsgWrapper
 
 
 decodeKeyStroke : Decoder KeyStroke
@@ -1558,6 +1576,157 @@ updateLoginPage msg loginPageModel =
 
         Logout ->
             ( loginPageModel, getLogout )
+
+
+
+--------------------------------------------------------------------------------
+-- Animator specific code ------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+{-| Let the animation know about the current time.
+-}
+updateTimeline : Posix -> Model -> Model
+updateTimeline now model =
+    let
+        oldEditorModel =
+            model.editor
+
+        newTimeline =
+            Animation.tick now model.editor.timeline
+    in
+    { model | editor = { oldEditorModel | timeline = newTimeline } }
+
+
+{-| A rendered Paco Piece. This must be different from a logical PacoPiece, as
+it can be resting, lifted or dragged. The rendering works in two stages where we
+first calculate the List VisualPacoPiece and then render those into Svg. In the
+render stage we make use of the Animator library.
+-}
+type alias VisualPacoPiece =
+    { pieceType : Sako.Type
+    , color : Sako.Color
+    , position : SvgCoord
+    , identity : String
+    , zOrder : Int
+    }
+
+
+{-| In the inital state, there can be no pieces being dragged and dropped. This
+makes it easier to determine the visual pieces. We still need to check if there
+is a lifted piece, as such a state could be persisted in the backend.
+-}
+initVisualPacoPosition : PacoPosition -> List VisualPacoPiece
+initVisualPacoPosition position =
+    determineVisualPieces initSmartTool position
+
+
+determineVisualPieces : SmartToolModel -> PacoPosition -> List VisualPacoPiece
+determineVisualPieces smartTool position =
+    determineVisualPiecesCurrentlyLifted position
+        ++ determineVisualPiecesDragged smartTool
+        ++ determineVisualPiecesAtRest position
+
+
+determineVisualPiecesAtRest : PacoPosition -> List VisualPacoPiece
+determineVisualPiecesAtRest position =
+    position.pieces
+        |> List.map
+            (\p ->
+                { pieceType = p.pieceType
+                , color = p.color
+                , position = coordinateOfTile p.position
+                , identity = p.identity
+                , zOrder = restingZOrder p.color
+                }
+            )
+
+
+restingZOrder : Sako.Color -> Int
+restingZOrder color =
+    case color of
+        Sako.Black ->
+            1
+
+        Sako.White ->
+            2
+
+
+{-| Here we return List a instead of Maybe a to allow easier combination with
+other lists.
+-}
+determineVisualPiecesCurrentlyLifted : PacoPosition -> List VisualPacoPiece
+determineVisualPiecesCurrentlyLifted position =
+    Maybe.map visualPieceCurrentlyLifted position.liftedPiece
+        |> Maybe.map (\p -> [ p ])
+        |> Maybe.withDefault []
+
+
+visualPieceCurrentlyLifted : PacoPiece -> VisualPacoPiece
+visualPieceCurrentlyLifted liftedPiece =
+    { pieceType = liftedPiece.pieceType
+    , color = liftedPiece.color
+    , position =
+        coordinateOfTile liftedPiece.position
+            |> addSvgCoord (handCoordinateOffset liftedPiece.color)
+    , identity = liftedPiece.identity
+    , zOrder = 3
+    }
+
+
+determineVisualPiecesDragged : SmartToolModel -> List VisualPacoPiece
+determineVisualPiecesDragged smartTool =
+    case smartTool.draggingPieces of
+        DraggingPiecesNormal pieceList ->
+            pieceList
+                |> List.map
+                    (\piece ->
+                        { pieceType = piece.pieceType
+                        , color = piece.color
+                        , position =
+                            smartTool.dragDelta
+                                |> Maybe.withDefault (SvgCoord 0 0)
+                                |> addSvgCoord (coordinateOfTile piece.position)
+                        , identity = piece.identity
+                        , zOrder = 3
+                        }
+                    )
+
+        DraggingPiecesLifted singlePiece ->
+            [ { pieceType = singlePiece.pieceType
+              , color = singlePiece.color
+              , position =
+                    smartTool.dragDelta
+                        |> Maybe.withDefault (SvgCoord 0 0)
+                        |> addSvgCoord (coordinateOfTile singlePiece.position)
+                        |> addSvgCoord (handCoordinateOffset singlePiece.color)
+              , identity = singlePiece.identity
+              , zOrder = 3
+              }
+            ]
+
+
+
+-- TODO: Looks like I'll insert my other animation code here.
+-- currentVisualPieces : EditorModel -> List VisualPacoPiece
+-- currentVisualPieces editor =
+--     Animation.animate editor.timeline
+
+
+insertAnimatedCoordinates :
+    { x : Float
+    , y : Float
+    , z : Float
+    }
+    -> VisualPacoPiece
+    -> VisualPacoPiece
+insertAnimatedCoordinates newCoordinates visualPiece =
+    { visualPiece | zOrder = 0 }
+
+
+findByIdentity : String -> List VisualPacoPiece -> Maybe VisualPacoPiece
+findByIdentity identity list =
+    List.find (\p -> p.identity == identity) list
 
 
 
@@ -1732,11 +1901,10 @@ loadPositionPreview taco position =
         { onPress = Just (LoadIntoEditor position)
         , label =
             Element.html
-                (positionSvg taco
+                (positionSvg
                     { position = position
                     , colorScheme = taco.colorScheme
                     , sideLength = 250
-                    , drag = Nothing
                     , viewMode = CleanBoard
                     , nodeId = Nothing
                     , decoration = []
@@ -1761,7 +1929,7 @@ editorUi taco model =
         , Element.row
             [ width fill, height fill ]
             [ Element.html FontAwesome.Styles.css
-            , positionView taco model model.drag |> Element.map EditorMsgWrapper
+            , positionView taco model |> Element.map EditorMsgWrapper
             , sidebar taco model
             ]
         ]
@@ -1804,8 +1972,8 @@ windowSafetyMargin =
     50
 
 
-positionView : Taco -> EditorModel -> DragState -> Element EditorMsg
-positionView taco editor drag =
+positionView : Taco -> EditorModel -> Element EditorMsg
+positionView taco editor =
     let
         ( _, windowHeight ) =
             editor.windowSize
@@ -1816,12 +1984,11 @@ positionView taco editor drag =
                 (Html.div
                     [ Html.Attributes.id "boardDiv"
                     ]
-                    [ positionSvg taco
+                    [ positionSvg
                         { position =
                             editor.preview |> Maybe.withDefault (P.getC editor.game)
                         , colorScheme = taco.colorScheme
                         , sideLength = windowHeight - windowSafetyMargin
-                        , drag = drag
                         , viewMode = editor.viewMode
                         , nodeId = Just sakoEditorId
                         , decoration = toolDecoration editor
@@ -1875,7 +2042,7 @@ dragPieceData model =
                 (SvgCoord x y) =
                     coordinateOfTile singlePiece.position
 
-                ( offset_x, offset_y ) =
+                (SvgCoord offset_x offset_y) =
                     handCoordinateOffset singlePiece.color
             in
             [ { color = singlePiece.color
@@ -2148,22 +2315,17 @@ sakoEditorId =
 
 
 positionSvg :
-    Taco
-    ->
-        { position : PacoPosition
-        , sideLength : Int
-        , colorScheme : Pieces.ColorScheme
-
-        -- TODO: Looks like .drag is no longer required.
-        , drag : DragState
-        , viewMode : ViewMode
-        , nodeId : Maybe String
-        , decoration : List BoardDecoration
-        , dragPieceData : List DragPieceData
-        , withEvents : Bool
-        }
+    { position : PacoPosition
+    , sideLength : Int
+    , colorScheme : Pieces.ColorScheme
+    , viewMode : ViewMode
+    , nodeId : Maybe String
+    , decoration : List BoardDecoration
+    , dragPieceData : List DragPieceData
+    , withEvents : Bool
+    }
     -> Html EditorMsg
-positionSvg taco config =
+positionSvg config =
     let
         idAttribute =
             case config.nodeId of
@@ -2338,7 +2500,7 @@ pacoHandSvg colorScheme piece =
         (SvgCoord tile_x tile_y) =
             coordinateOfTile piece.position
 
-        ( offset_x, offset_y ) =
+        (SvgCoord offset_x offset_y) =
             handCoordinateOffset piece.color
     in
     Svg.g
@@ -2347,14 +2509,14 @@ pacoHandSvg colorScheme piece =
         ]
 
 
-handCoordinateOffset : Sako.Color -> ( Int, Int )
+handCoordinateOffset : Sako.Color -> SvgCoord
 handCoordinateOffset color =
     case color of
         Sako.White ->
-            ( -25, -50 )
+            SvgCoord -25 -50
 
         Sako.Black ->
-            ( 25, -50 )
+            SvgCoord 25 -50
 
 
 {-| When rendering a union the black piece must appear below the white piece. Reorder the pieces
@@ -2505,11 +2667,10 @@ parsedMarkdownPaste taco model =
                 , label =
                     Element.row [ spacing 5 ]
                         [ Element.html
-                            (positionSvg taco
+                            (positionSvg
                                 { position = pacoPosition
                                 , colorScheme = taco.colorScheme
                                 , sideLength = 100
-                                , drag = Nothing
                                 , viewMode = CleanBoard
                                 , nodeId = Nothing
                                 , decoration = []
