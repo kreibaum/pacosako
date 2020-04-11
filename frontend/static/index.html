@@ -40,28 +40,28 @@
       }
 
       function mapMouseEvent(node, realName, customName) {
-        node.addEventListener(realName, function(event) {
+        node.addEventListener(realName, function (event) {
           var svgClickEvent = new CustomEvent(customName, {
-            detail: getSvgCoord(event)
+            detail: getSvgCoord(event),
           });
           event.currentTarget.dispatchEvent(svgClickEvent);
         });
       }
 
-      var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
+      var observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
           if (mutation.type === "childList") {
             // Find all svg tags, then add event mappers.
             Array.from(mutation.addedNodes)
-              .flatMap(tag =>
+              .flatMap((tag) =>
                 tag.getElementsByTagName
                   ? Array.from(tag.getElementsByTagName("svg"))
                   : new Array()
               )
-              .filter(function(node) {
+              .filter(function (node) {
                 return node.tagName === "svg";
               })
-              .forEach(function(node) {
+              .forEach(function (node) {
                 mapMouseEvent(node, "mousedown", "svgdown");
                 mapMouseEvent(node, "mousemove", "svgmove");
                 mapMouseEvent(node, "mouseup", "svgup");
@@ -76,11 +76,13 @@
       let windowSize = { width: window.innerWidth, height: window.innerHeight };
       var app = Elm.Main.init({
         node: document.getElementById("elm"),
-        flags: windowSize
+        flags: windowSize,
       });
 
+      app.ports.logToConsole.subscribe((message) => console.log(message));
+
       // Ports to extract an svg node as xml from the dom.
-      app.ports.requestSvgNodeContent.subscribe(function(elementId) {
+      app.ports.requestSvgNodeContent.subscribe(function (elementId) {
         let svgElement = document.getElementById(elementId);
 
         if (svgElement) {
@@ -90,7 +92,7 @@
       });
 
       // Ports to download an svg node as png from the dom.
-      app.ports.triggerPngDownload.subscribe(function(request) {
+      app.ports.triggerPngDownload.subscribe(function (request) {
         console.log(JSON.stringify(request));
         let svgElement = document.getElementById(request.svgNode);
 
@@ -108,7 +110,7 @@
           canvas.width = request.outputWidth;
           canvas.height = request.outputHeight;
           let img = new Image();
-          img.onload = function() {
+          img.onload = function () {
             canvas.getContext("2d").drawImage(this, 0, 0);
             download(canvas, "pacoSako.png");
           };

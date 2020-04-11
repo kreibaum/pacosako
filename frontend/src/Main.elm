@@ -4,7 +4,7 @@ import Animation exposing (Timeline)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
-import Dict exposing (Dict)
+import Dict
 import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
@@ -403,8 +403,7 @@ type alias Rect =
 
 
 type Msg
-    = GlobalNoOp
-    | EditorMsgWrapper EditorMsg
+    = EditorMsgWrapper EditorMsg
     | BlogMsgWrapper BlogEditorMsg
     | LoginPageMsgWrapper LoginPageMsg
     | LoadIntoEditor PacoPosition
@@ -592,9 +591,6 @@ expectLibrary result =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GlobalNoOp ->
-            ( model, Cmd.none )
-
         AnimationTick newTime ->
             ( updateTimeline newTime model, Cmd.none )
 
@@ -677,7 +673,7 @@ update msg model =
             )
 
         HttpError error ->
-            Debug.log "Http Error" (Debug.toString error) |> (\_ -> ( model, Cmd.none ))
+            ( model, Ports.logToConsole (describeError error) )
 
         AllPositionsLoadedSuccess list ->
             ( { model | storedPositions = RemoteData.Success list }, Cmd.none )
@@ -3067,7 +3063,7 @@ articleViewPage taco article isFreshlyReloaded =
 
 
 articleInfoSubmenu : Taco -> Article -> Element Msg
-articleInfoSubmenu taco article =
+articleInfoSubmenu _ article =
     Element.row
         [ width fill
         , Background.color (Element.rgb255 240 240 240)
@@ -3126,6 +3122,25 @@ articleMarkdownWithTitle article =
 --------------------------------------------------------------------------------
 
 
+describeError : Http.Error -> String
+describeError error =
+    case error of
+        Http.BadUrl url ->
+            "Bad url: " ++ url
+
+        Http.Timeout ->
+            "Timeout error."
+
+        Http.NetworkError ->
+            "Network error."
+
+        Http.BadStatus statusCode ->
+            "Bad status: " ++ String.fromInt statusCode
+
+        Http.BadBody body ->
+            "Bad body: " ++ body
+
+
 defaultErrorHandler : (a -> Msg) -> Result Http.Error a -> Msg
 defaultErrorHandler happyPath result =
     case result of
@@ -3172,9 +3187,13 @@ getCurrentLogin =
         { url = "/api/user_id"
         , expect =
             Http.expectJson
-                (Result.toMaybe
-                    >> Maybe.map LoginSuccess
-                    >> Maybe.withDefault GlobalNoOp
+                (\result ->
+                    case result of
+                        Ok payload ->
+                            LoginSuccess payload
+
+                        Err err ->
+                            HttpError err
                 )
                 decodeUser
         }

@@ -1,5 +1,6 @@
 port module Ports exposing
-    ( requestSvgNodeContent
+    ( logToConsole
+    , requestSvgNodeContent
     , responseSvgNodeContent
     , triggerPngDownload
     )
@@ -22,3 +23,6 @@ port responseSvgNodeContent : (String -> msg) -> Sub msg
 
 
 port triggerPngDownload : Value -> Cmd msg
+
+
+port logToConsole : String -> Cmd msg
