@@ -1706,22 +1706,15 @@ determineVisualPiecesDragged smartTool =
             ]
 
 
+currentVisualPieces : EditorModel -> List VisualPacoPiece
+currentVisualPieces editor =
+    case Animation.animate editor.timeline of
+        Animation.Resting state ->
+            state
 
--- TODO: Looks like I'll insert my other animation code here.
--- currentVisualPieces : EditorModel -> List VisualPacoPiece
--- currentVisualPieces editor =
---     Animation.animate editor.timeline
-
-
-insertAnimatedCoordinates :
-    { x : Float
-    , y : Float
-    , z : Float
-    }
-    -> VisualPacoPiece
-    -> VisualPacoPiece
-insertAnimatedCoordinates newCoordinates visualPiece =
-    { visualPiece | zOrder = 0 }
+        Animation.Transition data ->
+            -- TODO: actually implement the animation.
+            data.new
 
 
 findByIdentity : String -> List VisualPacoPiece -> Maybe VisualPacoPiece
@@ -1786,11 +1779,6 @@ pageHeader taco currentPage additionalHeader =
         , additionalHeader
         , loginHeaderInfo taco
         ]
-
-
-yourDataWillNotBeSaved : Element a
-yourDataWillNotBeSaved =
-    Element.el [ padding 10, Font.color (Element.rgb255 200 150 150), Font.bold ] (Element.text "Your data will not be saved!")
 
 
 pageHeaderButton : List (Element.Attribute Msg) -> PageHeaderInfo -> Element Msg
@@ -1902,7 +1890,7 @@ loadPositionPreview taco position =
         , label =
             Element.html
                 (positionSvg
-                    { position = position
+                    { visualPacoPieces = initVisualPacoPosition position
                     , colorScheme = taco.colorScheme
                     , sideLength = 250
                     , viewMode = CleanBoard
@@ -1985,8 +1973,10 @@ positionView taco editor =
                     [ Html.Attributes.id "boardDiv"
                     ]
                     [ positionSvg
-                        { position =
-                            editor.preview |> Maybe.withDefault (P.getC editor.game)
+                        { visualPacoPieces =
+                            editor.preview
+                                |> Maybe.withDefault (P.getC editor.game)
+                                |> determineVisualPieces editor.smartTool
                         , colorScheme = taco.colorScheme
                         , sideLength = windowHeight - windowSafetyMargin
                         , viewMode = editor.viewMode
@@ -2315,7 +2305,7 @@ sakoEditorId =
 
 
 positionSvg :
-    { position : PacoPosition
+    { visualPacoPieces : List VisualPacoPiece
     , sideLength : Int
     , colorScheme : Pieces.ColorScheme
     , viewMode : ViewMode
@@ -2357,7 +2347,7 @@ positionSvg config =
         [ board config.viewMode
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
-        , piecesSvg config.colorScheme config.dragPieceData config.position
+        , piecesSvg config.colorScheme config.visualPacoPieces
         ]
 
 
@@ -2387,7 +2377,7 @@ highlightSvg ( tile, highlight ) =
                     Svg.Attributes.d "m 50 0 l 50 50 l -50 50 l -50 -50 z"
     in
     Svg.path
-        [ tileTransform NoAnimation tile
+        [ translate (coordinateOfTile tile)
         , shape
         , Svg.Attributes.fill "rgb(255, 255, 100)"
         ]
@@ -2413,100 +2403,12 @@ dropTargetSvg (Tile x y) =
         []
 
 
-
--- dragLayer : Taco -> List BoardDecoration -> Svg a
--- dragLayer taco decorations =
---     decorations
---         |> List.filterMap getDragPiece
---         |> List.map (dragSvg taco.colorScheme)
---         |> Svg.g []
-
-
-dragSvg : Pieces.ColorScheme -> DragPieceData -> Svg a
-dragSvg colorScheme data =
-    let
-        (SvgCoord x y) =
-            data.coord
-    in
-    Svg.g
-        [ transform NoAnimation x y ]
-        [ Pieces.figure colorScheme data.pieceType data.color
-        ]
-
-
-{-| Decides if the css translate property should be animated or not.
--}
-type AnimationStyle
-    = NoAnimation
-    | SmoothAnimation
-
-
-transform : AnimationStyle -> Int -> Int -> Svg.Attribute msg
-transform style x y =
-    let
-        transformation =
-            "transform: translate("
-                ++ String.fromInt x
-                ++ "px, "
-                ++ String.fromInt y
-                ++ "px)"
-    in
-    case style of
-        NoAnimation ->
-            Svg.Attributes.style transformation
-
-        SmoothAnimation ->
-            Svg.Attributes.style
-                (transformation
-                    ++ "; transition: transform 0.2s ease-in-out;"
-                )
-
-
-piecesSvg : Pieces.ColorScheme -> List DragPieceData -> PacoPosition -> Svg msg
-piecesSvg colorScheme dragedPieces pacoPosition =
-    pacoPosition.pieces
-        |> sortBlacksFirst
-        |> List.map (\p -> ( p.identity, pieceSvg colorScheme p ))
-        |> addMaybe (liftedPieceSvg colorScheme pacoPosition)
-        |> List.append (List.map (draggedPieceSvg colorScheme) dragedPieces)
-        |> List.sortBy (\( i, _ ) -> i)
-        |> Svg.Keyed.node "g" []
-
-
-addMaybe : Maybe a -> List a -> List a
-addMaybe maybeA list =
-    case maybeA of
-        Just element ->
-            element :: list
-
-        Nothing ->
-            list
-
-
-liftedPieceSvg : Pieces.ColorScheme -> PacoPosition -> Maybe ( String, Svg msg )
-liftedPieceSvg colorScheme pacoPosition =
-    pacoPosition.liftedPiece
-        |> Maybe.map (\p -> ( p.identity, pacoHandSvg colorScheme p ))
-
-
-draggedPieceSvg : Pieces.ColorScheme -> DragPieceData -> ( String, Svg msg )
-draggedPieceSvg colorScheme dragData =
-    ( dragData.identity, dragSvg colorScheme dragData )
-
-
-pacoHandSvg : Pieces.ColorScheme -> PacoPiece -> Svg msg
-pacoHandSvg colorScheme piece =
-    let
-        (SvgCoord tile_x tile_y) =
-            coordinateOfTile piece.position
-
-        (SvgCoord offset_x offset_y) =
-            handCoordinateOffset piece.color
-    in
-    Svg.g
-        [ transform SmoothAnimation (tile_x + offset_x) (tile_y + offset_y) ]
-        [ Pieces.figure colorScheme piece.pieceType piece.color
-        ]
+piecesSvg : Pieces.ColorScheme -> List VisualPacoPiece -> Svg msg
+piecesSvg colorScheme pieces =
+    pieces
+        |> List.sortBy .zOrder
+        |> List.map (pieceSvg colorScheme)
+        |> Svg.g []
 
 
 handCoordinateOffset : Sako.Color -> SvgCoord
@@ -2519,33 +2421,31 @@ handCoordinateOffset color =
             SvgCoord 25 -50
 
 
-{-| When rendering a union the black piece must appear below the white piece. Reorder the pieces
-to make this happen.
--}
-sortBlacksFirst : List PacoPiece -> List PacoPiece
-sortBlacksFirst pieces =
-    List.filter (\piece -> piece.color == Sako.Black) pieces
-        ++ List.filter (\piece -> piece.color == Sako.White) pieces
-
-
-pieceSvg : Pieces.ColorScheme -> PacoPiece -> Svg msg
+pieceSvg : Pieces.ColorScheme -> VisualPacoPiece -> Svg msg
 pieceSvg colorScheme piece =
-    Svg.g [ tileTransform SmoothAnimation piece.position ]
+    Svg.g [ translate piece.position ]
         [ Pieces.figure colorScheme piece.pieceType piece.color ]
 
 
+{-| Given a logical tile, compute the top left corner coordinates in the svg
+coordinate system.
+-}
 coordinateOfTile : Tile -> SvgCoord
 coordinateOfTile (Tile x y) =
     SvgCoord (100 * x) (700 - 100 * y)
 
 
-tileTransform : AnimationStyle -> Tile -> Svg.Attribute a
-tileTransform style tile =
-    let
-        (SvgCoord x y) =
-            coordinateOfTile tile
-    in
-    transform style x y
+{-| A "style='transform: translate(x, y)'" attribute for an svg node.
+-}
+translate : SvgCoord -> Svg.Attribute msg
+translate (SvgCoord x y) =
+    Svg.Attributes.style
+        ("transform: translate("
+            ++ String.fromInt x
+            ++ "px, "
+            ++ String.fromInt y
+            ++ "px)"
+        )
 
 
 board : ViewMode -> Svg msg
@@ -2668,7 +2568,7 @@ parsedMarkdownPaste taco model =
                     Element.row [ spacing 5 ]
                         [ Element.html
                             (positionSvg
-                                { position = pacoPosition
+                                { visualPacoPieces = initVisualPacoPosition pacoPosition
                                 , colorScheme = taco.colorScheme
                                 , sideLength = 100
                                 , viewMode = CleanBoard

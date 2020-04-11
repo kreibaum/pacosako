@@ -1,6 +1,6 @@
 module Animation exposing
     ( AnimationProperty(..)
-    , AnimationState
+    , AnimationState(..)
     , Timeline
     , animate
     , animateProperty
@@ -161,25 +161,19 @@ type AnimationProperty property
     = Interpolate { t : Float, old : property, new : property }
     | FadeIn { t : Float, new : property }
     | FadeOut { t : Float, old : property }
-    | Fixed property
 
 
-animateProperty : (state -> Maybe property) -> AnimationState state -> Maybe (AnimationProperty property)
-animateProperty extract animationState =
-    case animationState of
-        Resting state ->
-            Maybe.map Fixed (extract state)
+animateProperty : (state -> Maybe property) -> { t : Float, old : state, new : state } -> Maybe (AnimationProperty property)
+animateProperty extract { t, old, new } =
+    case ( extract old, extract new ) of
+        ( Just o, Just n ) ->
+            Just (Interpolate { t = t, old = o, new = n })
 
-        Transition { t, old, new } ->
-            case ( extract old, extract new ) of
-                ( Just o, Just n ) ->
-                    Just (Interpolate { t = t, old = o, new = n })
+        ( Nothing, Just n ) ->
+            Just (FadeIn { t = t, new = n })
 
-                ( Nothing, Just n ) ->
-                    Just (FadeIn { t = t, new = n })
+        ( Just o, Nothing ) ->
+            Just (FadeOut { t = t, old = o })
 
-                ( Just o, Nothing ) ->
-                    Just (FadeOut { t = t, old = o })
-
-                ( Nothing, Nothing ) ->
-                    Nothing
+        ( Nothing, Nothing ) ->
+            Nothing
