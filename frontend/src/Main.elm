@@ -837,6 +837,7 @@ updateEditor msg model =
                 | game = addHistoryState newPosition model.game
               }
                 |> editorStateModify
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -888,6 +889,7 @@ updateEditor msg model =
                 | game = addHistoryState newPosition model.game
                 , saveState = SaveDoesNotExist
               }
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -904,7 +906,10 @@ updateEditor msg model =
             ( model, getRandomPosition )
 
         GotRandomPosition newPosition ->
-            ( { model | game = addHistoryState newPosition model.game }, Cmd.none )
+            ( { model | game = addHistoryState newPosition model.game }
+                |> animateToCurrentPosition
+            , Cmd.none
+            )
 
         RequestAnalysePosition position ->
             ( model, postAnalysePosition position )
@@ -2503,7 +2508,7 @@ handCoordinateOffset color =
 
 pieceSvg : Pieces.ColorScheme -> VisualPacoPiece -> Svg msg
 pieceSvg colorScheme piece =
-    Svg.g [ translate piece.position ]
+    Svg.g [ translate piece.position, opacity piece.opacity ]
         [ Pieces.figure colorScheme piece.pieceType piece.color ]
 
 
@@ -2526,6 +2531,11 @@ translate (SvgCoord x y) =
             ++ String.fromInt y
             ++ "px)"
         )
+
+
+opacity : Float -> Svg.Attribute msg
+opacity o =
+    Svg.Attributes.opacity <| String.fromFloat o
 
 
 board : ViewMode -> Svg msg
