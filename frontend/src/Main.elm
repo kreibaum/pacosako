@@ -2585,7 +2585,7 @@ board mode =
 columnTag : String -> String -> Svg msg
 columnTag letter x =
     Svg.text_
-        [ Svg.Attributes.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;"
+        [ Svg.Attributes.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
         , Svg.Attributes.x x
         , Svg.Attributes.y "870"
         , Svg.Attributes.fill "#555"
@@ -2596,7 +2596,7 @@ columnTag letter x =
 rowTag : String -> String -> Svg msg
 rowTag digit y =
     Svg.text_
-        [ Svg.Attributes.style "text-anchor:end;font-size:50px;pointer-events:none;-moz-user-select: none;"
+        [ Svg.Attributes.style "text-anchor:end;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
         , Svg.Attributes.x "-25"
         , Svg.Attributes.y y
         , Svg.Attributes.fill "#555"
