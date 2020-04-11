@@ -4,6 +4,7 @@ import Animation exposing (Timeline)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
+import Dict exposing (Dict)
 import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
@@ -32,7 +33,6 @@ import Sako exposing (PacoPiece, Tile(..))
 import StaticText
 import Svg exposing (Svg)
 import Svg.Attributes
-import Svg.Keyed
 import Task
 import Time exposing (Posix)
 
@@ -928,11 +928,13 @@ editorStateModify editorModel =
 applyUndo : EditorModel -> EditorModel
 applyUndo model =
     { model | game = P.withRollback P.goL model.game }
+        |> animateToCurrentPosition
 
 
 applyRedo : EditorModel -> EditorModel
 applyRedo model =
     { model | game = P.withRollback P.goR model.game }
+        |> animateToCurrentPosition
 
 
 {-| Handles all key presses.
@@ -1019,9 +1021,13 @@ liftToolUpdate model toolUpdate =
         ToolCommit position ->
             ( { model
                 | game = addHistoryState position model.game
+                , timeline =
+                    model.timeline
+                        |> Animation.interrupt (currentVisualPieces model)
                 , preview = Nothing
                 , smartTool = newTool
               }
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -1042,6 +1048,18 @@ liftToolUpdate model toolUpdate =
             )
 
 
+animateToCurrentPosition : EditorModel -> EditorModel
+animateToCurrentPosition editor =
+    { editor
+        | timeline =
+            editor.timeline
+                |> Animation.queue
+                    ( animationSpeed
+                    , determineVisualPieces editor.smartTool (P.getC editor.game)
+                    )
+    }
+
+
 handleToolOutputMsg : ToolOutputMsg -> EditorModel -> ( EditorModel, Cmd Msg )
 handleToolOutputMsg msg model =
     case msg of
@@ -1051,8 +1069,12 @@ handleToolOutputMsg msg model =
         ToolCommit position ->
             ( { model
                 | game = addHistoryState position model.game
+                , timeline =
+                    model.timeline
+                        |> Animation.interrupt (currentVisualPieces model)
                 , preview = Nothing
               }
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -1061,6 +1083,11 @@ handleToolOutputMsg msg model =
 
         ToolRollback ->
             ( { model | preview = Nothing }, Cmd.none )
+
+
+animationSpeed : Animation.Duration
+animationSpeed =
+    Animation.milliseconds 250
 
 
 handleMouseMove : BoardMousePosition -> EditorModel -> ( EditorModel, Cmd Msg )
@@ -1609,6 +1636,7 @@ type alias VisualPacoPiece =
     , position : SvgCoord
     , identity : String
     , zOrder : Int
+    , opacity : Float
     }
 
 
@@ -1638,6 +1666,7 @@ determineVisualPiecesAtRest position =
                 , position = coordinateOfTile p.position
                 , identity = p.identity
                 , zOrder = restingZOrder p.color
+                , opacity = 1
                 }
             )
 
@@ -1671,6 +1700,7 @@ visualPieceCurrentlyLifted liftedPiece =
             |> addSvgCoord (handCoordinateOffset liftedPiece.color)
     , identity = liftedPiece.identity
     , zOrder = 3
+    , opacity = 1
     }
 
 
@@ -1689,6 +1719,7 @@ determineVisualPiecesDragged smartTool =
                                 |> addSvgCoord (coordinateOfTile piece.position)
                         , identity = piece.identity
                         , zOrder = 3
+                        , opacity = 1
                         }
                     )
 
@@ -1702,24 +1733,76 @@ determineVisualPiecesDragged smartTool =
                         |> addSvgCoord (handCoordinateOffset singlePiece.color)
               , identity = singlePiece.identity
               , zOrder = 3
+              , opacity = 1
               }
             ]
 
 
 currentVisualPieces : EditorModel -> List VisualPacoPiece
 currentVisualPieces editor =
-    case Animation.animate editor.timeline of
-        Animation.Resting state ->
-            state
+    case editor.preview of
+        Nothing ->
+            case Animation.animate editor.timeline of
+                Animation.Resting state ->
+                    state
 
-        Animation.Transition data ->
-            -- TODO: actually implement the animation.
-            data.new
+                Animation.Transition data ->
+                    animateTransition data
+
+        Just position ->
+            determineVisualPieces editor.smartTool position
 
 
-findByIdentity : String -> List VisualPacoPiece -> Maybe VisualPacoPiece
-findByIdentity identity list =
-    List.find (\p -> p.identity == identity) list
+animateTransition : { t : Float, old : List VisualPacoPiece, new : List VisualPacoPiece } -> List VisualPacoPiece
+animateTransition { t, old, new } =
+    let
+        oldPieces =
+            List.map (\p -> ( p.identity, p )) old |> Dict.fromList
+
+        newPieces =
+            List.map (\p -> ( p.identity, p )) new |> Dict.fromList
+
+        -- Simple polinomial with derivation 0 at t=0 and t=1.
+        smoothT =
+            -2 * t ^ 3 + 3 * t ^ 2
+    in
+    Dict.merge
+        (animateFadeOut smoothT)
+        (animateInterpolate smoothT)
+        (animateFadeIn smoothT)
+        oldPieces
+        newPieces
+        []
+
+
+animateFadeOut : Float -> a -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
+animateFadeOut t _ piece ls =
+    { piece | opacity = 1 - t } :: ls
+
+
+animateFadeIn : Float -> a -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
+animateFadeIn t _ piece ls =
+    { piece | opacity = t } :: ls
+
+
+animateInterpolate : Float -> a -> VisualPacoPiece -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
+animateInterpolate t _ old new ls =
+    let
+        (SvgCoord x1 y1) =
+            old.position
+
+        (SvgCoord x2 y2) =
+            new.position
+    in
+    { new
+        | position =
+            SvgCoord
+                (round (toFloat x1 * (1 - t) + toFloat x2 * t))
+                (round (toFloat y1 * (1 - t) + toFloat y2 * t))
+        , zOrder =
+            round (toFloat old.zOrder * (1 - t) + toFloat new.zOrder * t)
+    }
+        :: ls
 
 
 
@@ -1973,10 +2056,7 @@ positionView taco editor =
                     [ Html.Attributes.id "boardDiv"
                     ]
                     [ positionSvg
-                        { visualPacoPieces =
-                            editor.preview
-                                |> Maybe.withDefault (P.getC editor.game)
-                                |> determineVisualPieces editor.smartTool
+                        { visualPacoPieces = currentVisualPieces editor
                         , colorScheme = taco.colorScheme
                         , sideLength = windowHeight - windowSafetyMargin
                         , viewMode = editor.viewMode

@@ -1,11 +1,14 @@
 module Animation exposing
     ( AnimationProperty(..)
     , AnimationState(..)
+    , Duration
     , Timeline
     , animate
     , animateProperty
     , init
+    , interrupt
     , milliseconds
+    , queue
     , subscription
     , tick
     )
@@ -64,9 +67,32 @@ init initial =
     , old = ( Time.millisToPosix 0, initial )
     , new = Nothing
     , queued = []
-
-    --, interrupt = False
     , running = True
+    }
+
+
+{-| Tells the animation to transition to a new event over a given duration.
+If the animation is currently running, this will be added at the end of the
+animation queue.
+-}
+queue : ( Duration, event ) -> Timeline event -> Timeline event
+queue step timeline =
+    { timeline
+        | queued = timeline.queued ++ [ step ]
+        , running = True
+    }
+
+
+{-| Step to the given event without animation and interrupt any
+currently running or queued animation.
+-}
+interrupt : event -> Timeline event -> Timeline event
+interrupt event timeline =
+    { timeline
+        | old = ( first timeline.old, event )
+        , new = Nothing
+        , queued = []
+        , running = True
     }
 
 
@@ -87,7 +113,10 @@ tick now timeline =
         |> schedule
 
 
-{-| Schedule queued events
+{-| Schedule queued Events. This method needs to tail call itself, because the
+current time may be progressed so much, than an entire section of the animation
+is skipped completely. This usually happen when an event is scheduled for
+duration zero. (Duration zero just means "jump to this event now.")
 -}
 schedule : Timeline event -> Timeline event
 schedule timeline =
@@ -97,14 +126,19 @@ schedule timeline =
                 timeline
 
             else
-                scheduleNothingPlanned
-                    { timeline
-                        | old = ( newTime, value )
-                        , new = Nothing
-                    }
+                { timeline
+                    | old = ( newTime, value )
+                    , new = Nothing
+                }
+                    |> scheduleNext
 
+        --|> schedule
         Nothing ->
             scheduleNothingPlanned timeline
+
+
+
+--|> schedule
 
 
 {-| Version of schedule that gets called, when we know that .new is Nothing.
@@ -113,13 +147,30 @@ scheduleNothingPlanned : Timeline event -> Timeline event
 scheduleNothingPlanned timeline =
     case timeline.queued of
         [] ->
+            { timeline | running = timeline.new /= Nothing }
+
+        ( duration, value ) :: tail ->
+            { timeline
+                | new = Just ( addDuration duration timeline.now, value )
+                , queued = tail
+                , old = ( timeline.now, second timeline.old )
+            }
+                |> schedule
+
+
+scheduleNext : Timeline event -> Timeline event
+scheduleNext timeline =
+    case timeline.queued of
+        [] ->
             { timeline | running = False }
 
         ( duration, value ) :: tail ->
             { timeline
                 | new = Just ( addDuration duration (first timeline.old), value )
                 , queued = tail
+                , old = ( timeline.now, second timeline.old )
             }
+                |> schedule
 
 
 first : ( a, b ) -> a
