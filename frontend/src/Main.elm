@@ -1,8 +1,10 @@
 module Main exposing (main)
 
+import Animation exposing (Timeline)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
+import Dict
 import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
@@ -32,6 +34,7 @@ import StaticText
 import Svg exposing (Svg)
 import Svg.Attributes
 import Task
+import Time exposing (Posix)
 
 
 main : Program Decode.Value Model Msg
@@ -197,6 +200,7 @@ type alias EditorModel =
     { saveState : SaveState
     , game : Pivot PacoPosition
     , preview : Maybe PacoPosition
+    , timeline : Timeline (List VisualPacoPiece)
     , drag : DragState
     , windowSize : ( Int, Int )
     , userPaste : String
@@ -214,6 +218,7 @@ type alias SmartToolModel =
     , dragDelta : Maybe SvgCoord
     , draggingPieces : DraggingPieces
     , hover : Maybe Tile
+    , identityCounter : Int
     }
 
 
@@ -280,6 +285,7 @@ initSmartTool =
     , dragDelta = Nothing
     , draggingPieces = DraggingPiecesNormal []
     , hover = Nothing
+    , identityCounter = 0
     }
 
 
@@ -293,14 +299,17 @@ type ToolOutputMsg
 type BoardDecoration
     = HighlightTile ( Tile, Highlight )
     | DropTarget Tile
-    | DragPiece DragPieceData
-    | LiftedPieceDecoration PacoPiece
+
+
+
+-- | DragPiece DragPieceData
 
 
 type alias DragPieceData =
     { color : Sako.Color
     , pieceType : Sako.Type
     , coord : SvgCoord
+    , identity : String
     }
 
 
@@ -319,26 +328,6 @@ getDropTarget decoration =
     case decoration of
         DropTarget tile ->
             Just tile
-
-        _ ->
-            Nothing
-
-
-getDragPiece : BoardDecoration -> Maybe DragPieceData
-getDragPiece decoration =
-    case decoration of
-        DragPiece data ->
-            Just data
-
-        _ ->
-            Nothing
-
-
-getPacoHand : BoardDecoration -> Maybe PacoPiece
-getPacoHand decoration =
-    case decoration of
-        LiftedPieceDecoration maybePiece ->
-            Just maybePiece
 
         _ ->
             Nothing
@@ -375,6 +364,13 @@ type SvgCoord
     = SvgCoord Int Int
 
 
+{-| Add two SVG coordinates, this is applied to each coordinate individually.
+-}
+addSvgCoord : SvgCoord -> SvgCoord -> SvgCoord
+addSvgCoord (SvgCoord x1 y1) (SvgCoord x2 y2) =
+    SvgCoord (x1 + x2) (y1 + y2)
+
+
 initialPosition : PacoPosition
 initialPosition =
     { moveNumber = 0
@@ -407,8 +403,7 @@ type alias Rect =
 
 
 type Msg
-    = GlobalNoOp
-    | EditorMsgWrapper EditorMsg
+    = EditorMsgWrapper EditorMsg
     | BlogMsgWrapper BlogEditorMsg
     | LoginPageMsgWrapper LoginPageMsg
     | LoadIntoEditor PacoPosition
@@ -427,6 +422,7 @@ type Msg
     | EditArticle Article
     | PostArticleVisibility Article
     | GotArticleVisibility Article
+    | AnimationTick Time.Posix
 
 
 {-| Messages that may only affect data in the position editor page.
@@ -499,6 +495,7 @@ initialEditor flags =
     { saveState = SaveNotRequired
     , game = P.singleton initialPosition
     , preview = Nothing
+    , timeline = Animation.init (initVisualPacoPosition initialPosition)
     , drag = Nothing
     , windowSize = parseWindowSize flags
     , userPaste = ""
@@ -594,8 +591,8 @@ expectLibrary result =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        GlobalNoOp ->
-            ( model, Cmd.none )
+        AnimationTick newTime ->
+            ( updateTimeline newTime model, Cmd.none )
 
         EditorMsgWrapper editorMsg ->
             let
@@ -676,7 +673,7 @@ update msg model =
             )
 
         HttpError error ->
-            Debug.log "Http Error" (Debug.toString error) |> (\_ -> ( model, Cmd.none ))
+            ( model, Ports.logToConsole (describeError error) )
 
         AllPositionsLoadedSuccess list ->
             ( { model | storedPositions = RemoteData.Success list }, Cmd.none )
@@ -836,6 +833,7 @@ updateEditor msg model =
                 | game = addHistoryState newPosition model.game
               }
                 |> editorStateModify
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -887,6 +885,7 @@ updateEditor msg model =
                 | game = addHistoryState newPosition model.game
                 , saveState = SaveDoesNotExist
               }
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -903,7 +902,10 @@ updateEditor msg model =
             ( model, getRandomPosition )
 
         GotRandomPosition newPosition ->
-            ( { model | game = addHistoryState newPosition model.game }, Cmd.none )
+            ( { model | game = addHistoryState newPosition model.game }
+                |> animateToCurrentPosition
+            , Cmd.none
+            )
 
         RequestAnalysePosition position ->
             ( model, postAnalysePosition position )
@@ -927,11 +929,13 @@ editorStateModify editorModel =
 applyUndo : EditorModel -> EditorModel
 applyUndo model =
     { model | game = P.withRollback P.goL model.game }
+        |> animateToCurrentPosition
 
 
 applyRedo : EditorModel -> EditorModel
 applyRedo model =
     { model | game = P.withRollback P.goR model.game }
+        |> animateToCurrentPosition
 
 
 {-| Handles all key presses.
@@ -1018,9 +1022,13 @@ liftToolUpdate model toolUpdate =
         ToolCommit position ->
             ( { model
                 | game = addHistoryState position model.game
+                , timeline =
+                    model.timeline
+                        |> Animation.interrupt (currentVisualPieces model)
                 , preview = Nothing
                 , smartTool = newTool
               }
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -1041,6 +1049,18 @@ liftToolUpdate model toolUpdate =
             )
 
 
+animateToCurrentPosition : EditorModel -> EditorModel
+animateToCurrentPosition editor =
+    { editor
+        | timeline =
+            editor.timeline
+                |> Animation.queue
+                    ( animationSpeed
+                    , determineVisualPieces editor.smartTool (P.getC editor.game)
+                    )
+    }
+
+
 handleToolOutputMsg : ToolOutputMsg -> EditorModel -> ( EditorModel, Cmd Msg )
 handleToolOutputMsg msg model =
     case msg of
@@ -1050,8 +1070,12 @@ handleToolOutputMsg msg model =
         ToolCommit position ->
             ( { model
                 | game = addHistoryState position model.game
+                , timeline =
+                    model.timeline
+                        |> Animation.interrupt (currentVisualPieces model)
                 , preview = Nothing
               }
+                |> animateToCurrentPosition
             , Cmd.none
             )
 
@@ -1060,6 +1084,11 @@ handleToolOutputMsg msg model =
 
         ToolRollback ->
             ( { model | preview = Nothing }, Cmd.none )
+
+
+animationSpeed : Animation.Duration
+animationSpeed =
+    Animation.milliseconds 250
 
 
 handleMouseMove : BoardMousePosition -> EditorModel -> ( EditorModel, Cmd Msg )
@@ -1230,12 +1259,19 @@ updateSmartToolAdd position color pieceType model =
                 newPosition =
                     { position
                         | pieces =
-                            { color = color, position = highlightTile, pieceType = pieceType }
+                            { color = color
+                            , position = highlightTile
+                            , pieceType = pieceType
+                            , identity = "addTool" ++ String.fromInt model.identityCounter
+                            }
                                 :: List.filter deleteAction position.pieces
                     }
             in
             ( smartToolRemoveDragInfo
-                { model | highlight = Just ( highlightTile, HighlightLingering ) }
+                { model
+                    | highlight = Just ( highlightTile, HighlightLingering )
+                    , identityCounter = model.identityCounter + 1
+                }
             , ToolCommit newPosition
             )
 
@@ -1497,14 +1533,17 @@ addHistoryState newState p =
         p |> P.setR [] |> P.appendGoR newState
 
 
-subscriptions : model -> Sub Msg
-subscriptions _ =
+subscriptions : Model -> Sub Msg
+subscriptions model =
     Sub.batch
         [ Browser.Events.onResize WindowResize
+            |> Sub.map EditorMsgWrapper
         , Browser.Events.onKeyUp (Decode.map KeyUp decodeKeyStroke)
+            |> Sub.map EditorMsgWrapper
         , Ports.responseSvgNodeContent SvgReadyForDownload
+            |> Sub.map EditorMsgWrapper
+        , Animation.subscription model.editor.timeline AnimationTick
         ]
-        |> Sub.map EditorMsgWrapper
 
 
 decodeKeyStroke : Decoder KeyStroke
@@ -1569,6 +1608,206 @@ updateLoginPage msg loginPageModel =
 
 
 --------------------------------------------------------------------------------
+-- Animator specific code ------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+{-| Let the animation know about the current time.
+-}
+updateTimeline : Posix -> Model -> Model
+updateTimeline now model =
+    let
+        oldEditorModel =
+            model.editor
+
+        newTimeline =
+            Animation.tick now model.editor.timeline
+    in
+    { model | editor = { oldEditorModel | timeline = newTimeline } }
+
+
+{-| A rendered Paco Piece. This must be different from a logical PacoPiece, as
+it can be resting, lifted or dragged. The rendering works in two stages where we
+first calculate the List VisualPacoPiece and then render those into Svg. In the
+render stage we make use of the Animator library.
+-}
+type alias VisualPacoPiece =
+    { pieceType : Sako.Type
+    , color : Sako.Color
+    , position : SvgCoord
+    , identity : String
+    , zOrder : Int
+    , opacity : Float
+    }
+
+
+{-| In the inital state, there can be no pieces being dragged and dropped. This
+makes it easier to determine the visual pieces. We still need to check if there
+is a lifted piece, as such a state could be persisted in the backend.
+-}
+initVisualPacoPosition : PacoPosition -> List VisualPacoPiece
+initVisualPacoPosition position =
+    determineVisualPieces initSmartTool position
+
+
+determineVisualPieces : SmartToolModel -> PacoPosition -> List VisualPacoPiece
+determineVisualPieces smartTool position =
+    determineVisualPiecesCurrentlyLifted position
+        ++ determineVisualPiecesDragged smartTool
+        ++ determineVisualPiecesAtRest position
+
+
+determineVisualPiecesAtRest : PacoPosition -> List VisualPacoPiece
+determineVisualPiecesAtRest position =
+    position.pieces
+        |> List.map
+            (\p ->
+                { pieceType = p.pieceType
+                , color = p.color
+                , position = coordinateOfTile p.position
+                , identity = p.identity
+                , zOrder = restingZOrder p.color
+                , opacity = 1
+                }
+            )
+
+
+restingZOrder : Sako.Color -> Int
+restingZOrder color =
+    case color of
+        Sako.Black ->
+            1
+
+        Sako.White ->
+            2
+
+
+{-| Here we return List a instead of Maybe a to allow easier combination with
+other lists.
+-}
+determineVisualPiecesCurrentlyLifted : PacoPosition -> List VisualPacoPiece
+determineVisualPiecesCurrentlyLifted position =
+    Maybe.map visualPieceCurrentlyLifted position.liftedPiece
+        |> Maybe.map (\p -> [ p ])
+        |> Maybe.withDefault []
+
+
+visualPieceCurrentlyLifted : PacoPiece -> VisualPacoPiece
+visualPieceCurrentlyLifted liftedPiece =
+    { pieceType = liftedPiece.pieceType
+    , color = liftedPiece.color
+    , position =
+        coordinateOfTile liftedPiece.position
+            |> addSvgCoord (handCoordinateOffset liftedPiece.color)
+    , identity = liftedPiece.identity
+    , zOrder = 3
+    , opacity = 1
+    }
+
+
+determineVisualPiecesDragged : SmartToolModel -> List VisualPacoPiece
+determineVisualPiecesDragged smartTool =
+    case smartTool.draggingPieces of
+        DraggingPiecesNormal pieceList ->
+            pieceList
+                |> List.map
+                    (\piece ->
+                        { pieceType = piece.pieceType
+                        , color = piece.color
+                        , position =
+                            smartTool.dragDelta
+                                |> Maybe.withDefault (SvgCoord 0 0)
+                                |> addSvgCoord (coordinateOfTile piece.position)
+                        , identity = piece.identity
+                        , zOrder = 3
+                        , opacity = 1
+                        }
+                    )
+
+        DraggingPiecesLifted singlePiece ->
+            [ { pieceType = singlePiece.pieceType
+              , color = singlePiece.color
+              , position =
+                    smartTool.dragDelta
+                        |> Maybe.withDefault (SvgCoord 0 0)
+                        |> addSvgCoord (coordinateOfTile singlePiece.position)
+                        |> addSvgCoord (handCoordinateOffset singlePiece.color)
+              , identity = singlePiece.identity
+              , zOrder = 3
+              , opacity = 1
+              }
+            ]
+
+
+currentVisualPieces : EditorModel -> List VisualPacoPiece
+currentVisualPieces editor =
+    case editor.preview of
+        Nothing ->
+            case Animation.animate editor.timeline of
+                Animation.Resting state ->
+                    state
+
+                Animation.Transition data ->
+                    animateTransition data
+
+        Just position ->
+            determineVisualPieces editor.smartTool position
+
+
+animateTransition : { t : Float, old : List VisualPacoPiece, new : List VisualPacoPiece } -> List VisualPacoPiece
+animateTransition { t, old, new } =
+    let
+        oldPieces =
+            List.map (\p -> ( p.identity, p )) old |> Dict.fromList
+
+        newPieces =
+            List.map (\p -> ( p.identity, p )) new |> Dict.fromList
+
+        -- Simple polinomial with derivation 0 at t=0 and t=1.
+        smoothT =
+            -2 * t ^ 3 + 3 * t ^ 2
+    in
+    Dict.merge
+        (animateFadeOut smoothT)
+        (animateInterpolate smoothT)
+        (animateFadeIn smoothT)
+        oldPieces
+        newPieces
+        []
+
+
+animateFadeOut : Float -> a -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
+animateFadeOut t _ piece ls =
+    { piece | opacity = 1 - t } :: ls
+
+
+animateFadeIn : Float -> a -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
+animateFadeIn t _ piece ls =
+    { piece | opacity = t } :: ls
+
+
+animateInterpolate : Float -> a -> VisualPacoPiece -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
+animateInterpolate t _ old new ls =
+    let
+        (SvgCoord x1 y1) =
+            old.position
+
+        (SvgCoord x2 y2) =
+            new.position
+    in
+    { new
+        | position =
+            SvgCoord
+                (round (toFloat x1 * (1 - t) + toFloat x2 * t))
+                (round (toFloat y1 * (1 - t) + toFloat y2 * t))
+        , zOrder =
+            round (toFloat old.zOrder * (1 - t) + toFloat new.zOrder * t)
+    }
+        :: ls
+
+
+
+--------------------------------------------------------------------------------
 -- View code -------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -1624,11 +1863,6 @@ pageHeader taco currentPage additionalHeader =
         , additionalHeader
         , loginHeaderInfo taco
         ]
-
-
-yourDataWillNotBeSaved : Element a
-yourDataWillNotBeSaved =
-    Element.el [ padding 10, Font.color (Element.rgb255 200 150 150), Font.bold ] (Element.text "Your data will not be saved!")
 
 
 pageHeaderButton : List (Element.Attribute Msg) -> PageHeaderInfo -> Element Msg
@@ -1739,14 +1973,14 @@ loadPositionPreview taco position =
         { onPress = Just (LoadIntoEditor position)
         , label =
             Element.html
-                (positionSvg taco
-                    { position = position
+                (positionSvg
+                    { visualPacoPieces = initVisualPacoPosition position
                     , colorScheme = taco.colorScheme
                     , sideLength = 250
-                    , drag = Nothing
                     , viewMode = CleanBoard
                     , nodeId = Nothing
                     , decoration = []
+                    , dragPieceData = []
                     , withEvents = False
                     }
                 )
@@ -1767,7 +2001,7 @@ editorUi taco model =
         , Element.row
             [ width fill, height fill ]
             [ Element.html FontAwesome.Styles.css
-            , positionView taco model model.drag |> Element.map EditorMsgWrapper
+            , positionView taco model |> Element.map EditorMsgWrapper
             , sidebar taco model
             ]
         ]
@@ -1810,8 +2044,8 @@ windowSafetyMargin =
     50
 
 
-positionView : Taco -> EditorModel -> DragState -> Element EditorMsg
-positionView taco editor drag =
+positionView : Taco -> EditorModel -> Element EditorMsg
+positionView taco editor =
     let
         ( _, windowHeight ) =
             editor.windowSize
@@ -1822,15 +2056,14 @@ positionView taco editor drag =
                 (Html.div
                     [ Html.Attributes.id "boardDiv"
                     ]
-                    [ positionSvg taco
-                        { position =
-                            editor.preview |> Maybe.withDefault (P.getC editor.game)
+                    [ positionSvg
+                        { visualPacoPieces = currentVisualPieces editor
                         , colorScheme = taco.colorScheme
                         , sideLength = windowHeight - windowSafetyMargin
-                        , drag = drag
                         , viewMode = editor.viewMode
                         , nodeId = Just sakoEditorId
                         , decoration = toolDecoration editor
+                        , dragPieceData = dragPieceData editor
                         , withEvents = True
                         }
                     ]
@@ -1841,58 +2074,54 @@ positionView taco editor drag =
 
 toolDecoration : EditorModel -> List BoardDecoration
 toolDecoration model =
-    ([ model.smartTool.highlight |> Maybe.map HighlightTile
-     , model.smartTool.hover |> Maybe.map DropTarget
-     , model.smartTool.dragStartTile
+    [ model.smartTool.highlight |> Maybe.map HighlightTile
+    , model.smartTool.hover |> Maybe.map DropTarget
+    , model.smartTool.dragStartTile
         |> Maybe.map (\tile -> HighlightTile ( tile, HighlightBoth ))
-     ]
+    ]
         |> List.filterMap identity
-    )
-        ++ (case model.smartTool.draggingPieces of
-                DraggingPiecesNormal pieceList ->
-                    List.map
-                        (\piece ->
-                            let
-                                (SvgCoord dx dy) =
-                                    model.smartTool.dragDelta
-                                        |> Maybe.withDefault (SvgCoord 0 0)
 
-                                (SvgCoord x y) =
-                                    coordinateOfTile piece.position
-                            in
-                            DragPiece
-                                { color = piece.color
-                                , pieceType = piece.pieceType
-                                , coord = SvgCoord (x + dx) (y + dy)
-                                }
-                        )
-                        pieceList
 
-                DraggingPiecesLifted singlePiece ->
+dragPieceData : EditorModel -> List DragPieceData
+dragPieceData model =
+    case model.smartTool.draggingPieces of
+        DraggingPiecesNormal pieceList ->
+            List.map
+                (\piece ->
                     let
                         (SvgCoord dx dy) =
                             model.smartTool.dragDelta
                                 |> Maybe.withDefault (SvgCoord 0 0)
 
                         (SvgCoord x y) =
-                            coordinateOfTile singlePiece.position
-
-                        ( offset_x, offset_y ) =
-                            handCoordinateOffset singlePiece.color
+                            coordinateOfTile piece.position
                     in
-                    [ DragPiece
-                        { color = singlePiece.color
-                        , pieceType = singlePiece.pieceType
-                        , coord = SvgCoord (x + dx + offset_x) (y + dy + offset_y)
-                        }
-                    ]
-           )
-        ++ (model.preview
-                |> Maybe.withDefault (P.getC model.game)
-                |> .liftedPiece
-                |> Maybe.map (\p -> [ LiftedPieceDecoration p ])
-                |> Maybe.withDefault []
-           )
+                    { color = piece.color
+                    , pieceType = piece.pieceType
+                    , coord = SvgCoord (x + dx) (y + dy)
+                    , identity = piece.identity
+                    }
+                )
+                pieceList
+
+        DraggingPiecesLifted singlePiece ->
+            let
+                (SvgCoord dx dy) =
+                    model.smartTool.dragDelta
+                        |> Maybe.withDefault (SvgCoord 0 0)
+
+                (SvgCoord x y) =
+                    coordinateOfTile singlePiece.position
+
+                (SvgCoord offset_x offset_y) =
+                    handCoordinateOffset singlePiece.color
+            in
+            [ { color = singlePiece.color
+              , pieceType = singlePiece.pieceType
+              , coord = SvgCoord (x + dx + offset_x) (y + dy + offset_y)
+              , identity = singlePiece.identity
+              }
+            ]
 
 
 
@@ -2157,19 +2386,17 @@ sakoEditorId =
 
 
 positionSvg :
-    Taco
-    ->
-        { position : PacoPosition
-        , sideLength : Int
-        , colorScheme : Pieces.ColorScheme
-        , drag : DragState
-        , viewMode : ViewMode
-        , nodeId : Maybe String
-        , decoration : List BoardDecoration
-        , withEvents : Bool
-        }
+    { visualPacoPieces : List VisualPacoPiece
+    , sideLength : Int
+    , colorScheme : Pieces.ColorScheme
+    , viewMode : ViewMode
+    , nodeId : Maybe String
+    , decoration : List BoardDecoration
+    , dragPieceData : List DragPieceData
+    , withEvents : Bool
+    }
     -> Html EditorMsg
-positionSvg taco config =
+positionSvg config =
     let
         idAttribute =
             case config.nodeId of
@@ -2201,9 +2428,7 @@ positionSvg taco config =
         [ board config.viewMode
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
-        , piecesSvg config.colorScheme config.position
-        , handLayer taco config.decoration
-        , dragLayer taco config.decoration
+        , piecesSvg config.colorScheme config.visualPacoPieces
         ]
 
 
@@ -2233,7 +2458,7 @@ highlightSvg ( tile, highlight ) =
                     Svg.Attributes.d "m 50 0 l 50 50 l -50 50 l -50 -50 z"
     in
     Svg.path
-        [ tileTransform tile
+        [ translate (coordinateOfTile tile)
         , shape
         , Svg.Attributes.fill "rgb(255, 255, 100)"
         ]
@@ -2259,115 +2484,54 @@ dropTargetSvg (Tile x y) =
         []
 
 
-dragLayer : Taco -> List BoardDecoration -> Svg a
-dragLayer taco decorations =
-    decorations
-        |> List.filterMap getDragPiece
-        |> List.map (dragSvg taco.colorScheme)
-        |> Svg.g []
-
-
-dragSvg : Pieces.ColorScheme -> DragPieceData -> Svg a
-dragSvg colorScheme data =
-    let
-        (SvgCoord x y) =
-            data.coord
-    in
-    Svg.g
-        [ Svg.Attributes.transform
-            ("translate("
-                ++ String.fromInt x
-                ++ ", "
-                ++ String.fromInt y
-                ++ ")"
-            )
-        ]
-        [ Pieces.figure colorScheme data.pieceType data.color
-        ]
-
-
-piecesSvg : Pieces.ColorScheme -> PacoPosition -> Svg msg
-piecesSvg colorScheme pacoPosition =
-    pacoPosition.pieces
-        |> sortBlacksFirst
+piecesSvg : Pieces.ColorScheme -> List VisualPacoPiece -> Svg msg
+piecesSvg colorScheme pieces =
+    pieces
+        |> List.sortBy .zOrder
         |> List.map (pieceSvg colorScheme)
         |> Svg.g []
 
 
-handLayer : Taco -> List BoardDecoration -> Svg a
-handLayer taco decorations =
-    decorations
-        |> List.filterMap getPacoHand
-        |> List.map (pacoHandSvg taco.colorScheme)
-        |> Svg.g []
-
-
-pacoHandSvg : Pieces.ColorScheme -> PacoPiece -> Svg msg
-pacoHandSvg colorScheme piece =
-    let
-        (SvgCoord tile_x tile_y) =
-            coordinateOfTile piece.position
-
-        ( offset_x, offset_y ) =
-            handCoordinateOffset piece.color
-    in
-    Svg.g
-        [ Svg.Attributes.transform
-            ("translate("
-                ++ String.fromInt (tile_x + offset_x)
-                ++ ", "
-                ++ String.fromInt (tile_y + offset_y)
-                ++ ")"
-            )
-        ]
-        [ Pieces.figure colorScheme piece.pieceType piece.color
-        ]
-
-
-handCoordinateOffset : Sako.Color -> ( Int, Int )
+handCoordinateOffset : Sako.Color -> SvgCoord
 handCoordinateOffset color =
     case color of
         Sako.White ->
-            ( -25, -50 )
+            SvgCoord -25 -50
 
         Sako.Black ->
-            ( 25, -50 )
+            SvgCoord 25 -50
 
 
-{-| When rendering a union the black piece must appear below the white piece. Reorder the pieces
-to make this happen.
--}
-sortBlacksFirst : List PacoPiece -> List PacoPiece
-sortBlacksFirst pieces =
-    List.filter (\piece -> piece.color == Sako.Black) pieces
-        ++ List.filter (\piece -> piece.color == Sako.White) pieces
-
-
-pieceSvg : Pieces.ColorScheme -> PacoPiece -> Svg msg
+pieceSvg : Pieces.ColorScheme -> VisualPacoPiece -> Svg msg
 pieceSvg colorScheme piece =
-    Svg.g [ tileTransform piece.position ]
-        [ Pieces.figure colorScheme piece.pieceType piece.color
-        ]
+    Svg.g [ translate piece.position, opacity piece.opacity ]
+        [ Pieces.figure colorScheme piece.pieceType piece.color ]
 
 
+{-| Given a logical tile, compute the top left corner coordinates in the svg
+coordinate system.
+-}
 coordinateOfTile : Tile -> SvgCoord
 coordinateOfTile (Tile x y) =
     SvgCoord (100 * x) (700 - 100 * y)
 
 
-tileTransform : Tile -> Svg.Attribute a
-tileTransform tile =
-    let
-        (SvgCoord x y) =
-            coordinateOfTile tile
-    in
-    Svg.Attributes.transform
-        ("translate("
+{-| A "style='transform: translate(x, y)'" attribute for an svg node.
+-}
+translate : SvgCoord -> Svg.Attribute msg
+translate (SvgCoord x y) =
+    Svg.Attributes.style
+        ("transform: translate("
             ++ String.fromInt x
-            ++ ", "
+            ++ "px, "
             ++ String.fromInt y
-            ++ ")"
+            ++ "px)"
         )
+
+
+opacity : Float -> Svg.Attribute msg
+opacity o =
+    Svg.Attributes.opacity <| String.fromFloat o
 
 
 board : ViewMode -> Svg msg
@@ -2427,7 +2591,7 @@ board mode =
 columnTag : String -> String -> Svg msg
 columnTag letter x =
     Svg.text_
-        [ Svg.Attributes.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;"
+        [ Svg.Attributes.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
         , Svg.Attributes.x x
         , Svg.Attributes.y "870"
         , Svg.Attributes.fill "#555"
@@ -2438,7 +2602,7 @@ columnTag letter x =
 rowTag : String -> String -> Svg msg
 rowTag digit y =
     Svg.text_
-        [ Svg.Attributes.style "text-anchor:end;font-size:50px;pointer-events:none;-moz-user-select: none;"
+        [ Svg.Attributes.style "text-anchor:end;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
         , Svg.Attributes.x "-25"
         , Svg.Attributes.y y
         , Svg.Attributes.fill "#555"
@@ -2489,14 +2653,14 @@ parsedMarkdownPaste taco model =
                 , label =
                     Element.row [ spacing 5 ]
                         [ Element.html
-                            (positionSvg taco
-                                { position = pacoPosition
+                            (positionSvg
+                                { visualPacoPieces = initVisualPacoPosition pacoPosition
                                 , colorScheme = taco.colorScheme
                                 , sideLength = 100
-                                , drag = Nothing
                                 , viewMode = CleanBoard
                                 , nodeId = Nothing
                                 , decoration = []
+                                , dragPieceData = []
                                 , withEvents = False
                                 }
                             )
@@ -2899,7 +3063,7 @@ articleViewPage taco article isFreshlyReloaded =
 
 
 articleInfoSubmenu : Taco -> Article -> Element Msg
-articleInfoSubmenu taco article =
+articleInfoSubmenu _ article =
     Element.row
         [ width fill
         , Background.color (Element.rgb255 240 240 240)
@@ -2958,6 +3122,25 @@ articleMarkdownWithTitle article =
 --------------------------------------------------------------------------------
 
 
+describeError : Http.Error -> String
+describeError error =
+    case error of
+        Http.BadUrl url ->
+            "Bad url: " ++ url
+
+        Http.Timeout ->
+            "Timeout error."
+
+        Http.NetworkError ->
+            "Network error."
+
+        Http.BadStatus statusCode ->
+            "Bad status: " ++ String.fromInt statusCode
+
+        Http.BadBody body ->
+            "Bad body: " ++ body
+
+
 defaultErrorHandler : (a -> Msg) -> Result Http.Error a -> Msg
 defaultErrorHandler happyPath result =
     case result of
@@ -3004,9 +3187,13 @@ getCurrentLogin =
         { url = "/api/user_id"
         , expect =
             Http.expectJson
-                (Result.toMaybe
-                    >> Maybe.map LoginSuccess
-                    >> Maybe.withDefault GlobalNoOp
+                (\result ->
+                    case result of
+                        Ok payload ->
+                            LoginSuccess payload
+
+                        Err err ->
+                            HttpError err
                 )
                 decodeUser
         }
