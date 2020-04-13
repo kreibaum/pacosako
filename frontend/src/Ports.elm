@@ -3,6 +3,8 @@ port module Ports exposing
     , requestSvgNodeContent
     , responseSvgNodeContent
     , triggerPngDownload
+    , websocketReceive
+    , websocketSend
     )
 
 {-| Ports module dealing with exporting graphics.
@@ -22,7 +24,27 @@ port requestSvgNodeContent : String -> Cmd msg
 port responseSvgNodeContent : (String -> msg) -> Sub msg
 
 
+{-| Instructs the browser to convert the SVG to a PNG and to start a download.
+-}
 port triggerPngDownload : Value -> Cmd msg
 
 
+{-| Port for console.log( .. )
+-}
 port logToConsole : String -> Cmd msg
+
+
+{-| Port to send messages to the websocket.
+
+Do no use this port directly, it is wrapped by the Websocket.elm module.
+
+-}
+port websocketSend : Value -> Cmd msg
+
+
+{-| Port to get messages back from the websocket.
+
+Do no use this port directly, it is wrapped by the Websocket.elm module.
+
+-}
+port websocketReceive : (Value -> msg) -> Sub msg

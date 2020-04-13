@@ -29,12 +29,14 @@ import Pieces
 import Pivot as P exposing (Pivot)
 import Ports
 import RemoteData exposing (WebData)
+import Result.Extra as Result
 import Sako exposing (PacoPiece, Tile(..))
 import StaticText
 import Svg exposing (Svg)
 import Svg.Attributes
 import Task
 import Time exposing (Posix)
+import Websocket
 
 
 main : Program Decode.Value Model Msg
@@ -209,6 +211,8 @@ type alias EditorModel =
     , analysis : Maybe AnalysisReport
     , rect : Rect
     , smartTool : SmartToolModel
+    , shareStatus : Websocket.ShareStatus
+    , rawShareKey : String
     }
 
 
@@ -357,6 +361,23 @@ pacoPositionFromPieces pieces =
     { emptyPosition | pieces = pieces }
 
 
+decodePacoPosition : Decoder PacoPosition
+decodePacoPosition =
+    Decode.map3 PacoPosition
+        (Decode.field "moveNumber" Decode.int)
+        (Decode.field "pieces" (Decode.list Sako.decodePacoPiece))
+        (Decode.field "liftedPiece" (Decode.nullable Sako.decodePacoPiece))
+
+
+encodePacoPosition : PacoPosition -> Value
+encodePacoPosition record =
+    Encode.object
+        [ ( "moveNumber", Encode.int <| record.moveNumber )
+        , ( "pieces", Encode.list Sako.encodePacoPiece <| record.pieces )
+        , ( "liftedPiece", Maybe.withDefault Encode.null <| Maybe.map Sako.encodePacoPiece <| record.liftedPiece )
+        ]
+
+
 {-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in
 both directions but additional objects are rendered outside.
 -}
@@ -451,6 +472,12 @@ type EditorMsg
     | RequestAnalysePosition PacoPosition
     | GotAnalysePosition AnalysisReport
     | ToolAddPiece Sako.Color Sako.Type
+    | StartSharing
+    | GotSharingResult Websocket.ShareStatus
+    | WebsocketMsg Websocket.ServerMessage
+    | WebsocketErrorMsg Decode.Error
+    | InputRawShareKey String
+    | WebsocketConnect String
 
 
 type BlogEditorMsg
@@ -509,6 +536,8 @@ initialEditor flags =
         , height = 1
         }
     , smartTool = initSmartTool
+    , shareStatus = Websocket.NotShared
+    , rawShareKey = ""
     }
 
 
@@ -917,6 +946,35 @@ updateEditor msg model =
             updateSmartToolAdd (P.getC model.game) color pieceType
                 |> liftToolUpdate model
 
+        StartSharing ->
+            ( { model | shareStatus = Websocket.ShareRequested }
+            , postShareRequest model
+            )
+
+        GotSharingResult shareStatus ->
+            ( { model | shareStatus = shareStatus }
+            , case shareStatus of
+                Websocket.ShareExists gameKey ->
+                    Websocket.send (Websocket.Subscribe gameKey)
+
+                _ ->
+                    Cmd.none
+            )
+
+        WebsocketMsg serverMessage ->
+            updateWebsocket serverMessage model
+
+        WebsocketErrorMsg error ->
+            ( model, Ports.logToConsole (Decode.errorToString error) )
+
+        InputRawShareKey rawShareKey ->
+            ( { model | rawShareKey = rawShareKey }, Cmd.none )
+
+        WebsocketConnect gameKey ->
+            ( { model | shareStatus = Websocket.ShareRequested }
+            , Websocket.send (Websocket.Subscribe gameKey)
+            )
+
 
 editorStateModify : EditorModel -> EditorModel
 editorStateModify editorModel =
@@ -1029,7 +1087,12 @@ liftToolUpdate model toolUpdate =
                 , smartTool = newTool
               }
                 |> animateToCurrentPosition
-            , Cmd.none
+            , Websocket.send
+                (Websocket.ClientNextStep
+                    { index = P.lengthL model.game + 1
+                    , step = encodePacoPosition position
+                    }
+                )
             )
 
         ToolPreview preview ->
@@ -1076,7 +1139,12 @@ handleToolOutputMsg msg model =
                 , preview = Nothing
               }
                 |> animateToCurrentPosition
-            , Cmd.none
+            , Websocket.send
+                (Websocket.ClientNextStep
+                    { index = P.lengthL model.game + 1
+                    , step = encodePacoPosition position
+                    }
+                )
             )
 
         ToolPreview preview ->
@@ -1533,6 +1601,82 @@ addHistoryState newState p =
         p |> P.setR [] |> P.appendGoR newState
 
 
+
+--------------------------------------------------------------------------------
+-- Handle websocket messages ---------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+{-| Update method that responds to websocket events and updates the editor state.
+-}
+updateWebsocket : Websocket.ServerMessage -> EditorModel -> ( EditorModel, Cmd Msg )
+updateWebsocket serverMessage editor =
+    case serverMessage of
+        Websocket.TechnicalError errorMessage ->
+            ( editor, Ports.logToConsole errorMessage )
+
+        Websocket.FullState syncronizedBoard ->
+            case decodeSyncronizedSteps syncronizedBoard.steps of
+                Ok (head :: tail) ->
+                    let
+                        game =
+                            P.fromCons head tail
+                                |> P.goToEnd
+                    in
+                    ( { editor
+                        | game = game
+                        , shareStatus = Websocket.ShareConnected syncronizedBoard.key
+                      }
+                        |> animateToCurrentPosition
+                    , Cmd.none
+                    )
+
+                Ok [] ->
+                    ( editor, Ports.logToConsole "Server send a syncronized board without steps." )
+
+                Err error ->
+                    ( editor, Ports.logToConsole (Decode.errorToString error) )
+
+        Websocket.ServerNextStep { index, step } ->
+            updateWebsocketNextStep index step editor
+
+
+updateWebsocketNextStep : Int -> Value -> EditorModel -> ( EditorModel, Cmd Msg )
+updateWebsocketNextStep index step editor =
+    case P.goAbsolute (index - 1) editor.game of
+        Just pivot ->
+            case Decode.decodeValue decodePacoPosition step of
+                Ok newPacoPosition ->
+                    ( { editor | game = addHistoryState newPacoPosition pivot }
+                        |> animateToCurrentPosition
+                    , Cmd.none
+                    )
+
+                Err decoderError ->
+                    ( editor, Ports.logToConsole (Decode.errorToString decoderError) )
+
+        Nothing ->
+            -- We have experienced a desync error and need to reload the history.
+            case Websocket.getGameKey editor.shareStatus of
+                Just gameKey ->
+                    ( { editor | shareStatus = Websocket.ShareExists gameKey }
+                    , Websocket.send (Websocket.Subscribe gameKey)
+                    )
+
+                Nothing ->
+                    ( editor
+                    , Ports.logToConsole
+                        "Server send a NextStep message while we were not subscribed to a board."
+                    )
+
+
+decodeSyncronizedSteps : List Value -> Result Decode.Error (List PacoPosition)
+decodeSyncronizedSteps steps =
+    steps
+        |> List.map (Decode.decodeValue decodePacoPosition)
+        |> Result.combine
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
@@ -1542,6 +1686,9 @@ subscriptions model =
             |> Sub.map EditorMsgWrapper
         , Ports.responseSvgNodeContent SvgReadyForDownload
             |> Sub.map EditorMsgWrapper
+        , Websocket.listen
+            (WebsocketMsg >> EditorMsgWrapper)
+            (WebsocketErrorMsg >> EditorMsgWrapper)
         , Animation.subscription model.editor.timeline AnimationTick
         ]
 
@@ -2139,6 +2286,8 @@ sidebar taco model =
         , addPieceButtons Sako.Black "Black:" model.smartTool |> Element.map EditorMsgWrapper
         , colorSchemeConfig taco
         , viewModeConfig model
+        , shareButton model |> Element.map EditorMsgWrapper
+        , shareInput model |> Element.map EditorMsgWrapper
         , Input.button [] { onPress = Just (EditorMsgWrapper DownloadSvg), label = Element.text "Download as Svg" }
         , Input.button [] { onPress = Just (EditorMsgWrapper DownloadPng), label = Element.text "Download as Png" }
         , markdownCopyPaste taco model |> Element.map EditorMsgWrapper
@@ -2341,13 +2490,69 @@ viewModeConfig editor =
         ]
 
 
-
---- End of the sidebar view code ---
-
-
 type ViewMode
     = ShowNumbers
     | CleanBoard
+
+
+{-| The share button indicates what kind of board is currently shared and how
+-}
+shareButton : EditorModel -> Element EditorMsg
+shareButton editor =
+    case editor.shareStatus of
+        Websocket.NotShared ->
+            Input.button []
+                { onPress = Just StartSharing
+                , label =
+                    Element.row [ spacing 5 ]
+                        [ icon [] Solid.shareAlt, Element.text "Start sharing" ]
+                }
+
+        Websocket.ShareRequested ->
+            Element.row [ spacing 5 ]
+                [ icon [] Solid.hourglassHalf, Element.text "sharing ..." ]
+
+        Websocket.ShareFailed _ ->
+            Element.row [ spacing 5 ]
+                [ icon [] Solid.exclamationTriangle, Element.text "Sharing error" ]
+
+        Websocket.ShareExists gameKey ->
+            Element.row [ spacing 5, Font.color (Element.rgb255 100 100 100) ]
+                [ icon [] Solid.hourglassHalf, Element.text gameKey ]
+
+        Websocket.ShareConnected gameKey ->
+            Element.row [ spacing 5 ]
+                [ icon [] Solid.plug, Element.text gameKey ]
+
+
+postShareRequest : EditorModel -> Cmd Msg
+postShareRequest editor =
+    P.toList editor.game
+        |> List.map encodePacoPosition
+        |> Websocket.share (GotSharingResult >> EditorMsgWrapper)
+
+
+shareInput : EditorModel -> Element EditorMsg
+shareInput editor =
+    Element.row [ spacing 5 ]
+        [ Input.text [ width (Element.px 100) ]
+            { onChange = InputRawShareKey
+            , text = editor.rawShareKey
+            , placeholder = Nothing
+            , label = Input.labelAbove [] (Element.text "Connect to a shared board.")
+            }
+        , Input.button []
+            { onPress =
+                if String.length editor.rawShareKey == 8 then
+                    Just (WebsocketConnect editor.rawShareKey)
+
+                else
+                    Nothing
+            , label =
+                Element.row [ spacing 5 ]
+                    [ icon [] Solid.plug, Element.text "Connect" ]
+            }
+        ]
 
 
 boardViewBox : ViewMode -> Rect

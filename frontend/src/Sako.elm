@@ -3,7 +3,10 @@ module Sako exposing
     , PacoPiece
     , Tile(..)
     , Type(..)
+    , decodePacoPiece
     , defaultInitialPosition
+    , encodePacoPiece
+    , enumeratePieceIdentity
     , exportExchangeNotation
     , importExchangeNotation
     , importExchangeNotationList
@@ -25,6 +28,8 @@ No rendering is done in here.
 -}
 
 import Dict exposing (Dict)
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode exposing (Value)
 import Parser exposing ((|.), (|=), Parser)
 
 
@@ -39,6 +44,63 @@ type Type
     | King
 
 
+fromStringType : String -> Decoder Type
+fromStringType string =
+    case string of
+        "Bishop" ->
+            Decode.succeed Bishop
+
+        "King" ->
+            Decode.succeed King
+
+        "Knight" ->
+            Decode.succeed Knight
+
+        "Pawn" ->
+            Decode.succeed Pawn
+
+        "Queen" ->
+            Decode.succeed Queen
+
+        "Rook" ->
+            Decode.succeed Rook
+
+        _ ->
+            Decode.fail ("Not valid pattern for decoder to Type. Pattern: " ++ string)
+
+
+toStringType : Type -> String
+toStringType pieceType =
+    case pieceType of
+        Pawn ->
+            "Pawn"
+
+        Rook ->
+            "Rook"
+
+        Knight ->
+            "Knight"
+
+        Bishop ->
+            "Bishop"
+
+        Queen ->
+            "Queen"
+
+        King ->
+            "King"
+
+
+decodeType : Decoder Type
+decodeType =
+    Decode.string |> Decode.andThen fromStringType
+
+
+encodeType : Type -> Value
+encodeType =
+    toStringType >> Encode.string
+
+
 {-| The abstract color of a Paco Ŝako piece. The white player always goes first
 and the black player always goes second. This has no bearing on the color with
 which the pieces are rendered on the board.
@@ -49,6 +111,39 @@ This type is also used to represent the parties in a game.
 type Color
     = White
     | Black
+
+
+fromStringColor : String -> Decoder Color
+fromStringColor string =
+    case string of
+        "Black" ->
+            Decode.succeed Black
+
+        "White" ->
+            Decode.succeed White
+
+        _ ->
+            Decode.fail ("Not valid pattern for decoder to Color. Pattern: " ++ string)
+
+
+toStringColor : Color -> String
+toStringColor color =
+    case color of
+        White ->
+            "White"
+
+        Black ->
+            "Black"
+
+
+decodeColor : Decoder Color
+decodeColor =
+    Decode.string |> Decode.andThen fromStringColor
+
+
+encodeColor : Color -> Value
+encodeColor =
+    toStringColor >> Encode.string
 
 
 {-| Represents a Paco Ŝako playing piece with type, color and position.
@@ -63,6 +158,34 @@ type alias PacoPiece =
     , position : Tile
     , identity : String
     }
+
+
+{-| Deserializes a PacoPiece.
+-}
+decodePacoPiece : Decoder PacoPiece
+decodePacoPiece =
+    Decode.map4 PacoPiece
+        (Decode.field "pieceType" decodeType)
+        (Decode.field "color" decodeColor)
+        (Decode.field "position" decodeTile)
+        (Decode.field "identity" Decode.string)
+
+
+{-| Serializes a PacoPiece.
+
+This also stores the identity of the piece which is important for tracking
+pieces across multiple board states. If we did not store this information with
+the pieces, animations would not work.
+
+-}
+encodePacoPiece : PacoPiece -> Value
+encodePacoPiece record =
+    Encode.object
+        [ ( "pieceType", encodeType <| record.pieceType )
+        , ( "color", encodeColor <| record.color )
+        , ( "position", encodeTile <| record.position )
+        , ( "identity", Encode.string record.identity )
+        ]
 
 
 movePieceConditional : Tile -> Tile -> PacoPiece -> PacoPiece
@@ -167,6 +290,18 @@ tileY (Tile _ y) =
 tileFlat : Tile -> Int
 tileFlat (Tile x y) =
     x + 8 * y
+
+
+encodeTile : Tile -> Value
+encodeTile (Tile x y) =
+    Encode.object [ ( "x", Encode.int x ), ( "y", Encode.int y ) ]
+
+
+decodeTile : Decoder Tile
+decodeTile =
+    Decode.map2 Tile
+        (Decode.field "x" Decode.int)
+        (Decode.field "y" Decode.int)
 
 
 

@@ -163,6 +163,17 @@
           lnk.fireEvent("onclick");
         }
       }
+
+      // Connect to the websocket to syncronize state
+      let webSocket = new WebSocket(`ws://${window.location.hostname}:3012`);
+      // When a message arrives, this is forwarded to the elm application.
+      webSocket.onmessage = function (event) {
+        app.ports.websocketReceive.send(JSON.parse(event.data));
+      };
+      // Messages from elm are forwarded to the websocket.
+      app.ports.websocketSend.subscribe((data) =>
+        webSocket.send(JSON.stringify(data))
+      );
     </script>
   </body>
 </html>

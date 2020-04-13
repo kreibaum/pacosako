@@ -7,12 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rocket = "0.4.2"
+rocket = "0.4.4"
 serde = { version = "1.0", features = ["derive"] }
 pbkdf2 = "0.3.0"
 serde_json = "1.0"
 pacosako-rust = { path = "../lib" }
 rand = "0.7.3"
+ws = "0.9.1"
+uuid = "0.8.1"
 
 [dependencies.rocket_contrib]
 version = "0.4.2"

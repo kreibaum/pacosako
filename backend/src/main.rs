@@ -1,5 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+mod websocket;
+
 #[macro_use]
 extern crate rocket;
 #[macro_use]
@@ -11,10 +13,12 @@ use rocket::http::{Cookie, Cookies};
 use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::{Flash, Redirect};
+use rocket::State;
 use rocket_contrib::databases::rusqlite;
 use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
+use websocket::WebsocketServer;
 
 #[database("sqlite_logs")]
 struct DbConn(rusqlite::Connection);
@@ -524,11 +528,28 @@ fn analyse_position(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Websocket integration ///////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+#[post("/share", data = "<steps>")]
+fn share(
+    steps: Json<Vec<serde_json::Value>>,
+    websocket_server: State<WebsocketServer>,
+) -> Result<String, &'static str> {
+    websocket::share(&(*websocket_server), steps.0)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Start the server ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 fn main() {
+    // Launch the websocket server
+    let websocket_server = websocket::run_websocket();
+
+    // Launch the regular webserver
     rocket::ignite()
+        .manage(websocket_server)
         .attach(DbConn::fairing())
         .mount("/", routes![index, elm, favicon, examples])
         .mount(
@@ -548,6 +569,7 @@ fn main() {
                 article_get,
                 article_post,
                 article_post_visible,
+                share
             ],
         )
         .launch();
