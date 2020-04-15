@@ -586,7 +586,7 @@ sizeDecoder =
 init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     ( { taco = initialTaco
-      , page = MainPage
+      , page = EditorPage
       , editor = initialEditor flags
       , blog = initialBlog
       , login = initialLogin
@@ -2543,11 +2543,7 @@ shareInput editor =
             }
         , Input.button []
             { onPress =
-                if String.length editor.rawShareKey == 8 then
-                    Just (WebsocketConnect editor.rawShareKey)
-
-                else
-                    Nothing
+                Just (WebsocketConnect editor.rawShareKey)
             , label =
                 Element.row [ spacing 5 ]
                     [ icon [] Solid.plug, Element.text "Connect" ]
