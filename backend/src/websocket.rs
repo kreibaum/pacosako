@@ -1,4 +1,3 @@
-use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
