@@ -131,7 +131,8 @@ fn share_(server: &mut SyncServer, steps: Vec<serde_json::Value>) -> String {
 }
 
 fn generate_key(server: &SyncServer) -> String {
-    let rand_string: String = thread_rng().sample_iter(&Alphanumeric).take(8).collect();
+    let code: usize = thread_rng().gen_range(0, 9000);
+    let rand_string: String = format!("{}", code + 1000);
     if server.games.contains_key(&rand_string) {
         generate_key(server)
     } else {
