@@ -1,9 +1,9 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::fmt::Display;
-use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PieceType {
@@ -73,7 +73,7 @@ impl BoardPosition {
         use PlayerColor::*;
         match player {
             White => Self::new_checked(self.x() as i8, self.y() as i8 + 1),
-            Black => Self::new_checked(self.x() as i8, self.y() as i8 + 1),
+            Black => Self::new_checked(self.x() as i8, self.y() as i8 - 1),
         }
     }
 }

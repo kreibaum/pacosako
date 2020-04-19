@@ -332,6 +332,11 @@ pub trait PacoBoard: Clone + Eq + std::hash::Hash + Display {
     /// the board in a deadend state (like lifting up a pawn that is blocked) should be included
     /// in the list as well.
     fn actions(&self) -> Vec<PacoAction>;
+    /// List all actions, that threaten to capture a position. This means pairs
+    /// are excluded and king movement is also excluded. Movement to an empty
+    /// square which could capture is included. Actions which leave the
+    /// board in a dead end state are included.
+    fn threat_actions(&self) -> Vec<PacoAction>;
     /// A Paco Board is settled, if no piece is in the hand of the active player.
     /// Calling `.actions()` on a settled board should only return lift actions.
     fn is_settled(&self) -> bool;
@@ -342,6 +347,11 @@ pub trait PacoBoard: Clone + Eq + std::hash::Hash + Display {
     /// The player that gets to execute the next action. This only differs from the current player
     /// when a promotion is still required.
     fn controlling_player(&self) -> PlayerColor;
+    /// Returns (white piece, black piece) for a piece that is at a given position.
+    fn get_at(&self, position: BoardPosition) -> (Option<PieceType>, Option<PieceType>);
+    /// Can we do an en passant capture right now?
+    /// Returns false if you first need to lift a pawn to capture next turn.
+    fn en_passant_capture_possible(&self) -> bool;
 }
 
 impl DenseBoard {
@@ -645,11 +655,27 @@ impl DenseBoard {
         use PieceType::*;
         match piece_type {
             Pawn => self.place_targets_pawn(position, is_pair),
-            Rock => self.place_targets_rock(position, is_pair),
-            Knight => self.place_targets_knight(position, is_pair),
-            Bishop => self.place_targets_bishop(position, is_pair),
-            Queen => self.place_targets_queen(position, is_pair),
+            Rock => self.place_targets_rock(position, is_pair, false),
+            Knight => self.place_targets_knight(position, is_pair, false),
+            Bishop => self.place_targets_bishop(position, is_pair, false),
+            Queen => self.place_targets_queen(position, is_pair, false),
             King => self.place_targets_king(position),
+        }
+    }
+
+    fn threat_place_targets(
+        &self,
+        position: BoardPosition,
+        piece_type: PieceType,
+    ) -> Vec<BoardPosition> {
+        use PieceType::*;
+        match piece_type {
+            Pawn => self.threat_place_targets_pawn(position),
+            Rock => self.place_targets_rock(position, false, true),
+            Knight => self.place_targets_knight(position, false, true),
+            Bishop => self.place_targets_bishop(position, false, true),
+            Queen => self.place_targets_queen(position, false, true),
+            King => vec![], // The king can not threaten.
         }
     }
 
@@ -691,16 +717,42 @@ impl DenseBoard {
 
         possible_moves
     }
+    /// Calculates all possible threat placement targets for a pawn at the given
+    /// position.
+    fn threat_place_targets_pawn(&self, position: BoardPosition) -> Vec<BoardPosition> {
+        use PlayerColor::White;
+
+        let forward = if self.current_player == White { 1 } else { -1 };
+
+        // Striking left & right. As we only determine threatened positions, not
+        // legal moves, there is no target required.
+        [(-1, forward), (1, forward)]
+            .iter()
+            .filter_map(|d| position.add(*d))
+            .collect()
+    }
+
     /// Calculates all possible placement targets for a rock at the given position.
-    fn place_targets_rock(&self, position: BoardPosition, is_pair: bool) -> Vec<BoardPosition> {
+    fn place_targets_rock(
+        &self,
+        position: BoardPosition,
+        is_pair: bool,
+        is_threat_detection: bool,
+    ) -> Vec<BoardPosition> {
         let directions = vec![(1, 0), (0, 1), (-1, 0), (0, -1)];
         directions
             .iter()
-            .flat_map(|d| self.slide_targets(position, *d, is_pair))
+            .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
             .collect()
     }
+
     /// Calculates all possible placement targets for a knight at the given position.
-    fn place_targets_knight(&self, position: BoardPosition, is_pair: bool) -> Vec<BoardPosition> {
+    fn place_targets_knight(
+        &self,
+        position: BoardPosition,
+        is_pair: bool,
+        is_threat_detection: bool,
+    ) -> Vec<BoardPosition> {
         let offsets = vec![
             (1, 2),
             (2, 1),
@@ -712,7 +764,9 @@ impl DenseBoard {
             (-1, 2),
         ];
         let targets_on_board = offsets.iter().filter_map(|d| position.add(*d));
-        if is_pair {
+        if is_threat_detection {
+            targets_on_board.collect()
+        } else if is_pair {
             targets_on_board.filter(|p| self.is_empty(*p)).collect()
         } else {
             targets_on_board
@@ -720,16 +774,27 @@ impl DenseBoard {
                 .collect()
         }
     }
+
     /// Calculates all possible placement targets for a bishop at the given position.
-    fn place_targets_bishop(&self, position: BoardPosition, is_pair: bool) -> Vec<BoardPosition> {
+    fn place_targets_bishop(
+        &self,
+        position: BoardPosition,
+        is_pair: bool,
+        is_threat_detection: bool,
+    ) -> Vec<BoardPosition> {
         let directions = vec![(1, 1), (-1, 1), (1, -1), (-1, -1)];
         directions
             .iter()
-            .flat_map(|d| self.slide_targets(position, *d, is_pair))
+            .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
             .collect()
     }
     /// Calculates all possible placement targets for a queen at the given position.
-    fn place_targets_queen(&self, position: BoardPosition, is_pair: bool) -> Vec<BoardPosition> {
+    fn place_targets_queen(
+        &self,
+        position: BoardPosition,
+        is_pair: bool,
+        is_threat_detection: bool,
+    ) -> Vec<BoardPosition> {
         let directions = vec![
             (0, 1),
             (1, 1),
@@ -742,7 +807,7 @@ impl DenseBoard {
         ];
         directions
             .iter()
-            .flat_map(|d| self.slide_targets(position, *d, is_pair))
+            .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
             .collect()
     }
     /// Calculates all possible placement targets for a king at the given position.
@@ -799,6 +864,7 @@ impl DenseBoard {
         start: BoardPosition,
         (dx, dy): (i8, i8),
         is_pair: bool,
+        is_threat_detection: bool,
     ) -> Vec<BoardPosition> {
         let mut possible_moves = Vec::new();
         let mut slide = start.add((dx, dy));
@@ -813,6 +879,11 @@ impl DenseBoard {
                 possible_moves.push(target);
                 slide = None;
             } else {
+                // If we are only interested in determining threats, then we
+                // also count a square with a single own piece as threatend.
+                if is_threat_detection {
+                    possible_moves.push(target);
+                }
                 slide = None;
             }
         }
@@ -900,6 +971,46 @@ impl PacoBoard for DenseBoard {
                 .collect(),
         }
     }
+    fn threat_actions(&self) -> Vec<PacoAction> {
+        use PacoAction::*;
+        // Promotion can threaten, because it can be done as part of a chain.
+        if self.promotion.is_some() {
+            return vec![
+                Promote(PieceType::Bishop),
+                Promote(PieceType::Rock),
+                Promote(PieceType::Knight),
+                Promote(PieceType::Queen),
+            ];
+        }
+
+        match self.lifted_piece {
+            Hand::Empty => {
+                // If no piece is lifted up, then we just return lifting actions
+                // of all pieces of the current player. We need to filter out
+                // the king, as the king can never threaten.
+                // # Rules 2017: "A king cannot be united with another piece and
+                // # is therefore exempt from creating, moving or taking over a
+                // # union and from the chain reaction."
+                self.active_positions()
+                    .filter(|position| {
+                        *self.active_pieces().get(position.0 as usize).unwrap()
+                            != Some(PieceType::King)
+                    })
+                    .map(Lift)
+                    .collect()
+            }
+            Hand::Single { piece, position } => {
+                // the player currently lifts a piece, we calculate all possible positions where
+                // it can be placed down. This takes opponents pieces in considerations but won't
+                // discard chaining into a blocked pawn (or simmilar).
+                self.threat_place_targets(position, piece)
+                    .iter()
+                    .map(|p| Place(*p))
+                    .collect()
+            }
+            Hand::Pair { .. } => vec![],
+        }
+    }
     fn is_settled(&self) -> bool {
         self.lifted_piece == Hand::Empty
     }
@@ -921,6 +1032,34 @@ impl PacoBoard for DenseBoard {
             target.home_row().unwrap().other()
         } else {
             self.current_player()
+        }
+    }
+    fn get_at(&self, position: BoardPosition) -> (Option<PieceType>, Option<PieceType>) {
+        (
+            self.white.get(position.0 as usize).cloned().unwrap_or(None),
+            self.black.get(position.0 as usize).cloned().unwrap_or(None),
+        )
+    }
+    fn en_passant_capture_possible(&self) -> bool {
+        if let Hand::Single {
+            piece: PieceType::Pawn,
+            position,
+        } = self.lifted_piece
+        {
+            if let Some(target_position) = self.en_passant {
+                let forward = if self.current_player == PlayerColor::White {
+                    1
+                } else {
+                    -1
+                };
+
+                position.add((-1, forward)) == Some(target_position)
+                    || position.add((1, forward)) == Some(target_position)
+            } else {
+                false
+            }
+        } else {
+            false
         }
     }
 }
@@ -1171,12 +1310,96 @@ fn trace_first_move<T: PacoBoard>(
     }
 }
 
+/// A boolean value that indicates if a position is threatened.
+/// This is wrapped in a custom struct to make it unambiguous what the options
+/// true and false mean in this context.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct IsThreatened(bool);
+
+/// Given a Paco Ŝako board, determines which squares are threatened by the
+/// currently active player. Returns an array of booleans, one for each square.
+fn determine_all_threats<T: PacoBoard>(board: T) -> Result<[IsThreatened; 64], PacoError> {
+    let mut all_threats = [IsThreatened(false); 64];
+
+    // This needs to follow all chain moves. Non-terminal chain actions are
+    // always threat actions.
+    // This is simpler that determining all moves, as we don't need to keep an
+    // record of how we came to a specific position.
+    let mut todo_list: VecDeque<T> = VecDeque::new();
+    let mut seen: HashSet<T> = HashSet::new();
+    // let mut settled: HashSet<T> = HashSet::new();
+    // Put all starting moves into the initialisation
+    for action in board.threat_actions() {
+        let mut b = board.clone();
+        b.execute(action)?;
+        todo_list.push_back(b);
+    }
+
+    // Pull entries from the todo_list until it is empty.
+    while let Some(todo) = todo_list.pop_front() {
+        let actions = todo.threat_actions();
+
+        // Mark all threats
+        actions
+            .iter()
+            .filter_map(PacoAction::position)
+            .for_each(|p| all_threats[p.0 as usize] = IsThreatened(true));
+
+        // Follow place actions that form a chain.
+        for action in todo.actions() {
+            if let PacoAction::Place(target_position) = action {
+                let target_pieces = todo.get_at(target_position);
+                if target_pieces.0.is_none() || target_pieces.1.is_none() {
+                    // This is a very special case, but we need to test for
+                    // en passant chaining.
+                    if !todo.en_passant_capture_possible() {
+                        continue;
+                    }
+                }
+                // If the state has not been seen yet, and is not a settled
+                // state, add it into the todo list.
+                let mut b = todo.clone();
+                b.execute(action)?;
+                if !b.is_settled() && !seen.contains(&b) {
+                    todo_list.push_back(b.clone());
+                    seen.insert(b);
+                }
+            } else if let PacoAction::Promote(_) = action {
+                // Promotion does not add threats, but extends the chain.
+                let mut b = todo.clone();
+                b.execute(action)?;
+                if !b.is_settled() && !seen.contains(&b) {
+                    todo_list.push_back(b.clone());
+                    seen.insert(b);
+                }
+            }
+        }
+    }
+
+    Ok(all_threats)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use parser::Square;
     use std::convert::{TryFrom, TryInto};
 
+    /// Helper macro to execute moves in unit tests.
+    macro_rules! execute_action {
+        ($board:expr, lift, $square:expr) => {{
+            $board
+                .execute(PacoAction::Lift($square.try_into().unwrap()))
+                .unwrap();
+        }};
+        ($board:expr, place, $square:expr) => {{
+            $board
+                .execute(PacoAction::Place($square.try_into().unwrap()))
+                .unwrap();
+        }};
+    }
+
+    /// Helper function to make tests of "determine all moves" easier.
     fn find_sako_states<T: PacoBoard>(board: T) -> Result<Vec<T>, PacoError> {
         let opponent = board.current_player().other();
 
@@ -1239,13 +1462,9 @@ mod tests {
         let mut board = DenseBoard::from_squares(squares);
 
         // Advance the white pawn and lift the black pawn.
-        board
-            .execute(PacoAction::Lift("d2".try_into().unwrap()))
-            .unwrap()
-            .execute(PacoAction::Place("d4".try_into().unwrap()))
-            .unwrap()
-            .execute(PacoAction::Lift("e4".try_into().unwrap()))
-            .unwrap();
+        execute_action!(board, lift, "d2");
+        execute_action!(board, place, "d4");
+        execute_action!(board, lift, "e4");
 
         // Check if the correct legal moves are returned
         assert_eq!(
@@ -1254,9 +1473,7 @@ mod tests {
         );
 
         // Execute en passant union
-        board
-            .execute(PacoAction::Place("d3".try_into().unwrap()))
-            .unwrap();
+        execute_action!(board, place, "d3");
 
         // Check if the target pawn was indeed united.
         assert_eq!(
@@ -1278,13 +1495,12 @@ mod tests {
         squares.insert("c4".try_into().unwrap(), Square::black(Pawn));
         squares.insert("d2".try_into().unwrap(), Square::pair(Pawn, Knight));
         squares.insert("e1".try_into().unwrap(), Square::white(King));
-
         let mut board = DenseBoard::from_squares(squares);
-        board
-            .execute(PacoAction::Lift("d2".try_into().unwrap()))
-            .unwrap()
-            .execute(PacoAction::Place("d4".try_into().unwrap()))
-            .unwrap();
+
+        execute_action!(board, lift, "d2");
+        execute_action!(board, place, "d4");
+
+        assert_eq!("d3".try_into().ok(), board.en_passant);
 
         let sako_states = find_sako_states(board).unwrap();
 
@@ -1299,13 +1515,10 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert("c7".try_into().unwrap(), Square::white(Pawn));
-
         let mut board = DenseBoard::from_squares(squares);
-        board
-            .execute(PacoAction::Lift("c7".try_into().unwrap()))
-            .unwrap()
-            .execute(PacoAction::Place("c8".try_into().unwrap()))
-            .unwrap();
+
+        execute_action!(board, lift, "c7");
+        execute_action!(board, place, "c8");
 
         assert_eq!(board.promotion, Some("c8".try_into().unwrap()));
         assert_eq!(board.current_player(), Black);
@@ -1340,6 +1553,216 @@ mod tests {
 
         assert_eq!(sako_states.len(), 1);
     }
+
+    /// Checks that en_passant information is correctly recorded.
+    #[test]
+    fn test_en_passant_information() {
+        use PieceType::*;
+
+        let mut squares = HashMap::new();
+        squares.insert("c2".try_into().unwrap(), Square::white(Pawn));
+        squares.insert("c7".try_into().unwrap(), Square::black(Pawn));
+        squares.insert("e2".try_into().unwrap(), Square::pair(Pawn, Pawn));
+        squares.insert("e7".try_into().unwrap(), Square::pair(Pawn, Pawn));
+        let mut board = DenseBoard::from_squares(squares);
+
+        // Check that white can be captured en passant
+        execute_action!(board, lift, "c2");
+        execute_action!(board, place, "c4");
+
+        assert_eq!("c3".try_into().ok(), board.en_passant);
+
+        // Check that white can be captured en passant
+        execute_action!(board, lift, "c7");
+        execute_action!(board, place, "c5");
+
+        assert_eq!("c6".try_into().ok(), board.en_passant);
+
+        // Check that white can be captured en passant when they move a pair
+        execute_action!(board, lift, "e2");
+        execute_action!(board, place, "e4");
+
+        assert_eq!("e3".try_into().ok(), board.en_passant);
+
+        // Check that black can be captured en passant when they move a pair
+        execute_action!(board, lift, "e7");
+        execute_action!(board, place, "e5");
+
+        assert_eq!("e6".try_into().ok(), board.en_passant);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Test threat detection ///////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+    /// Test that non-chained threat detection works as expected.
+    #[test]
+    fn test_threat_determination() {
+        use PieceType::*;
+
+        let mut squares = HashMap::new();
+        squares.insert("c2".try_into().unwrap(), Square::white(Pawn));
+        squares.insert("e3".try_into().unwrap(), Square::pair(Rock, Pawn));
+        squares.insert("d1".try_into().unwrap(), Square::white(King));
+        squares.insert("c5".try_into().unwrap(), Square::black(Pawn));
+
+        let board = DenseBoard::from_squares(squares);
+
+        let recieved_threats = determine_all_threats(board).unwrap();
+        let mut expected_threats = [IsThreatened(false); 64];
+        expected_threats[17] = IsThreatened(true);
+        expected_threats[19] = IsThreatened(true);
+
+        assert_threats(expected_threats, recieved_threats);
+    }
+
+    /// Here we test that chains are understood by the threat analyser.
+    /// It also tests, that a square were an own piece is located is still marked
+    /// as threatened. While we don't need this for castleing detection it may
+    /// be useful for writing AI, especially if we follow the paper
+    ///
+    /// Accelerating Self-Play Learning in Go
+    /// https://arxiv.org/abs/1902.10565
+    #[test]
+    fn test_threat_chains() {
+        use PieceType::*;
+
+        let mut squares = HashMap::new();
+        squares.insert("c2".try_into().unwrap(), Square::white(Pawn));
+        squares.insert("d3".try_into().unwrap(), Square::pair(Rock, Pawn));
+        squares.insert("g3".try_into().unwrap(), Square::white(King));
+        squares.insert("c5".try_into().unwrap(), Square::black(Pawn));
+
+        let board = DenseBoard::from_squares(squares);
+
+        let recieved_threats = determine_all_threats(board).unwrap();
+        let mut expected_threats = [IsThreatened(false); 64];
+        // Rook threatens row, cut of by king
+        for i in 16..23 {
+            expected_threats[i] = IsThreatened(true);
+        }
+        // Rook threatens column
+        for i in 0..8 {
+            expected_threats[3 + i * 8] = IsThreatened(true);
+        }
+        // Pawn threats overlap with Rook threats.
+
+        assert_threats(expected_threats, recieved_threats);
+    }
+
+    /// As the knight has a different behaviour from sliding pieces, it gets
+    /// its very own testcase.
+    #[test]
+    fn test_threat_knight() {
+        use PieceType::*;
+
+        let mut squares = HashMap::new();
+        squares.insert("c2".try_into().unwrap(), Square::white(Knight));
+        squares.insert("b4".try_into().unwrap(), Square::black(Pawn));
+        squares.insert("d4".try_into().unwrap(), Square::pair(Pawn, Pawn));
+        squares.insert("f4".try_into().unwrap(), Square::pair(Pawn, Pawn));
+        squares.insert("e3".try_into().unwrap(), Square::white(King));
+
+        let board = DenseBoard::from_squares(squares);
+
+        let recieved_threats = determine_all_threats(board).unwrap();
+        let mut expected_threats = [IsThreatened(false); 64];
+        // Knight threats
+        expected_threats[0] = IsThreatened(true);
+        expected_threats[16] = IsThreatened(true);
+        expected_threats[25] = IsThreatened(true);
+        expected_threats[27] = IsThreatened(true);
+        expected_threats[20] = IsThreatened(true);
+        expected_threats[4] = IsThreatened(true);
+        // Pawn threats (from d4)
+        expected_threats[34] = IsThreatened(true);
+        expected_threats[36] = IsThreatened(true);
+
+        assert_threats(expected_threats, recieved_threats);
+    }
+
+    /// It is possible to threaten via promoting a pawn.
+    #[test]
+    fn test_threat_promotion() {
+        use PieceType::*;
+
+        let mut squares = HashMap::new();
+        squares.insert("g7".try_into().unwrap(), Square::white(Pawn));
+        squares.insert("g6".try_into().unwrap(), Square::pair(Knight, Pawn));
+        squares.insert("h8".try_into().unwrap(), Square::pair(Knight, Pawn));
+        let board = DenseBoard::from_squares(squares);
+
+        let recieved_threats = determine_all_threats(board).unwrap();
+        let mut expected_threats = [IsThreatened(false); 64];
+        // Queen threats
+        for i in 0..8 {
+            // Row 7
+            expected_threats[7 * 8 + i] = IsThreatened(true);
+            // File h
+            expected_threats[7 + 8 * i] = IsThreatened(true);
+            // Main diagonal
+            expected_threats[9 * i] = IsThreatened(true);
+        }
+        // Additional knight threats
+        expected_threats[6 * 8 + 5] = IsThreatened(true);
+        expected_threats[5 * 8 + 6] = IsThreatened(true);
+        expected_threats[3 * 8 + 5] = IsThreatened(true);
+        expected_threats[3 * 8 + 7] = IsThreatened(true);
+        expected_threats[6 * 8 + 4] = IsThreatened(true);
+
+        assert_threats(expected_threats, recieved_threats);
+    }
+
+    /// It is possible to do a threat chain with en passant capture
+    #[test]
+    fn test_threat_enpassant() {
+        use PieceType::*;
+
+        let mut squares = HashMap::new();
+        squares.insert("e5".try_into().unwrap(), Square::white(Pawn));
+        squares.insert("f7".try_into().unwrap(), Square::pair(Pawn, Pawn));
+        let mut board = DenseBoard::from_squares(squares);
+        board.current_player = PlayerColor::Black;
+
+        execute_action!(board, lift, "f7");
+        execute_action!(board, place, "f5");
+
+        assert_eq!("f6".try_into().ok(), board.en_passant);
+
+        let recieved_threats = determine_all_threats(board).unwrap();
+        let mut expected_threats = [IsThreatened(false); 64];
+        // Threats by the free pawn
+        expected_threats[5 * 8 + 3] = IsThreatened(true);
+        expected_threats[5 * 8 + 5] = IsThreatened(true);
+        // Threats by en passant chain
+        expected_threats[6 * 8 + 4] = IsThreatened(true);
+        expected_threats[6 * 8 + 6] = IsThreatened(true);
+
+        assert_threats(expected_threats, recieved_threats);
+    }
+
+    /// Throws with a detailed explanation, if the threats differ.
+    fn assert_threats(expected: [IsThreatened; 64], recieved: [IsThreatened; 64]) {
+        let mut differences: Vec<String> = vec![];
+
+        for i in 0..64 {
+            if expected[i] != recieved[i] {
+                differences.push(format!(
+                    "At {} I expected {} but got {}.",
+                    BoardPosition(i as u8),
+                    expected[i].0,
+                    recieved[i].0
+                ));
+            }
+        }
+
+        if !differences.is_empty() {
+            panic!("There is a difference in threats! {:?}", differences);
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Test castling ///////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
 
     /// Tests if the white king side castleing is provided as an action when lifting the king.
     // #[test]
