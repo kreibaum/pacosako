@@ -936,14 +936,19 @@ impl Default for DenseBoard {
 /// Represents a board state in human readable exchange notation for Paco Ŝako.
 /// It will look like this. Line breaks are included in the String as '\n'.
 ///
-///     .. .. .. .B .. .. .. ..
-///     .B R. .. .. .Q .. .. P.
-///     .. .P .P .K .. NP P. ..
-///     PR .R PP .. .. .. .. ..
-///     K. .P P. .. NN .. .. ..
-///     P. .P .. P. .. .. BP R.
-///     P. .. .P .. .. .. BN Q.
-///     .. .. .. .. .. .. .. ..
+/// ```
+/// # use pacosako::*;
+/// # use std::convert::TryFrom;
+/// let notation = ExchangeNotation(".. .. .. .B .. .. .. ..\\n\
+/// .B R. .. .. .Q .. .. P.\\n\
+/// .. .P .P .K .. NP P. ..\\n\
+/// PR .R PP .. .. .. .. ..\\n\
+/// K. .P P. .. NN .. .. ..\\n\
+/// P. .P .. P. .. .. BP R.\\n\
+/// P. .. .P .. .. .. BN Q.\\n\
+/// .. .. .. .. .. .. .. ..".to_owned());
+/// let board = DenseBoard::try_from( &notation ).unwrap();
+/// ```
 #[derive(Debug, Clone)]
 pub struct ExchangeNotation(pub String);
 
