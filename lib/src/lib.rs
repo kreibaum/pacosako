@@ -43,7 +43,6 @@ pub enum PacoError {
 }
 
 impl PlayerColor {
-    #[allow(dead_code)]
     pub fn other(self) -> Self {
         use PlayerColor::*;
         match self {
@@ -346,7 +345,6 @@ pub trait PacoBoard: Clone + Eq + std::hash::Hash + Display {
 }
 
 impl DenseBoard {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         use PieceType::*;
         let mut result: Self = DenseBoard {
