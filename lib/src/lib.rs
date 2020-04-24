@@ -41,6 +41,8 @@ pub enum PacoError {
     NoSpaceToMoveTheKing,
     /// The input JSON is malformed.
     InputJsonMalformed,
+    /// You are trying to execut an illegal action.
+    ActionNotLegal,
 }
 
 impl PlayerColor {
@@ -329,6 +331,9 @@ impl PacoAction {
 pub trait PacoBoard: Clone + Eq + std::hash::Hash + Display {
     /// Check if a PacoAction is legal and execute it. Otherwise return an error.
     fn execute(&mut self, action: PacoAction) -> Result<&mut Self, PacoError>;
+    /// Executes a PacoAction. This call may assume that the action is legal
+    /// without checking it. Only call it when you generate the actions yourself.
+    fn execute_trusted(&mut self, action: PacoAction) -> Result<&mut Self, PacoError>;
     /// List all actions that can be executed in the current state. Note that actions which leave
     /// the board in a deadend state (like lifting up a pawn that is blocked) should be included
     /// in the list as well.
@@ -1128,6 +1133,15 @@ impl DenseBoard {
 
 impl PacoBoard for DenseBoard {
     fn execute(&mut self, action: PacoAction) -> Result<&mut Self, PacoError> {
+        // This can be optimized a lot. But the current implementation is at
+        // least easy and definitely consistent with the rules.
+        if self.actions()?.contains(&action) {
+            self.execute_trusted(action)
+        } else {
+            Err(PacoError::ActionNotLegal)
+        }
+    }
+    fn execute_trusted(&mut self, action: PacoAction) -> Result<&mut Self, PacoError> {
         use PacoAction::*;
         match action {
             Lift(position) => self.lift(position),
@@ -1449,7 +1463,7 @@ fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, PacoE
     // Put all starting moves into the initialisation
     for action in board.actions()? {
         let mut b = board.clone();
-        b.execute(action)?;
+        b.execute_trusted(action)?;
         found_via
             .entry(b.clone())
             .and_modify(|v| v.push((action, None)))
@@ -1462,7 +1476,7 @@ fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, PacoE
         // Execute all actions and look at the resulting board state.
         for action in todo.actions()? {
             let mut b = todo.clone();
-            b.execute(action)?;
+            b.execute_trusted(action)?;
             // look up if this action has already been found.
             match found_via.entry(b.clone()) {
                 // We have seen this state already and don't need to add it to the todo list.
@@ -1534,7 +1548,7 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<[IsThreatened; 64], 
     // Put all starting moves into the initialisation
     for action in board.threat_actions() {
         let mut b = board.clone();
-        b.execute(action)?;
+        b.execute_trusted(action)?;
         todo_list.push_back(b);
     }
 
@@ -1562,7 +1576,7 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<[IsThreatened; 64], 
                 // If the state has not been seen yet, and is not a settled
                 // state, add it into the todo list.
                 let mut b = todo.clone();
-                b.execute(action)?;
+                b.execute_trusted(action)?;
                 if !b.is_settled() && !seen.contains(&b) {
                     todo_list.push_back(b.clone());
                     seen.insert(b);
@@ -1570,7 +1584,7 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<[IsThreatened; 64], 
             } else if let PacoAction::Promote(_) = action {
                 // Promotion does not add threats, but extends the chain.
                 let mut b = todo.clone();
-                b.execute(action)?;
+                b.execute_trusted(action)?;
                 if !b.is_settled() && !seen.contains(&b) {
                     todo_list.push_back(b.clone());
                     seen.insert(b);
@@ -1592,12 +1606,12 @@ mod tests {
     macro_rules! execute_action {
         ($board:expr, lift, $square:expr) => {{
             $board
-                .execute(PacoAction::Lift($square.try_into().unwrap()))
+                .execute_trusted(PacoAction::Lift($square.try_into().unwrap()))
                 .unwrap();
         }};
         ($board:expr, place, $square:expr) => {{
             $board
-                .execute(PacoAction::Place($square.try_into().unwrap()))
+                .execute_trusted(PacoAction::Place($square.try_into().unwrap()))
                 .unwrap();
         }};
     }
