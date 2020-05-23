@@ -3,24 +3,17 @@ module Sako exposing
     , Color(..)
     , Piece
     , Position
-    , PositionParseResult(..)
     , Tile(..)
     , Type(..)
     , decodePosition
-    , defaultInitialPosition
     , emptyPosition
     , encodePosition
-    , enumeratePieceIdentity
     , exportExchangeNotation
     , importExchangeNotation
     , importExchangeNotationList
     , initialPosition
     , isAt
     , isColor
-    , movePieceConditional
-    , positionFromPieces
-    , tileX
-    , tileY
     )
 
 {-| Everything you need to express the Position of a Paco Ŝako board.
@@ -194,15 +187,6 @@ encodePiece record =
         ]
 
 
-movePieceConditional : Tile -> Tile -> Piece -> Piece
-movePieceConditional source target piece =
-    if piece.position == source then
-        { piece | position = target }
-
-    else
-        piece
-
-
 isAt : Tile -> Piece -> Bool
 isAt tile piece =
     piece.position == tile
@@ -289,16 +273,6 @@ type Tile
     = Tile Int Int
 
 
-tileX : Tile -> Int
-tileX (Tile x _) =
-    x
-
-
-tileY : Tile -> Int
-tileY (Tile _ y) =
-    y
-
-
 {-| 1d coordinate for a tile. This is just x + 8 \* y
 -}
 tileFlat : Tile -> Int
@@ -347,12 +321,6 @@ emptyPosition =
 positionFromPieces : List Piece -> Position
 positionFromPieces pieces =
     { emptyPosition | pieces = pieces }
-
-
-type PositionParseResult
-    = NoInput
-    | ParseError String
-    | ParseSuccess Position
 
 
 decodePosition : Decoder Position
@@ -425,9 +393,9 @@ Here is an example:
     .. .. .. .. .. .. .. ..
 
 -}
-exportExchangeNotation : List Piece -> String
-exportExchangeNotation pieces =
-    abstractExchangeNotation "\n" pieces
+exportExchangeNotation : Position -> String
+exportExchangeNotation position =
+    abstractExchangeNotation "\n" position.pieces
 
 
 type TileState
@@ -606,9 +574,11 @@ Here is an example of the notation:
     .. .. .. .. .. .. .. ..
 
 -}
-importExchangeNotation : String -> Result (List Parser.DeadEnd) (List Piece)
+importExchangeNotation : String -> Result String Position
 importExchangeNotation input =
     Parser.run parsePosition input
+        |> Result.mapError (\_ -> "There is an error in the position notation :-(")
+        |> Result.map positionFromPieces
 
 
 {-| A library is a list of PacoPositions separated by a newline.
@@ -624,9 +594,11 @@ parseLibrary =
 {-| Given a file that contains many Paco Ŝako in human readable exchange notation
 separated by a '-' character, this function parses all positions.
 -}
-importExchangeNotationList : String -> Result (List Parser.DeadEnd) (List (List Piece))
+importExchangeNotationList : String -> Result String (List Position)
 importExchangeNotationList input =
     Parser.run parseLibrary input
+        |> Result.mapError (\_ -> "There is an error in the position notation :-(")
+        |> Result.map (List.map positionFromPieces)
 
 
 linebreak : Parser ()

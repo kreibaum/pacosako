@@ -206,7 +206,7 @@ type alias EditorModel =
     , drag : DragState
     , windowSize : ( Int, Int )
     , userPaste : String
-    , pasteParsed : Sako.PositionParseResult
+    , pasteParsed : PositionParseResult
     , viewMode : ViewMode
     , analysis : Maybe AnalysisReport
     , rect : Rect
@@ -214,6 +214,12 @@ type alias EditorModel =
     , shareStatus : Websocket.ShareStatus
     , rawShareKey : String
     }
+
+
+type PositionParseResult
+    = NoInput
+    | ParseError String
+    | ParseSuccess Sako.Position
 
 
 type alias SmartToolModel =
@@ -475,7 +481,7 @@ initialEditor flags =
     , drag = Nothing
     , windowSize = parseWindowSize flags
     , userPaste = ""
-    , pasteParsed = Sako.NoInput
+    , pasteParsed = NoInput
     , viewMode = ShowNumbers
     , analysis = Nothing
     , rect =
@@ -615,12 +621,9 @@ update msg model =
         GetLibrarySuccess content ->
             let
                 examples =
-                    case Sako.importExchangeNotationList content of
-                        Err _ ->
-                            RemoteData.Failure (Http.BadBody "The examples file is broken")
-
-                        Ok positions ->
-                            RemoteData.Success (List.map Sako.positionFromPieces positions)
+                    Sako.importExchangeNotationList content
+                        |> RemoteData.fromResult
+                        |> RemoteData.mapError Http.BadBody
             in
             ( { model | exampleFile = examples }, Cmd.none )
 
@@ -838,19 +841,16 @@ updateEditor msg model =
         UpdateUserPaste pasteContent ->
             let
                 parseInput () =
-                    case Sako.importExchangeNotation pasteContent of
-                        Err _ ->
-                            -- ParseError (Debug.toString err)
-                            Sako.ParseError "Error: Make sure your input has the right shape!"
-
-                        Ok position ->
-                            Sako.ParseSuccess (Sako.positionFromPieces position)
+                    Sako.importExchangeNotation pasteContent
+                        |> Result.mapError ParseError
+                        |> Result.map ParseSuccess
+                        |> Result.merge
             in
             ( { model
                 | userPaste = pasteContent
                 , pasteParsed =
                     if String.isEmpty pasteContent then
-                        Sako.NoInput
+                        NoInput
 
                     else
                         parseInput ()
@@ -2060,7 +2060,6 @@ buildPacoPositionFromStoredPosition : StoredPosition -> Maybe Sako.Position
 buildPacoPositionFromStoredPosition storedPosition =
     Sako.importExchangeNotation storedPosition.data.notation
         |> Result.toMaybe
-        |> Maybe.map Sako.positionFromPieces
 
 
 loadPositionPreview : Taco -> Sako.Position -> Element Msg
@@ -2771,7 +2770,7 @@ markdownCopyPaste taco model =
         [ Element.text "Text notation you can store"
         , Input.multiline [ Font.family [ Font.monospace ] ]
             { onChange = \_ -> EditorMsgNoOp
-            , text = Sako.exportExchangeNotation (P.getC model.game).pieces
+            , text = Sako.exportExchangeNotation (P.getC model.game)
             , placeholder = Nothing
             , label = Input.labelHidden "Copy this to a text document for later use."
             , spellcheck = False
@@ -2791,13 +2790,13 @@ markdownCopyPaste taco model =
 parsedMarkdownPaste : Taco -> EditorModel -> Element EditorMsg
 parsedMarkdownPaste taco model =
     case model.pasteParsed of
-        Sako.NoInput ->
+        NoInput ->
             Element.none
 
-        Sako.ParseError error ->
+        ParseError error ->
             Element.text error
 
-        Sako.ParseSuccess pacoPosition ->
+        ParseSuccess pacoPosition ->
             Input.button []
                 { onPress = Just (UseUserPaste pacoPosition)
                 , label =
@@ -2918,23 +2917,23 @@ markdownView taco content =
 
 puzzleBlock : Taco -> { body : String, language : Maybe String } -> Element Msg
 puzzleBlock taco details =
-    case Sako.importExchangeNotationList details.body of
-        Err _ ->
-            Element.text "There is an error in the position notation :-("
+    Sako.importExchangeNotationList details.body
+        |> Result.mapError Element.text
+        |> Result.map
+            (\positions ->
+                let
+                    positionPreviews =
+                        positions
+                            |> List.map (loadPositionPreview taco)
 
-        Ok positions ->
-            let
-                positionPreviews =
-                    positions
-                        |> List.map Sako.positionFromPieces
-                        |> List.map (loadPositionPreview taco)
-
-                rows =
-                    List.greedyGroupsOf 3 positionPreviews
-            in
-            Element.column [ spacing 10, centerX ]
-                (rows |> List.map (\group -> Element.row [ spacing 10 ] group))
-                |> Element.map (\_ -> EditorMsgWrapper EditorMsgNoOp)
+                    rows =
+                        List.greedyGroupsOf 3 positionPreviews
+                in
+                Element.column [ spacing 10, centerX ]
+                    (rows |> List.map (\group -> Element.row [ spacing 10 ] group))
+                    |> Element.map (\_ -> EditorMsgWrapper EditorMsgNoOp)
+            )
+        |> Result.merge
 
 
 renderer : Taco -> Markdown.Parser.Renderer (Element Msg)
@@ -3386,7 +3385,7 @@ encodeCreatePosition position =
     Encode.object
         [ ( "data"
           , encodeCreatePositionData
-                { notation = Sako.exportExchangeNotation position.pieces
+                { notation = Sako.exportExchangeNotation position
                 }
           )
         ]
@@ -3467,7 +3466,7 @@ decodePacoPositionData =
         (\json ->
             json.notation
                 |> Sako.importExchangeNotation
-                |> Result.map (Sako.positionFromPieces >> Decode.succeed)
+                |> Result.map Decode.succeed
                 |> Result.withDefault (Decode.fail "Data has wrong shape.")
         )
         decodeStoredPositionData
