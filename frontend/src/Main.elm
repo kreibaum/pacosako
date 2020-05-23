@@ -58,7 +58,7 @@ type alias Model =
     , articleBrowser : ArticleBrowserModel
 
     -- LibraryPage
-    , exampleFile : WebData (List PacoPosition)
+    , exampleFile : WebData (List Sako.Position)
     , storedPositions : WebData (List StoredPosition)
     }
 
@@ -200,13 +200,13 @@ saveStateId saveState =
 
 type alias EditorModel =
     { saveState : SaveState
-    , game : Pivot PacoPosition
-    , preview : Maybe PacoPosition
+    , game : Pivot Sako.Position
+    , preview : Maybe Sako.Position
     , timeline : Timeline (List VisualPacoPiece)
     , drag : DragState
     , windowSize : ( Int, Int )
     , userPaste : String
-    , pasteParsed : PositionParseResult
+    , pasteParsed : Sako.PositionParseResult
     , viewMode : ViewMode
     , analysis : Maybe AnalysisReport
     , rect : Rect
@@ -295,8 +295,8 @@ initSmartTool =
 
 type ToolOutputMsg
     = ToolNoOp -- Don't do anything.
-    | ToolCommit PacoPosition -- Add state to history.
-    | ToolPreview PacoPosition -- Don't add this to the history.
+    | ToolCommit Sako.Position -- Add state to history.
+    | ToolPreview Sako.Position -- Don't add this to the history.
     | ToolRollback -- Remove an ephemeral state that was set by ToolPreview
 
 
@@ -343,41 +343,6 @@ type alias BlogModel =
     }
 
 
-type PositionParseResult
-    = NoInput
-    | ParseError String
-    | ParseSuccess PacoPosition
-
-
-type alias PacoPosition =
-    { moveNumber : Int
-    , pieces : List PacoPiece
-    , liftedPiece : Maybe PacoPiece
-    }
-
-
-pacoPositionFromPieces : List PacoPiece -> PacoPosition
-pacoPositionFromPieces pieces =
-    { emptyPosition | pieces = pieces }
-
-
-decodePacoPosition : Decoder PacoPosition
-decodePacoPosition =
-    Decode.map3 PacoPosition
-        (Decode.field "moveNumber" Decode.int)
-        (Decode.field "pieces" (Decode.list Sako.decodePacoPiece))
-        (Decode.field "liftedPiece" (Decode.nullable Sako.decodePacoPiece))
-
-
-encodePacoPosition : PacoPosition -> Value
-encodePacoPosition record =
-    Encode.object
-        [ ( "moveNumber", Encode.int <| record.moveNumber )
-        , ( "pieces", Encode.list Sako.encodePacoPiece <| record.pieces )
-        , ( "liftedPiece", Maybe.withDefault Encode.null <| Maybe.map Sako.encodePacoPiece <| record.liftedPiece )
-        ]
-
-
 {-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in
 both directions but additional objects are rendered outside.
 -}
@@ -390,22 +355,6 @@ type SvgCoord
 addSvgCoord : SvgCoord -> SvgCoord -> SvgCoord
 addSvgCoord (SvgCoord x1 y1) (SvgCoord x2 y2) =
     SvgCoord (x1 + x2) (y1 + y2)
-
-
-initialPosition : PacoPosition
-initialPosition =
-    { moveNumber = 0
-    , pieces = Sako.defaultInitialPosition
-    , liftedPiece = Nothing
-    }
-
-
-emptyPosition : PacoPosition
-emptyPosition =
-    { moveNumber = 0
-    , pieces = []
-    , liftedPiece = Nothing
-    }
 
 
 type alias DragState =
@@ -427,7 +376,7 @@ type Msg
     = EditorMsgWrapper EditorMsg
     | BlogMsgWrapper BlogEditorMsg
     | LoginPageMsgWrapper LoginPageMsg
-    | LoadIntoEditor PacoPosition
+    | LoadIntoEditor Sako.Position
     | OpenPage Page
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
@@ -457,19 +406,19 @@ type EditorMsg
     | WindowResize Int Int
     | Undo
     | Redo
-    | Reset PacoPosition
+    | Reset Sako.Position
     | KeyUp KeyStroke
     | DownloadSvg
     | DownloadPng
     | SvgReadyForDownload String
     | UpdateUserPaste String
-    | UseUserPaste PacoPosition
+    | UseUserPaste Sako.Position
     | SetViewMode ViewMode
-    | SavePosition PacoPosition SaveState
+    | SavePosition Sako.Position SaveState
     | PositionSaveSuccess SavePositionDone
     | RequestRandomPosition
-    | GotRandomPosition PacoPosition
-    | RequestAnalysePosition PacoPosition
+    | GotRandomPosition Sako.Position
+    | RequestAnalysePosition Sako.Position
     | GotAnalysePosition AnalysisReport
     | ToolAddPiece Sako.Color Sako.Type
     | StartSharing
@@ -520,13 +469,13 @@ encodeDownloadRequest record =
 initialEditor : Decode.Value -> EditorModel
 initialEditor flags =
     { saveState = SaveNotRequired
-    , game = P.singleton initialPosition
+    , game = P.singleton Sako.initialPosition
     , preview = Nothing
-    , timeline = Animation.init (initVisualPacoPosition initialPosition)
+    , timeline = Animation.init (initVisualPacoPosition Sako.initialPosition)
     , drag = Nothing
     , windowSize = parseWindowSize flags
     , userPaste = ""
-    , pasteParsed = NoInput
+    , pasteParsed = Sako.NoInput
     , viewMode = ShowNumbers
     , analysis = Nothing
     , rect =
@@ -671,7 +620,7 @@ update msg model =
                             RemoteData.Failure (Http.BadBody "The examples file is broken")
 
                         Ok positions ->
-                            RemoteData.Success (List.map pacoPositionFromPieces positions)
+                            RemoteData.Success (List.map Sako.pacoPositionFromPieces positions)
             in
             ( { model | exampleFile = examples }, Cmd.none )
 
@@ -892,16 +841,16 @@ updateEditor msg model =
                     case Sako.importExchangeNotation pasteContent of
                         Err _ ->
                             -- ParseError (Debug.toString err)
-                            ParseError "Error: Make sure your input has the right shape!"
+                            Sako.ParseError "Error: Make sure your input has the right shape!"
 
                         Ok position ->
-                            ParseSuccess (pacoPositionFromPieces position)
+                            Sako.ParseSuccess (Sako.pacoPositionFromPieces position)
             in
             ( { model
                 | userPaste = pasteContent
                 , pasteParsed =
                     if String.isEmpty pasteContent then
-                        NoInput
+                        Sako.NoInput
 
                     else
                         parseInput ()
@@ -1090,7 +1039,7 @@ liftToolUpdate model toolUpdate =
             , Websocket.send
                 (Websocket.ClientNextStep
                     { index = P.lengthL model.game + 1
-                    , step = encodePacoPosition position
+                    , step = Sako.encodePacoPosition position
                     }
                 )
             )
@@ -1142,7 +1091,7 @@ handleToolOutputMsg msg model =
             , Websocket.send
                 (Websocket.ClientNextStep
                     { index = P.lengthL model.game + 1
-                    , step = encodePacoPosition position
+                    , step = Sako.encodePacoPosition position
                     }
                 )
             )
@@ -1209,7 +1158,7 @@ pieceHighlighted tile highlight piece =
         False
 
 
-updateSmartToolClick : PacoPosition -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
+updateSmartToolClick : Sako.Position -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolClick position tile model =
     case model.highlight of
         Just ( highlightTile, highlight ) ->
@@ -1259,7 +1208,7 @@ updateSmartToolClick position tile model =
             )
 
 
-updateSmartToolHover : PacoPosition -> Maybe Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
+updateSmartToolHover : Sako.Position -> Maybe Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolHover position maybeTile model =
     -- To show a hover marker, we need both a highlighted tile and a
     -- hovered tile. Otherwise we don't do anything at all.
@@ -1288,7 +1237,7 @@ updateSmartToolDeselect model =
     ( smartToolRemoveDragInfo { model | highlight = Nothing }, ToolRollback )
 
 
-updateSmartToolDelete : PacoPosition -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
+updateSmartToolDelete : Sako.Position -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolDelete position model =
     case model.highlight of
         Just ( highlightTile, highlight ) ->
@@ -1316,7 +1265,7 @@ updateSmartToolDelete position model =
             ( smartToolRemoveDragInfo model, ToolRollback )
 
 
-updateSmartToolAdd : PacoPosition -> Sako.Color -> Sako.Type -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
+updateSmartToolAdd : Sako.Position -> Sako.Color -> Sako.Type -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolAdd position color pieceType model =
     case model.highlight of
         Just ( highlightTile, _ ) ->
@@ -1347,7 +1296,7 @@ updateSmartToolAdd position color pieceType model =
             ( smartToolRemoveDragInfo model, ToolRollback )
 
 
-updateSmartToolStartDrag : PacoPosition -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
+updateSmartToolStartDrag : Sako.Position -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolStartDrag position startTile model =
     let
         highlightType =
@@ -1395,7 +1344,7 @@ updateSmartToolContinueDrag aPos bPos model =
     )
 
 
-updateSmartToolStopDrag : PacoPosition -> Tile -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
+updateSmartToolStopDrag : Sako.Position -> Tile -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolStopDrag position startTile targetTile model =
     let
         highlightType =
@@ -1436,7 +1385,7 @@ updateSmartToolStopDrag position startTile targetTile model =
             )
 
 
-updateSmartToolSelection : PacoPosition -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
+updateSmartToolSelection : Sako.Position -> Tile -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolSelection position highlightTile model =
     let
         pieceCountOnSelectedTile =
@@ -1465,9 +1414,9 @@ updateSmartToolSelection position highlightTile model =
 the user interface.
 -}
 type MoveExecutionType
-    = SimpleMove PacoPosition
+    = SimpleMove Sako.Position
     | MoveIsIllegal
-    | MoveEndsWithLift PacoPosition PacoPiece
+    | MoveEndsWithLift Sako.Position PacoPiece
     | NoSourcePieceFound
 
 
@@ -1478,7 +1427,7 @@ Nothing instead of executing the move.
 This function operates under the assumption, that sourceTile /= targetTile.
 
 -}
-doMoveAction : Tile -> Highlight -> Tile -> PacoPosition -> MoveExecutionType
+doMoveAction : Tile -> Highlight -> Tile -> Sako.Position -> MoveExecutionType
 doMoveAction sourceTile highlight targetTile position =
     let
         sourcePieceSelector piece =
@@ -1645,7 +1594,7 @@ updateWebsocketNextStep : Int -> Value -> EditorModel -> ( EditorModel, Cmd Msg 
 updateWebsocketNextStep index step editor =
     case P.goAbsolute (index - 1) editor.game of
         Just pivot ->
-            case Decode.decodeValue decodePacoPosition step of
+            case Decode.decodeValue Sako.decodePacoPosition step of
                 Ok newPacoPosition ->
                     ( { editor | game = addHistoryState newPacoPosition pivot }
                         |> animateToCurrentPosition
@@ -1670,10 +1619,10 @@ updateWebsocketNextStep index step editor =
                     )
 
 
-decodeSyncronizedSteps : List Value -> Result Decode.Error (List PacoPosition)
+decodeSyncronizedSteps : List Value -> Result Decode.Error (List Sako.Position)
 decodeSyncronizedSteps steps =
     steps
-        |> List.map (Decode.decodeValue decodePacoPosition)
+        |> List.map (Decode.decodeValue Sako.decodePacoPosition)
         |> Result.combine
 
 
@@ -1792,19 +1741,19 @@ type alias VisualPacoPiece =
 makes it easier to determine the visual pieces. We still need to check if there
 is a lifted piece, as such a state could be persisted in the backend.
 -}
-initVisualPacoPosition : PacoPosition -> List VisualPacoPiece
+initVisualPacoPosition : Sako.Position -> List VisualPacoPiece
 initVisualPacoPosition position =
     determineVisualPieces initSmartTool position
 
 
-determineVisualPieces : SmartToolModel -> PacoPosition -> List VisualPacoPiece
+determineVisualPieces : SmartToolModel -> Sako.Position -> List VisualPacoPiece
 determineVisualPieces smartTool position =
     determineVisualPiecesCurrentlyLifted position
         ++ determineVisualPiecesDragged smartTool
         ++ determineVisualPiecesAtRest position
 
 
-determineVisualPiecesAtRest : PacoPosition -> List VisualPacoPiece
+determineVisualPiecesAtRest : Sako.Position -> List VisualPacoPiece
 determineVisualPiecesAtRest position =
     position.pieces
         |> List.map
@@ -1832,7 +1781,7 @@ restingZOrder color =
 {-| Here we return List a instead of Maybe a to allow easier combination with
 other lists.
 -}
-determineVisualPiecesCurrentlyLifted : PacoPosition -> List VisualPacoPiece
+determineVisualPiecesCurrentlyLifted : Sako.Position -> List VisualPacoPiece
 determineVisualPiecesCurrentlyLifted position =
     Maybe.map visualPieceCurrentlyLifted position.liftedPiece
         |> Maybe.map (\p -> [ p ])
@@ -2107,14 +2056,14 @@ storedPositionList taco model =
         model.storedPositions
 
 
-buildPacoPositionFromStoredPosition : StoredPosition -> Maybe PacoPosition
+buildPacoPositionFromStoredPosition : StoredPosition -> Maybe Sako.Position
 buildPacoPositionFromStoredPosition storedPosition =
     Sako.importExchangeNotation storedPosition.data.notation
         |> Result.toMaybe
-        |> Maybe.map pacoPositionFromPieces
+        |> Maybe.map Sako.pacoPositionFromPieces
 
 
-loadPositionPreview : Taco -> PacoPosition -> Element Msg
+loadPositionPreview : Taco -> Sako.Position -> Element Msg
 loadPositionPreview taco position =
     Input.button []
         { onPress = Just (LoadIntoEditor position)
@@ -2154,7 +2103,7 @@ editorUi taco model =
         ]
 
 
-saveStateHeader : PacoPosition -> SaveState -> Element Msg
+saveStateHeader : Sako.Position -> SaveState -> Element Msg
 saveStateHeader position saveState =
     case saveState of
         SaveIsCurrent id ->
@@ -2295,7 +2244,7 @@ sidebar taco model =
         ]
 
 
-sidebarActionButtons : Pivot PacoPosition -> Element EditorMsg
+sidebarActionButtons : Pivot Sako.Position -> Element EditorMsg
 sidebarActionButtons p =
     Element.row [ width fill ]
         [ undo p
@@ -2337,19 +2286,19 @@ redo p =
         flatButton Nothing (icon [ Font.color (Element.rgb255 150 150 150) ] Solid.arrowRight)
 
 
-resetStartingBoard : Pivot PacoPosition -> Element EditorMsg
+resetStartingBoard : Pivot Sako.Position -> Element EditorMsg
 resetStartingBoard p =
-    if P.getC p /= initialPosition then
-        flatButton (Just (Reset initialPosition)) (icon [] Solid.home)
+    if P.getC p /= Sako.initialPosition then
+        flatButton (Just (Reset Sako.initialPosition)) (icon [] Solid.home)
 
     else
         flatButton Nothing (icon [ Font.color (Element.rgb255 150 150 150) ] Solid.home)
 
 
-resetClearBoard : Pivot PacoPosition -> Element EditorMsg
+resetClearBoard : Pivot Sako.Position -> Element EditorMsg
 resetClearBoard p =
-    if P.getC p /= emptyPosition then
-        flatButton (Just (Reset emptyPosition)) (icon [] Solid.broom)
+    if P.getC p /= Sako.emptyPosition then
+        flatButton (Just (Reset Sako.emptyPosition)) (icon [] Solid.broom)
 
     else
         flatButton Nothing (icon [ Font.color (Element.rgb255 150 150 150) ] Solid.broom)
@@ -2360,7 +2309,7 @@ randomPosition =
     flatButton (Just RequestRandomPosition) (icon [] Solid.dice)
 
 
-analysePosition : PacoPosition -> Element EditorMsg
+analysePosition : Sako.Position -> Element EditorMsg
 analysePosition position =
     flatButton (Just (RequestAnalysePosition position)) (icon [] Solid.calculator)
 
@@ -2528,7 +2477,7 @@ shareButton editor =
 postShareRequest : EditorModel -> Cmd Msg
 postShareRequest editor =
     P.toList editor.game
-        |> List.map encodePacoPosition
+        |> List.map Sako.encodePacoPosition
         |> Websocket.share (GotSharingResult >> EditorMsgWrapper)
 
 
@@ -2842,13 +2791,13 @@ markdownCopyPaste taco model =
 parsedMarkdownPaste : Taco -> EditorModel -> Element EditorMsg
 parsedMarkdownPaste taco model =
     case model.pasteParsed of
-        NoInput ->
+        Sako.NoInput ->
             Element.none
 
-        ParseError error ->
+        Sako.ParseError error ->
             Element.text error
 
-        ParseSuccess pacoPosition ->
+        Sako.ParseSuccess pacoPosition ->
             Input.button []
                 { onPress = Just (UseUserPaste pacoPosition)
                 , label =
@@ -2977,7 +2926,7 @@ puzzleBlock taco details =
             let
                 positionPreviews =
                     positions
-                        |> List.map pacoPositionFromPieces
+                        |> List.map Sako.pacoPositionFromPieces
                         |> List.map (loadPositionPreview taco)
 
                 rows =
@@ -3408,7 +3357,7 @@ getLogout =
         }
 
 
-postSave : PacoPosition -> SaveState -> Cmd Msg
+postSave : Sako.Position -> SaveState -> Cmd Msg
 postSave position saveState =
     case saveStateId saveState of
         Just id ->
@@ -3432,7 +3381,7 @@ encodeCreatePositionData record =
         ]
 
 
-encodeCreatePosition : PacoPosition -> Value
+encodeCreatePosition : Sako.Position -> Value
 encodeCreatePosition position =
     Encode.object
         [ ( "data"
@@ -3454,7 +3403,7 @@ decodeSavePositionDone =
         (Decode.field "id" Decode.int)
 
 
-postSaveCreate : PacoPosition -> Cmd Msg
+postSaveCreate : Sako.Position -> Cmd Msg
 postSaveCreate position =
     Http.post
         { url = "/api/position"
@@ -3466,7 +3415,7 @@ postSaveCreate position =
         }
 
 
-postSaveUpdate : PacoPosition -> Int -> Cmd Msg
+postSaveUpdate : Sako.Position -> Int -> Cmd Msg
 postSaveUpdate position id =
     Http.post
         { url = "/api/position/" ++ String.fromInt id
@@ -3512,13 +3461,13 @@ getAllSavedPositions =
         }
 
 
-decodePacoPositionData : Decoder PacoPosition
+decodePacoPositionData : Decoder Sako.Position
 decodePacoPositionData =
     Decode.andThen
         (\json ->
             json.notation
                 |> Sako.importExchangeNotation
-                |> Result.map (pacoPositionFromPieces >> Decode.succeed)
+                |> Result.map (Sako.pacoPositionFromPieces >> Decode.succeed)
                 |> Result.withDefault (Decode.fail "Data has wrong shape.")
         )
         decodeStoredPositionData
@@ -3545,7 +3494,7 @@ decodeAnalysisReport =
         (Decode.field "text_summary" Decode.string)
 
 
-postAnalysePosition : PacoPosition -> Cmd Msg
+postAnalysePosition : Sako.Position -> Cmd Msg
 postAnalysePosition position =
     Http.post
         { url = "/api/analyse"
@@ -3750,3 +3699,20 @@ centerColumn =
         , Element.width (Element.fill |> Element.maximum 1000)
         , Element.centerX
         ]
+
+
+
+--------------------------------------------------------------------------------
+-- Playing Paco Ŝako -----------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Set up a game and play it by the rules.
+-- The rules are not known by the elm frontend and we need to query them from
+-- the server.
+-- I'll call this a "Match".
+
+
+type alias MatchModel =
+    { board : Sako.Position
+    , history : List Sako.Position
+    , legalActions : Maybe (List Sako.Action)
+    }

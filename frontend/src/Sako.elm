@@ -1,18 +1,24 @@
 module Sako exposing
-    ( Color(..)
+    ( Action
+    , Color(..)
     , PacoPiece
+    , Position
+    , PositionParseResult(..)
     , Tile(..)
     , Type(..)
-    , decodePacoPiece
+    , decodePacoPosition
     , defaultInitialPosition
-    , encodePacoPiece
+    , emptyPosition
+    , encodePacoPosition
     , enumeratePieceIdentity
     , exportExchangeNotation
     , importExchangeNotation
     , importExchangeNotationList
+    , initialPosition
     , isAt
     , isColor
     , movePieceConditional
+    , pacoPositionFromPieces
     , tileX
     , tileY
     )
@@ -261,6 +267,14 @@ enumeratePieceIdentity pieces =
         pieces
 
 
+{-| The atomic actions you can execute on a Paco Ŝako board.
+-}
+type Action
+    = LiftAction Tile
+    | PlaceAction Tile
+    | PromoteAction Type
+
+
 
 --------------------------------------------------------------------------------
 -- Tiles -----------------------------------------------------------------------
@@ -302,6 +316,58 @@ decodeTile =
     Decode.map2 Tile
         (Decode.field "x" Decode.int)
         (Decode.field "y" Decode.int)
+
+
+
+--------------------------------------------------------------------------------
+-- The state of a game is a Position -------------------------------------------
+--------------------------------------------------------------------------------
+
+
+type alias Position =
+    { pieces : List PacoPiece
+    , liftedPiece : Maybe PacoPiece
+    }
+
+
+initialPosition : Position
+initialPosition =
+    { pieces = defaultInitialPosition
+    , liftedPiece = Nothing
+    }
+
+
+emptyPosition : Position
+emptyPosition =
+    { pieces = []
+    , liftedPiece = Nothing
+    }
+
+
+pacoPositionFromPieces : List PacoPiece -> Position
+pacoPositionFromPieces pieces =
+    { emptyPosition | pieces = pieces }
+
+
+type PositionParseResult
+    = NoInput
+    | ParseError String
+    | ParseSuccess Position
+
+
+decodePacoPosition : Decoder Position
+decodePacoPosition =
+    Decode.map2 Position
+        (Decode.field "pieces" (Decode.list decodePacoPiece))
+        (Decode.field "liftedPiece" (Decode.nullable decodePacoPiece))
+
+
+encodePacoPosition : Position -> Value
+encodePacoPosition record =
+    Encode.object
+        [ ( "pieces", Encode.list encodePacoPiece <| record.pieces )
+        , ( "liftedPiece", Maybe.withDefault Encode.null <| Maybe.map encodePacoPiece <| record.liftedPiece )
+        ]
 
 
 
