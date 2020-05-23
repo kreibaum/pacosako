@@ -1,15 +1,15 @@
 module Sako exposing
     ( Action
     , Color(..)
-    , PacoPiece
+    , Piece
     , Position
     , PositionParseResult(..)
     , Tile(..)
     , Type(..)
-    , decodePacoPosition
+    , decodePosition
     , defaultInitialPosition
     , emptyPosition
-    , encodePacoPosition
+    , encodePosition
     , enumeratePieceIdentity
     , exportExchangeNotation
     , importExchangeNotation
@@ -18,7 +18,7 @@ module Sako exposing
     , isAt
     , isColor
     , movePieceConditional
-    , pacoPositionFromPieces
+    , positionFromPieces
     , tileX
     , tileY
     )
@@ -158,7 +158,7 @@ Only positions on the board are allowed, lifted positions are not expressed
 with this type.
 
 -}
-type alias PacoPiece =
+type alias Piece =
     { pieceType : Type
     , color : Color
     , position : Tile
@@ -166,26 +166,26 @@ type alias PacoPiece =
     }
 
 
-{-| Deserializes a PacoPiece.
+{-| Deserializes a Piece.
 -}
-decodePacoPiece : Decoder PacoPiece
+decodePacoPiece : Decoder Piece
 decodePacoPiece =
-    Decode.map4 PacoPiece
+    Decode.map4 Piece
         (Decode.field "pieceType" decodeType)
         (Decode.field "color" decodeColor)
         (Decode.field "position" decodeTile)
         (Decode.field "identity" Decode.string)
 
 
-{-| Serializes a PacoPiece.
+{-| Serializes a Piece.
 
 This also stores the identity of the piece which is important for tracking
 pieces across multiple board states. If we did not store this information with
 the pieces, animations would not work.
 
 -}
-encodePacoPiece : PacoPiece -> Value
-encodePacoPiece record =
+encodePiece : Piece -> Value
+encodePiece record =
     Encode.object
         [ ( "pieceType", encodeType <| record.pieceType )
         , ( "color", encodeColor <| record.color )
@@ -194,7 +194,7 @@ encodePacoPiece record =
         ]
 
 
-movePieceConditional : Tile -> Tile -> PacoPiece -> PacoPiece
+movePieceConditional : Tile -> Tile -> Piece -> Piece
 movePieceConditional source target piece =
     if piece.position == source then
         { piece | position = target }
@@ -203,22 +203,22 @@ movePieceConditional source target piece =
         piece
 
 
-isAt : Tile -> PacoPiece -> Bool
+isAt : Tile -> Piece -> Bool
 isAt tile piece =
     piece.position == tile
 
 
-isColor : Color -> PacoPiece -> Bool
+isColor : Color -> Piece -> Bool
 isColor color piece =
     piece.color == color
 
 
-pacoPiece : Color -> Type -> Tile -> PacoPiece
+pacoPiece : Color -> Type -> Tile -> Piece
 pacoPiece color pieceType position =
     { pieceType = pieceType, color = color, position = position, identity = "" }
 
 
-defaultInitialPosition : List PacoPiece
+defaultInitialPosition : List Piece
 defaultInitialPosition =
     [ pacoPiece White Rook (Tile 0 0)
     , pacoPiece White Knight (Tile 1 0)
@@ -260,7 +260,7 @@ defaultInitialPosition =
 We assign a unique ID to each piece that will allow us to track the identity of
 pieces across different board states.
 -}
-enumeratePieceIdentity : List PacoPiece -> List PacoPiece
+enumeratePieceIdentity : List Piece -> List Piece
 enumeratePieceIdentity pieces =
     List.indexedMap
         (\i p -> { p | identity = "enumerate" ++ String.fromInt i })
@@ -325,8 +325,8 @@ decodeTile =
 
 
 type alias Position =
-    { pieces : List PacoPiece
-    , liftedPiece : Maybe PacoPiece
+    { pieces : List Piece
+    , liftedPiece : Maybe Piece
     }
 
 
@@ -344,8 +344,8 @@ emptyPosition =
     }
 
 
-pacoPositionFromPieces : List PacoPiece -> Position
-pacoPositionFromPieces pieces =
+positionFromPieces : List Piece -> Position
+positionFromPieces pieces =
     { emptyPosition | pieces = pieces }
 
 
@@ -355,18 +355,18 @@ type PositionParseResult
     | ParseSuccess Position
 
 
-decodePacoPosition : Decoder Position
-decodePacoPosition =
+decodePosition : Decoder Position
+decodePosition =
     Decode.map2 Position
         (Decode.field "pieces" (Decode.list decodePacoPiece))
         (Decode.field "liftedPiece" (Decode.nullable decodePacoPiece))
 
 
-encodePacoPosition : Position -> Value
-encodePacoPosition record =
+encodePosition : Position -> Value
+encodePosition record =
     Encode.object
-        [ ( "pieces", Encode.list encodePacoPiece <| record.pieces )
-        , ( "liftedPiece", Maybe.withDefault Encode.null <| Maybe.map encodePacoPiece <| record.liftedPiece )
+        [ ( "pieces", Encode.list encodePiece <| record.pieces )
+        , ( "liftedPiece", Maybe.withDefault Encode.null <| Maybe.map encodePiece <| record.liftedPiece )
         ]
 
 
@@ -379,7 +379,7 @@ encodePacoPosition record =
 {-| Converts a Paco Ŝako position into a human readable version that can be
 copied and stored in a text file.
 -}
-abstractExchangeNotation : String -> List PacoPiece -> String
+abstractExchangeNotation : String -> List Piece -> String
 abstractExchangeNotation lineSeparator pieces =
     let
         dictRepresentation =
@@ -425,7 +425,7 @@ Here is an example:
     .. .. .. .. .. .. .. ..
 
 -}
-exportExchangeNotation : List PacoPiece -> String
+exportExchangeNotation : List Piece -> String
 exportExchangeNotation pieces =
     abstractExchangeNotation "\n" pieces
 
@@ -439,7 +439,7 @@ type TileState
 
 {-| Converts a PacoPosition into a map from 1d tile indices to tile states
 -}
-pacoPositionAsGrid : List PacoPiece -> Dict Int TileState
+pacoPositionAsGrid : List Piece -> Dict Int TileState
 pacoPositionAsGrid pieces =
     let
         colorTiles filterColor =
@@ -457,7 +457,7 @@ pacoPositionAsGrid pieces =
         Dict.empty
 
 
-gridAsPacoPosition : List (List TileState) -> List PacoPiece
+gridAsPacoPosition : List (List TileState) -> List Piece
 gridAsPacoPosition tiles =
     indexedMapNest2 tileAsPacoPiece tiles
         |> List.concat
@@ -465,7 +465,7 @@ gridAsPacoPosition tiles =
         |> enumeratePieceIdentity
 
 
-tileAsPacoPiece : Int -> Int -> TileState -> List PacoPiece
+tileAsPacoPiece : Int -> Int -> TileState -> List Piece
 tileAsPacoPiece row col tile =
     let
         position =
@@ -586,7 +586,7 @@ parseGrid =
         |> Parser.andThen parseLengthEightCheck
 
 
-parsePosition : Parser (List PacoPiece)
+parsePosition : Parser (List Piece)
 parsePosition =
     parseGrid
         |> Parser.map gridAsPacoPosition
@@ -606,7 +606,7 @@ Here is an example of the notation:
     .. .. .. .. .. .. .. ..
 
 -}
-importExchangeNotation : String -> Result (List Parser.DeadEnd) (List PacoPiece)
+importExchangeNotation : String -> Result (List Parser.DeadEnd) (List Piece)
 importExchangeNotation input =
     Parser.run parsePosition input
 
@@ -616,7 +616,7 @@ Deprecated: In the future the examples won't come from a file, instead it will
 be read from the server in a json where each position data has a separate
 field anyway. Then this function won't be needed anymore.
 -}
-parseLibrary : Parser (List (List PacoPiece))
+parseLibrary : Parser (List (List Piece))
 parseLibrary =
     sepBy parsePosition (Parser.symbol "-" |. linebreak)
 
@@ -624,7 +624,7 @@ parseLibrary =
 {-| Given a file that contains many Paco Ŝako in human readable exchange notation
 separated by a '-' character, this function parses all positions.
 -}
-importExchangeNotationList : String -> Result (List Parser.DeadEnd) (List (List PacoPiece))
+importExchangeNotationList : String -> Result (List Parser.DeadEnd) (List (List Piece))
 importExchangeNotationList input =
     Parser.run parseLibrary input
 

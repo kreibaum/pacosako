@@ -30,7 +30,7 @@ import Pivot as P exposing (Pivot)
 import Ports
 import RemoteData exposing (WebData)
 import Result.Extra as Result
-import Sako exposing (PacoPiece, Tile(..))
+import Sako exposing (Piece, Tile(..))
 import StaticText
 import Svg exposing (Svg)
 import Svg.Attributes
@@ -227,8 +227,8 @@ type alias SmartToolModel =
 
 
 type DraggingPieces
-    = DraggingPiecesNormal (List PacoPiece)
-    | DraggingPiecesLifted PacoPiece
+    = DraggingPiecesNormal (List Piece)
+    | DraggingPiecesLifted Piece
 
 
 smartToolRemoveDragInfo : SmartToolModel -> SmartToolModel
@@ -620,7 +620,7 @@ update msg model =
                             RemoteData.Failure (Http.BadBody "The examples file is broken")
 
                         Ok positions ->
-                            RemoteData.Success (List.map Sako.pacoPositionFromPieces positions)
+                            RemoteData.Success (List.map Sako.positionFromPieces positions)
             in
             ( { model | exampleFile = examples }, Cmd.none )
 
@@ -844,7 +844,7 @@ updateEditor msg model =
                             Sako.ParseError "Error: Make sure your input has the right shape!"
 
                         Ok position ->
-                            Sako.ParseSuccess (Sako.pacoPositionFromPieces position)
+                            Sako.ParseSuccess (Sako.positionFromPieces position)
             in
             ( { model
                 | userPaste = pasteContent
@@ -1039,7 +1039,7 @@ liftToolUpdate model toolUpdate =
             , Websocket.send
                 (Websocket.ClientNextStep
                     { index = P.lengthL model.game + 1
-                    , step = Sako.encodePacoPosition position
+                    , step = Sako.encodePosition position
                     }
                 )
             )
@@ -1091,7 +1091,7 @@ handleToolOutputMsg msg model =
             , Websocket.send
                 (Websocket.ClientNextStep
                     { index = P.lengthL model.game + 1
-                    , step = Sako.encodePacoPosition position
+                    , step = Sako.encodePosition position
                     }
                 )
             )
@@ -1138,7 +1138,7 @@ moveDrag current drag =
         drag
 
 
-pieceHighlighted : Tile -> Highlight -> PacoPiece -> Bool
+pieceHighlighted : Tile -> Highlight -> Piece -> Bool
 pieceHighlighted tile highlight piece =
     if Sako.isAt tile piece then
         case highlight of
@@ -1416,7 +1416,7 @@ the user interface.
 type MoveExecutionType
     = SimpleMove Sako.Position
     | MoveIsIllegal
-    | MoveEndsWithLift Sako.Position PacoPiece
+    | MoveEndsWithLift Sako.Position Piece
     | NoSourcePieceFound
 
 
@@ -1594,7 +1594,7 @@ updateWebsocketNextStep : Int -> Value -> EditorModel -> ( EditorModel, Cmd Msg 
 updateWebsocketNextStep index step editor =
     case P.goAbsolute (index - 1) editor.game of
         Just pivot ->
-            case Decode.decodeValue Sako.decodePacoPosition step of
+            case Decode.decodeValue Sako.decodePosition step of
                 Ok newPacoPosition ->
                     ( { editor | game = addHistoryState newPacoPosition pivot }
                         |> animateToCurrentPosition
@@ -1622,7 +1622,7 @@ updateWebsocketNextStep index step editor =
 decodeSyncronizedSteps : List Value -> Result Decode.Error (List Sako.Position)
 decodeSyncronizedSteps steps =
     steps
-        |> List.map (Decode.decodeValue Sako.decodePacoPosition)
+        |> List.map (Decode.decodeValue Sako.decodePosition)
         |> Result.combine
 
 
@@ -1788,7 +1788,7 @@ determineVisualPiecesCurrentlyLifted position =
         |> Maybe.withDefault []
 
 
-visualPieceCurrentlyLifted : PacoPiece -> VisualPacoPiece
+visualPieceCurrentlyLifted : Piece -> VisualPacoPiece
 visualPieceCurrentlyLifted liftedPiece =
     { pieceType = liftedPiece.pieceType
     , color = liftedPiece.color
@@ -2060,7 +2060,7 @@ buildPacoPositionFromStoredPosition : StoredPosition -> Maybe Sako.Position
 buildPacoPositionFromStoredPosition storedPosition =
     Sako.importExchangeNotation storedPosition.data.notation
         |> Result.toMaybe
-        |> Maybe.map Sako.pacoPositionFromPieces
+        |> Maybe.map Sako.positionFromPieces
 
 
 loadPositionPreview : Taco -> Sako.Position -> Element Msg
@@ -2477,7 +2477,7 @@ shareButton editor =
 postShareRequest : EditorModel -> Cmd Msg
 postShareRequest editor =
     P.toList editor.game
-        |> List.map Sako.encodePacoPosition
+        |> List.map Sako.encodePosition
         |> Websocket.share (GotSharingResult >> EditorMsgWrapper)
 
 
@@ -2926,7 +2926,7 @@ puzzleBlock taco details =
             let
                 positionPreviews =
                     positions
-                        |> List.map Sako.pacoPositionFromPieces
+                        |> List.map Sako.positionFromPieces
                         |> List.map (loadPositionPreview taco)
 
                 rows =
@@ -3467,7 +3467,7 @@ decodePacoPositionData =
         (\json ->
             json.notation
                 |> Sako.importExchangeNotation
-                |> Result.map (Sako.pacoPositionFromPieces >> Decode.succeed)
+                |> Result.map (Sako.positionFromPieces >> Decode.succeed)
                 |> Result.withDefault (Decode.fail "Data has wrong shape.")
         )
         decodeStoredPositionData
