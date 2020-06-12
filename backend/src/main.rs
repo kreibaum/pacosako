@@ -1,5 +1,6 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+// mod game_actor;
 mod websocket;
 
 #[macro_use]
@@ -527,6 +528,33 @@ fn analyse_position(
     }
 }
 
+#[derive(Deserialize)]
+struct LegalActionsRequest {
+    pieces: Vec<pacosako::RestingPiece>,
+    lifted_piece: pacosako::Hand,
+    current_player: pacosako::types::PlayerColor,
+}
+
+/// Returns a tree of possible actions from the given position
+#[post("/legal_actions", data = "<request>")]
+fn legal_actions(
+    request: Json<LegalActionsRequest>,
+) -> Result<Json<Vec<pacosako::PacoAction>>, Json<ServerError>> {
+    json_result(_legal_actions(&request))
+}
+
+fn _legal_actions(request: &LegalActionsRequest) -> Result<Vec<pacosako::PacoAction>, ServerError> {
+    use pacosako::PacoBoard;
+
+    // Convert the request into an object we can actually work with.
+    let mut position = pacosako::EditorBoard::new(request.pieces.clone())
+        .with_active_player(request.current_player);
+    position.set_hand(request.lifted_piece.clone());
+
+    let actions: Vec<pacosako::PacoAction> = position.actions()?;
+    Ok(actions)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Websocket integration ///////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -564,6 +592,7 @@ fn main() {
                 position_get,
                 random_position,
                 analyse_position,
+                legal_actions,
                 article_get_my_list,
                 article_get_public_list,
                 article_get,
