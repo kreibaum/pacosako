@@ -1,6 +1,6 @@
 module Sako exposing
-    ( Action
-    , Color(..)
+    ( Color(..)
+    , InputStep(..)
     , Piece
     , Position
     , Tile(..)
@@ -8,6 +8,7 @@ module Sako exposing
     , decodePosition
     , emptyPosition
     , encodePosition
+    , executeActionUnsafe
     , exportExchangeNotation
     , importExchangeNotation
     , importExchangeNotationList
@@ -251,12 +252,126 @@ enumeratePieceIdentity pieces =
         pieces
 
 
-{-| The atomic actions you can execute on a Paco Ŝako board.
+{-| An input step is a little bit more granular then an action. From a settled
+position, you must first perform a move input step. You may then end up in
+another settled state or in a suspended state. From a suspended step you must
+execute a chain input step.
+
+This type does not factor in promotions yet.
+
 -}
-type Action
-    = LiftAction Tile
-    | PlaceAction Tile
-    | PromoteAction Type
+type InputStep
+    = MoveInputStep Tile Tile
+    | ChainInputStep Tile
+
+
+{-| This function assumes the move is legal, this has to be checked by some
+other method. Giving illegal instructions to this function is undefined behaviour.
+-}
+executeActionUnsafe : InputStep -> Position -> Position
+executeActionUnsafe action position =
+    case action of
+        MoveInputStep from to ->
+            executeMoveInputStepUnsafe from to position
+
+        ChainInputStep into ->
+            case position.liftedPiece of
+                Just piece ->
+                    executeChainInputStepUnsafe piece into position
+
+                Nothing ->
+                    -- This is clearly an error and we invoke UB.
+                    position
+
+
+executeMoveInputStepUnsafe : Tile -> Tile -> Position -> Position
+executeMoveInputStepUnsafe from to position =
+    let
+        piecesToMove =
+            position.pieces
+                |> List.filter (isAt from)
+    in
+    case piecesToMove of
+        [ piece ] ->
+            executeMoveInputStepSingleUnsafe piece to position
+
+        _ ->
+            moveAllUnsafe from to position
+
+
+executeMoveInputStepSingleUnsafe : Piece -> Tile -> Position -> Position
+executeMoveInputStepSingleUnsafe piece to position =
+    let
+        piecesAtTargetOfSameTeam =
+            position.pieces
+                |> List.filter (isAt to)
+                |> List.filter (isColor piece.color)
+    in
+    case piecesAtTargetOfSameTeam of
+        [ partner ] ->
+            position
+                |> moveAllUnsafe piece.position to
+                |> liftPieceUnsafe partner
+
+        _ ->
+            position
+                |> moveAllUnsafe piece.position to
+
+
+executeChainInputStepUnsafe : Piece -> Tile -> Position -> Position
+executeChainInputStepUnsafe liftedPiece to position =
+    let
+        piecesAtTargetOfSameTeam =
+            position.pieces
+                |> List.filter (isAt to)
+                |> List.filter (isColor liftedPiece.color)
+
+        liftedPieceMoved =
+            { liftedPiece | position = to }
+    in
+    case piecesAtTargetOfSameTeam of
+        [ partner ] ->
+            { position | pieces = liftedPieceMoved :: position.pieces }
+                |> liftPieceUnsafe partner
+
+        _ ->
+            { position | pieces = liftedPieceMoved :: position.pieces }
+
+
+{-| Conditionally moves a piece if it is on the given source tile.
+-}
+movePieceUnsafe : Tile -> Tile -> Piece -> Piece
+movePieceUnsafe from to piece =
+    if piece.position == from then
+        { piece | position = to }
+
+    else
+        piece
+
+
+{-| Removes the given piece out of the position and places it in the lifted
+position. This assumes that the lifted position is currenty empty and will
+overwrite the currently lifted piece.
+-}
+liftPieceUnsafe : Piece -> Position -> Position
+liftPieceUnsafe piece position =
+    { position
+        | pieces =
+            position.pieces
+                |> List.filter (\p -> p /= piece)
+        , liftedPiece = Just piece
+    }
+
+
+{-| Moves all pieces at "from" to the "to" tile.
+-}
+moveAllUnsafe : Tile -> Tile -> Position -> Position
+moveAllUnsafe from to position =
+    { position
+        | pieces =
+            position.pieces
+                |> List.map (movePieceUnsafe from to)
+    }
 
 
 

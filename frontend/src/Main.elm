@@ -52,6 +52,7 @@ main =
 type alias Model =
     { taco : Taco
     , page : Page
+    , play : PlayModel
     , editor : EditorModel
     , blog : BlogModel
     , login : LoginModel
@@ -65,6 +66,7 @@ type alias Model =
 
 type Page
     = MainPage
+    | PlayPage
     | EditorPage
     | LibraryPage
     | BlogPage
@@ -379,7 +381,9 @@ type alias Rect =
 
 
 type Msg
-    = EditorMsgWrapper EditorMsg
+    = NoOp
+    | PlayMsgWrapper PlayMsg
+    | EditorMsgWrapper EditorMsg
     | BlogMsgWrapper BlogEditorMsg
     | LoginPageMsgWrapper LoginPageMsg
     | LoadIntoEditor Sako.Position
@@ -542,6 +546,7 @@ init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     ( { taco = initialTaco
       , page = EditorPage
+      , play = initPlayModel
       , editor = initialEditor flags
       , blog = initialBlog
       , login = initialLogin
@@ -575,8 +580,14 @@ expectLibrary result =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        NoOp ->
+            ( model, Cmd.none )
+
         AnimationTick newTime ->
             ( updateTimeline newTime model, Cmd.none )
+
+        PlayMsgWrapper playMsg ->
+            ( { model | play = updatePlayModel playMsg model.play }, Cmd.none )
 
         EditorMsgWrapper editorMsg ->
             let
@@ -1639,6 +1650,7 @@ subscriptions model =
             (WebsocketMsg >> EditorMsgWrapper)
             (WebsocketErrorMsg >> EditorMsgWrapper)
         , Animation.subscription model.editor.timeline AnimationTick
+        , Animation.subscription model.play.timeline (PlayMsgAnimationTick >> PlayMsgWrapper)
         ]
 
 
@@ -1919,6 +1931,9 @@ globalUi model =
         MainPage ->
             mainPageUi model.taco
 
+        PlayPage ->
+            playUi model.taco model.play
+
         EditorPage ->
             editorUi model.taco model.editor
 
@@ -1952,6 +1967,8 @@ pageHeader taco currentPage additionalHeader =
     Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
         [ pageHeaderButton [ Font.bold ]
             { currentPage = currentPage, targetPage = MainPage, caption = "Paco Ŝako Tools" }
+
+        --, pageHeaderButton [] { currentPage = currentPage, targetPage = PlayPage, caption = "Play!" }
         , pageHeaderButton [] { currentPage = currentPage, targetPage = EditorPage, caption = "Position Editor" }
         , pageHeaderButton [] { currentPage = currentPage, targetPage = LibraryPage, caption = "Library" }
         , pageHeaderButton [] { currentPage = currentPage, targetPage = BlogPage, caption = "Blog Editor" }
@@ -3707,11 +3724,98 @@ centerColumn =
 -- Set up a game and play it by the rules.
 -- The rules are not known by the elm frontend and we need to query them from
 -- the server.
--- I'll call this a "Match".
+-- I'll call this the "Play" page.
 
 
-type alias MatchModel =
+type alias PlayModel =
     { board : Sako.Position
-    , history : List Sako.Position
-    , legalActions : Maybe (List Sako.Action)
+    , inputFrom : Sako.Tile
+    , inputTo : Sako.Tile
+
+    -- later: , preview : Maybe Sako.Position
+    , timeline : Timeline (List VisualPacoPiece)
     }
+
+
+initPlayModel : PlayModel
+initPlayModel =
+    { board = Sako.initialPosition
+    , inputFrom = Sako.Tile 4 1
+    , inputTo = Sako.Tile 4 3
+    , timeline = Animation.init (initVisualPacoPosition Sako.initialPosition)
+    }
+
+
+type PlayMsg
+    = PlayActionInputStep Sako.InputStep
+    | PlayMsgAnimationTick Time.Posix
+
+
+updatePlayModel : PlayMsg -> PlayModel -> PlayModel
+updatePlayModel msg model =
+    case msg of
+        PlayActionInputStep step ->
+            let
+                newBoard =
+                    Sako.executeActionUnsafe step model.board
+            in
+            { model
+                | board = newBoard
+                , timeline =
+                    Animation.queue
+                        ( Animation.milliseconds 200, initVisualPacoPosition newBoard )
+                        model.timeline
+            }
+
+        PlayMsgAnimationTick now ->
+            { model | timeline = Animation.tick now model.timeline }
+
+
+playUi : Taco -> PlayModel -> Element Msg
+playUi taco model =
+    Element.column [ width fill, height fill ]
+        [ pageHeader taco PlayPage Element.none
+        , Element.row
+            [ width fill, height fill ]
+            [ playPositionView taco model
+            , Input.button []
+                { onPress = Just (PlayMsgWrapper (PlayActionInputStep (Sako.MoveInputStep (Sako.Tile 4 1) (Sako.Tile 4 3))))
+                , label = Element.text "move"
+                }
+            ]
+        ]
+
+
+playPositionView : Taco -> PlayModel -> Element Msg
+playPositionView taco play =
+    Element.el [ width fill, height fill, centerX ]
+        (Element.el [ centerX, centerY ]
+            (Element.html
+                (Html.div
+                    [ Html.Attributes.id "boardDiv"
+                    ]
+                    [ positionSvg
+                        { visualPacoPieces = currentVisualPiecesPlay play
+                        , colorScheme = taco.colorScheme
+                        , sideLength = 400
+                        , viewMode = ShowNumbers
+                        , nodeId = Just sakoEditorId
+                        , decoration = []
+                        , dragPieceData = []
+                        , withEvents = True
+                        }
+                    ]
+                )
+            )
+        )
+        |> Element.map (\_ -> NoOp)
+
+
+currentVisualPiecesPlay : PlayModel -> List VisualPacoPiece
+currentVisualPiecesPlay model =
+    case Animation.animate model.timeline of
+        Animation.Resting state ->
+            state
+
+        Animation.Transition data ->
+            animateTransition data
