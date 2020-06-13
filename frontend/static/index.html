@@ -165,7 +165,21 @@
       }
 
       // Connect to the websocket to syncronize state
-      let webSocket = new WebSocket(`ws://${window.location.hostname}:3012`);
+      // When developing in gitpod, we need to connect to a different subdomain,
+      // see https://github.com/kreibaum/pacosako/issues/14
+
+      let re = new RegExp("8000-([a-z0-9-.]*\.gitpod\.io)");
+      let match = re.exec(window.location.hostname);
+      let webSocket;
+      if ( match !== null )
+      {
+        webSocket = new WebSocket(`wss://3012-${match[1]}`);
+      }
+      else
+      {
+        let webSocket = new WebSocket(`ws://${window.location.hostname}:3012`);
+      }
+      
       // When a message arrives, this is forwarded to the elm application.
       webSocket.onmessage = function (event) {
         app.ports.websocketReceive.send(JSON.parse(event.data));
