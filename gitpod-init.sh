@@ -11,5 +11,7 @@ elm make src/Main.elm --output=../target/elm.js
 cd ..
 
 # Prebuild server
-cd backend
-cargo build
+# When I tried this, gitpod got stuck during prebuild.
+# So you will just have to wait for the build when the server starts in the ide
+# cd backend
+# cargo build
