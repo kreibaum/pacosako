@@ -6,6 +6,8 @@ image:
   file: .gitpod.Dockerfile
 ports:
   - port: 8000
+    onOpen: open-preview
+  - port: 3012
 github:
   prebuilds:
     # enable for the master/default branch (defaults to true)
