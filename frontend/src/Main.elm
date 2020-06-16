@@ -54,26 +54,14 @@ type alias Model =
     , page : Page
     , play : PlayModel
     , editor : EditorModel
-    , blog : BlogModel
     , login : LoginModel
-    , articleBrowser : ArticleBrowserModel
-
-    -- LibraryPage
-    , exampleFile : WebData (List Sako.Position)
-    , storedPositions : WebData (List StoredPosition)
     }
 
 
 type Page
-    = MainPage
-    | PlayPage
+    = PlayPage
     | EditorPage
-    | LibraryPage
-    | BlogPage
     | LoginPage
-    | ArticleBrowserPage
-    | ArticleViewPage Article Bool
-
 
 type alias User =
     { id : Int
@@ -93,62 +81,6 @@ type alias LoginModel =
     }
 
 
-type alias ArticleBrowserModel =
-    { myArticles : WebData (List Article)
-    , publicArticles : WebData (List Article)
-    }
-
-
-emptyArticleBrowserModel : ArticleBrowserModel
-emptyArticleBrowserModel =
-    { myArticles = RemoteData.NotAsked
-    , publicArticles = RemoteData.NotAsked
-    }
-
-
-setMyArticles : WebData (List Article) -> ArticleBrowserModel -> ArticleBrowserModel
-setMyArticles articles model =
-    { model | myArticles = articles }
-
-
-setPublicArticles : WebData (List Article) -> ArticleBrowserModel -> ArticleBrowserModel
-setPublicArticles articles model =
-    { model | publicArticles = articles }
-
-
-{-| Compares the existing articles by id and replaces articles which match the
-new article. This is done for all members.
--}
-updateArticleInBrowser : Article -> ArticleBrowserModel -> ArticleBrowserModel
-updateArticleInBrowser article model =
-    { myArticles =
-        RemoteData.map
-            (\list -> List.setIf (\a -> a.id == article.id) article list)
-            model.myArticles
-    , publicArticles =
-        RemoteData.map
-            (\list -> List.setIf (\a -> a.id == article.id) article list)
-            model.publicArticles
-    }
-
-
-articleLoadForBrowserRequired : ArticleBrowserModel -> Bool
-articleLoadForBrowserRequired model =
-    case ( model.myArticles, model.publicArticles ) of
-        ( RemoteData.Failure _, _ ) ->
-            True
-
-        ( RemoteData.NotAsked, _ ) ->
-            True
-
-        ( _, RemoteData.Failure _ ) ->
-            True
-
-        ( _, RemoteData.NotAsked ) ->
-            True
-
-        _ ->
-            False
 
 
 {-| Represents the possible save states a persisted object can have.
@@ -345,11 +277,6 @@ getDropTarget decoration =
             Nothing
 
 
-type alias BlogModel =
-    { saveState : SaveState
-    , content : Article
-    }
-
 
 {-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in
 both directions but additional objects are rendered outside.
@@ -384,24 +311,14 @@ type Msg
     = NoOp
     | PlayMsgWrapper PlayMsg
     | EditorMsgWrapper EditorMsg
-    | BlogMsgWrapper BlogEditorMsg
     | LoginPageMsgWrapper LoginPageMsg
     | LoadIntoEditor Sako.Position
     | OpenPage Page
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
-    | GetLibrarySuccess String
-    | GetLibraryFailure Http.Error
     | HttpError Http.Error
     | LoginSuccess User
     | LogoutSuccess
-    | AllPositionsLoadedSuccess (List StoredPosition)
-    | GotAllMyArticles (List Article)
-    | GotAllPublicArticles (List Article)
-    | GotReloadArticle Article
-    | EditArticle Article
-    | PostArticleVisibility Article
-    | GotArticleVisibility Article
     | AnimationTick Time.Posix
 
 
@@ -437,13 +354,6 @@ type EditorMsg
     | WebsocketErrorMsg Decode.Error
     | InputRawShareKey String
     | WebsocketConnect String
-
-
-type BlogEditorMsg
-    = OnMarkdownInput String
-    | OnTitleInput String
-    | SaveArticle Article
-    | GotArticleSave Article
 
 
 type LoginPageMsg
@@ -500,24 +410,6 @@ initialEditor flags =
     }
 
 
-initialBlog : BlogModel
-initialBlog =
-    { content = initArticle
-    , saveState = SaveDoesNotExist
-    }
-
-
-openArticleInEditor : Article -> BlogModel
-openArticleInEditor article =
-    { content = article
-    , saveState =
-        if article.id > 0 then
-            SaveIsCurrent article.id
-
-        else
-            SaveDoesNotExist
-    }
-
 
 initialLogin : LoginModel
 initialLogin =
@@ -545,21 +437,13 @@ sizeDecoder =
 init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     ( { taco = initialTaco
-      , page = EditorPage
+      , page = PlayPage
       , play = initPlayModel
       , editor = initialEditor flags
-      , blog = initialBlog
       , login = initialLogin
-      , articleBrowser = emptyArticleBrowserModel
-      , exampleFile = RemoteData.Loading
-      , storedPositions = RemoteData.NotAsked
       }
     , Cmd.batch
-        [ Http.get
-            { expect = Http.expectString expectLibrary
-            , url = "static/examples.txt"
-            }
-        , getCurrentLogin
+        [ getCurrentLogin
         , Task.attempt
             (GotBoardPosition >> EditorMsgWrapper)
             (Dom.getElement "boardDiv")
@@ -567,14 +451,6 @@ init flags =
     )
 
 
-expectLibrary : Result Http.Error String -> Msg
-expectLibrary result =
-    case result of
-        Ok content ->
-            GetLibrarySuccess content
-
-        Err error ->
-            GetLibraryFailure error
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -595,13 +471,6 @@ update msg model =
                     updateEditor editorMsg model.editor
             in
             ( { model | editor = editorModel }, editorCmd )
-
-        BlogMsgWrapper blogEditorMsg ->
-            let
-                ( blogEditorModel, blogEditorCmd ) =
-                    updateBlogEditor blogEditorMsg model.blog
-            in
-            ( { model | blog = blogEditorModel }, blogEditorCmd )
 
         LoginPageMsgWrapper loginPageMsg ->
             let
@@ -629,18 +498,6 @@ update msg model =
             , Cmd.none
             )
 
-        GetLibrarySuccess content ->
-            let
-                examples =
-                    Sako.importExchangeNotationList content
-                        |> RemoteData.fromResult
-                        |> RemoteData.mapError Http.BadBody
-            in
-            ( { model | exampleFile = examples }, Cmd.none )
-
-        GetLibraryFailure error ->
-            ( { model | exampleFile = RemoteData.Failure error }, Cmd.none )
-
         OpenPage newPage ->
             ( { model | page = newPage }
             , pageOpenSideEffect { model | page = newPage }
@@ -650,81 +507,19 @@ update msg model =
             ( { model
                 | taco = setLoggedInUser user model.taco
                 , login = initialLogin
-                , storedPositions = RemoteData.Loading
-              }
-            , getAllSavedPositions
+              }, Cmd.none
             )
 
         LogoutSuccess ->
             ( { model
                 | taco = removeLoggedInUser model.taco
                 , login = initialLogin
-                , storedPositions = RemoteData.NotAsked
               }
             , Cmd.none
             )
 
         HttpError error ->
             ( model, Ports.logToConsole (describeError error) )
-
-        AllPositionsLoadedSuccess list ->
-            ( { model | storedPositions = RemoteData.Success list }, Cmd.none )
-
-        GotAllMyArticles list ->
-            ( { model
-                | articleBrowser = setMyArticles (RemoteData.Success list) model.articleBrowser
-              }
-            , Cmd.none
-            )
-
-        GotAllPublicArticles list ->
-            ( { model
-                | articleBrowser = setPublicArticles (RemoteData.Success list) model.articleBrowser
-              }
-            , Cmd.none
-            )
-
-        GotReloadArticle article ->
-            ( { model
-                | articleBrowser = updateArticleInBrowser article model.articleBrowser
-                , page =
-                    case model.page of
-                        ArticleViewPage oldArticle _ ->
-                            if oldArticle.id == article.id then
-                                ArticleViewPage article True
-
-                            else
-                                model.page
-
-                        _ ->
-                            model.page
-              }
-            , Cmd.none
-            )
-
-        EditArticle articleData ->
-            ( { model
-                | blog = openArticleInEditor articleData
-                , page = BlogPage
-              }
-            , Cmd.none
-            )
-
-        -- We don't just save the article, this may override changes. Instead, we call a special post route where we just set its visibility.
-        PostArticleVisibility article ->
-            ( model, postArticleVisibility article )
-
-        GotArticleVisibility savedArticle ->
-            case model.page of
-                ArticleViewPage currentArticle _ ->
-                    if currentArticle.id == savedArticle.id then
-                        ( { model | page = ArticleViewPage savedArticle True }, Cmd.none )
-
-                    else
-                        ( model, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
 
 
 {-| Helper function to update the color scheme inside the taco.
@@ -744,6 +539,8 @@ removeLoggedInUser taco =
     { taco | login = Nothing }
 
 
+{-| Experimenting on the better color picker shows me, that I should be able to get the editor working
+without knowing about the svg element coordinates. -}
 pageOpenSideEffect : Model -> Cmd Msg
 pageOpenSideEffect model =
     case model.page of
@@ -751,16 +548,6 @@ pageOpenSideEffect model =
             Task.attempt
                 (GotBoardPosition >> EditorMsgWrapper)
                 (Dom.getElement "boardDiv")
-
-        ArticleBrowserPage ->
-            if articleLoadForBrowserRequired model.articleBrowser then
-                Cmd.batch [ getAllMyArticles, getAllPublicArticles ]
-
-            else
-                Cmd.none
-
-        ArticleViewPage article False ->
-            gotReloadArticle article.id
 
         _ ->
             Cmd.none
@@ -1662,42 +1449,6 @@ decodeKeyStroke =
         (Decode.field "altKey" Decode.bool)
 
 
-updateBlogEditor : BlogEditorMsg -> BlogModel -> ( BlogModel, Cmd Msg )
-updateBlogEditor msg blog =
-    case msg of
-        OnMarkdownInput newText ->
-            ( { blog
-                | content = setArticleBody newText blog.content
-                , saveState = saveStateModify blog.saveState
-              }
-            , Cmd.none
-            )
-
-        OnTitleInput newTitle ->
-            ( { blog
-                | content = setArticleTitle newTitle blog.content
-                , saveState = saveStateModify blog.saveState
-              }
-            , Cmd.none
-            )
-
-        SaveArticle article ->
-            ( { blog
-                -- TODO: Set state to "saving"
-                | saveState = blog.saveState
-              }
-            , postArticle article
-            )
-
-        GotArticleSave newArticle ->
-            ( { blog
-                | content = updateArticleSaveInformation newArticle blog.content
-                , saveState = saveStateStored newArticle.id blog.saveState
-              }
-            , Cmd.none
-            )
-
-
 updateLoginPage : LoginPageMsg -> LoginModel -> ( LoginModel, Cmd Msg )
 updateLoginPage msg loginPageModel =
     case msg of
@@ -1928,8 +1679,6 @@ view model =
 globalUi : Model -> Element Msg
 globalUi model =
     case model.page of
-        MainPage ->
-            mainPageUi model.taco
 
         PlayPage ->
             playUi model.taco model.play
@@ -1937,20 +1686,8 @@ globalUi model =
         EditorPage ->
             editorUi model.taco model.editor
 
-        LibraryPage ->
-            libraryUi model.taco model
-
-        BlogPage ->
-            blogUi model.taco model.blog
-
         LoginPage ->
             loginUi model.taco model.login
-
-        ArticleBrowserPage ->
-            articleBrowserPage model.taco model.articleBrowser
-
-        ArticleViewPage article isFreshlyReloaded ->
-            articleViewPage model.taco article isFreshlyReloaded
 
 
 type alias PageHeaderInfo =
@@ -1965,14 +1702,8 @@ type alias PageHeaderInfo =
 pageHeader : Taco -> Page -> Element Msg -> Element Msg
 pageHeader taco currentPage additionalHeader =
     Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton [ Font.bold ]
-            { currentPage = currentPage, targetPage = MainPage, caption = "Paco Ŝako Tools" }
-
-        --, pageHeaderButton [] { currentPage = currentPage, targetPage = PlayPage, caption = "Play!" }
-        , pageHeaderButton [] { currentPage = currentPage, targetPage = EditorPage, caption = "Position Editor" }
-        , pageHeaderButton [] { currentPage = currentPage, targetPage = LibraryPage, caption = "Library" }
-        , pageHeaderButton [] { currentPage = currentPage, targetPage = BlogPage, caption = "Blog Editor" }
-        , pageHeaderButton [] { currentPage = currentPage, targetPage = ArticleBrowserPage, caption = "Articles" }
+        [ pageHeaderButton [] { currentPage = currentPage, targetPage = PlayPage, caption = "Play Paco Ŝako" }
+        , pageHeaderButton [] { currentPage = currentPage, targetPage = EditorPage, caption = "Design Puzzles" }
         , additionalHeader
         , loginHeaderInfo taco
         ]
@@ -1995,109 +1726,6 @@ pageHeaderButton attributes { currentPage, targetPage, caption } =
         , label = Element.text caption
         }
 
-
-
---------------------------------------------------------------------------------
--- Main Page viev --------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-{-| The greeting that is shown when you first open the page.
--}
-mainPageUi : Taco -> Element Msg
-mainPageUi taco =
-    Element.column [ width fill ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco MainPage Element.none
-        , greetingText taco
-        ]
-
-
-greetingText : Taco -> Element Msg
-greetingText taco =
-    case markdownView taco StaticText.mainPageGreetingText of
-        Ok rendered ->
-            centerColumn rendered
-
-        Err errors ->
-            Element.text errors
-
-
-
---------------------------------------------------------------------------------
--- Library viev ----------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-libraryUi : Taco -> Model -> Element Msg
-libraryUi taco model =
-    Element.column [ spacing 5, width fill ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco LibraryPage Element.none
-        , Element.text "Choose an initial board position to open the editor."
-        , Element.el [ Font.size 24 ] (Element.text "Load saved position")
-        , storedPositionList taco model
-        , Element.el [ Font.size 24 ] (Element.text "Load examples")
-        , examplesList taco model
-        ]
-
-
-examplesList : Taco -> Model -> Element Msg
-examplesList taco model =
-    remoteDataHelper
-        { notAsked = Element.text "Examples were never requested."
-        , loading = Element.text "Loading example positions ..."
-        , failure = \_ -> Element.text "Error while loading example positions!"
-        }
-        (\examplePositions ->
-            examplePositions
-                |> List.map (loadPositionPreview taco)
-                |> easyGrid 4 [ spacing 5 ]
-        )
-        model.exampleFile
-
-
-storedPositionList : Taco -> Model -> Element Msg
-storedPositionList taco model =
-    remoteDataHelper
-        { notAsked = Element.text "Please log in to load stored positions."
-        , loading = Element.text "Loading stored positions ..."
-        , failure = \_ -> Element.text "Error while loading stored positions!"
-        }
-        (\positions ->
-            positions
-                |> List.filterMap buildPacoPositionFromStoredPosition
-                |> List.map (loadPositionPreview taco)
-                |> easyGrid 4 [ spacing 5 ]
-        )
-        model.storedPositions
-
-
-buildPacoPositionFromStoredPosition : StoredPosition -> Maybe Sako.Position
-buildPacoPositionFromStoredPosition storedPosition =
-    Sako.importExchangeNotation storedPosition.data.notation
-        |> Result.toMaybe
-
-
-loadPositionPreview : Taco -> Sako.Position -> Element Msg
-loadPositionPreview taco position =
-    Input.button []
-        { onPress = Just (LoadIntoEditor position)
-        , label =
-            Element.html
-                (positionSvg
-                    { visualPacoPieces = initVisualPacoPosition position
-                    , colorScheme = taco.colorScheme
-                    , sideLength = 250
-                    , viewMode = CleanBoard
-                    , nodeId = Nothing
-                    , decoration = []
-                    , dragPieceData = []
-                    , withEvents = False
-                    }
-                )
-                |> Element.map EditorMsgWrapper
-        }
 
 
 
@@ -2848,251 +2476,6 @@ analysisResult editorModel =
 
 
 
---------------------------------------------------------------------------------
--- Blog editor ui --------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-blogUi : Taco -> BlogModel -> Element Msg
-blogUi taco blog =
-    Element.column [ width fill ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco BlogPage (saveStateBlogEditor blog)
-        , Element.row [ Element.width Element.fill ]
-            [ blogUiInput blog
-            , blogUiPreview taco blog
-            ]
-        ]
-
-
-saveStateBlogEditor : BlogModel -> Element Msg
-saveStateBlogEditor blog =
-    case blog.saveState of
-        SaveIsCurrent id ->
-            Element.el [ padding 10, Font.color (Element.rgb255 150 200 150), Font.bold ] (Element.text <| "Saved. (id=" ++ String.fromInt id ++ ")")
-
-        SaveIsModified id ->
-            Input.button
-                [ padding 10
-                , Font.color (Element.rgb255 200 150 150)
-                , Font.bold
-                ]
-                { onPress = Just (BlogMsgWrapper (SaveArticle blog.content))
-                , label = Element.text <| "Unsaved Changes! (id=" ++ String.fromInt id ++ ")"
-                }
-
-        SaveDoesNotExist ->
-            Input.button
-                [ padding 10
-                , Font.color (Element.rgb255 200 150 150)
-                , Font.bold
-                ]
-                { onPress = Just (BlogMsgWrapper (SaveArticle blog.content))
-                , label = Element.text "Unsaved Changes!"
-                }
-
-        SaveNotRequired ->
-            Element.none
-
-
-blogUiInput : BlogModel -> Element Msg
-blogUiInput blog =
-    Element.column [ spacing 5, Element.width (Element.px 600) ]
-        [ Input.text []
-            { onChange = OnTitleInput >> BlogMsgWrapper
-            , text = blog.content.title
-            , placeholder = Just (Input.placeholder [] (Element.text "Untitled Article"))
-            , label = Input.labelHidden "Title of the article"
-            }
-        , Input.multiline [ width fill ]
-            { onChange = OnMarkdownInput >> BlogMsgWrapper
-            , text = blog.content.body
-            , placeholder = Nothing
-            , label = Input.labelHidden "Markdown input"
-            , spellcheck = True
-            }
-        ]
-
-
-blogUiPreview : Taco -> BlogModel -> Element Msg
-blogUiPreview taco blog =
-    case markdownView taco (articleMarkdownWithTitle blog.content) of
-        Ok rendered ->
-            centerColumn rendered
-
-        Err errors ->
-            Element.text errors
-
-
-markdownView : Taco -> String -> Result String (List (Element Msg))
-markdownView taco content =
-    content
-        |> Markdown.Parser.parse
-        |> Result.mapError (\error -> error |> List.map Markdown.Parser.deadEndToString |> String.join "\n")
-        |> Result.andThen (Markdown.Parser.render (renderer taco))
-
-
-puzzleBlock : Taco -> { body : String, language : Maybe String } -> Element Msg
-puzzleBlock taco details =
-    Sako.importExchangeNotationList details.body
-        |> Result.mapError Element.text
-        |> Result.map
-            (\positions ->
-                let
-                    positionPreviews =
-                        positions
-                            |> List.map (loadPositionPreview taco)
-
-                    rows =
-                        List.greedyGroupsOf 3 positionPreviews
-                in
-                Element.column [ spacing 10, centerX ]
-                    (rows |> List.map (\group -> Element.row [ spacing 10 ] group))
-                    |> Element.map (\_ -> EditorMsgWrapper EditorMsgNoOp)
-            )
-        |> Result.merge
-
-
-renderer : Taco -> Markdown.Parser.Renderer (Element Msg)
-renderer taco =
-    { heading = heading
-    , raw =
-        Element.paragraph
-            [ Element.spacing 15 ]
-    , thematicBreak = Element.none
-    , plain = Element.text
-    , bold = \content -> Element.row [ Font.bold ] [ Element.text content ]
-    , italic = \content -> Element.row [ Font.italic ] [ Element.text content ]
-    , code = code
-    , link =
-        \{ destination } body ->
-            Element.newTabLink
-                [ Element.htmlAttribute (Html.Attributes.style "display" "inline-flex") ]
-                { url = destination
-                , label =
-                    Element.paragraph
-                        [ Font.color (Element.rgb255 0 0 255)
-                        ]
-                        body
-                }
-                |> Ok
-    , image =
-        \image body ->
-            Element.image [ Element.width Element.fill ] { src = image.src, description = body }
-                |> Ok
-    , unorderedList =
-        \items ->
-            Element.column [ Element.spacing 15 ]
-                (items
-                    |> List.map (\(Markdown.Parser.ListItem _ itemBlocks) -> itemBlocks)
-                    |> List.map
-                        (\itemBlocks ->
-                            Element.wrappedRow []
-                                (Element.el
-                                    [ Element.alignTop, padding 5 ]
-                                    (Element.text "•")
-                                    :: itemBlocks
-                                )
-                        )
-                )
-    , orderedList =
-        \startingIndex items ->
-            Element.column [ Element.spacing 15 ]
-                (items
-                    |> List.indexedMap
-                        (\i itemBlocks ->
-                            Element.wrappedRow []
-                                (Element.el
-                                    [ Element.alignTop, padding 5 ]
-                                    (Element.text (String.fromInt (i + startingIndex) ++ "."))
-                                    :: itemBlocks
-                                )
-                        )
-                )
-    , codeBlock = codeBlock
-    , html = htmlRenderer taco
-    , blockQuote =
-        \items ->
-            Element.column [ spacing 15 ] items
-    }
-
-
-htmlRenderer : Taco -> Markdown.Html.Renderer (List (Element Msg) -> Element Msg)
-htmlRenderer taco =
-    Markdown.Html.tag "puzzle"
-        (\data _ ->
-            puzzleBlock taco { body = data, language = Nothing }
-        )
-        |> Markdown.Html.withAttribute "data"
-
-
-heading : { level : Int, rawText : String, children : List (Element msg) } -> Element msg
-heading { level, rawText, children } =
-    Element.paragraph
-        [ Font.size
-            (case level of
-                1 ->
-                    36
-
-                2 ->
-                    24
-
-                _ ->
-                    20
-            )
-        , Font.bold
-        , Font.family [ Font.typeface "Montserrat" ]
-        , Element.Region.heading level
-        , Element.htmlAttribute
-            (Html.Attributes.attribute "name" (rawTextToId rawText))
-        , Font.center
-        , Element.htmlAttribute
-            (Html.Attributes.id (rawTextToId rawText))
-        ]
-        children
-
-
-rawTextToId : String -> String
-rawTextToId rawText =
-    rawText
-        |> String.toLower
-        |> String.replace " " ""
-
-
-code : String -> Element msg
-code snippet =
-    Element.el
-        [ Background.color
-            (Element.rgba 0 0 0 0.04)
-        , Border.rounded 2
-        , Element.paddingXY 5 3
-        , Font.family
-            [ Font.external
-                { url = "https://fonts.googleapis.com/css?family=Source+Code+Pro"
-                , name = "Source Code Pro"
-                }
-            ]
-        ]
-        (Element.text snippet)
-
-
-codeBlock : { body : String, language : Maybe String } -> Element msg
-codeBlock details =
-    Element.el
-        [ Background.color (Element.rgba 0 0 0 0.03)
-        , Element.htmlAttribute (Html.Attributes.style "white-space" "pre")
-        , Element.padding 20
-        , Element.width Element.fill
-        , Font.family
-            [ Font.external
-                { url = "https://fonts.googleapis.com/css?family=Source+Code+Pro"
-                , name = "Source Code Pro"
-                }
-            ]
-        ]
-        (Element.text details.body)
-
-
 
 --------------------------------------------------------------------------------
 -- Login ui --------------------------------------------------------------------
@@ -3155,131 +2538,6 @@ loginHeaderInfo taco =
     in
     Input.button [ Element.alignRight ]
         { onPress = Just (OpenPage LoginPage), label = loginCaption }
-
-
-
---------------------------------------------------------------------------------
--- Article browser UI ----------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-articleBrowserPage : Taco -> ArticleBrowserModel -> Element Msg
-articleBrowserPage taco articleBrowser =
-    Element.column [ width fill ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco ArticleBrowserPage Element.none
-        , articleBrowserSubmenu taco
-        , articleBrowserPageContent taco articleBrowser
-        ]
-
-
-articleBrowserSubmenu : Taco -> Element Msg
-articleBrowserSubmenu _ =
-    Element.row
-        [ width fill
-        , Background.color (Element.rgb255 240 240 240)
-        ]
-        [ Input.button [ padding 10 ]
-            { onPress = Nothing
-            , label = Element.text "My Articles"
-            }
-        , Input.button [ padding 10 ]
-            { onPress = Nothing
-            , label = Element.text "Public Articles"
-            }
-        ]
-
-
-{-| Renders the page in which the list of all articles is shown to the user.
-Here the user may pick an article to view or to edit.
--}
-articleBrowserPageContent : Taco -> ArticleBrowserModel -> Element Msg
-articleBrowserPageContent _ articleBrowser =
-    remoteDataHelper
-        { notAsked = Element.text "The list of articles has not been requested yet."
-        , loading = Element.text "The list of articles is loading now."
-        , failure = \_ -> Element.text "There was an error when loading the list of articles."
-        }
-        (\articleList ->
-            articleList
-                |> List.map articleListEntry
-                |> centerColumn
-        )
-        articleBrowser.myArticles
-
-
-{-| Renders a single entry of the article overview.
--}
-articleListEntry : Article -> Element Msg
-articleListEntry article =
-    Input.button []
-        { onPress = Just (OpenPage (ArticleViewPage article False))
-        , label = Element.text article.title
-        }
-
-
-articleViewPage : Taco -> Article -> Bool -> Element Msg
-articleViewPage taco article isFreshlyReloaded =
-    Element.column [ width fill ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco (ArticleViewPage article isFreshlyReloaded) Element.none
-        , articleInfoSubmenu taco article
-        , articleViewPageContent taco article
-        ]
-
-
-articleInfoSubmenu : Taco -> Article -> Element Msg
-articleInfoSubmenu _ article =
-    Element.row
-        [ width fill
-        , Background.color (Element.rgb255 240 240 240)
-        ]
-        (Input.button [ padding 10 ]
-            { onPress = Just (EditArticle article)
-            , label = Element.text "Edit this article"
-            }
-            :: articleVisibilitySubmenuEntry article
-        )
-
-
-articleVisibilitySubmenuEntry : Article -> List (Element Msg)
-articleVisibilitySubmenuEntry article =
-    case article.visible of
-        ArticleVisibilityPrivate ->
-            [ Element.el [ padding 10 ]
-                (Element.text "This article is private, only you can see it")
-            , Input.button [ padding 10 ]
-                { onPress = Just (PostArticleVisibility { article | visible = ArticleVisibilityPublic })
-                , label = Element.text "Publish article"
-                }
-            ]
-
-        ArticleVisibilityPublic ->
-            [ Element.el [ padding 10 ]
-                (Element.text "This article is public")
-            , Input.button [ padding 10 ]
-                { onPress = Just (PostArticleVisibility { article | visible = ArticleVisibilityPrivate })
-                , label = Element.text "Make article private"
-                }
-            ]
-
-
-{-| Renders a single article.
-TODO: I need to set article.title as the title of the browser page.
--}
-articleViewPageContent : Taco -> Article -> Element Msg
-articleViewPageContent taco article =
-    case markdownView taco (articleMarkdownWithTitle article) of
-        Ok rendered ->
-            centerColumn rendered
-
-        Err errors ->
-            Element.text errors
-
-
-articleMarkdownWithTitle : Article -> String
-articleMarkdownWithTitle article =
-    "# " ++ article.title ++ "\n\n" ++ article.body
 
 
 
@@ -3469,13 +2727,6 @@ decodeStoredPositionData =
         (Decode.field "notation" Decode.string)
 
 
-getAllSavedPositions : Cmd Msg
-getAllSavedPositions =
-    Http.get
-        { url = "/api/position"
-        , expect = Http.expectJson (defaultErrorHandler AllPositionsLoadedSuccess) (Decode.list decodeStoredPosition)
-        }
-
 
 decodePacoPositionData : Decoder Sako.Position
 decodePacoPositionData =
@@ -3522,142 +2773,6 @@ postAnalysePosition position =
         }
 
 
-{-| An Article record holds all data of an article that is persisted on the
-database. For an Article that is not persisted yet, id is set to -1.
--}
-type alias Article =
-    { id : Int
-    , creator : Int
-    , title : String
-    , body : String
-    , visible : ArticleVisibilityStatus
-    }
-
-
-type ArticleVisibilityStatus
-    = ArticleVisibilityPrivate
-    | ArticleVisibilityPublic
-
-
-decodeArticleVisibilityStatus : Decoder ArticleVisibilityStatus
-decodeArticleVisibilityStatus =
-    Decode.int
-        |> Decode.andThen
-            (\statusId ->
-                case statusId of
-                    0 ->
-                        Decode.succeed ArticleVisibilityPrivate
-
-                    1 ->
-                        Decode.succeed ArticleVisibilityPublic
-
-                    _ ->
-                        Decode.fail ("Unknown visibility status id " ++ String.fromInt statusId)
-            )
-
-
-encodeArticleVisibilityStatus : ArticleVisibilityStatus -> Value
-encodeArticleVisibilityStatus status =
-    case status of
-        ArticleVisibilityPrivate ->
-            Encode.int 0
-
-        ArticleVisibilityPublic ->
-            Encode.int 1
-
-
-initArticle : Article
-initArticle =
-    { id = -1
-    , creator = -1
-    , title = StaticText.initArticleTitle
-    , body = StaticText.blogEditorExampleText
-    , visible = ArticleVisibilityPrivate
-    }
-
-
-setArticleBody : String -> Article -> Article
-setArticleBody newBody article =
-    { article | body = newBody }
-
-
-setArticleTitle : String -> Article -> Article
-setArticleTitle newTitle article =
-    { article | title = newTitle }
-
-
-updateArticleSaveInformation : Article -> Article -> Article
-updateArticleSaveInformation articleFromServer articleFromClient =
-    { articleFromClient | id = articleFromServer.id }
-
-
-decodeArticle : Decoder Article
-decodeArticle =
-    Decode.map5 Article
-        (Decode.field "id" Decode.int)
-        (Decode.field "creator" Decode.int)
-        (Decode.field "title" Decode.string)
-        (Decode.field "body" Decode.string)
-        (Decode.field "visible" decodeArticleVisibilityStatus)
-
-
-encodeArticle : Article -> Value
-encodeArticle record =
-    Encode.object
-        [ ( "id", Encode.int <| record.id )
-        , ( "creator", Encode.int <| record.creator )
-        , ( "title", Encode.string <| record.title )
-        , ( "body", Encode.string <| record.body )
-        , ( "visible", encodeArticleVisibilityStatus <| record.visible )
-        ]
-
-
-getAllMyArticles : Cmd Msg
-getAllMyArticles =
-    Http.get
-        { url = "/api/article/my"
-        , expect = Http.expectJson (defaultErrorHandler GotAllMyArticles) (Decode.list decodeArticle)
-        }
-
-
-getAllPublicArticles : Cmd Msg
-getAllPublicArticles =
-    Http.get
-        { url = "/api/article/public"
-        , expect = Http.expectJson (defaultErrorHandler GotAllPublicArticles) (Decode.list decodeArticle)
-        }
-
-
-gotReloadArticle : Int -> Cmd Msg
-gotReloadArticle articleId =
-    Http.get
-        { url = "/api/article/" ++ String.fromInt articleId
-        , expect = Http.expectJson (defaultErrorHandler GotReloadArticle) decodeArticle
-        }
-
-
-postArticle : Article -> Cmd Msg
-postArticle article =
-    Http.post
-        { url = "/api/article"
-        , body = Http.jsonBody (encodeArticle article)
-        , expect =
-            Http.expectJson
-                (defaultErrorHandler (GotArticleSave >> BlogMsgWrapper))
-                decodeArticle
-        }
-
-
-postArticleVisibility : Article -> Cmd Msg
-postArticleVisibility article =
-    Http.post
-        { url = "/api/article/visible"
-        , body = Http.jsonBody (encodeArticle article)
-        , expect =
-            Http.expectJson
-                (defaultErrorHandler GotArticleVisibility)
-                decodeArticle
-        }
 
 
 
