@@ -19,6 +19,11 @@ module Sako exposing
 
 {-| Everything you need to express the Position of a Paco Ŝako board.
 
+It also contains some logic abouth what kind of moves / actions are possible
+and how they affect the game position. Note that the full rules of the game
+are only implemented in Rust at this point, so we need to call into Rust
+when we need this info.
+
 This module also contains methods for exporting and importing a human readable
 plain text exchange notation.
 

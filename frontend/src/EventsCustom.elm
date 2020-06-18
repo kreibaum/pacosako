@@ -1,5 +1,10 @@
 module EventsCustom exposing (BoardMousePosition, svgDown, svgMove, svgUp)
 
+{-| The default events we get for SVG graphics are a problem, because they are
+using external coordinates. It is a lot easier to work with internal coordinates
+of the svg, so we have introduces custom events.
+-}
+
 import Json.Decode as Decode exposing (Decoder)
 import Sako exposing (Tile(..))
 import Svg exposing (Attribute)

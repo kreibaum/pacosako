@@ -1,5 +1,9 @@
 module Main exposing (main)
 
+{-| The Main module is the starting point of an Elm application. Everything
+the app does starts from here.
+-}
+
 import Animation exposing (Timeline)
 import Browser
 import Browser.Dom as Dom
@@ -7,10 +11,8 @@ import Browser.Events
 import Dict
 import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
 import Element.Background as Background
-import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Element.Region
 import EventsCustom as Events exposing (BoardMousePosition)
 import File.Download
 import FontAwesome.Icon exposing (Icon, viewIcon)
@@ -23,15 +25,12 @@ import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
-import Markdown.Html
-import Markdown.Parser
 import Pieces
 import Pivot as P exposing (Pivot)
 import Ports
-import RemoteData exposing (WebData)
+import RemoteData
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
-import StaticText
 import Svg exposing (Svg)
 import Svg.Attributes
 import Task
@@ -63,6 +62,7 @@ type Page
     | EditorPage
     | LoginPage
 
+
 type alias User =
     { id : Int
     , username : String
@@ -79,8 +79,6 @@ type alias LoginModel =
     { usernameRaw : String
     , passwordRaw : String
     }
-
-
 
 
 {-| Represents the possible save states a persisted object can have.
@@ -277,7 +275,6 @@ getDropTarget decoration =
             Nothing
 
 
-
 {-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in
 both directions but additional objects are rendered outside.
 -}
@@ -410,7 +407,6 @@ initialEditor flags =
     }
 
 
-
 initialLogin : LoginModel
 initialLogin =
     { usernameRaw = "", passwordRaw = "" }
@@ -449,8 +445,6 @@ init flags =
             (Dom.getElement "boardDiv")
         ]
     )
-
-
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -507,7 +501,8 @@ update msg model =
             ( { model
                 | taco = setLoggedInUser user model.taco
                 , login = initialLogin
-              }, Cmd.none
+              }
+            , Cmd.none
             )
 
         LogoutSuccess ->
@@ -540,7 +535,8 @@ removeLoggedInUser taco =
 
 
 {-| Experimenting on the better color picker shows me, that I should be able to get the editor working
-without knowing about the svg element coordinates. -}
+without knowing about the svg element coordinates.
+-}
 pageOpenSideEffect : Model -> Cmd Msg
 pageOpenSideEffect model =
     case model.page of
@@ -1679,7 +1675,6 @@ view model =
 globalUi : Model -> Element Msg
 globalUi model =
     case model.page of
-
         PlayPage ->
             playUi model.taco model.play
 
@@ -1725,7 +1720,6 @@ pageHeaderButton attributes { currentPage, targetPage, caption } =
                 Just (OpenPage targetPage)
         , label = Element.text caption
         }
-
 
 
 
@@ -2476,7 +2470,6 @@ analysisResult editorModel =
 
 
 
-
 --------------------------------------------------------------------------------
 -- Login ui --------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -2727,7 +2720,6 @@ decodeStoredPositionData =
         (Decode.field "notation" Decode.string)
 
 
-
 decodePacoPositionData : Decoder Sako.Position
 decodePacoPositionData =
     Decode.andThen
@@ -2771,8 +2763,6 @@ postAnalysePosition position =
                 (defaultErrorHandler (EditorMsgWrapper << GotAnalysePosition))
                 decodeAnalysisReport
         }
-
-
 
 
 

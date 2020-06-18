@@ -5,6 +5,10 @@ module StaticText exposing
     , witness
     )
 
+{-| This module contains some very long string constants. We don't want these
+constants to pollute other modules so we have collected them here.
+-}
+
 
 mainPageGreetingText : String
 mainPageGreetingText =

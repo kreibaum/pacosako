@@ -7,7 +7,12 @@ port module Ports exposing
     , websocketSend
     )
 
-{-| Ports module dealing with exporting graphics.
+{-| Ports allow communication between Elm and JavaScript.
+
+It is a common practice to collect all the ports in a single file to keep an
+overview of them. We use ports to perform some functions that are not possible
+in pure Elm, because the platform support support is not there yet.
+
 -}
 
 import Json.Encode exposing (Value)

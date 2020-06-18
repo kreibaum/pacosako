@@ -22,6 +22,9 @@ module Pieces exposing
 The svg graphics of Paco Ŝako figures are (c) 2017 Paco Ŝako B.V. and are used by me
 with permission from Felix Albers.
 
+This module provides the SVG primitives needed to render a Paco Ŝako board. It
+also provides the colors which can be picked.
+
 -}
 
 import Element
