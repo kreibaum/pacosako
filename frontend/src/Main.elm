@@ -433,7 +433,7 @@ sizeDecoder =
 init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     ( { taco = initialTaco
-      , page = PlayPage
+      , page = EditorPage
       , play = initPlayModel
       , editor = initialEditor flags
       , login = initialLogin
