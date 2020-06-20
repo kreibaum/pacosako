@@ -6,7 +6,6 @@ the app does starts from here.
 
 import Animation exposing (Timeline)
 import Browser
-import Browser.Dom as Dom
 import Browser.Events
 import Element exposing (Element, centerX, fill, height, padding, spacing, width)
 import Element.Background as Background
@@ -137,7 +136,6 @@ type alias EditorModel =
     , pasteParsed : PositionParseResult
     , viewMode : ViewMode
     , analysis : Maybe AnalysisReport
-    , rect : Rect
     , smartTool : SmartToolModel
     , shareStatus : Websocket.ShareStatus
     , rawShareKey : String
@@ -202,20 +200,11 @@ sakoEditorId =
     "sako-editor"
 
 
-type alias Rect =
-    { x : Float
-    , y : Float
-    , width : Float
-    , height : Float
-    }
-
-
 type Msg
     = NoOp
     | PlayMsgWrapper PlayMsg
     | EditorMsgWrapper EditorMsg
     | LoginPageMsgWrapper LoginPageMsg
-    | LoadIntoEditor Sako.Position
     | OpenPage Page
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
@@ -232,7 +221,6 @@ type EditorMsg
     | MouseDown BoardMousePosition
     | MouseMove BoardMousePosition
     | MouseUp BoardMousePosition
-    | GotBoardPosition (Result Dom.Error Dom.Element)
     | WindowResize Int Int
     | Undo
     | Redo
@@ -301,12 +289,6 @@ initialEditor flags =
     , pasteParsed = NoInput
     , viewMode = ShowNumbers
     , analysis = Nothing
-    , rect =
-        { x = 0
-        , y = 0
-        , width = 1
-        , height = 1
-        }
     , smartTool = initSmartTool
     , shareStatus = Websocket.NotShared
     , rawShareKey = ""
@@ -373,15 +355,6 @@ update msg model =
                     updateLoginPage loginPageMsg model.login
             in
             ( { model | login = loginPageModel }, loginPageCmd )
-
-        LoadIntoEditor newPosition ->
-            let
-                ( editorModel, editorCmd ) =
-                    updateEditor (Reset newPosition) model.editor
-            in
-            ( { model | editor = editorModel, page = EditorPage }
-            , editorCmd
-            )
 
         WhiteSideColor newSideColor ->
             ( { model | taco = setColorScheme (Pieces.setWhite newSideColor model.taco.colorScheme) model.taco }
@@ -467,14 +440,6 @@ updateEditor msg model =
 
                 Just dragData ->
                     clickRelease dragData.start dragData.current { model | drag = Nothing }
-
-        GotBoardPosition domElement ->
-            case domElement of
-                Ok element ->
-                    ( { model | rect = element.element }, Cmd.none )
-
-                Err _ ->
-                    ( model, Cmd.none )
 
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }
@@ -1483,19 +1448,8 @@ saveStateHeader position saveState =
             Element.none
 
 
-{-| We render the board view slightly smaller than the window in order to avoid artifacts.
--}
-windowSafetyMargin : Int
-windowSafetyMargin =
-    50
-
-
 positionView : Taco -> EditorModel -> Element EditorMsg
 positionView taco editor =
-    let
-        ( _, windowHeight ) =
-            editor.windowSize
-    in
     Element.el
         [ width fill
         , height fill
@@ -1513,7 +1467,7 @@ positionViewInner taco editor =
                 |> PositionView.viewTimeline
                     { colorScheme = taco.colorScheme
                     , viewMode = editor.viewMode
-                    , nodeId = Nothing
+                    , nodeId = Just sakoEditorId
                     , decoration = toolDecoration editor
                     , dragPieceData = dragPieceData editor
                     , withEvents = True
@@ -1525,7 +1479,7 @@ positionViewInner taco editor =
                 |> PositionView.viewStatic
                     { colorScheme = taco.colorScheme
                     , viewMode = editor.viewMode
-                    , nodeId = Nothing
+                    , nodeId = Just sakoEditorId
                     , decoration = toolDecoration editor
                     , dragPieceData = dragPieceData editor
                     , withEvents = True
