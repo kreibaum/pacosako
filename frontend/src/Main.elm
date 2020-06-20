@@ -12,14 +12,13 @@ import Element exposing (Element, centerX, centerY, fill, height, padding, spaci
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
-import EventsCustom as Events exposing (BoardMousePosition)
+import EventsCustom exposing (BoardMousePosition)
 import File.Download
 import FontAwesome.Icon exposing (Icon, viewIcon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Html exposing (Html)
-import Html.Attributes
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -31,8 +30,6 @@ import PositionView exposing (..)
 import RemoteData
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
-import Svg
-import Svg.Attributes
 import Task
 import Time exposing (Posix)
 import Websocket
