@@ -614,7 +614,7 @@ determineVisualPiecesDragged internalModel =
             ]
 
 
-animateTransition : { t : Float, old : List VisualPacoPiece, new : List VisualPacoPiece } -> List VisualPacoPiece
+animateTransition : { t : Float, old : OpaqueRenderData, new : OpaqueRenderData } -> OpaqueRenderData
 animateTransition { t, old, new } =
     let
         oldPieces =

@@ -8,7 +8,7 @@ import Animation exposing (Timeline)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
-import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
+import Element exposing (Element, centerX, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
@@ -30,7 +30,6 @@ import PositionView exposing (..)
 import RemoteData
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
-import Task
 import Time exposing (Posix)
 import Websocket
 
