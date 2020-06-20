@@ -345,12 +345,7 @@ init flags =
       , editor = initialEditor flags
       , login = initialLogin
       }
-    , Cmd.batch
-        [ getCurrentLogin
-        , Task.attempt
-            (GotBoardPosition >> EditorMsgWrapper)
-            (Dom.getElement "boardDiv")
-        ]
+    , getCurrentLogin
     )
 
 
@@ -401,7 +396,7 @@ update msg model =
 
         OpenPage newPage ->
             ( { model | page = newPage }
-            , pageOpenSideEffect { model | page = newPage }
+            , Cmd.none
             )
 
         LoginSuccess user ->
@@ -439,21 +434,6 @@ setLoggedInUser user taco =
 removeLoggedInUser : Taco -> Taco
 removeLoggedInUser taco =
     { taco | login = Nothing }
-
-
-{-| Experimenting on the better color picker shows me, that I should be able to get the editor working
-without knowing about the svg element coordinates.
--}
-pageOpenSideEffect : Model -> Cmd Msg
-pageOpenSideEffect model =
-    case model.page of
-        EditorPage ->
-            Task.attempt
-                (GotBoardPosition >> EditorMsgWrapper)
-                (Dom.getElement "boardDiv")
-
-        _ ->
-            Cmd.none
 
 
 updateEditor : EditorMsg -> EditorModel -> ( EditorModel, Cmd Msg )
@@ -499,9 +479,7 @@ updateEditor msg model =
 
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }
-            , Task.attempt
-                (GotBoardPosition >> EditorMsgWrapper)
-                (Dom.getElement "boardDiv")
+            , Cmd.none
             )
 
         Undo ->
@@ -1400,7 +1378,7 @@ updateTimeline now model =
 
 view : Model -> Html Msg
 view model =
-    Element.layout [] (globalUi model)
+    Element.layout [ height fill, Element.scrollbarY ] (globalUi model)
 
 
 globalUi : Model -> Element Msg
@@ -1461,10 +1439,14 @@ pageHeaderButton attributes { currentPage, targetPage, caption } =
 
 editorUi : Taco -> EditorModel -> Element Msg
 editorUi taco model =
-    Element.column [ width fill, height fill ]
+    Element.column
+        [ width fill
+        , height fill
+        , Element.scrollbarY
+        ]
         [ pageHeader taco EditorPage (saveStateHeader (P.getC model.game) model.saveState)
         , Element.row
-            [ width fill, height fill ]
+            [ width fill, height fill, Element.scrollbarY ]
             [ Element.html FontAwesome.Styles.css
             , positionView taco model |> Element.map EditorMsgWrapper
             , sidebar taco model
@@ -1515,11 +1497,13 @@ positionView taco editor =
         ( _, windowHeight ) =
             editor.windowSize
     in
-    -- TODO: Take care of the 'Html.attributes "boardDiv"' attribute
-    Element.el [ width (Element.px windowHeight), height fill, centerX ]
-        (Element.el [ centerX, centerY ]
-            (positionViewInner taco editor)
-        )
+    Element.el
+        [ width fill
+        , height fill
+        , Element.scrollbarY
+        , centerX
+        ]
+        (positionViewInner taco editor)
 
 
 positionViewInner : Taco -> EditorModel -> Element EditorMsg
@@ -1529,8 +1513,7 @@ positionViewInner taco editor =
             editor.timeline
                 |> PositionView.viewTimeline
                     { colorScheme = taco.colorScheme
-                    , sideLength = 700
-                    , viewMode = CleanBoard
+                    , viewMode = editor.viewMode
                     , nodeId = Nothing
                     , decoration = toolDecoration editor
                     , dragPieceData = dragPieceData editor
@@ -1542,8 +1525,7 @@ positionViewInner taco editor =
             PositionView.render (reduceSmartToolModel editor.smartTool) position
                 |> PositionView.viewStatic
                     { colorScheme = taco.colorScheme
-                    , sideLength = 700
-                    , viewMode = CleanBoard
+                    , viewMode = editor.viewMode
                     , nodeId = Nothing
                     , decoration = toolDecoration editor
                     , dragPieceData = dragPieceData editor
@@ -1938,7 +1920,6 @@ parsedMarkdownPaste taco model =
                         [ PositionView.renderStatic pacoPosition
                             |> PositionView.viewStatic
                                 { colorScheme = taco.colorScheme
-                                , sideLength = 100
                                 , viewMode = CleanBoard
                                 , nodeId = Nothing
                                 , decoration = []
@@ -2372,10 +2353,10 @@ updatePlayModel msg model =
 
 playUi : Taco -> PlayModel -> Element Msg
 playUi taco model =
-    Element.column [ width fill, height fill ]
+    Element.column [ width fill, height fill, Element.scrollbarY ]
         [ pageHeader taco PlayPage Element.none
         , Element.row
-            [ width fill, height fill ]
+            [ width fill, height fill, Element.scrollbarY ]
             [ playPositionView taco model
             , Input.button []
                 { onPress = Just (PlayMsgWrapper (PlayActionInputStep (Sako.MoveInputStep (Sako.Tile 4 1) (Sako.Tile 4 3))))
@@ -2387,18 +2368,15 @@ playUi taco model =
 
 playPositionView : Taco -> PlayModel -> Element Msg
 playPositionView taco play =
-    Element.el [ width fill, height fill, centerX ]
-        (Element.el [ centerX, centerY ]
-            (PositionView.viewTimeline
-                { colorScheme = taco.colorScheme
-                , sideLength = 400
-                , viewMode = ShowNumbers
-                , nodeId = Just sakoEditorId
-                , decoration = []
-                , dragPieceData = []
-                , withEvents = True
-                }
-                play.timeline
-            )
+    Element.el [ width fill, height fill, Element.scrollbarY ]
+        (PositionView.viewTimeline
+            { colorScheme = taco.colorScheme
+            , viewMode = ShowNumbers
+            , nodeId = Just sakoEditorId
+            , decoration = []
+            , dragPieceData = []
+            , withEvents = True
+            }
+            play.timeline
         )
         |> Element.map (\_ -> NoOp)

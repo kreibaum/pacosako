@@ -69,7 +69,7 @@ import EventsCustom as Events exposing (BoardMousePosition)
 import Pieces
 import Sako exposing (Piece, Tile(..))
 import Svg exposing (Svg)
-import Svg.Attributes
+import Svg.Attributes as SvgA
 
 
 type alias OpaqueRenderData =
@@ -113,7 +113,7 @@ viewStatic config renderData =
         idAttribute =
             case config.nodeId of
                 Just nodeId ->
-                    [ Svg.Attributes.id nodeId ]
+                    [ SvgA.id nodeId ]
 
                 Nothing ->
                     []
@@ -129,9 +129,10 @@ viewStatic config renderData =
                 []
 
         attributes =
-            [ Svg.Attributes.width <| String.fromInt config.sideLength
-            , Svg.Attributes.height <| String.fromInt config.sideLength
+            [ SvgA.width "100%"
+            , SvgA.height "100%"
             , viewBox (boardViewBox config.viewMode)
+            , SvgA.preserveAspectRatio "xMidYMid"
             ]
                 ++ events
                 ++ idAttribute
@@ -198,8 +199,7 @@ type ViewMode
 
 
 type alias ViewConfig =
-    { sideLength : Int
-    , colorScheme : Pieces.ColorScheme
+    { colorScheme : Pieces.ColorScheme
     , viewMode : ViewMode
     , nodeId : Maybe String
     , decoration : List BoardDecoration
@@ -257,21 +257,21 @@ highlightSvg ( tile, highlight ) =
         shape =
             case highlight of
                 HighlightBoth ->
-                    Svg.Attributes.d "m 0 0 v 100 h 100 v -100 z"
+                    SvgA.d "m 0 0 v 100 h 100 v -100 z"
 
                 HighlightWhite ->
-                    Svg.Attributes.d "m 0 0 v 100 h 50 v -100 z"
+                    SvgA.d "m 0 0 v 100 h 50 v -100 z"
 
                 HighlightBlack ->
-                    Svg.Attributes.d "m 50 0 v 100 h 50 v -100 z"
+                    SvgA.d "m 50 0 v 100 h 50 v -100 z"
 
                 HighlightLingering ->
-                    Svg.Attributes.d "m 50 0 l 50 50 l -50 50 l -50 -50 z"
+                    SvgA.d "m 50 0 l 50 50 l -50 50 l -50 -50 z"
     in
     Svg.path
         [ translate (coordinateOfTile tile)
         , shape
-        , Svg.Attributes.fill "rgb(255, 255, 100)"
+        , SvgA.fill "rgb(255, 255, 100)"
         ]
         []
 
@@ -287,10 +287,10 @@ dropTargetLayer decorations =
 dropTargetSvg : Tile -> Svg a
 dropTargetSvg (Tile x y) =
     Svg.circle
-        [ Svg.Attributes.r "20"
-        , Svg.Attributes.cx (String.fromInt (100 * x + 50))
-        , Svg.Attributes.cy (String.fromInt (700 - 100 * y + 50))
-        , Svg.Attributes.fill "rgb(200, 200, 200)"
+        [ SvgA.r "20"
+        , SvgA.cx (String.fromInt (100 * x + 50))
+        , SvgA.cy (String.fromInt (700 - 100 * y + 50))
+        , SvgA.fill "rgb(200, 200, 200)"
         ]
         []
 
@@ -323,7 +323,7 @@ pieceSvg colorScheme piece =
 -}
 translate : SvgCoord -> Svg.Attribute msg
 translate (SvgCoord x y) =
-    Svg.Attributes.style
+    SvgA.style
         ("transform: translate("
             ++ String.fromInt x
             ++ "px, "
@@ -334,7 +334,7 @@ translate (SvgCoord x y) =
 
 opacity : Float -> Svg.Attribute msg
 opacity o =
-    Svg.Attributes.opacity <| String.fromFloat o
+    SvgA.opacity <| String.fromFloat o
 
 
 board : ViewMode -> Svg msg
@@ -366,24 +366,24 @@ board mode =
     in
     Svg.g []
         ([ Svg.rect
-            [ Svg.Attributes.x "-10"
-            , Svg.Attributes.y "-10"
-            , Svg.Attributes.width "820"
-            , Svg.Attributes.height "820"
-            , Svg.Attributes.fill "#242"
+            [ SvgA.x "-10"
+            , SvgA.y "-10"
+            , SvgA.width "820"
+            , SvgA.height "820"
+            , SvgA.fill "#242"
             ]
             []
          , Svg.rect
-            [ Svg.Attributes.x "0"
-            , Svg.Attributes.y "0"
-            , Svg.Attributes.width "800"
-            , Svg.Attributes.height "800"
-            , Svg.Attributes.fill "#595"
+            [ SvgA.x "0"
+            , SvgA.y "0"
+            , SvgA.width "800"
+            , SvgA.height "800"
+            , SvgA.fill "#595"
             ]
             []
          , Svg.path
-            [ Svg.Attributes.d "M 0,0 H 800 V 100 H 0 Z M 0,200 H 800 V 300 H 0 Z M 0,400 H 800 V 500 H 0 Z M 0,600 H 800 V 700 H 0 Z M 100,0 V 800 H 200 V 0 Z M 300,0 V 800 H 400 V 0 Z M 500,0 V 800 H 600 V 0 Z M 700,0 V 800 H 800 V 0 Z"
-            , Svg.Attributes.fill "#9F9"
+            [ SvgA.d "M 0,0 H 800 V 100 H 0 Z M 0,200 H 800 V 300 H 0 Z M 0,400 H 800 V 500 H 0 Z M 0,600 H 800 V 700 H 0 Z M 100,0 V 800 H 200 V 0 Z M 300,0 V 800 H 400 V 0 Z M 500,0 V 800 H 600 V 0 Z M 700,0 V 800 H 800 V 0 Z"
+            , SvgA.fill "#9F9"
             ]
             []
          ]
@@ -394,10 +394,10 @@ board mode =
 columnTag : String -> String -> Svg msg
 columnTag letter x =
     Svg.text_
-        [ Svg.Attributes.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
-        , Svg.Attributes.x x
-        , Svg.Attributes.y "870"
-        , Svg.Attributes.fill "#555"
+        [ SvgA.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
+        , SvgA.x x
+        , SvgA.y "870"
+        , SvgA.fill "#555"
         ]
         [ Svg.text letter ]
 
@@ -405,10 +405,10 @@ columnTag letter x =
 rowTag : String -> String -> Svg msg
 rowTag digit y =
     Svg.text_
-        [ Svg.Attributes.style "text-anchor:end;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
-        , Svg.Attributes.x "-25"
-        , Svg.Attributes.y y
-        , Svg.Attributes.fill "#555"
+        [ SvgA.style "text-anchor:end;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
+        , SvgA.x "-25"
+        , SvgA.y y
+        , SvgA.fill "#555"
         ]
         [ Svg.text digit ]
 
@@ -487,7 +487,7 @@ viewBox rect =
         , String.fromFloat rect.width
         , String.fromFloat rect.height
         ]
-        |> Svg.Attributes.viewBox
+        |> SvgA.viewBox
 
 
 type alias Rect =
