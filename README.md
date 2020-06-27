@@ -41,3 +41,30 @@ To run an example, just execute `cargo run`.
 To build the webassembler file from the library run `wasm-pack build`.
 
 See https://rustwasm.github.io/docs/book/game-of-life/hello-world.html for details on wasm.
+
+## Deployment of the website
+
+The website is currently running an an AWS container. Deployment is done
+manually by Rolf at the moment. This Readme is just a convenient place to put
+the documentation of deployment.
+
+For the server
+
+    cd backend
+    cargo build --release
+    # TODO: I probably need to adjust some paths or some config here, because index is loaded from ../target/index.html in the server code.
+    scp -i ~/security/amazon-key-pair.pem ~/dev/pacosako/backend/target/release/pacosako-tool-server ubuntu@ec2-3-15-154-181.us-east-2.compute.amazonaws.com:~
+    scp -i ~/security/amazon-key-pair.pem ~/dev/pacosako/backend/Rocket.toml ubuntu@ec2-3-15-154-181.us-east-2.compute.amazonaws.com:~
+    scp -i ~/security/amazon-key-pair.pem ~/dev/pacosako/backend/data/* ubuntu@ec2-3-15-154-181.us-east-2.compute.amazonaws.com:~/data
+
+For the frontend
+
+    scp -i ~/security/amazon-key-pair.pem ~/dev/pacosako/target/* ubuntu@ec2-3-15-154-181.us-east-2.compute.amazonaws.com:~/target
+
+To connect to the aws ec2 instance running the server with ssh, run
+
+    ssh -i ~/security/amazon-key-pair.pem ubuntu@ec2-3-15-154-181.us-east-2.compute.amazonaws.com
+
+When starting the server on port 8000, you need to set up a routing rule in the firewall
+
+    iptables -t nat -I PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8000
