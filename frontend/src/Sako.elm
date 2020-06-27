@@ -1,7 +1,6 @@
 module Sako exposing
     ( Action(..)
     , Color(..)
-    , InputStep(..)
     , Piece
     , Position
     , Tile(..)
@@ -10,7 +9,6 @@ module Sako exposing
     , doAction
     , emptyPosition
     , encodePosition
-    , executeActionUnsafe
     , exportExchangeNotation
     , importExchangeNotation
     , importExchangeNotationList
@@ -429,35 +427,6 @@ doPromoteAction pieceType position =
 
     else
         Nothing
-
-
-{-| An input step is a little bit more granular then an action. From a settled
-position, you must first perform a move input step. You may then end up in
-another settled state or in a suspended state. From a suspended step you must
-execute a chain input step.
-
-This type does not factor in promotions yet.
-
--}
-type InputStep
-    = MoveInputStep Tile Tile
-    | ChainInputStep Tile
-
-
-{-| This function assumes the move is legal, this has to be checked by some
-other method. Giving illegal instructions to this function is undefined behaviour.
--}
-executeActionUnsafe : InputStep -> Position -> Position
-executeActionUnsafe action position =
-    case action of
-        MoveInputStep from to ->
-            doAction (Lift from) position
-                |> Maybe.andThen (doAction (Place to))
-                |> Maybe.withDefault position
-
-        ChainInputStep into ->
-            doAction (Place into) position
-                |> Maybe.withDefault position
 
 
 

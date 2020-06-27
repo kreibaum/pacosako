@@ -2206,17 +2206,20 @@ initPlayModel =
 
 
 type PlayMsg
-    = PlayActionInputStep Sako.InputStep
+    = PlayActionInputStep Sako.Action
     | PlayMsgAnimationTick Time.Posix
 
 
 updatePlayModel : PlayMsg -> PlayModel -> PlayModel
 updatePlayModel msg model =
     case msg of
-        PlayActionInputStep step ->
+        PlayActionInputStep _ ->
             let
                 newBoard =
-                    Sako.executeActionUnsafe step model.board
+                    Sako.doAction (Sako.Lift (Sako.Tile 5 1)) model.board
+                        |> Maybe.andThen (Sako.doAction (Sako.Place (Sako.Tile 5 7)))
+                        |> Maybe.andThen (Sako.doAction (Sako.Promote Sako.Queen))
+                        |> Maybe.withDefault model.board
             in
             { model
                 | board = newBoard
@@ -2238,7 +2241,7 @@ playUi taco model =
             [ width fill, height fill, Element.scrollbarY ]
             [ playPositionView taco model
             , Input.button []
-                { onPress = Just (PlayMsgWrapper (PlayActionInputStep (Sako.MoveInputStep (Sako.Tile 4 1) (Sako.Tile 4 3))))
+                { onPress = Just (PlayMsgWrapper (PlayActionInputStep (Sako.Lift (Sako.Tile 4 1))))
                 , label = Element.text "move"
                 }
             ]
