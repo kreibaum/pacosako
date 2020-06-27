@@ -562,7 +562,7 @@ other lists.
 -}
 determineVisualPiecesCurrentlyLifted : Sako.Position -> List VisualPacoPiece
 determineVisualPiecesCurrentlyLifted position =
-    Maybe.map visualPieceCurrentlyLifted position.liftedPiece
+    Maybe.map visualPieceCurrentlyLifted position.liftedPieces
         |> Maybe.map (\p -> [ p ])
         |> Maybe.withDefault []
 

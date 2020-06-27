@@ -280,7 +280,7 @@ executeActionUnsafe action position =
             executeMoveInputStepUnsafe from to position
 
         ChainInputStep into ->
-            case position.liftedPiece of
+            case position.liftedPieces of
                 Just piece ->
                     executeChainInputStepUnsafe piece into position
 
@@ -324,15 +324,15 @@ executeMoveInputStepSingleUnsafe piece to position =
 
 
 executeChainInputStepUnsafe : Piece -> Tile -> Position -> Position
-executeChainInputStepUnsafe liftedPiece to position =
+executeChainInputStepUnsafe liftedPieces to position =
     let
         piecesAtTargetOfSameTeam =
             position.pieces
                 |> List.filter (isAt to)
-                |> List.filter (isColor liftedPiece.color)
+                |> List.filter (isColor liftedPieces.color)
 
         liftedPieceMoved =
-            { liftedPiece | position = to }
+            { liftedPieces | position = to }
     in
     case piecesAtTargetOfSameTeam of
         [ partner ] ->
@@ -364,7 +364,7 @@ liftPieceUnsafe piece position =
         | pieces =
             position.pieces
                 |> List.filter (\p -> p /= piece)
-        , liftedPiece = Just piece
+        , liftedPieces = Just piece
     }
 
 
@@ -420,21 +420,21 @@ decodeTile =
 
 type alias Position =
     { pieces : List Piece
-    , liftedPiece : Maybe Piece
+    , liftedPieces : Maybe Piece
     }
 
 
 initialPosition : Position
 initialPosition =
     { pieces = defaultInitialPosition
-    , liftedPiece = Nothing
+    , liftedPieces = Nothing
     }
 
 
 emptyPosition : Position
 emptyPosition =
     { pieces = []
-    , liftedPiece = Nothing
+    , liftedPieces = Nothing
     }
 
 
@@ -447,14 +447,14 @@ decodePosition : Decoder Position
 decodePosition =
     Decode.map2 Position
         (Decode.field "pieces" (Decode.list decodePacoPiece))
-        (Decode.field "liftedPiece" (Decode.nullable decodePacoPiece))
+        (Decode.field "liftedPieces" (Decode.nullable decodePacoPiece))
 
 
 encodePosition : Position -> Value
 encodePosition record =
     Encode.object
         [ ( "pieces", Encode.list encodePiece <| record.pieces )
-        , ( "liftedPiece", Maybe.withDefault Encode.null <| Maybe.map encodePiece <| record.liftedPiece )
+        , ( "liftedPieces", Maybe.withDefault Encode.null <| Maybe.map encodePiece <| record.liftedPieces )
         ]
 
 

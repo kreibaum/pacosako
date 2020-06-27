@@ -816,7 +816,7 @@ updateSmartToolClick position tile model =
     case model.highlight of
         Just ( highlightTile, highlight ) ->
             if highlightTile == tile then
-                if position.liftedPiece == Nothing then
+                if position.liftedPieces == Nothing then
                     updateSmartToolSelection position highlightTile model
 
                 else
@@ -826,7 +826,7 @@ updateSmartToolClick position tile model =
             else
                 case doMoveAction highlightTile highlight tile position of
                     MoveIsIllegal ->
-                        if position.liftedPiece == Nothing then
+                        if position.liftedPieces == Nothing then
                             ( smartToolRemoveDragInfo
                                 { model | highlight = Nothing }
                             , ToolRollback
@@ -968,9 +968,9 @@ updateSmartToolStartDrag position startTile model =
             pieceHighlighted startTile highlightType piece
 
         newPosition =
-            case position.liftedPiece of
+            case position.liftedPieces of
                 Just _ ->
-                    { position | liftedPiece = Nothing }
+                    { position | liftedPieces = Nothing }
 
                 Nothing ->
                     { position
@@ -978,7 +978,7 @@ updateSmartToolStartDrag position startTile model =
                     }
 
         draggingPieces =
-            case position.liftedPiece of
+            case position.liftedPieces of
                 Just liftedPiece ->
                     DraggingPiecesLifted liftedPiece
 
@@ -1114,7 +1114,7 @@ doMoveAction sourceTile highlight targetTile position =
                                 position.pieces
                                     |> List.filter (\p -> p /= newLiftedPiece)
                                     |> List.map pieceMoveAction
-                            , liftedPiece = Just newLiftedPiece
+                            , liftedPieces = Just newLiftedPiece
                         }
                         newLiftedPiece
 
@@ -1125,7 +1125,7 @@ doMoveAction sourceTile highlight targetTile position =
             SimpleMove
                 { position
                     | pieces = { liftedPiece | position = targetTile } :: position.pieces
-                    , liftedPiece = Nothing
+                    , liftedPieces = Nothing
                 }
 
         doChainMoveWithLift liftedPiece =
@@ -1138,14 +1138,14 @@ doMoveAction sourceTile highlight targetTile position =
                                     :: (position.pieces
                                             |> List.filter (\p -> p /= newLiftedPiece)
                                        )
-                            , liftedPiece = Just newLiftedPiece
+                            , liftedPieces = Just newLiftedPiece
                         }
                         newLiftedPiece
 
                 Nothing ->
                     MoveIsIllegal
     in
-    case ( position.liftedPiece, sourcePieces ) of
+    case ( position.liftedPieces, sourcePieces ) of
         ( Just liftedPiece, _ ) ->
             if List.isEmpty targetPieces then
                 doSimpleChainMoveAction liftedPiece
