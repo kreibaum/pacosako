@@ -816,7 +816,7 @@ updateSmartToolClick position tile model =
     case model.highlight of
         Just ( highlightTile, highlight ) ->
             if highlightTile == tile then
-                if position.liftedPieces == Nothing then
+                if position.liftedPieces == [] then
                     updateSmartToolSelection position highlightTile model
 
                 else
@@ -826,7 +826,7 @@ updateSmartToolClick position tile model =
             else
                 case doMoveAction highlightTile highlight tile position of
                     MoveIsIllegal ->
-                        if position.liftedPieces == Nothing then
+                        if position.liftedPieces == [] then
                             ( smartToolRemoveDragInfo
                                 { model | highlight = Nothing }
                             , ToolRollback
@@ -835,12 +835,6 @@ updateSmartToolClick position tile model =
                         else
                             -- If a piece is lifted, we can't remove the highlight
                             ( smartToolRemoveDragInfo model, ToolRollback )
-
-                    NoSourcePieceFound ->
-                        ( smartToolRemoveDragInfo
-                            { model | highlight = Just ( tile, HighlightBoth ) }
-                        , ToolRollback
-                        )
 
                     SimpleMove newPosition ->
                         ( smartToolRemoveDragInfo
@@ -969,21 +963,24 @@ updateSmartToolStartDrag position startTile model =
 
         newPosition =
             case position.liftedPieces of
-                Just _ ->
-                    { position | liftedPieces = Nothing }
-
-                Nothing ->
+                [] ->
                     { position
                         | pieces = List.filter (not << deleteAction) position.pieces
                     }
 
+                ls ->
+                    { position | liftedPieces = [] }
+
         draggingPieces =
             case position.liftedPieces of
-                Just liftedPiece ->
+                [] ->
+                    DraggingPiecesNormal (List.filter deleteAction position.pieces)
+
+                [ liftedPiece ] ->
                     DraggingPiecesLifted liftedPiece
 
-                Nothing ->
-                    DraggingPiecesNormal (List.filter deleteAction position.pieces)
+                ls ->
+                    DraggingPiecesNormal ls
     in
     ( { model | dragStartTile = Just startTile, draggingPieces = draggingPieces }
     , ToolPreview newPosition
@@ -1016,12 +1013,6 @@ updateSmartToolStopDrag position startTile targetTile model =
         MoveIsIllegal ->
             ( smartToolRemoveDragInfo
                 { model | highlight = Nothing }
-            , ToolRollback
-            )
-
-        NoSourcePieceFound ->
-            ( smartToolRemoveDragInfo
-                { model | highlight = Just ( startTile, HighlightBoth ) }
             , ToolRollback
             )
 
@@ -1070,7 +1061,6 @@ type MoveExecutionType
     = SimpleMove Sako.Position
     | MoveIsIllegal
     | MoveEndsWithLift Sako.Position Piece
-    | NoSourcePieceFound
 
 
 {-| Tries to move the highlighted pieces at the source tile to the target tile,
@@ -1082,110 +1072,46 @@ This function operates under the assumption, that sourceTile /= targetTile.
 -}
 doMoveAction : Tile -> Highlight -> Tile -> Sako.Position -> MoveExecutionType
 doMoveAction sourceTile highlight targetTile position =
-    let
-        sourcePieceSelector piece =
-            pieceHighlighted sourceTile highlight piece
+    if highlight == HighlightBoth then
+        -- This is the easy branch, where we just do a normal move
+        if List.isEmpty position.liftedPieces then
+            Sako.doAction (Sako.Lift sourceTile) position
+                |> Maybe.andThen (Sako.doAction (Sako.Place targetTile))
+                |> Maybe.map convertToMoveExecution
+                |> Maybe.withDefault MoveIsIllegal
 
-        sourcePieces =
-            List.filter sourcePieceSelector position.pieces
+        else
+            Sako.doAction (Sako.Place targetTile) position
+                |> Maybe.map convertToMoveExecution
+                |> Maybe.withDefault MoveIsIllegal
 
-        targetPieces =
-            List.filter (Sako.isAt targetTile) position.pieces
+    else if List.isEmpty position.liftedPieces then
+        -- This branch is a bit special, we need to first lift only the selected
+        -- piece, because the Sako module has no concept of partial selection.
+        let
+            sourcePieceSelector piece =
+                pieceHighlighted sourceTile highlight piece
+        in
+        { position
+            | pieces = List.filter (not << sourcePieceSelector) position.pieces
+            , liftedPieces = List.filter sourcePieceSelector position.pieces
+        }
+            |> Sako.doAction (Sako.Place targetTile)
+            |> Maybe.map convertToMoveExecution
+            |> Maybe.withDefault MoveIsIllegal
 
-        liftPartner singlePiece =
-            targetPieces |> List.filter (Sako.isColor singlePiece.color) |> List.head
+    else
+        MoveIsIllegal
 
-        pieceMoveAction piece =
-            if sourcePieceSelector piece then
-                { piece | position = targetTile }
 
-            else
-                piece
+convertToMoveExecution : Sako.Position -> MoveExecutionType
+convertToMoveExecution position =
+    case position.liftedPieces of
+        [] ->
+            SimpleMove position
 
-        doSimpleMove () =
-            SimpleMove { position | pieces = List.map pieceMoveAction position.pieces }
-
-        doMoveWithLift singlePiece =
-            case liftPartner singlePiece of
-                Just newLiftedPiece ->
-                    MoveEndsWithLift
-                        { position
-                            | pieces =
-                                position.pieces
-                                    |> List.filter (\p -> p /= newLiftedPiece)
-                                    |> List.map pieceMoveAction
-                            , liftedPieces = Just newLiftedPiece
-                        }
-                        newLiftedPiece
-
-                Nothing ->
-                    MoveIsIllegal
-
-        doSimpleChainMoveAction liftedPiece =
-            SimpleMove
-                { position
-                    | pieces = { liftedPiece | position = targetTile } :: position.pieces
-                    , liftedPieces = Nothing
-                }
-
-        doChainMoveWithLift liftedPiece =
-            case liftPartner liftedPiece of
-                Just newLiftedPiece ->
-                    MoveEndsWithLift
-                        { position
-                            | pieces =
-                                { liftedPiece | position = targetTile }
-                                    :: (position.pieces
-                                            |> List.filter (\p -> p /= newLiftedPiece)
-                                       )
-                            , liftedPieces = Just newLiftedPiece
-                        }
-                        newLiftedPiece
-
-                Nothing ->
-                    MoveIsIllegal
-    in
-    case ( position.liftedPieces, sourcePieces ) of
-        ( Just liftedPiece, _ ) ->
-            if List.isEmpty targetPieces then
-                doSimpleChainMoveAction liftedPiece
-
-            else if List.length targetPieces == 2 then
-                doChainMoveWithLift liftedPiece
-
-            else if not (List.any (Sako.isColor liftedPiece.color) targetPieces) then
-                -- There is only a piece of the opposite color on the target square.
-                -- We can still do a simple move action.
-                doSimpleChainMoveAction liftedPiece
-
-            else
-                MoveIsIllegal
-
-        ( Nothing, [] ) ->
-            NoSourcePieceFound
-
-        ( Nothing, [ singlePiece ] ) ->
-            if List.isEmpty targetPieces then
-                -- The target is empty, we do a simple move action.
-                doSimpleMove ()
-
-            else if List.length targetPieces == 2 then
-                doMoveWithLift singlePiece
-
-            else if not (List.any (Sako.isColor singlePiece.color) targetPieces) then
-                -- There is only a piece of the opposite color on the target square.
-                -- We can still do a simple move action.
-                doSimpleMove ()
-
-            else
-                MoveIsIllegal
-
-        ( Nothing, [ _, _ ] ) ->
-            if List.isEmpty targetPieces then
-                doSimpleMove ()
-
-            else
-                MoveIsIllegal
+        [ lifted ] ->
+            MoveEndsWithLift position lifted
 
         _ ->
             MoveIsIllegal

@@ -1,11 +1,13 @@
 module Sako exposing
-    ( Color(..)
+    ( Action(..)
+    , Color(..)
     , InputStep(..)
     , Piece
     , Position
     , Tile(..)
     , Type(..)
     , decodePosition
+    , doAction
     , emptyPosition
     , encodePosition
     , executeActionUnsafe
@@ -35,6 +37,7 @@ No rendering is done in here.
 import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
+import List.Extra as List
 import Parser exposing ((|.), (|=), Parser)
 
 
@@ -257,6 +260,177 @@ enumeratePieceIdentity pieces =
         pieces
 
 
+{-| An atomic action that you can take on a Paco Ŝako board.
+-}
+type Action
+    = Lift Tile
+    | Place Tile
+    | Promote Type
+
+
+{-| Validates and executes an action. This does not validate that the position
+is actually legal and executing an action on an invalid position is undefined
+behaviour. However if you start with a valid position and only modify it using
+this doAction method you can be sure that the position is still valid.
+-}
+doAction : Action -> Position -> Maybe Position
+doAction action position =
+    case action of
+        Lift tile ->
+            doLiftAction tile position
+
+        Place tile ->
+            doPlaceAction tile position
+
+        Promote pieceType ->
+            doPromoteAction pieceType position
+
+
+{-| Check that there is nothing lifted right now and then lift the piece at the
+given position. Also checks that you own it or it is a pair.
+-}
+doLiftAction : Tile -> Position -> Maybe Position
+doLiftAction tile position =
+    let
+        piecesToLift =
+            position.pieces |> List.filter (isAt tile)
+
+        hasControl =
+            -- TODO: Enforcing this is bad for the Editor which also uses this
+            -- logic. We need to figure out a way to only enforce this for the
+            -- play mode.
+            piecesToLift
+                |> List.filter (isColor position.currentPlayer)
+                |> List.length
+                |> (\l -> l == 1)
+    in
+    if List.isEmpty position.liftedPieces then
+        Just
+            { position
+                | pieces = position.pieces |> List.filter (not << isAt tile)
+                , liftedPieces = piecesToLift
+            }
+
+    else
+        Nothing
+
+
+{-| Compares currently lifted pieces with the targed and then either
+chains or places down the pieces.
+-}
+doPlaceAction : Tile -> Position -> Maybe Position
+doPlaceAction tile position =
+    case position.liftedPieces of
+        [] ->
+            Nothing
+
+        [ piece ] ->
+            doPlaceSingleAction piece tile position
+
+        _ ->
+            doPlacePairAction tile position
+
+
+doPlacePairAction : Tile -> Position -> Maybe Position
+doPlacePairAction tile position =
+    let
+        targetPieces =
+            List.filter (isAt tile) position.pieces
+    in
+    case targetPieces of
+        [] ->
+            Just (unsafePlaceAt tile position)
+
+        _ ->
+            Nothing
+
+
+doPlaceSingleAction : Piece -> Tile -> Position -> Maybe Position
+doPlaceSingleAction piece tile position =
+    let
+        targetPieces =
+            List.filter (isAt tile) position.pieces
+    in
+    case targetPieces of
+        [] ->
+            Just (unsafePlaceAt tile position)
+
+        [ other ] ->
+            if other.color /= piece.color then
+                Just (unsafePlaceAt tile position)
+
+            else
+                Nothing
+
+        _ ->
+            Just (unsafePlaceChainAction piece tile position)
+
+
+{-| Calling this function is only valid when there are two pieces at the
+provided tile location. (This implies this function must never be exposed
+directly outside the module.)
+-}
+unsafePlaceChainAction : Piece -> Tile -> Position -> Position
+unsafePlaceChainAction piece tile position =
+    let
+        isChainParter p =
+            p.color == piece.color && p.position == tile
+
+        targetPieceOfSameColor =
+            List.filter isChainParter position.pieces
+
+        remainingRestingPieces =
+            List.filter (not << isChainParter) position.pieces
+    in
+    { position
+        | liftedPieces = targetPieceOfSameColor
+        , pieces = { piece | position = tile } :: remainingRestingPieces
+    }
+
+
+{-| Calling this function is olny valid when the hand and the target position
+don't have two pieces of the same color between them.
+-}
+unsafePlaceAt : Tile -> Position -> Position
+unsafePlaceAt tile position =
+    let
+        movedHand =
+            position.liftedPieces |> List.map (\p -> { p | position = tile })
+    in
+    { position
+        | pieces = movedHand ++ position.pieces
+        , liftedPieces = []
+    }
+
+
+{-| Check that there is exactly one pawn that is set to promote and then change
+its type.
+-}
+doPromoteAction : Type -> Position -> Maybe Position
+doPromoteAction pieceType position =
+    let
+        opponentHomeRow =
+            case position.currentPlayer of
+                White ->
+                    7
+
+                Black ->
+                    0
+
+        pawnFilter p =
+            p.pieceType == Pawn && getY p.position == opponentHomeRow && p.color == position.currentPlayer
+
+        ownPawnsOnHomeRow =
+            position.pieces
+                |> List.filter pawnFilter
+    in
+    if List.length ownPawnsOnHomeRow == 1 then
+        Just { position | pieces = position.pieces |> List.updateIf pawnFilter (\p -> { p | pieceType = pieceType }) }
+
+    else
+        Nothing
+
+
 {-| An input step is a little bit more granular then an action. From a settled
 position, you must first perform a move input step. You may then end up in
 another settled state or in a suspended state. From a suspended step you must
@@ -277,106 +451,13 @@ executeActionUnsafe : InputStep -> Position -> Position
 executeActionUnsafe action position =
     case action of
         MoveInputStep from to ->
-            executeMoveInputStepUnsafe from to position
+            doAction (Lift from) position
+                |> Maybe.andThen (doAction (Place to))
+                |> Maybe.withDefault position
 
         ChainInputStep into ->
-            case position.liftedPieces of
-                Just piece ->
-                    executeChainInputStepUnsafe piece into position
-
-                Nothing ->
-                    -- This is clearly an error and we invoke UB.
-                    position
-
-
-executeMoveInputStepUnsafe : Tile -> Tile -> Position -> Position
-executeMoveInputStepUnsafe from to position =
-    let
-        piecesToMove =
-            position.pieces
-                |> List.filter (isAt from)
-    in
-    case piecesToMove of
-        [ piece ] ->
-            executeMoveInputStepSingleUnsafe piece to position
-
-        _ ->
-            moveAllUnsafe from to position
-
-
-executeMoveInputStepSingleUnsafe : Piece -> Tile -> Position -> Position
-executeMoveInputStepSingleUnsafe piece to position =
-    let
-        piecesAtTargetOfSameTeam =
-            position.pieces
-                |> List.filter (isAt to)
-                |> List.filter (isColor piece.color)
-    in
-    case piecesAtTargetOfSameTeam of
-        [ partner ] ->
-            position
-                |> moveAllUnsafe piece.position to
-                |> liftPieceUnsafe partner
-
-        _ ->
-            position
-                |> moveAllUnsafe piece.position to
-
-
-executeChainInputStepUnsafe : Piece -> Tile -> Position -> Position
-executeChainInputStepUnsafe liftedPieces to position =
-    let
-        piecesAtTargetOfSameTeam =
-            position.pieces
-                |> List.filter (isAt to)
-                |> List.filter (isColor liftedPieces.color)
-
-        liftedPieceMoved =
-            { liftedPieces | position = to }
-    in
-    case piecesAtTargetOfSameTeam of
-        [ partner ] ->
-            { position | pieces = liftedPieceMoved :: position.pieces }
-                |> liftPieceUnsafe partner
-
-        _ ->
-            { position | pieces = liftedPieceMoved :: position.pieces }
-
-
-{-| Conditionally moves a piece if it is on the given source tile.
--}
-movePieceUnsafe : Tile -> Tile -> Piece -> Piece
-movePieceUnsafe from to piece =
-    if piece.position == from then
-        { piece | position = to }
-
-    else
-        piece
-
-
-{-| Removes the given piece out of the position and places it in the lifted
-position. This assumes that the lifted position is currenty empty and will
-overwrite the currently lifted piece.
--}
-liftPieceUnsafe : Piece -> Position -> Position
-liftPieceUnsafe piece position =
-    { position
-        | pieces =
-            position.pieces
-                |> List.filter (\p -> p /= piece)
-        , liftedPieces = Just piece
-    }
-
-
-{-| Moves all pieces at "from" to the "to" tile.
--}
-moveAllUnsafe : Tile -> Tile -> Position -> Position
-moveAllUnsafe from to position =
-    { position
-        | pieces =
-            position.pieces
-                |> List.map (movePieceUnsafe from to)
-    }
+            doAction (Place into) position
+                |> Maybe.withDefault position
 
 
 
@@ -412,6 +493,11 @@ decodeTile =
         (Decode.field "y" Decode.int)
 
 
+getY : Tile -> Int
+getY (Tile _ y) =
+    y
+
+
 
 --------------------------------------------------------------------------------
 -- The state of a game is a Position -------------------------------------------
@@ -420,21 +506,24 @@ decodeTile =
 
 type alias Position =
     { pieces : List Piece
-    , liftedPieces : Maybe Piece
+    , liftedPieces : List Piece
+    , currentPlayer : Color
     }
 
 
 initialPosition : Position
 initialPosition =
     { pieces = defaultInitialPosition
-    , liftedPieces = Nothing
+    , liftedPieces = []
+    , currentPlayer = White
     }
 
 
 emptyPosition : Position
 emptyPosition =
     { pieces = []
-    , liftedPieces = Nothing
+    , liftedPieces = []
+    , currentPlayer = White
     }
 
 
@@ -445,16 +534,18 @@ positionFromPieces pieces =
 
 decodePosition : Decoder Position
 decodePosition =
-    Decode.map2 Position
+    Decode.map3 Position
         (Decode.field "pieces" (Decode.list decodePacoPiece))
-        (Decode.field "liftedPieces" (Decode.nullable decodePacoPiece))
+        (Decode.field "liftedPieces" (Decode.list decodePacoPiece))
+        (Decode.field "currentPlayer" decodeColor)
 
 
 encodePosition : Position -> Value
 encodePosition record =
     Encode.object
         [ ( "pieces", Encode.list encodePiece <| record.pieces )
-        , ( "liftedPieces", Maybe.withDefault Encode.null <| Maybe.map encodePiece <| record.liftedPieces )
+        , ( "liftedPieces", Encode.list encodePiece <| record.liftedPieces )
+        , ( "currentPlayer", encodeColor <| record.currentPlayer )
         ]
 
 
