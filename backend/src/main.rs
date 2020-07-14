@@ -539,6 +539,14 @@ fn share(
     websocket::share(&(*websocket_server), steps.0)
 }
 
+#[derive(Deserialize)]
+struct GameParameters();
+
+#[get("/create_game")]
+fn create_game(websocket_server: State<WebsocketServer>) -> String {
+    websocket_server.create_game()
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Start the server ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -569,7 +577,8 @@ fn main() {
                 article_get,
                 article_post,
                 article_post_visible,
-                share
+                share,
+                create_game,
             ],
         )
         .launch();

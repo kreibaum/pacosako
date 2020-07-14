@@ -21,12 +21,15 @@ Note that this module does not take complete care of serialization and
 deserialization, as it has no knowledge of the types which would be required for
 this.
 
+I do allow this module access to the Sako module.
+
 -}
 
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Ports
+import Sako
 
 
 {-| Elm version of websocket::ClientMessage
@@ -37,6 +40,8 @@ All allowed messages that may be send by the client to the server.
 type ClientMessage
     = Subscribe String
     | ClientNextStep { index : Int, step : Value }
+    | SubscribeToMatch String
+    | DoAction { key : String, action : Sako.Action }
 
 
 encodeClientMessage : ClientMessage -> Value
@@ -60,6 +65,25 @@ encodeClientMessage clientMessage =
                   )
                 ]
 
+        SubscribeToMatch key ->
+            Encode.object
+                [ ( "SubscribeToMatch"
+                  , Encode.object
+                        [ ( "key", Encode.string key )
+                        ]
+                  )
+                ]
+
+        DoAction data ->
+            Encode.object
+                [ ( "DoAction"
+                  , Encode.object
+                        [ ( "key", Encode.string data.key )
+                        , ( "action", Sako.encodeAction data.action )
+                        ]
+                  )
+                ]
+
 
 {-| Elm version of websocket::ServerMessage
 
@@ -70,6 +94,11 @@ type ServerMessage
     = TechnicalError String
     | FullState SyncronizedBoard
     | ServerNextStep { index : Int, step : Value }
+    | CurrentMatchState
+        { key : String
+        , actionHistory : List Sako.Action
+        , legalActions : List Sako.Action
+        }
 
 
 type alias SyncronizedBoard =
@@ -95,7 +124,23 @@ decodeServerMessage =
         , Decode.map2 (\index step -> ServerNextStep { index = index, step = step })
             (Decode.at [ "NextStep", "index" ] Decode.int)
             (Decode.at [ "NextStep", "step" ] Decode.value)
+        , decodeCurrentMatchState
         ]
+
+
+decodeCurrentMatchState : Decoder ServerMessage
+decodeCurrentMatchState =
+    Decode.map3
+        (\key actionHistory legalActions ->
+            CurrentMatchState
+                { key = key
+                , actionHistory = actionHistory
+                , legalActions = legalActions
+                }
+        )
+        (Decode.at [ "CurrentMatchState", "key" ] Decode.string)
+        (Decode.at [ "CurrentMatchState", "actions" ] (Decode.list Sako.decodeAction))
+        (Decode.at [ "CurrentMatchState", "legal_actions" ] (Decode.list Sako.decodeAction))
 
 
 send : ClientMessage -> Cmd msg

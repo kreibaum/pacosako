@@ -5,9 +5,11 @@ module Sako exposing
     , Position
     , Tile(..)
     , Type(..)
+    , decodeAction
     , decodePosition
     , doAction
     , emptyPosition
+    , encodeAction
     , encodePosition
     , exportExchangeNotation
     , importExchangeNotation
@@ -15,6 +17,8 @@ module Sako exposing
     , initialPosition
     , isAt
     , isColor
+    , tileToIdentifier
+    , toStringType
     )
 
 {-| Everything you need to express the Position of a Paco Ŝako board.
@@ -266,6 +270,34 @@ type Action
     | Promote Type
 
 
+decodeAction : Decoder Action
+decodeAction =
+    Decode.oneOf
+        [ Decode.map Lift (Decode.at [ "Lift" ] decodeFlatTile)
+        , Decode.map Place (Decode.at [ "Place" ] decodeFlatTile)
+        , Decode.map Promote (Decode.at [ "Promote" ] decodeType)
+        ]
+
+
+encodeAction : Action -> Value
+encodeAction action =
+    case action of
+        Lift tile ->
+            Encode.object [ ( "Lift", Encode.int (tileFlat tile) ) ]
+
+        Place tile ->
+            Encode.object [ ( "Place", Encode.int (tileFlat tile) ) ]
+
+        Promote pacoType ->
+            Encode.object [ ( "Promote", encodeType pacoType ) ]
+
+
+decodeFlatTile : Decoder Tile
+decodeFlatTile =
+    Decode.int
+        |> Decode.map tileFromFlatCoordinate
+
+
 {-| Validates and executes an action. This does not validate that the position
 is actually legal and executing an action on an invalid position is undefined
 behaviour. However if you start with a valid position and only modify it using
@@ -450,6 +482,11 @@ tileFlat (Tile x y) =
     x + 8 * y
 
 
+tileFromFlatCoordinate : Int -> Tile
+tileFromFlatCoordinate i =
+    Tile (modBy 8 i) (i // 8)
+
+
 encodeTile : Tile -> Value
 encodeTile (Tile x y) =
     Encode.object [ ( "x", Encode.int x ), ( "y", Encode.int y ) ]
@@ -465,6 +502,16 @@ decodeTile =
 getY : Tile -> Int
 getY (Tile _ y) =
     y
+
+
+{-| Gets the name of a tile, like "g4" or "c7".
+-}
+tileToIdentifier : Tile -> String
+tileToIdentifier (Tile x y) =
+    [ List.getAt x (String.toList "abcdefgh") |> Maybe.withDefault '?'
+    , List.getAt y (String.toList "12345678") |> Maybe.withDefault '?'
+    ]
+        |> String.fromList
 
 
 

@@ -110,7 +110,7 @@ fn from_piece(input: char) -> Result<Option<PieceType>, &'static str> {
     match input {
         '.' => Ok(None),
         'P' => Ok(Some(Pawn)),
-        'R' => Ok(Some(Rock)),
+        'R' => Ok(Some(Rook)),
         'N' => Ok(Some(Knight)),
         'B' => Ok(Some(Bishop)),
         'Q' => Ok(Some(Queen)),

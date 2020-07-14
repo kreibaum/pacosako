@@ -8,7 +8,7 @@ use std::fmt::Display;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PieceType {
     Pawn,
-    Rock,
+    Rook,
     Knight,
     Bishop,
     Queen,

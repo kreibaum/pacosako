@@ -212,6 +212,8 @@ type Msg
     | LoginSuccess User
     | LogoutSuccess
     | AnimationTick Time.Posix
+    | WebsocketMsg Websocket.ServerMessage
+    | WebsocketErrorMsg Decode.Error
 
 
 {-| Messages that may only affect data in the position editor page.
@@ -241,8 +243,6 @@ type EditorMsg
     | ToolAddPiece Sako.Color Sako.Type
     | StartSharing
     | GotSharingResult Websocket.ShareStatus
-    | WebsocketMsg Websocket.ServerMessage
-    | WebsocketErrorMsg Decode.Error
     | InputRawShareKey String
     | WebsocketConnect String
 
@@ -340,7 +340,11 @@ update msg model =
             ( updateTimeline newTime model, Cmd.none )
 
         PlayMsgWrapper playMsg ->
-            ( { model | play = updatePlayModel playMsg model.play }, Cmd.none )
+            let
+                ( newPlay, cmd ) =
+                    updatePlayModel playMsg model.play
+            in
+            ( { model | play = newPlay }, cmd )
 
         EditorMsgWrapper editorMsg ->
             let
@@ -389,6 +393,12 @@ update msg model =
 
         HttpError error ->
             ( model, Ports.logToConsole (describeError error) )
+
+        WebsocketMsg serverMessage ->
+            updateWebsocket serverMessage model
+
+        WebsocketErrorMsg error ->
+            ( model, Ports.logToConsole (Decode.errorToString error) )
 
 
 {-| Helper function to update the color scheme inside the taco.
@@ -552,12 +562,6 @@ updateEditor msg model =
                 _ ->
                     Cmd.none
             )
-
-        WebsocketMsg serverMessage ->
-            updateWebsocket serverMessage model
-
-        WebsocketErrorMsg error ->
-            ( model, Ports.logToConsole (Decode.errorToString error) )
 
         InputRawShareKey rawShareKey ->
             ( { model | rawShareKey = rawShareKey }, Cmd.none )
@@ -1135,38 +1139,57 @@ addHistoryState newState p =
 --------------------------------------------------------------------------------
 
 
-{-| Update method that responds to websocket events and updates the editor state.
--}
-updateWebsocket : Websocket.ServerMessage -> EditorModel -> ( EditorModel, Cmd Msg )
-updateWebsocket serverMessage editor =
+updateWebsocket : Websocket.ServerMessage -> Model -> ( Model, Cmd Msg )
+updateWebsocket serverMessage model =
     case serverMessage of
         Websocket.TechnicalError errorMessage ->
-            ( editor, Ports.logToConsole errorMessage )
+            ( model, Ports.logToConsole errorMessage )
 
         Websocket.FullState syncronizedBoard ->
-            case decodeSyncronizedSteps syncronizedBoard.steps of
-                Ok (head :: tail) ->
-                    let
-                        game =
-                            P.fromCons head tail
-                                |> P.goToEnd
-                    in
-                    ( { editor
-                        | game = game
-                        , shareStatus = Websocket.ShareConnected syncronizedBoard.key
-                      }
-                        |> animateToCurrentPosition
-                    , Cmd.none
-                    )
-
-                Ok [] ->
-                    ( editor, Ports.logToConsole "Server send a syncronized board without steps." )
-
-                Err error ->
-                    ( editor, Ports.logToConsole (Decode.errorToString error) )
+            let
+                ( newEditor, cmd ) =
+                    updateEditorWebsocketFullState syncronizedBoard model.editor
+            in
+            ( { model | editor = newEditor }, cmd )
 
         Websocket.ServerNextStep { index, step } ->
-            updateWebsocketNextStep index step editor
+            let
+                ( newEditor, cmd ) =
+                    updateWebsocketNextStep index step model.editor
+            in
+            ( { model | editor = newEditor }, cmd )
+
+        Websocket.CurrentMatchState data ->
+            let
+                ( newGame, cmd ) =
+                    updatePlayCurrentMatchState data model.play
+            in
+            Debug.log "got data" data
+                |> (\_ -> ( { model | play = newGame }, cmd ))
+
+
+updateEditorWebsocketFullState : { key : String, steps : List Value } -> EditorModel -> ( EditorModel, Cmd Msg )
+updateEditorWebsocketFullState syncronizedBoard editor =
+    case decodeSyncronizedSteps syncronizedBoard.steps of
+        Ok (head :: tail) ->
+            let
+                game =
+                    P.fromCons head tail
+                        |> P.goToEnd
+            in
+            ( { editor
+                | game = game
+                , shareStatus = Websocket.ShareConnected syncronizedBoard.key
+              }
+                |> animateToCurrentPosition
+            , Cmd.none
+            )
+
+        Ok [] ->
+            ( editor, Ports.logToConsole "Server send a syncronized board without steps." )
+
+        Err error ->
+            ( editor, Ports.logToConsole (Decode.errorToString error) )
 
 
 updateWebsocketNextStep : Int -> Value -> EditorModel -> ( EditorModel, Cmd Msg )
@@ -1214,9 +1237,7 @@ subscriptions model =
             |> Sub.map EditorMsgWrapper
         , Ports.responseSvgNodeContent SvgReadyForDownload
             |> Sub.map EditorMsgWrapper
-        , Websocket.listen
-            (WebsocketMsg >> EditorMsgWrapper)
-            (WebsocketErrorMsg >> EditorMsgWrapper)
+        , Websocket.listen WebsocketMsg WebsocketErrorMsg
         , Animation.subscription model.editor.timeline AnimationTick
         , Animation.subscription model.play.timeline (PlayMsgAnimationTick >> PlayMsgWrapper)
         ]
@@ -2121,63 +2142,6 @@ postAnalysePosition position =
 
 
 --------------------------------------------------------------------------------
--- View Components -------------------------------------------------------------
---------------------------------------------------------------------------------
--- View components should not depend on any information that is specific to this
--- application. I am planing to move this whole block into a separate file when
--- all components that I have identified are moved into this block.
-
-
-{-| Creates a grid with the given amount of columns. You can pass in a list of
-attributes which will be applied to both the column and row element. Typically
-you would pass in `[ spacing 5 ]` in here.
--}
-easyGrid : Int -> List (Element.Attribute msg) -> List (Element msg) -> Element msg
-easyGrid columnCount attributes list =
-    list
-        |> List.greedyGroupsOf columnCount
-        |> List.map (\group -> Element.row attributes group)
-        |> Element.column attributes
-
-
-{-| Render remote data into an Element, while providing fallbacks for error
-cases in a compact form.
--}
-remoteDataHelper :
-    { notAsked : Element msg
-    , loading : Element msg
-    , failure : e -> Element msg
-    }
-    -> (a -> Element msg)
-    -> RemoteData.RemoteData e a
-    -> Element msg
-remoteDataHelper config display data =
-    case data of
-        RemoteData.NotAsked ->
-            config.notAsked
-
-        RemoteData.Loading ->
-            config.loading
-
-        RemoteData.Failure e ->
-            config.failure e
-
-        RemoteData.Success a ->
-            display a
-
-
-centerColumn : List (Element msg) -> Element msg
-centerColumn =
-    Element.column
-        [ Element.spacing 30
-        , Element.padding 80
-        , Element.width (Element.fill |> Element.maximum 1000)
-        , Element.centerX
-        ]
-
-
-
---------------------------------------------------------------------------------
 -- Playing Paco Ŝako -----------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Set up a game and play it by the rules.
@@ -2186,10 +2150,18 @@ centerColumn =
 -- I'll call this the "Play" page.
 
 
+type alias CurrentMatchState =
+    { key : String
+    , actionHistory : List Sako.Action
+    , legalActions : List Sako.Action
+    }
+
+
 type alias PlayModel =
     { board : Sako.Position
-    , inputFrom : Sako.Tile
-    , inputTo : Sako.Tile
+    , subscriptionRaw : String
+    , subscription : Maybe String
+    , currentState : CurrentMatchState
 
     -- later: , preview : Maybe Sako.Position
     , timeline : Timeline OpaqueRenderData
@@ -2199,8 +2171,13 @@ type alias PlayModel =
 initPlayModel : PlayModel
 initPlayModel =
     { board = Sako.initialPosition
-    , inputFrom = Sako.Tile 4 1
-    , inputTo = Sako.Tile 4 3
+    , subscriptionRaw = ""
+    , subscription = Nothing
+    , currentState =
+        { key = ""
+        , actionHistory = []
+        , legalActions = []
+        }
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     }
 
@@ -2208,29 +2185,47 @@ initPlayModel =
 type PlayMsg
     = PlayActionInputStep Sako.Action
     | PlayMsgAnimationTick Time.Posix
+    | SubscribeMatchId String
+    | PlayRawInputSubscription String
 
 
-updatePlayModel : PlayMsg -> PlayModel -> PlayModel
+updatePlayModel : PlayMsg -> PlayModel -> ( PlayModel, Cmd Msg )
 updatePlayModel msg model =
     case msg of
-        PlayActionInputStep _ ->
+        PlayActionInputStep action ->
             let
                 newBoard =
-                    Sako.doAction (Sako.Lift (Sako.Tile 5 1)) model.board
-                        |> Maybe.andThen (Sako.doAction (Sako.Place (Sako.Tile 5 7)))
-                        |> Maybe.andThen (Sako.doAction (Sako.Promote Sako.Queen))
+                    Sako.doAction action model.board
                         |> Maybe.withDefault model.board
             in
-            { model
+            ( { model
                 | board = newBoard
                 , timeline =
                     Animation.queue
                         ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
                         model.timeline
-            }
+              }
+            , Websocket.send
+                (Websocket.DoAction
+                    (Debug.log "doAction: " { key = Maybe.withDefault "" model.subscription, action = action })
+                )
+            )
 
         PlayMsgAnimationTick now ->
-            { model | timeline = Animation.tick now model.timeline }
+            ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
+
+        SubscribeMatchId key ->
+            ( { model | subscription = Just model.subscriptionRaw }
+            , Websocket.send (Websocket.SubscribeToMatch key)
+            )
+
+        PlayRawInputSubscription newRaw ->
+            ( { model | subscriptionRaw = newRaw }, Cmd.none )
+
+
+updatePlayCurrentMatchState : CurrentMatchState -> PlayModel -> ( PlayModel, Cmd Msg )
+updatePlayCurrentMatchState data model =
+    ( { model | currentState = data }, Cmd.none )
 
 
 playUi : Taco -> PlayModel -> Element Msg
@@ -2240,10 +2235,7 @@ playUi taco model =
         , Element.row
             [ width fill, height fill, Element.scrollbarY ]
             [ playPositionView taco model
-            , Input.button []
-                { onPress = Just (PlayMsgWrapper (PlayActionInputStep (Sako.Lift (Sako.Tile 4 1))))
-                , label = Element.text "move"
-                }
+            , playModeSidebar model
             ]
         ]
 
@@ -2262,3 +2254,42 @@ playPositionView taco play =
             play.timeline
         )
         |> Element.map (\_ -> NoOp)
+
+
+playModeSidebar : PlayModel -> Element Msg
+playModeSidebar model =
+    Element.column [ spacing 5 ]
+        ([ Input.text []
+            { onChange = PlayRawInputSubscription >> PlayMsgWrapper
+            , text = model.subscriptionRaw
+            , placeholder = Nothing
+            , label = Input.labelAbove [] (Element.text "Match Id")
+            }
+         , Input.button []
+            { onPress = Just (SubscribeMatchId model.subscriptionRaw |> PlayMsgWrapper)
+            , label = Element.text "Subscribe"
+            }
+         ]
+            ++ List.map legalActionChoice model.currentState.legalActions
+        )
+
+
+legalActionChoice : Sako.Action -> Element Msg
+legalActionChoice action =
+    Input.button []
+        { onPress = Just (PlayActionInputStep action |> PlayMsgWrapper)
+        , label = Element.text (legalActionChoiceLabel action)
+        }
+
+
+legalActionChoiceLabel : Sako.Action -> String
+legalActionChoiceLabel action =
+    case action of
+        Sako.Lift tile ->
+            "Lift " ++ Sako.tileToIdentifier tile
+
+        Sako.Place tile ->
+            "Place " ++ Sako.tileToIdentifier tile
+
+        Sako.Promote pacoType ->
+            "Promote " ++ Sako.toStringType pacoType

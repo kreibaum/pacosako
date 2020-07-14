@@ -43,6 +43,10 @@ pub enum PacoError {
     InputJsonMalformed,
     /// You are trying to execut an illegal action.
     ActionNotLegal,
+    /// You are trying to execute an action sequence with zero actions.
+    MissingInput,
+    /// You are trying to execute an action when it is not your turn.
+    NotYourTurn,
 }
 
 impl PlayerColor {
@@ -68,7 +72,7 @@ impl PieceType {
 
         match self {
             Pawn => "P",
-            Rock => "R",
+            Rook => "R",
             Knight => "N",
             Bishop => "B",
             Queen => "Q",
@@ -212,6 +216,10 @@ impl From<&DenseBoard> for EditorBoard {
 }
 
 impl EditorBoard {
+    pub fn new(pieces: Vec<RestingPiece>) -> Self {
+        EditorBoard { pieces }
+    }
+
     pub fn with_active_player(&self, current_player: PlayerColor) -> DenseBoard {
         let mut result: DenseBoard = DenseBoard {
             white: vec![None; 64],
@@ -239,8 +247,8 @@ impl EditorBoard {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct RestingPiece {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RestingPiece {
     piece_type: PieceType,
     color: PlayerColor,
     position: BoardPosition,
@@ -274,8 +282,8 @@ impl Castling {
 
 /// Represents zero to two lifted pieces
 /// The owner of the pieces must be tracked externally, usually this will be the current player.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum Hand {
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Hand {
     Empty,
     Single {
         piece: PieceType,
@@ -374,7 +382,7 @@ impl DenseBoard {
         };
 
         // Board structure
-        let back_row = vec![Rock, Knight, Bishop, Queen, King, Bishop, Knight, Rock];
+        let back_row = vec![Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook];
         let front_row = vec![Pawn; 8];
 
         result
@@ -420,6 +428,11 @@ impl DenseBoard {
         }
     }
 
+    /// Allows you to replace the hand.
+    pub fn set_hand(&mut self, new_hand: Hand) {
+        self.lifted_piece = new_hand;
+    }
+
     pub fn from_squares(squares: HashMap<BoardPosition, parser::Square>) -> Self {
         let mut result = Self::empty();
         for (position, square) in squares.iter() {
@@ -446,7 +459,7 @@ impl DenseBoard {
 
         if let Some(piece_type) = piece {
             // When lifting a rook, castling may be forfeit.
-            if piece_type == PieceType::Rock {
+            if piece_type == PieceType::Rook {
                 if position == BoardPosition(0) && self.current_player == PlayerColor::White {
                     self.castling.white_queen_side = false;
                 } else if position == BoardPosition(7) && self.current_player == PlayerColor::White
@@ -463,7 +476,7 @@ impl DenseBoard {
 
             if let Some(partner_type) = partner {
                 // When lifting an enemy rook, castling may be denied from them.
-                if partner_type == PieceType::Rock {
+                if partner_type == PieceType::Rook {
                     if position == BoardPosition(0) && self.current_player == PlayerColor::Black {
                         self.castling.white_queen_side = false;
                     } else if position == BoardPosition(7)
@@ -774,7 +787,7 @@ impl DenseBoard {
         use PieceType::*;
         match piece_type {
             Pawn => Ok(self.place_targets_pawn(position, is_pair)),
-            Rock => Ok(self.place_targets_rock(position, is_pair, false)),
+            Rook => Ok(self.place_targets_rock(position, is_pair, false)),
             Knight => Ok(self.place_targets_knight(position, is_pair, false)),
             Bishop => Ok(self.place_targets_bishop(position, is_pair, false)),
             Queen => Ok(self.place_targets_queen(position, is_pair, false)),
@@ -790,7 +803,7 @@ impl DenseBoard {
         use PieceType::*;
         match piece_type {
             Pawn => self.threat_place_targets_pawn(position),
-            Rock => self.place_targets_rock(position, false, true),
+            Rook => self.place_targets_rock(position, false, true),
             Knight => self.place_targets_knight(position, false, true),
             Bishop => self.place_targets_bishop(position, false, true),
             Queen => self.place_targets_queen(position, false, true),
@@ -1158,7 +1171,7 @@ impl PacoBoard for DenseBoard {
         if self.promotion.is_some() {
             return Ok(vec![
                 Promote(PieceType::Bishop),
-                Promote(PieceType::Rock),
+                Promote(PieceType::Rook),
                 Promote(PieceType::Knight),
                 Promote(PieceType::Queen),
             ]);
@@ -1195,7 +1208,7 @@ impl PacoBoard for DenseBoard {
         if self.promotion.is_some() {
             return vec![
                 Promote(PieceType::Bishop),
-                Promote(PieceType::Rock),
+                Promote(PieceType::Rook),
                 Promote(PieceType::Knight),
                 Promote(PieceType::Queen),
             ];
@@ -1596,6 +1609,31 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<[IsThreatened; 64], 
     Ok(all_threats)
 }
 
+/// Executes a sequence of paco sako actions as a given player, if those actions
+/// are legal for the given player.
+pub fn execute_sequence<T: PacoBoard>(
+    board: &T,
+    sequence: Vec<PacoAction>,
+    as_player: PlayerColor,
+) -> Result<T, PacoError> {
+    if sequence.is_empty() {
+        // Nothing to do when we get an empty move.
+        return Err(PacoError::MissingInput);
+    }
+    // this needs to clone the input as we may run into an error in the middle
+    // of the sequence.
+    let mut new_state = board.clone();
+    for action in sequence {
+        if new_state.controlling_player() == as_player {
+            new_state.execute(action)?;
+        } else {
+            return Err(PacoError::NotYourTurn);
+        }
+    }
+
+    Ok(new_state)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1659,7 +1697,7 @@ mod tests {
     fn test_chain_sako() {
         let mut squares = HashMap::new();
         squares.insert(pos!("c4"), Square::white(PieceType::Bishop));
-        squares.insert(pos!("f7"), Square::pair(PieceType::Rock, PieceType::Pawn));
+        squares.insert(pos!("f7"), Square::pair(PieceType::Rook, PieceType::Pawn));
         squares.insert(pos!("f5"), Square::black(PieceType::King));
 
         let sako_states = find_sako_states(DenseBoard::from_squares(squares)).unwrap();
@@ -1742,7 +1780,7 @@ mod tests {
             board.actions().unwrap(),
             vec![
                 PacoAction::Promote(PieceType::Bishop),
-                PacoAction::Promote(PieceType::Rock),
+                PacoAction::Promote(PieceType::Rook),
                 PacoAction::Promote(PieceType::Knight),
                 PacoAction::Promote(PieceType::Queen),
             ]
@@ -1843,7 +1881,7 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("c2"), Square::white(Pawn));
-        squares.insert(pos!("e3"), Square::pair(Rock, Pawn));
+        squares.insert(pos!("e3"), Square::pair(Rook, Pawn));
         squares.insert(pos!("d1"), Square::white(King));
         squares.insert(pos!("c5"), Square::black(Pawn));
 
@@ -1870,7 +1908,7 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("c2"), Square::white(Pawn));
-        squares.insert(pos!("d3"), Square::pair(Rock, Pawn));
+        squares.insert(pos!("d3"), Square::pair(Rook, Pawn));
         squares.insert(pos!("g3"), Square::white(King));
         squares.insert(pos!("c5"), Square::black(Pawn));
 
@@ -2013,8 +2051,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
-        squares.insert("h1".try_into().unwrap(), Square::white(Rock));
-        squares.insert(pos!("a1"), Square::white(Rock));
+        squares.insert("h1".try_into().unwrap(), Square::white(Rook));
+        squares.insert(pos!("a1"), Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
 
         execute_action!(board, lift, "e1");
@@ -2032,7 +2070,7 @@ mod tests {
 
         // Moving the king also moves the rook
         execute_action!(board, place, "c1");
-        assert_eq!(Some(PieceType::Rock), board.get_at(pos!("d1")).0);
+        assert_eq!(Some(PieceType::Rook), board.get_at(pos!("d1")).0);
     }
 
     /// Checks that white castling kingside move the rook and the united black piece.
@@ -2042,11 +2080,11 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
-        squares.insert("h1".try_into().unwrap(), Square::pair(Rock, Knight));
+        squares.insert("h1".try_into().unwrap(), Square::pair(Rook, Knight));
         let mut board = DenseBoard::from_squares(squares);
         execute_action!(board, lift, "e1");
         execute_action!(board, place, "g1");
-        assert_eq!(Some(PieceType::Rock), board.get_at(pos!("f1")).0);
+        assert_eq!(Some(PieceType::Rook), board.get_at(pos!("f1")).0);
         assert_eq!(Some(PieceType::Knight), board.get_at(pos!("f1")).1);
     }
 
@@ -2057,8 +2095,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
-        squares.insert("h1".try_into().unwrap(), Square::white(Rock));
-        squares.insert(pos!("a1"), Square::white(Rock));
+        squares.insert("h1".try_into().unwrap(), Square::white(Rook));
+        squares.insert(pos!("a1"), Square::white(Rook));
         squares.insert(pos!("c7"), Square::black(Pawn));
         let mut board = DenseBoard::from_squares(squares);
 
@@ -2096,8 +2134,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
-        squares.insert("h1".try_into().unwrap(), Square::white(Rock));
-        squares.insert(pos!("a1"), Square::white(Rock));
+        squares.insert("h1".try_into().unwrap(), Square::white(Rook));
+        squares.insert(pos!("a1"), Square::white(Rook));
         squares.insert(pos!("c7"), Square::black(Pawn));
         let mut board = DenseBoard::from_squares(squares);
 
@@ -2135,8 +2173,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
-        squares.insert("h1".try_into().unwrap(), Square::white(Rock));
-        squares.insert(pos!("a1"), Square::white(Rock));
+        squares.insert("h1".try_into().unwrap(), Square::white(Rook));
+        squares.insert(pos!("a1"), Square::white(Rook));
         squares.insert(pos!("c7"), Square::black(Pawn));
         let mut board = DenseBoard::from_squares(squares);
 
@@ -2174,8 +2212,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e8"), Square::black(King));
-        squares.insert("h8".try_into().unwrap(), Square::black(Rock));
-        squares.insert(pos!("a8"), Square::black(Rock));
+        squares.insert("h8".try_into().unwrap(), Square::black(Rook));
+        squares.insert(pos!("a8"), Square::black(Rook));
         let mut board = DenseBoard::from_squares(squares);
         board.current_player = PlayerColor::Black;
 
@@ -2194,7 +2232,7 @@ mod tests {
 
         // Moving the king also moves the rook
         execute_action!(board, place, "c8");
-        assert_eq!(Some(PieceType::Rock), board.get_at(pos!("d8")).1);
+        assert_eq!(Some(PieceType::Rook), board.get_at(pos!("d8")).1);
     }
 
     /// Checks that black castling kingside move the rook and the united white piece.
@@ -2204,14 +2242,14 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e8"), Square::black(King));
-        squares.insert("h8".try_into().unwrap(), Square::pair(Knight, Rock));
+        squares.insert("h8".try_into().unwrap(), Square::pair(Knight, Rook));
         let mut board = DenseBoard::from_squares(squares);
         board.current_player = PlayerColor::Black;
 
         execute_action!(board, lift, "e8");
         execute_action!(board, place, "g8");
         assert_eq!(Some(PieceType::Knight), board.get_at(pos!("f8")).0);
-        assert_eq!(Some(PieceType::Rock), board.get_at(pos!("f8")).1);
+        assert_eq!(Some(PieceType::Rook), board.get_at(pos!("f8")).1);
     }
 
     /// Tests if the black king moving forfeits castling rights.
@@ -2221,8 +2259,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e8"), Square::black(King));
-        squares.insert("h8".try_into().unwrap(), Square::black(Rock));
-        squares.insert(pos!("a8"), Square::black(Rock));
+        squares.insert("h8".try_into().unwrap(), Square::black(Rook));
+        squares.insert(pos!("a8"), Square::black(Rook));
         squares.insert(pos!("c2"), Square::white(Pawn));
         let mut board = DenseBoard::from_squares(squares);
         board.current_player = PlayerColor::Black;
@@ -2261,8 +2299,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e8"), Square::black(King));
-        squares.insert("h8".try_into().unwrap(), Square::black(Rock));
-        squares.insert(pos!("a8"), Square::black(Rock));
+        squares.insert("h8".try_into().unwrap(), Square::black(Rook));
+        squares.insert(pos!("a8"), Square::black(Rook));
         squares.insert(pos!("c2"), Square::white(Pawn));
         let mut board = DenseBoard::from_squares(squares);
         board.current_player = PlayerColor::Black;
@@ -2303,8 +2341,8 @@ mod tests {
         let mut squares = HashMap::new();
         // General castling layout
         squares.insert(pos!("e8"), Square::black(King));
-        squares.insert("h8".try_into().unwrap(), Square::black(Rock));
-        squares.insert(pos!("a8"), Square::black(Rock));
+        squares.insert("h8".try_into().unwrap(), Square::black(Rook));
+        squares.insert(pos!("a8"), Square::black(Rook));
         squares.insert(pos!("c2"), Square::white(Pawn));
         // A loop to get the rook back
         squares.insert("h5".try_into().unwrap(), Square::pair(Pawn, Knight));
@@ -2345,8 +2383,8 @@ mod tests {
         let mut squares = HashMap::new();
         // General castling layout
         squares.insert(pos!("e8"), Square::black(King));
-        squares.insert("h8".try_into().unwrap(), Square::black(Rock));
-        squares.insert(pos!("a8"), Square::pair(Knight, Rock));
+        squares.insert("h8".try_into().unwrap(), Square::black(Rook));
+        squares.insert(pos!("a8"), Square::pair(Knight, Rook));
         squares.insert(pos!("c7"), Square::black(Pawn));
         let mut board = DenseBoard::from_squares(squares);
 
@@ -2383,7 +2421,7 @@ mod tests {
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
         squares.insert(pos!("f1"), Square::white(Bishop));
-        squares.insert("h1".try_into().unwrap(), Square::white(Rock));
+        squares.insert("h1".try_into().unwrap(), Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
         board.castling.white_queen_side = false;
 
@@ -2403,7 +2441,7 @@ mod tests {
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
         squares.insert(pos!("b5"), Square::black(Bishop));
-        squares.insert("h1".try_into().unwrap(), Square::white(Rock));
+        squares.insert("h1".try_into().unwrap(), Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
         board.castling.white_queen_side = false;
 
@@ -2423,8 +2461,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(pos!("e1"), Square::white(King));
-        squares.insert(pos!("b8"), Square::black(Rock));
-        squares.insert(pos!("a1"), Square::white(Rock));
+        squares.insert(pos!("b8"), Square::black(Rook));
+        squares.insert(pos!("a1"), Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
         board.castling.white_king_side = false;
 
