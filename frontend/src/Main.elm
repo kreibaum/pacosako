@@ -2225,7 +2225,73 @@ updatePlayModel msg model =
 
 updatePlayCurrentMatchState : CurrentMatchState -> PlayModel -> ( PlayModel, Cmd Msg )
 updatePlayCurrentMatchState data model =
-    ( { model | currentState = data }, Cmd.none )
+    let
+        newBoard =
+            case matchStatesDiff model.currentState data of
+                Just diffActions ->
+                    doActions diffActions model.board
+                        |> Maybe.withDefault model.board
+
+                Nothing ->
+                    doActions data.actionHistory Sako.initialPosition
+                        |> Maybe.withDefault Sako.emptyPosition
+
+        newState =
+            data
+    in
+    ( { model
+        | currentState = newState
+        , board = newBoard
+        , timeline =
+            Animation.queue
+                ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
+                model.timeline
+      }
+    , Cmd.none
+    )
+
+
+{-| Iterate doAction with the actions provided on the board state.
+-}
+doActions : List Sako.Action -> Sako.Position -> Maybe Sako.Position
+doActions actions board =
+    case actions of
+        [] ->
+            Just board
+
+        a :: actionTail ->
+            case Sako.doAction a board of
+                Just b ->
+                    doActions actionTail b
+
+                Nothing ->
+                    Nothing
+
+
+{-| Given an old and a new match state, this returns the actions that need to
+be taken to transform the old state into the new state. Returns Nothing if the
+new state does not extend the old state.
+-}
+matchStatesDiff : CurrentMatchState -> CurrentMatchState -> Maybe (List Sako.Action)
+matchStatesDiff old new =
+    historyDiff old.actionHistory new.actionHistory
+
+
+historyDiff : List a -> List a -> Maybe (List a)
+historyDiff old new =
+    case ( old, new ) of
+        ( [], newTail ) ->
+            Just newTail
+
+        ( _, [] ) ->
+            Nothing
+
+        ( o :: oldTail, n :: newTail ) ->
+            if o == n then
+                historyDiff oldTail newTail
+
+            else
+                Nothing
 
 
 playUi : Taco -> PlayModel -> Element Msg
