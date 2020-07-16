@@ -1,5 +1,6 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+mod instance_manager;
 mod websocket;
 
 #[macro_use]

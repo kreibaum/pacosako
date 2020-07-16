@@ -1,5 +1,6 @@
 use pacosako::{PacoAction, PacoBoard, PacoError};
-use rand::{thread_rng, Rng};
+
+use crate::instance_manager;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string;
@@ -278,13 +279,7 @@ fn share_(server: &mut SyncServer, steps: Vec<serde_json::Value>) -> String {
 
 /// Returns a key that is not yet used in the map.
 fn generate_key<T>(map: &HashMap<String, T>) -> String {
-    let code: usize = thread_rng().gen_range(0, 9000);
-    let rand_string: String = format!("{}", code + 1000);
-    if map.contains_key(&rand_string) {
-        generate_key(map)
-    } else {
-        rand_string
-    }
+    instance_manager::generate_unique_key(map)
 }
 
 fn find_connection_by_sender_mut<'a>(
