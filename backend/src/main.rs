@@ -1,6 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
 mod instance_manager;
+mod sync_match;
 mod websocket;
 
 #[macro_use]
@@ -545,7 +546,7 @@ struct GameParameters();
 
 #[get("/create_game")]
 fn create_game(websocket_server: State<WebsocketServer>) -> String {
-    websocket_server.create_game()
+    websocket_server.new_match()
 }
 
 ////////////////////////////////////////////////////////////////////////////////

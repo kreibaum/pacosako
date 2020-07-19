@@ -116,10 +116,22 @@ macro_rules! lock {
     }};
 }
 
+impl<T: Instance> Clone for Manager<T> {
+    fn clone(&self) -> Self {
+        Manager(self.0.clone())
+    }
+}
+
+impl<T: Instance> Default for Manager<T> {
+    fn default() -> Self {
+        Manager(Arc::from(Mutex::from(SyncManager::default())))
+    }
+}
+
 impl<T: Instance> Manager<T> {
     /// Creates an empty manager that does not contain any games yet.
     pub fn new() -> Self {
-        Manager(Arc::from(Mutex::from(SyncManager::new())))
+        Manager(Arc::from(Mutex::from(SyncManager::default())))
     }
     /// Creates a new instance and returns its key.
     pub fn new_instance(&self) -> String {
@@ -135,15 +147,17 @@ impl<T: Instance> Manager<T> {
     }
 }
 
-impl<T: Instance> SyncManager<T> {
-    /// Creates an empty manager that does not contain any games yet.
-    pub fn new() -> Self {
+impl<T: Instance> Default for SyncManager<T> {
+    /// Creates an empty manager that does not contain any instances yet.
+    fn default() -> Self {
         SyncManager {
             instances: HashMap::new(),
             clients: HashMap::new(),
         }
     }
+}
 
+impl<T: Instance> SyncManager<T> {
     fn new_instance(&mut self) -> String {
         let key = generate_unique_key(&self.instances);
 
@@ -252,11 +266,6 @@ fn generate_key() -> String {
     let code: usize = thread_rng().gen_range(0, 9000);
     format!("{}", code + 1000)
 }
-
-/// So I am not sure what to do about senders :-/
-/// For testability, I need to be able to mock ws::Sender objects. So instead
-/// of working with plain sender objects, I wrap them using a trait and can
-/// then replace them with a MockSender for testing.
 
 #[cfg(test)]
 mod test {
