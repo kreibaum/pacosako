@@ -80,14 +80,12 @@ struct SyncManager<T: Instance> {
 }
 
 struct ClientData {
-    sender: Sender,
     connected_to: HashSet<String>,
 }
 
 impl ClientData {
-    fn new(sender: Sender) -> Self {
+    fn new() -> Self {
         ClientData {
-            sender,
             connected_to: HashSet::new(),
         }
     }
@@ -204,7 +202,7 @@ impl<T: Instance> SyncManager<T> {
                 // If the set did have this value present, false is returned.
                 client_already_connected = !client.connected_to.insert(key.clone().into_owned());
             } else {
-                let mut client = ClientData::new(sender.clone());
+                let mut client = ClientData::new();
                 client.connected_to.insert(key.clone().into_owned());
                 self.clients.insert(sender.clone(), client);
             }
