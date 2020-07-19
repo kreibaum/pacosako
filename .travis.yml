@@ -24,3 +24,8 @@ after_success: |
   cd backend
   cargo tarpaulin --out Xml --exclude-files ../*
   bash <(curl -s https://codecov.io/bash)
+
+  # Next we also run tests for the library
+  cd ../lib
+  cargo tarpaulin --out Xml
+  bash <(curl -s https://codecov.io/bash)
