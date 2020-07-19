@@ -33,7 +33,7 @@ pub trait ProvidesKey {
 
 pub trait ClientMessage: ProvidesKey + Clone {
     /// Create a client messsage that represents a client subscribing.
-    fn subscribe() -> Self;
+    fn subscribe(key: String) -> Self;
 }
 
 pub trait ServerMessage: Into<ws::Message> + Clone {
@@ -119,22 +119,34 @@ macro_rules! lock {
 }
 
 impl<T: Instance> Manager<T> {
+    /// Creates an empty manager that does not contain any games yet.
+    pub fn new() -> Self {
+        Manager(Arc::from(Mutex::from(SyncManager::new())))
+    }
     /// Creates a new instance and returns its key.
-    pub fn new(&self) -> String {
-        lock!(self).new()
+    pub fn new_instance(&self) -> String {
+        lock!(self).new_instance()
     }
     /// Routes a message to the corresponding instance
     pub fn handle_message(&self, message: T::ClientMessage, sender: Sender) {
         lock!(self).handle_message(message, sender)
     }
     /// Subscribes a sender to the instance with the given key.
-    pub fn subscribe(&self, key: Box<dyn ProvidesKey>, sender: Sender) {
-        lock!(self).subscribe(key.key(), sender)
+    pub fn subscribe(&self, key: Cow<String>, sender: Sender) {
+        lock!(self).subscribe(key, sender)
     }
 }
 
 impl<T: Instance> SyncManager<T> {
-    fn new(&mut self) -> String {
+    /// Creates an empty manager that does not contain any games yet.
+    pub fn new() -> Self {
+        SyncManager {
+            instances: HashMap::new(),
+            clients: HashMap::new(),
+        }
+    }
+
+    fn new_instance(&mut self) -> String {
         let key = generate_unique_key(&self.instances);
 
         let new_instance = T::new_with_key(&key);
@@ -207,7 +219,11 @@ impl<T: Instance> SyncManager<T> {
                 );
             } else {
                 instance.clients.insert(sender.clone());
-                Self::handle_message_for_instance(T::ClientMessage::subscribe(), &sender, instance);
+                Self::handle_message_for_instance(
+                    T::ClientMessage::subscribe(key.into_owned()),
+                    &sender,
+                    instance,
+                );
             }
         } else {
             Self::send_message(&sender, Self::error_no_instance(key));
@@ -237,4 +253,211 @@ pub fn generate_unique_key<T>(map: &HashMap<String, T>) -> String {
 fn generate_key() -> String {
     let code: usize = thread_rng().gen_range(0, 9000);
     format!("{}", code + 1000)
+}
+
+/// So I am not sure what to do about senders :-/
+/// For testability, I need to be able to mock ws::Sender objects. So instead
+/// of working with plain sender objects, I wrap them using a trait and can
+/// then replace them with a MockSender for testing.
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    /// This intstance manager is pretty tricky to get right, so I define a
+    /// simple test instance type to test it.
+    /// We need to implement all message types for this as well as an Instance
+    /// stucture, so the setup is rather involved.
+    /// Each instance is simply a i64 number that you can get or set by sending
+    /// a message. Setting the value will broadcast to all other subscribers.
+
+    struct TestInstance {
+        key: String,
+        value: i64,
+    }
+
+    #[derive(Clone)]
+    enum TestClientMsg {
+        Set { key: String, value: i64 },
+        Get { key: String },
+    }
+
+    impl ProvidesKey for TestClientMsg {
+        fn key(&self) -> Cow<String> {
+            match self {
+                TestClientMsg::Set { key, .. } => Cow::Borrowed(key),
+                TestClientMsg::Get { key } => Cow::Borrowed(key),
+            }
+        }
+    }
+
+    impl ClientMessage for TestClientMsg {
+        fn subscribe(key: String) -> Self {
+            TestClientMsg::Get { key }
+        }
+    }
+
+    #[derive(Clone)]
+    enum TestServerMsg {
+        IsNow { key: String, value: i64 },
+        Oups { error: String },
+    }
+
+    impl From<TestServerMsg> for ws::Message {
+        fn from(msg: TestServerMsg) -> Self {
+            match msg {
+                TestServerMsg::IsNow { key, value } => Self::text(format!("{}: {}", key, value)),
+                TestServerMsg::Oups { error } => Self::text(error),
+            }
+        }
+    }
+
+    impl ServerMessage for TestServerMsg {
+        fn error(message: Cow<String>) -> Self {
+            TestServerMsg::Oups {
+                error: message.into_owned(),
+            }
+        }
+    }
+
+    impl Instance for TestInstance {
+        type ClientMessage = TestClientMsg;
+        type ServerMessage = TestServerMsg;
+        fn key(&self) -> Cow<String> {
+            Cow::Borrowed(&self.key)
+        }
+        fn new_with_key(key: &str) -> Self {
+            TestInstance {
+                key: key.to_owned(),
+                value: 0,
+            }
+        }
+        fn handle_message(&mut self, message: Self::ClientMessage, ctx: &mut Context<Self>) {
+            match message {
+                TestClientMsg::Set { key, value, .. } => {
+                    self.value = value;
+                    ctx.broadcast(TestServerMsg::IsNow { key, value });
+                }
+                TestClientMsg::Get { key } => {
+                    ctx.reply(TestServerMsg::IsNow {
+                        key,
+                        value: self.value,
+                    });
+                }
+            }
+        }
+    }
+
+    #[allow(deprecated)]
+    fn new_mock_sender(id: u32) -> (Sender, impl FnMut() -> String) {
+        // Yes, this is deprecated. But ws is using it, so I need it for testing.
+        let (sender, receiver) = mio::channel::sync_channel(100);
+
+        // This constructor is #[doc(hidden)], but still public.
+        let sender = Sender::new(mio::Token(id as usize), sender, id);
+
+        // The type ws::..::Command is private, so I can't talk about it and I am
+        // unable to return any parameters which have this in its type parameter.
+        let f = move || format!("{:?}", receiver.try_recv());
+
+        (sender, Box::new(f))
+    }
+
+    /// Tries to connect to an instance that does not exist and fails.
+    #[test]
+    fn test_subscription_to_non_existing_game_fails() {
+        let m = Manager::<TestInstance>::new();
+        let (s1, mut r1) = new_mock_sender(1);
+
+        m.subscribe(Cow::Owned("Game1".to_owned()), s1);
+
+        // We expect that there is exacty one message in the replies and that
+        // it is about Game1 not existing.
+        assert!(r1().contains("There is no instance with key Game1."));
+        assert!(r1().starts_with("Err("));
+    }
+
+    /// Creates an instance and connects to it.
+    /// Tests that we recieve the state as a response.
+    /// Also checks that connecting twice does work.
+    #[test]
+    fn test_subscription_works() {
+        let m = Manager::<TestInstance>::new();
+        let (s1, mut r1) = new_mock_sender(1);
+
+        // Set up instance and connect.
+        let key = m.new_instance();
+        m.subscribe(Cow::Owned(key.clone()), s1.clone());
+
+        assert!(r1().contains(&format!("{}: {}", key, 0)));
+        assert_eq!(r1(), "Err(Empty)");
+
+        m.subscribe(Cow::Owned(key.clone()), s1);
+
+        assert!(r1().contains(&format!("Client is already connected to {}.", key)));
+        assert_eq!(r1(), "Err(Empty)");
+
+        // Check that we are still only connected once.
+        assert_eq!(lock!(m).clients.len(), 1);
+    }
+
+    /// Checks that Set and Get messages are handled correctly.
+    #[test]
+    fn test_reply_to_get() {
+        // Set up instance and connect.
+        let m = Manager::<TestInstance>::new();
+        let (s1, mut r1) = new_mock_sender(1);
+        let key = m.new_instance();
+        m.subscribe(Cow::Owned(key.clone()), s1.clone());
+
+        // Clean channel.
+        assert!(r1().contains(&format!("{}: {}", key.clone(), 0)));
+        assert_eq!(r1(), "Err(Empty)");
+
+        m.handle_message(
+            TestClientMsg::Set {
+                key: key.clone(),
+                value: 42,
+            },
+            s1.clone(),
+        );
+
+        assert!(r1().contains(&format!("{}: {}", key.clone(), 42)));
+        assert_eq!(r1(), "Err(Empty)");
+
+        m.handle_message(TestClientMsg::Get { key: key.clone() }, s1.clone());
+
+        assert!(r1().contains(&format!("{}: {}", key.clone(), 42)));
+        assert_eq!(r1(), "Err(Empty)");
+    }
+
+    /// Connect two clients and check that messages get passed as expected.
+    #[test]
+    fn test_message_passing() {
+        // Set up instance and connect.
+        let m = Manager::<TestInstance>::new();
+        let (s1, mut r1) = new_mock_sender(1);
+        let (s2, mut r2) = new_mock_sender(2);
+        let key = m.new_instance();
+        m.subscribe(Cow::Owned(key.clone()), s1.clone());
+        m.subscribe(Cow::Owned(key.clone()), s2.clone());
+
+        // Clean channels
+        assert!(r1().contains(&format!("{}: {}", key.clone(), 0)));
+        assert_eq!(r1(), "Err(Empty)");
+        assert!(r2().contains(&format!("{}: {}", key.clone(), 0)));
+        assert_eq!(r2(), "Err(Empty)");
+
+        // Update the value from client 1 and check that it arrives in client 2.
+        m.handle_message(
+            TestClientMsg::Set {
+                key: key.clone(),
+                value: 42,
+            },
+            s1.clone(),
+        );
+
+        assert!(r2().contains(&format!("{}: {}", key.clone(), 42)));
+        assert_eq!(r2(), "Err(Empty)");
+    }
 }
