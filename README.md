@@ -1,5 +1,8 @@
 # Pacosako
 
+[![Build Status](https://travis-ci.org/kreibaum/pacosako.svg?branch=master)](https://travis-ci.org/kreibaum/pacosako)
+[![codecov](https://codecov.io/gh/kreibaum/pacosako/branch/master/graph/badge.svg)](https://codecov.io/gh/kreibaum/pacosako)
+
 This is the codebase for the [pacoplay.com website](http://pacoplay.com). It has a frontend written in
 [Elm](https://elm-lang.org) and a backend written in [Rust](https://rust-lang.org) based on the
 Rocket server framework.
