@@ -10,9 +10,10 @@ rust:
   - nightly
 
 before_script: |
-  cargo install cargo-tarpaulin
+  bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
 
 script:
+  - cd backend
   - cargo clean
   - cargo build
   - cargo test
