@@ -108,6 +108,7 @@ type ServerMessage
         { key : String
         , actionHistory : List Sako.Action
         , legalActions : List Sako.Action
+        , controllingPlayer : Sako.Color
         }
 
 
@@ -140,17 +141,19 @@ decodeServerMessage =
 
 decodeCurrentMatchState : Decoder ServerMessage
 decodeCurrentMatchState =
-    Decode.map3
-        (\key actionHistory legalActions ->
+    Decode.map4
+        (\key actionHistory legalActions controllingPlayer ->
             CurrentMatchState
                 { key = key
                 , actionHistory = actionHistory
                 , legalActions = legalActions
+                , controllingPlayer = controllingPlayer
                 }
         )
         (Decode.at [ "CurrentMatchState", "key" ] Decode.string)
         (Decode.at [ "CurrentMatchState", "actions" ] (Decode.list Sako.decodeAction))
         (Decode.at [ "CurrentMatchState", "legal_actions" ] (Decode.list Sako.decodeAction))
+        (Decode.at [ "CurrentMatchState", "controlling_player" ] Sako.decodeColor)
 
 
 send : ClientMessage -> Cmd msg

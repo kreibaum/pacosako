@@ -2154,6 +2154,7 @@ type alias CurrentMatchState =
     { key : String
     , actionHistory : List Sako.Action
     , legalActions : List Sako.Action
+    , controllingPlayer : Sako.Color
     }
 
 
@@ -2177,6 +2178,7 @@ initPlayModel =
         { key = ""
         , actionHistory = []
         , legalActions = []
+        , controllingPlayer = Sako.White
         }
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     }
@@ -2331,7 +2333,8 @@ playPositionView taco play =
 playModeSidebar : PlayModel -> Element Msg
 playModeSidebar model =
     Element.column [ spacing 5 ]
-        ([ Input.text []
+        ([ currentPlayerInfoInSidebar model
+         , Input.text []
             { onChange = PlayRawInputSubscription >> PlayMsgWrapper
             , text = model.subscriptionRaw
             , placeholder = Nothing
@@ -2348,6 +2351,16 @@ playModeSidebar model =
          ]
             ++ List.map legalActionChoice model.currentState.legalActions
         )
+
+
+currentPlayerInfoInSidebar : PlayModel -> Element Msg
+currentPlayerInfoInSidebar model =
+    case model.currentState.controllingPlayer of
+        Sako.White ->
+            Element.text "White's turn"
+
+        Sako.Black ->
+            Element.text "Black's turn"
 
 
 legalActionChoice : Sako.Action -> Element Msg

@@ -136,6 +136,7 @@ pub struct CurrentMatchState {
     key: String,
     actions: Vec<PacoAction>,
     legal_actions: Vec<PacoAction>,
+    controlling_player: pacosako::PlayerColor,
 }
 
 /// This implementation contains most of the "Business Logic" of the match.
@@ -162,6 +163,7 @@ impl SyncronizedMatch {
             key: self.key.clone(),
             actions: self.actions.clone(),
             legal_actions: board.actions()?,
+            controlling_player: board.controlling_player(),
         })
     }
 
@@ -172,6 +174,7 @@ impl SyncronizedMatch {
             key: self.key.clone(),
             actions: self.actions.clone(),
             legal_actions: board.actions()?,
+            controlling_player: board.controlling_player(),
         })
     }
 

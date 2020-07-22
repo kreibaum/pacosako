@@ -13,7 +13,7 @@ use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::Display;
-use types::{BoardPosition, PieceType, PlayerColor};
+pub use types::{BoardPosition, PieceType, PlayerColor};
 use wasm_bindgen::prelude::*;
 #[cfg(test)]
 extern crate quickcheck;

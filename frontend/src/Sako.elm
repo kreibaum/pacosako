@@ -6,6 +6,7 @@ module Sako exposing
     , Tile(..)
     , Type(..)
     , decodeAction
+    , decodeColor
     , decodePosition
     , doAction
     , emptyPosition
