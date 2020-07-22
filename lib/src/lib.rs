@@ -1650,6 +1650,7 @@ pub fn rollback_trusted_action_stack(actions: &mut Vec<PacoAction>) -> Result<()
     Ok(())
 }
 
+/// Finds the last point in the action sequence where the active player changed.
 fn find_last_checkpoint_index(actions: &mut Vec<PacoAction>) -> Result<usize, PacoError> {
     let mut board = DenseBoard::new();
     let mut action_counter = 0;

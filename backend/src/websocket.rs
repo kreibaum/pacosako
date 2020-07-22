@@ -99,6 +99,9 @@ enum ClientMessage {
         key: String,
         action: PacoAction,
     },
+    Rollback {
+        key: String,
+    },
 }
 
 /// Filter the general websocket messages into ClientMatchMessages or return
@@ -112,6 +115,9 @@ impl TryFrom<&ClientMessage> for sync_match::ClientMatchMessage {
                     key: key.clone(),
                     action: action.clone(),
                 })
+            }
+            ClientMessage::Rollback { key } => {
+                Ok(sync_match::ClientMatchMessage::Rollback { key: key.clone() })
             }
             _ => Err(()),
         }
@@ -331,5 +337,6 @@ fn on_client_message(
             Ok(server.matches.subscribe(Cow::Owned(key), sender.clone()))
         }
         ClientMessage::DoAction { .. } => Ok(()), // Already handled earlier.
+        ClientMessage::Rollback { .. } => Ok(()), // Already handled earlier.
     }
 }

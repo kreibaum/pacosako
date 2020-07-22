@@ -42,6 +42,7 @@ type ClientMessage
     | ClientNextStep { index : Int, step : Value }
     | SubscribeToMatch String
     | DoAction { key : String, action : Sako.Action }
+    | Rollback String
 
 
 encodeClientMessage : ClientMessage -> Value
@@ -80,6 +81,15 @@ encodeClientMessage clientMessage =
                   , Encode.object
                         [ ( "key", Encode.string data.key )
                         , ( "action", Sako.encodeAction data.action )
+                        ]
+                  )
+                ]
+
+        Rollback key ->
+            Encode.object
+                [ ( "Rollback"
+                  , Encode.object
+                        [ ( "key", Encode.string key )
                         ]
                   )
                 ]

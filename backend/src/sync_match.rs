@@ -20,6 +20,7 @@ pub struct SyncronizedMatch {
 pub enum ClientMatchMessage {
     GetCurrentState { key: String },
     DoAction { key: String, action: PacoAction },
+    Rollback { key: String },
 }
 
 impl ClientMessage for ClientMatchMessage {
@@ -33,6 +34,7 @@ impl ProvidesKey for ClientMatchMessage {
         match self {
             ClientMatchMessage::DoAction { key, .. } => Cow::Borrowed(key),
             ClientMatchMessage::GetCurrentState { key } => Cow::Borrowed(key),
+            ClientMatchMessage::Rollback { key } => Cow::Borrowed(key),
         }
     }
 }
@@ -113,6 +115,14 @@ impl Instance for SyncronizedMatch {
                     e
                 ))),
             },
+
+            ClientMatchMessage::Rollback { .. } => match self.rollback() {
+                Ok(state) => ctx.reply(ServerMatchMessage::CurrentMatchState(state)),
+                Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
+                    "Game logic is violated by this action: {:?}",
+                    e
+                ))),
+            },
         }
     }
 }
@@ -163,6 +173,12 @@ impl SyncronizedMatch {
             actions: self.actions.clone(),
             legal_actions: board.actions()?,
         })
+    }
+
+    /// Rolls back the game state to the start of the turn of the current player.
+    fn rollback(&mut self) -> Result<CurrentMatchState, PacoError> {
+        pacosako::rollback_trusted_action_stack(&mut self.actions)?;
+        self.current_state()
     }
 }
 

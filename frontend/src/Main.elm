@@ -2184,6 +2184,7 @@ initPlayModel =
 
 type PlayMsg
     = PlayActionInputStep Sako.Action
+    | PlayRollback
     | PlayMsgAnimationTick Time.Posix
     | SubscribeMatchId String
     | PlayRawInputSubscription String
@@ -2221,6 +2222,11 @@ updatePlayModel msg model =
 
         PlayRawInputSubscription newRaw ->
             ( { model | subscriptionRaw = newRaw }, Cmd.none )
+
+        PlayRollback ->
+            ( model
+            , Websocket.send (Websocket.Rollback (Maybe.withDefault "" model.subscription))
+            )
 
 
 updatePlayCurrentMatchState : CurrentMatchState -> PlayModel -> ( PlayModel, Cmd Msg )
@@ -2334,6 +2340,10 @@ playModeSidebar model =
          , Input.button []
             { onPress = Just (SubscribeMatchId model.subscriptionRaw |> PlayMsgWrapper)
             , label = Element.text "Subscribe"
+            }
+         , Input.button []
+            { onPress = Just (PlayRollback |> PlayMsgWrapper)
+            , label = Element.text "Rollback"
             }
          ]
             ++ List.map legalActionChoice model.currentState.legalActions
