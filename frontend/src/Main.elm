@@ -2238,7 +2238,7 @@ updateActionInputStep action model =
       }
     , Websocket.DoAction
         { key = Maybe.withDefault "" model.subscription
-        , action = Debug.log "action call" action
+        , action = action
         }
         |> Websocket.send
     )
