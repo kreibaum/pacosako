@@ -25,8 +25,7 @@ import List.Extra as List
 import Pieces
 import Pivot as P exposing (Pivot)
 import Ports
-import PositionView exposing (..)
-import RemoteData
+import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, SvgCoord(..), ViewMode(..), coordinateOfTile, nextHighlight)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import Time exposing (Posix)
@@ -201,8 +200,7 @@ sakoEditorId =
 
 
 type Msg
-    = NoOp
-    | PlayMsgWrapper PlayMsg
+    = PlayMsgWrapper PlayMsg
     | EditorMsgWrapper EditorMsg
     | LoginPageMsgWrapper LoginPageMsg
     | OpenPage Page
@@ -333,9 +331,6 @@ init flags =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NoOp ->
-            ( model, Cmd.none )
-
         AnimationTick newTime ->
             ( updateTimeline newTime model, Cmd.none )
 
@@ -972,7 +967,7 @@ updateSmartToolStartDrag position startTile model =
                         | pieces = List.filter (not << deleteAction) position.pieces
                     }
 
-                ls ->
+                _ ->
                     { position | liftedPieces = [] }
 
         draggingPieces =
@@ -2059,24 +2054,9 @@ postSaveUpdate position id =
         }
 
 
-type alias StoredPosition =
-    { id : Int
-    , owner : Int
-    , data : StoredPositionData
-    }
-
-
 type alias StoredPositionData =
     { notation : String
     }
-
-
-decodeStoredPosition : Decoder StoredPosition
-decodeStoredPosition =
-    Decode.map3 StoredPosition
-        (Decode.field "id" Decode.int)
-        (Decode.field "owner" Decode.int)
-        (Decode.field "data" decodeStoredPositionData)
 
 
 decodeStoredPositionData : Decoder StoredPositionData
@@ -2198,10 +2178,11 @@ updatePlayModel msg model =
                         ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
                         model.timeline
               }
-            , Websocket.send
-                (Websocket.DoAction
-                    (Debug.log "doAction: " { key = Maybe.withDefault "" model.subscription, action = action })
-                )
+            , Websocket.DoAction
+                { key = Maybe.withDefault "" model.subscription
+                , action = action
+                }
+                |> Websocket.send
             )
 
         PlayMsgAnimationTick now ->

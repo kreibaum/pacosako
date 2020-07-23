@@ -325,15 +325,6 @@ doLiftAction tile position =
     let
         piecesToLift =
             position.pieces |> List.filter (isAt tile)
-
-        hasControl =
-            -- TODO: Enforcing this is bad for the Editor which also uses this
-            -- logic. We need to figure out a way to only enforce this for the
-            -- play mode.
-            piecesToLift
-                |> List.filter (isColor position.currentPlayer)
-                |> List.length
-                |> (\l -> l == 1)
     in
     if List.isEmpty position.liftedPieces then
         Just
