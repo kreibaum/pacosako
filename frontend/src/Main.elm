@@ -1433,7 +1433,7 @@ editorViewConfig taco editor =
 toolDecoration : EditorModel -> List BoardDecoration
 toolDecoration model =
     [ model.smartTool.highlight |> Maybe.map HighlightTile
-    , model.smartTool.hover |> Maybe.map DropTarget
+    , model.smartTool.hover |> Maybe.map PlaceTarget
     , model.smartTool.dragStartTile
         |> Maybe.map (\tile -> HighlightTile ( tile, HighlightBoth ))
     ]
@@ -2128,6 +2128,14 @@ type alias CurrentMatchState =
     }
 
 
+addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
+addActionToCurrentMatchState action state =
+    { state
+        | actionHistory = state.actionHistory ++ [ action ]
+        , legalActions = []
+    }
+
+
 type alias PlayModel =
     { board : Sako.Position
     , subscriptionRaw : String
@@ -2136,6 +2144,7 @@ type alias PlayModel =
 
     -- later: , preview : Maybe Sako.Position
     , timeline : Timeline OpaqueRenderData
+    , focus : Maybe Tile
     }
 
 
@@ -2151,6 +2160,7 @@ initPlayModel =
         , controllingPlayer = Sako.White
         }
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
+    , focus = Nothing
     }
 
 
@@ -2160,30 +2170,16 @@ type PlayMsg
     | PlayMsgAnimationTick Time.Posix
     | SubscribeMatchId String
     | PlayRawInputSubscription String
+    | PlayMouseDown BoardMousePosition
+    | PlayMouseUp BoardMousePosition
+    | PlayMouseMove BoardMousePosition
 
 
 updatePlayModel : PlayMsg -> PlayModel -> ( PlayModel, Cmd Msg )
 updatePlayModel msg model =
     case msg of
         PlayActionInputStep action ->
-            let
-                newBoard =
-                    Sako.doAction action model.board
-                        |> Maybe.withDefault model.board
-            in
-            ( { model
-                | board = newBoard
-                , timeline =
-                    Animation.queue
-                        ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
-                        model.timeline
-              }
-            , Websocket.DoAction
-                { key = Maybe.withDefault "" model.subscription
-                , action = action
-                }
-                |> Websocket.send
-            )
+            updateActionInputStep action model
 
         PlayMsgAnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
@@ -2200,6 +2196,52 @@ updatePlayModel msg model =
             ( model
             , Websocket.send (Websocket.Rollback (Maybe.withDefault "" model.subscription))
             )
+
+        PlayMouseDown _ ->
+            ( model, Cmd.none )
+
+        PlayMouseUp pos ->
+            -- Check if the position is an allowed action.
+            case Maybe.andThen (legalActionAt model.currentState) pos.tile of
+                Just action ->
+                    updateActionInputStep action model
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        PlayMouseMove _ ->
+            ( model, Cmd.none )
+
+
+legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
+legalActionAt state tile =
+    state.legalActions
+        |> List.filter (\action -> Sako.actionTile action == Just tile)
+        -- There can never be two actions on the same square, so this is safe.
+        |> List.head
+
+
+updateActionInputStep : Sako.Action -> PlayModel -> ( PlayModel, Cmd Msg )
+updateActionInputStep action model =
+    let
+        newBoard =
+            Sako.doAction action model.board
+                |> Maybe.withDefault model.board
+    in
+    ( { model
+        | board = newBoard
+        , currentState = addActionToCurrentMatchState action model.currentState
+        , timeline =
+            Animation.queue
+                ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
+                model.timeline
+      }
+    , Websocket.DoAction
+        { key = Maybe.withDefault "" model.subscription
+        , action = Debug.log "action call" action
+        }
+        |> Websocket.send
+    )
 
 
 updatePlayCurrentMatchState : CurrentMatchState -> PlayModel -> ( PlayModel, Cmd Msg )
@@ -2292,14 +2334,30 @@ playPositionView taco play =
             { colorScheme = taco.colorScheme
             , viewMode = ShowNumbers
             , nodeId = Just sakoEditorId
-            , decoration = []
+            , decoration = playDecoration play
             , dragPieceData = []
-            , mouseDown = Nothing
-            , mouseUp = Nothing
-            , mouseMove = Nothing
+            , mouseDown = Just (PlayMouseDown >> PlayMsgWrapper)
+            , mouseUp = Just (PlayMouseUp >> PlayMsgWrapper)
+            , mouseMove = Just (PlayMouseMove >> PlayMsgWrapper)
             }
             play.timeline
         )
+
+
+playDecoration : PlayModel -> List PositionView.BoardDecoration
+playDecoration play =
+    play.currentState.legalActions
+        |> List.filterMap actionDecoration
+
+
+actionDecoration : Sako.Action -> Maybe PositionView.BoardDecoration
+actionDecoration action =
+    case action of
+        Sako.Place tile ->
+            Just (PositionView.PlaceTarget tile)
+
+        _ ->
+            Nothing
 
 
 playModeSidebar : PlayModel -> Element Msg

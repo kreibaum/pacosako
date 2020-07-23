@@ -374,7 +374,7 @@ rowTag digit y =
 
 type BoardDecoration
     = HighlightTile ( Tile, Highlight )
-    | DropTarget Tile
+    | PlaceTarget Tile
 
 
 type Highlight
@@ -405,7 +405,7 @@ getHighlightTile decoration =
 getDropTarget : BoardDecoration -> Maybe Tile
 getDropTarget decoration =
     case decoration of
-        DropTarget tile ->
+        PlaceTarget tile ->
             Just tile
 
         _ ->

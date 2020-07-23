@@ -5,6 +5,7 @@ module Sako exposing
     , Position
     , Tile(..)
     , Type(..)
+    , actionTile
     , decodeAction
     , decodeColor
     , decodePosition
@@ -297,6 +298,19 @@ decodeFlatTile : Decoder Tile
 decodeFlatTile =
     Decode.int
         |> Decode.map tileFromFlatCoordinate
+
+
+actionTile : Action -> Maybe Tile
+actionTile action =
+    case action of
+        Lift tile ->
+            Just tile
+
+        Place tile ->
+            Just tile
+
+        _ ->
+            Nothing
 
 
 {-| Validates and executes an action. This does not validate that the position
