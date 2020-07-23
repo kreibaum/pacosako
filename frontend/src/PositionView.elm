@@ -33,24 +33,6 @@ transitioning between the keyframes.
 
 ---
 
-Here are some notes I wrote during development, likely this will be deleted
-before I commit anything.
-
-Note: The hard part will be separating the view model from the data. This model
-should not define a datatype that needs to be used instead of the Sako.Position.
-
-I think this means the animation should be managed outside this module. This also
-means the animation is a "Timeline Sako.Position" and not (as before) a
-"Timeline (List VisualPacoPiece)".
-
-This does mean "rendering" the Board to a List of VisualPacoPiece happens more
-often but I hope that won't be a performance bottleneck?
-
-If it is, then I can still have a renderer for a single situation which returns
-an opaque object. This opaque object can then be put on a Timeline.
-
----
-
 Open API improvements:
 
 Highlight should maybe live outside more. I'll have to think about the various
