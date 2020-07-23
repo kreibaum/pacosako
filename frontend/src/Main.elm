@@ -1408,43 +1408,31 @@ positionView taco editor =
 
 positionViewInner : Taco -> EditorModel -> Element EditorMsg
 positionViewInner taco editor =
+    let
+        config =
+            editorViewConfig taco editor
+    in
     case editor.preview of
         Nothing ->
             editor.timeline
-                |> PositionView.viewTimeline
-                    { colorScheme = taco.colorScheme
-                    , viewMode = editor.viewMode
-                    , nodeId = Just sakoEditorId
-                    , decoration = toolDecoration editor
-                    , dragPieceData = dragPieceData editor
-                    , withEvents = True
-                    }
-                |> Element.map todoMapPositionViewMessage
+                |> PositionView.viewTimeline config
 
         Just position ->
             PositionView.render (reduceSmartToolModel editor.smartTool) position
-                |> PositionView.viewStatic
-                    { colorScheme = taco.colorScheme
-                    , viewMode = editor.viewMode
-                    , nodeId = Just sakoEditorId
-                    , decoration = toolDecoration editor
-                    , dragPieceData = dragPieceData editor
-                    , withEvents = True
-                    }
-                |> Element.map todoMapPositionViewMessage
+                |> PositionView.viewStatic config
 
 
-todoMapPositionViewMessage : PositionViewMsg -> EditorMsg
-todoMapPositionViewMessage (InternalMessage msg) =
-    case msg of
-        PositionView.MouseDown pos ->
-            MouseDown pos
-
-        PositionView.MouseUp pos ->
-            MouseUp pos
-
-        PositionView.MouseMove pos ->
-            MouseMove pos
+editorViewConfig : Taco -> EditorModel -> PositionView.ViewConfig EditorMsg
+editorViewConfig taco editor =
+    { colorScheme = taco.colorScheme
+    , viewMode = editor.viewMode
+    , nodeId = Just sakoEditorId
+    , decoration = toolDecoration editor
+    , dragPieceData = dragPieceData editor
+    , mouseDown = Just MouseDown
+    , mouseUp = Just MouseUp
+    , mouseMove = Just MouseMove
+    }
 
 
 toolDecoration : EditorModel -> List BoardDecoration
@@ -1824,7 +1812,9 @@ parsedMarkdownPaste taco model =
                                 , nodeId = Nothing
                                 , decoration = []
                                 , dragPieceData = []
-                                , withEvents = False
+                                , mouseDown = Nothing
+                                , mouseUp = Nothing
+                                , mouseMove = Nothing
                                 }
                         , Element.text "Load"
                         ]
@@ -2323,11 +2313,12 @@ playPositionView taco play =
             , nodeId = Just sakoEditorId
             , decoration = []
             , dragPieceData = []
-            , withEvents = True
+            , mouseDown = Nothing
+            , mouseUp = Nothing
+            , mouseMove = Nothing
             }
             play.timeline
         )
-        |> Element.map (\_ -> NoOp)
 
 
 playModeSidebar : PlayModel -> Element Msg

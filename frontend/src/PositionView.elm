@@ -3,12 +3,9 @@ module PositionView exposing
     , DragPieceData
     , DragState
     , DraggingPieces(..)
-    , ExternalMessage
     , Highlight(..)
-    , InternalMessage(..)
     , InternalModel
     , OpaqueRenderData
-    , PositionViewMsg(..)
     , SvgCoord(..)
     , ViewConfig
     , ViewMode(..)
@@ -17,7 +14,6 @@ module PositionView exposing
     , nextHighlight
     , render
     , renderStatic
-    , update
     , viewStatic
     , viewTimeline
     )
@@ -66,6 +62,7 @@ import Animation exposing (Timeline)
 import Dict
 import Element exposing (Element)
 import EventsCustom as Events exposing (BoardMousePosition)
+import Maybe
 import Pieces
 import Sako exposing (Piece, Tile(..))
 import Svg exposing (Svg)
@@ -76,7 +73,7 @@ type alias OpaqueRenderData =
     List VisualPacoPiece
 
 
-viewTimeline : ViewConfig -> Timeline OpaqueRenderData -> Element PositionViewMsg
+viewTimeline : ViewConfig a -> Timeline OpaqueRenderData -> Element a
 viewTimeline config timeline =
     case Animation.animate timeline of
         Animation.Resting state ->
@@ -93,11 +90,6 @@ render internalModel position =
         ++ renderStatic position
 
 
-update : PositionViewMsg -> InternalModel -> ( InternalModel, ExternalMessage )
-update _ model =
-    ( model, () )
-
-
 {-| If you have a game position where no user input is happening (no drag and
 drop, no selection) you can just render this game position directly.
 -}
@@ -107,7 +99,7 @@ renderStatic position =
         ++ determineVisualPiecesAtRest position
 
 
-viewStatic : ViewConfig -> OpaqueRenderData -> Element PositionViewMsg
+viewStatic : ViewConfig a -> OpaqueRenderData -> Element a
 viewStatic config renderData =
     let
         idAttribute =
@@ -119,14 +111,11 @@ viewStatic config renderData =
                     []
 
         events =
-            if config.withEvents then
-                [ Events.svgDown (MouseDown >> InternalMessage)
-                , Events.svgMove (MouseMove >> InternalMessage)
-                , Events.svgUp (MouseUp >> InternalMessage)
-                ]
-
-            else
-                []
+            [ Maybe.map Events.svgDown config.mouseDown
+            , Maybe.map Events.svgUp config.mouseUp
+            , Maybe.map Events.svgMove config.mouseMove
+            ]
+                |> List.filterMap (\x -> x)
 
         attributes =
             [ SvgA.width "100%"
@@ -164,20 +153,6 @@ type DraggingPieces
     | DraggingPiecesLifted Piece
 
 
-type PositionViewMsg
-    = InternalMessage InternalMessage
-
-
-type InternalMessage
-    = MouseDown BoardMousePosition
-    | MouseUp BoardMousePosition
-    | MouseMove BoardMousePosition
-
-
-type alias ExternalMessage =
-    ()
-
-
 {-| A rendered Paco Piece. This must be different from a logical PacoPiece, as
 it can be resting, lifted or dragged. The rendering works in two stages where we
 first calculate the List VisualPacoPiece and then render those into Svg. In the
@@ -198,13 +173,15 @@ type ViewMode
     | CleanBoard
 
 
-type alias ViewConfig =
+type alias ViewConfig a =
     { colorScheme : Pieces.ColorScheme
     , viewMode : ViewMode
     , nodeId : Maybe String
     , decoration : List BoardDecoration
     , dragPieceData : List DragPieceData
-    , withEvents : Bool
+    , mouseDown : Maybe (BoardMousePosition -> a)
+    , mouseUp : Maybe (BoardMousePosition -> a)
+    , mouseMove : Maybe (BoardMousePosition -> a)
     }
 
 
