@@ -9,9 +9,9 @@ USER gitpod
 #
 # More information: https://www.gitpod.io/docs/config-docker/
 
-# TODO: I'll need to install elm, I guess this is not available by default.
-# I'll also need to switch to nightly rust to support Rocket
-# And it seems like keyboard shortcuts don't work propperly yet with neo 2.
-
+# Nightly rust is required by the Rocket server in version 0.4. We will switch
+# to stable rust when Rocket 0.5 (async) releases.
 RUN bash -cl "rustup default nightly"
+
+# The frontend is using elm, this is not included in workspace-full
 RUN bash -cl "npm install -g elm@latest-0.19.1 elm-live@next elm-format"
