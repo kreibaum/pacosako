@@ -3,6 +3,7 @@
 mod instance_manager;
 mod sync_match;
 mod websocket;
+mod timer;
 
 #[macro_use]
 extern crate rocket;
