@@ -22,10 +22,10 @@ after_success: |
   # Create and upload a report for codecov.io
   # Token is not required on Travis-CI, [..] for public repositories.
   cd backend
-  cargo tarpaulin --out Xml --exclude-files ../*
+  cargo tarpaulin --ignore-tests --out Xml --exclude-files ../*
   bash <(curl -s https://codecov.io/bash)
 
   # Next we also run tests for the library
   cd ../lib
-  cargo tarpaulin --out Xml
+  cargo tarpaulin --ignore-tests --out Xml
   bash <(curl -s https://codecov.io/bash)
