@@ -1,4 +1,6 @@
 use crate::instance_manager::{ClientMessage, Instance, ProvidesKey, ServerMessage};
+use crate::timer::{Timer, TimerConfig, TimerState};
+use chrono::Utc;
 use pacosako::{PacoAction, PacoBoard, PacoError};
 use serde::Serialize;
 use std::borrow::Cow;
@@ -13,6 +15,7 @@ use std::borrow::Cow;
 pub struct SyncronizedMatch {
     key: String,
     actions: Vec<PacoAction>,
+    timer: Option<Timer>,
 }
 
 /// Message that may be send by the client to the server.
@@ -21,6 +24,8 @@ pub enum ClientMatchMessage {
     GetCurrentState { key: String },
     DoAction { key: String, action: PacoAction },
     Rollback { key: String },
+    SetTimer { key: String, timer: TimerConfig },
+    StartTimer { key: String },
 }
 
 impl ClientMessage for ClientMatchMessage {
@@ -35,6 +40,8 @@ impl ProvidesKey for ClientMatchMessage {
             ClientMatchMessage::DoAction { key, .. } => Cow::Borrowed(key),
             ClientMatchMessage::GetCurrentState { key } => Cow::Borrowed(key),
             ClientMatchMessage::Rollback { key } => Cow::Borrowed(key),
+            ClientMatchMessage::SetTimer { key, .. } => Cow::Borrowed(key),
+            ClientMatchMessage::StartTimer { key } => Cow::Borrowed(key),
         }
     }
 }
@@ -81,6 +88,7 @@ impl Instance for SyncronizedMatch {
         SyncronizedMatch {
             key: key.to_owned(),
             actions: Vec::default(),
+            timer: None,
         }
     }
 
@@ -123,6 +131,22 @@ impl Instance for SyncronizedMatch {
                     e
                 ))),
             },
+
+            ClientMatchMessage::SetTimer { timer, .. } => match self.set_timer(timer) {
+                Ok(state) => ctx.broadcast(ServerMatchMessage::CurrentMatchState(state)),
+                Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
+                    "The timer can't be modified: {:?}",
+                    e
+                ))),
+            },
+            ClientMatchMessage::StartTimer { .. } => {
+                self.start_timer();
+
+                match self.current_state() {
+                    Ok(state) => ctx.broadcast(ServerMatchMessage::CurrentMatchState(state)),
+                    Err(_) => {}
+                }
+            }
         }
     }
 }
@@ -137,6 +161,7 @@ pub struct CurrentMatchState {
     actions: Vec<PacoAction>,
     legal_actions: Vec<PacoAction>,
     controlling_player: pacosako::PlayerColor,
+    timer: Option<Timer>,
 }
 
 /// This implementation contains most of the "Business Logic" of the match.
@@ -155,15 +180,19 @@ impl SyncronizedMatch {
     /// Validate and execute an action.
     fn do_action(&mut self, new_action: PacoAction) -> Result<CurrentMatchState, PacoError> {
         let mut board = self.project()?;
+        let controlling_player = board.controlling_player();
 
         board.execute(new_action)?;
         self.actions.push(new_action);
+
+        self.update_timer(controlling_player);
 
         Ok(CurrentMatchState {
             key: self.key.clone(),
             actions: self.actions.clone(),
             legal_actions: board.actions()?,
             controlling_player: board.controlling_player(),
+            timer: self.timer.clone(),
         })
     }
 
@@ -175,6 +204,7 @@ impl SyncronizedMatch {
             actions: self.actions.clone(),
             legal_actions: board.actions()?,
             controlling_player: board.controlling_player(),
+            timer: self.timer.clone(),
         })
     }
 
@@ -183,11 +213,56 @@ impl SyncronizedMatch {
         pacosako::rollback_trusted_action_stack(&mut self.actions)?;
         self.current_state()
     }
+
+    /// Sets the timer configuration of the game. This will return an error if
+    /// the game is already running.
+    fn set_timer(&mut self, timer_config: TimerConfig) -> Result<CurrentMatchState, PacoError> {
+        if self.can_change_timer() {
+            self.timer = Some(timer_config.into());
+        } else {
+            return Err(PacoError::ActionNotLegal);
+        }
+
+        self.current_state()
+    }
+
+    /// Decides if changing the timer is still allowed.
+    fn can_change_timer(&self) -> bool {
+        if !self.actions.is_empty() {
+            false
+        } else if let Some(ref timer) = self.timer {
+            timer.get_state() == TimerState::NotStarted
+        } else {
+            true
+        }
+    }
+
+    /// Starts the timer if it exists and is not Running or Timeout(..) yet.
+    /// This function does nothing otherwise.
+    fn start_timer(&mut self) {
+        if let Some(ref mut timer) = self.timer {
+            if timer.get_state() == TimerState::NotStarted {
+                timer.start(Utc::now())
+            }
+        }
+    }
+
+    /// Updates the timer
+    fn update_timer(&mut self, player: pacosako::PlayerColor) {
+        if let Some(ref mut timer) = self.timer {
+            if timer.get_state() == TimerState::NotStarted {
+                timer.start(Utc::now());
+            } else if timer.get_state() == TimerState::Running {
+                timer.use_time(player, Utc::now());
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use chrono::Duration;
     use pacosako::types::BoardPosition;
 
     /// Does a move and mostly just checks that it does not crash.
@@ -209,5 +284,33 @@ mod test {
         // there are two moves in the state and 16 possible actions.
         assert_eq!(current_state.actions.len(), 2);
         assert_eq!(current_state.legal_actions.len(), 16);
+    }
+
+    /// Tests setting the timer before and after the game starts
+    #[test]
+    fn test_setting_timer() -> Result<(), PacoError> {
+        let mut game = SyncronizedMatch::new_with_key("Game1");
+
+        // This should be allowed. (Assert via ?)
+        game.set_timer(TimerConfig {
+            time_budget_white: Duration::seconds(100),
+            time_budget_black: Duration::seconds(100),
+        })?;
+
+        // This should be allowed. (Assert via ?)
+        game.set_timer(TimerConfig {
+            time_budget_white: Duration::seconds(200),
+            time_budget_black: Duration::seconds(150),
+        })?;
+
+        // Start the game, then changing should no longer be allowed.
+        game.start_timer();
+        let match_state = game.set_timer(TimerConfig {
+            time_budget_white: Duration::seconds(100),
+            time_budget_black: Duration::seconds(100),
+        });
+        assert!(match_state.is_err());
+
+        Ok(())
     }
 }

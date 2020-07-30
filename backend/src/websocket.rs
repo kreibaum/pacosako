@@ -1,6 +1,6 @@
 use pacosako::{PacoAction, PacoError};
 
-use crate::{instance_manager, sync_match};
+use crate::{instance_manager, sync_match, timer};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string;
@@ -102,6 +102,13 @@ enum ClientMessage {
     Rollback {
         key: String,
     },
+    SetTimer {
+        key: String,
+        timer: timer::TimerConfig,
+    },
+    StartTimer {
+        key: String,
+    },
 }
 
 /// Filter the general websocket messages into ClientMatchMessages or return
@@ -118,6 +125,15 @@ impl TryFrom<&ClientMessage> for sync_match::ClientMatchMessage {
             }
             ClientMessage::Rollback { key } => {
                 Ok(sync_match::ClientMatchMessage::Rollback { key: key.clone() })
+            }
+            ClientMessage::SetTimer { key, timer } => {
+                Ok(sync_match::ClientMatchMessage::SetTimer {
+                    key: key.clone(),
+                    timer: timer.clone(),
+                })
+            }
+            ClientMessage::StartTimer { key } => {
+                Ok(sync_match::ClientMatchMessage::StartTimer { key: key.clone() })
             }
             _ => Err(()),
         }
@@ -338,5 +354,7 @@ fn on_client_message(
         }
         ClientMessage::DoAction { .. } => Ok(()), // Already handled earlier.
         ClientMessage::Rollback { .. } => Ok(()), // Already handled earlier.
+        ClientMessage::SetTimer { .. } => Ok(()), // Already handled earlier.
+        ClientMessage::StartTimer { .. } => Ok(()), // Already handled earlier.
     }
 }

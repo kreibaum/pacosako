@@ -29,6 +29,7 @@ import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, Dra
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import Time exposing (Posix)
+import Timer
 import Websocket
 
 
@@ -2125,6 +2126,7 @@ type alias CurrentMatchState =
     , actionHistory : List Sako.Action
     , legalActions : List Sako.Action
     , controllingPlayer : Sako.Color
+    , timer : Maybe Timer.Timer
     }
 
 
@@ -2158,6 +2160,7 @@ initPlayModel =
         , actionHistory = []
         , legalActions = []
         , controllingPlayer = Sako.White
+        , timer = Nothing
         }
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     , focus = Nothing
@@ -2173,6 +2176,7 @@ type PlayMsg
     | PlayMouseDown BoardMousePosition
     | PlayMouseUp BoardMousePosition
     | PlayMouseMove BoardMousePosition
+    | RequestTimerConfig Timer.TimerConfig
 
 
 updatePlayModel : PlayMsg -> PlayModel -> ( PlayModel, Cmd Msg )
@@ -2211,6 +2215,16 @@ updatePlayModel msg model =
 
         PlayMouseMove _ ->
             ( model, Cmd.none )
+
+        RequestTimerConfig timerConfig ->
+            ( model
+            , Websocket.send
+                (Websocket.SetTimer
+                    { key = Maybe.withDefault "" model.subscription
+                    , timer = timerConfig
+                    }
+                )
+            )
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
@@ -2364,6 +2378,8 @@ playModeSidebar : PlayModel -> Element Msg
 playModeSidebar model =
     Element.column [ spacing 5 ]
         ([ currentPlayerInfoInSidebar model
+         , viewTimer model.currentState.timer
+         , createDummyTimer
          , Input.text []
             { onChange = PlayRawInputSubscription >> PlayMsgWrapper
             , text = model.subscriptionRaw
@@ -2412,3 +2428,26 @@ legalActionChoiceLabel action =
 
         Sako.Promote pacoType ->
             "Promote " ++ Sako.toStringType pacoType
+
+
+viewTimer : Maybe Timer.Timer -> Element Msg
+viewTimer data =
+    case data of
+        Just timer ->
+            Element.column [ spacing 5 ]
+                [ Element.text (Debug.toString timer.lastTimestamp)
+                , Element.text (Debug.toString timer.timeLeftWhite)
+                , Element.text (Debug.toString timer.timeLeftBlack)
+                , Element.text (Debug.toString timer.timerState)
+                ]
+
+        Nothing ->
+            Element.text "No Timer"
+
+
+createDummyTimer : Element Msg
+createDummyTimer =
+    Input.button []
+        { onPress = Just (RequestTimerConfig (Timer.secondsConfig { white = 200, black = 300 }) |> PlayMsgWrapper)
+        , label = Element.text "Request dummy Timer"
+        }

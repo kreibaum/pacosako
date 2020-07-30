@@ -18,10 +18,12 @@
             "elm/time": "1.0.0",
             "elm-community/list-extra": "8.2.2",
             "elm-community/result-extra": "2.4.0",
+            "ianmackenzie/elm-units": "2.6.0",
             "krisajenkins/remotedata": "6.0.1",
             "lattyware/elm-fontawesome": "3.1.0",
             "mdgriffith/elm-ui": "1.1.4",
             "mpizenberg/elm-pointer-events": "4.0.1",
+            "rtfeldman/elm-iso8601-date-strings": "1.1.3",
             "yotamDvir/elm-pivot": "3.1.0"
         },
         "indirect": {

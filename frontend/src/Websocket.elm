@@ -30,6 +30,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Ports
 import Sako
+import Timer
 
 
 {-| Elm version of websocket::ClientMessage
@@ -43,6 +44,8 @@ type ClientMessage
     | SubscribeToMatch String
     | DoAction { key : String, action : Sako.Action }
     | Rollback String
+    | SetTimer { key : String, timer : Timer.TimerConfig }
+    | StartTimer String
 
 
 encodeClientMessage : ClientMessage -> Value
@@ -94,6 +97,25 @@ encodeClientMessage clientMessage =
                   )
                 ]
 
+        SetTimer data ->
+            Encode.object
+                [ ( "SetTimer"
+                  , Encode.object
+                        [ ( "key", Encode.string data.key )
+                        , ( "timer", Timer.encodeConfig data.timer )
+                        ]
+                  )
+                ]
+
+        StartTimer key ->
+            Encode.object
+                [ ( "StartTimer"
+                  , Encode.object
+                        [ ( "key", Encode.string key )
+                        ]
+                  )
+                ]
+
 
 {-| Elm version of websocket::ServerMessage
 
@@ -109,6 +131,7 @@ type ServerMessage
         , actionHistory : List Sako.Action
         , legalActions : List Sako.Action
         , controllingPlayer : Sako.Color
+        , timer : Maybe Timer.Timer
         }
 
 
@@ -141,19 +164,21 @@ decodeServerMessage =
 
 decodeCurrentMatchState : Decoder ServerMessage
 decodeCurrentMatchState =
-    Decode.map4
-        (\key actionHistory legalActions controllingPlayer ->
+    Decode.map5
+        (\key actionHistory legalActions controllingPlayer timer ->
             CurrentMatchState
                 { key = key
                 , actionHistory = actionHistory
                 , legalActions = legalActions
                 , controllingPlayer = controllingPlayer
+                , timer = timer
                 }
         )
         (Decode.at [ "CurrentMatchState", "key" ] Decode.string)
         (Decode.at [ "CurrentMatchState", "actions" ] (Decode.list Sako.decodeAction))
         (Decode.at [ "CurrentMatchState", "legal_actions" ] (Decode.list Sako.decodeAction))
         (Decode.at [ "CurrentMatchState", "controlling_player" ] Sako.decodeColor)
+        (Decode.at [ "CurrentMatchState", "timer" ] (Decode.maybe Timer.decodeTimer))
 
 
 send : ClientMessage -> Cmd msg
