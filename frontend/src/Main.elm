@@ -67,6 +67,7 @@ type alias User =
 type alias Taco =
     { colorScheme : Pieces.ColorScheme
     , login : Maybe User
+    , now : Posix
     }
 
 
@@ -210,9 +211,10 @@ type Msg
     | HttpError Http.Error
     | LoginSuccess User
     | LogoutSuccess
-    | AnimationTick Time.Posix
+    | AnimationTick Posix
     | WebsocketMsg Websocket.ServerMessage
     | WebsocketErrorMsg Decode.Error
+    | UpdateNow Posix
 
 
 {-| Messages that may only affect data in the position editor page.
@@ -301,7 +303,7 @@ initialLogin =
 
 initialTaco : Taco
 initialTaco =
-    { colorScheme = Pieces.defaultColorScheme, login = Nothing }
+    { colorScheme = Pieces.defaultColorScheme, login = Nothing, now = Time.millisToPosix 0 }
 
 
 parseWindowSize : Decode.Value -> ( Int, Int )
@@ -395,6 +397,13 @@ update msg model =
 
         WebsocketErrorMsg error ->
             ( model, Ports.logToConsole (Decode.errorToString error) )
+
+        UpdateNow posix ->
+            let
+                taco =
+                    model.taco
+            in
+            ( { model | taco = { taco | now = posix } }, Cmd.none )
 
 
 {-| Helper function to update the color scheme inside the taco.
@@ -1236,6 +1245,7 @@ subscriptions model =
         , Websocket.listen WebsocketMsg WebsocketErrorMsg
         , Animation.subscription model.editor.timeline AnimationTick
         , Animation.subscription model.play.timeline (PlayMsgAnimationTick >> PlayMsgWrapper)
+        , Time.every 1000 UpdateNow
         ]
 
 
@@ -2170,7 +2180,7 @@ initPlayModel =
 type PlayMsg
     = PlayActionInputStep Sako.Action
     | PlayRollback
-    | PlayMsgAnimationTick Time.Posix
+    | PlayMsgAnimationTick Posix
     | SubscribeMatchId String
     | PlayRawInputSubscription String
     | PlayMouseDown BoardMousePosition
@@ -2336,7 +2346,7 @@ playUi taco model =
         , Element.row
             [ width fill, height fill, Element.scrollbarY ]
             [ playPositionView taco model
-            , playModeSidebar model
+            , playModeSidebar taco model
             ]
         ]
 
@@ -2374,11 +2384,14 @@ actionDecoration action =
             Nothing
 
 
-playModeSidebar : PlayModel -> Element Msg
-playModeSidebar model =
+playModeSidebar : Taco -> PlayModel -> Element Msg
+playModeSidebar taco model =
     Element.column [ spacing 5 ]
         ([ currentPlayerInfoInSidebar model
-         , viewTimer model.currentState.timer
+         , viewTimer
+            model.currentState.controllingPlayer
+            taco.now
+            model.currentState.timer
          , createDummyTimer
          , Input.text []
             { onChange = PlayRawInputSubscription >> PlayMsgWrapper
@@ -2430,14 +2443,17 @@ legalActionChoiceLabel action =
             "Promote " ++ Sako.toStringType pacoType
 
 
-viewTimer : Maybe Timer.Timer -> Element Msg
-viewTimer data =
-    case data of
+viewTimer : Sako.Color -> Posix -> Maybe Timer.Timer -> Element Msg
+viewTimer player now data =
+    let
+        viewData =
+            Maybe.map (Timer.render player now) data
+    in
+    case viewData of
         Just timer ->
             Element.column [ spacing 5 ]
-                [ Element.text (Debug.toString timer.lastTimestamp)
-                , Element.text (Debug.toString timer.timeLeftWhite)
-                , Element.text (Debug.toString timer.timeLeftBlack)
+                [ Element.text (timeLabel timer.secondsLeftWhite)
+                , Element.text (timeLabel timer.secondsLeftBlack)
                 , Element.text (Debug.toString timer.timerState)
                 ]
 
@@ -2451,3 +2467,19 @@ createDummyTimer =
         { onPress = Just (RequestTimerConfig (Timer.secondsConfig { white = 200, black = 300 }) |> PlayMsgWrapper)
         , label = Element.text "Request dummy Timer"
         }
+
+
+{-| Turns an amount of seconds into a mm:ss label.
+-}
+timeLabel : Int -> String
+timeLabel seconds =
+    let
+        s =
+            seconds |> modBy 60
+
+        m =
+            seconds // 60
+    in
+    (String.fromInt m |> String.padLeft 2 '0')
+        ++ ":"
+        ++ (String.fromInt s |> String.padLeft 2 '0')

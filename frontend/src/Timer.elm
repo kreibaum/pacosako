@@ -85,8 +85,8 @@ encodeConfig config =
 {-| The timer view data is used to show the timer in the UI.
 -}
 type alias TimerViewData =
-    { timeLeftWhite : Duration
-    , timeLeftBlack : Duration
+    { secondsLeftWhite : Int
+    , secondsLeftBlack : Int
     , timerState : TimerState
     }
 
@@ -127,19 +127,46 @@ we can then use to render the timer in the UI.
 -}
 render : Sako.Color -> Posix -> Timer -> TimerViewData
 render currentPlayer now timer =
+    case timer.timerState of
+        NotStarted ->
+            renderPausedTimer timer
+
+        Running ->
+            renderRunningTimer currentPlayer now timer
+
+        Timeout _ ->
+            renderPausedTimer timer
+
+
+{-| This function is executed if the timer is already running.
+-}
+renderRunningTimer : Sako.Color -> Posix -> Timer -> TimerViewData
+renderRunningTimer currentPlayer now timer =
     let
         timePassed =
             Duration.from timer.lastTimestamp now
     in
     case currentPlayer of
         Sako.White ->
-            { timeLeftWhite = timer.timeLeftWhite |> Quantity.minus timePassed
-            , timeLeftBlack = timer.timeLeftBlack
+            { secondsLeftWhite = timer.timeLeftWhite |> Quantity.minus timePassed |> Duration.inSeconds |> round
+            , secondsLeftBlack = timer.timeLeftBlack |> Duration.inSeconds |> round
             , timerState = timer.timerState
             }
 
         Sako.Black ->
-            { timeLeftWhite = timer.timeLeftWhite
-            , timeLeftBlack = timer.timeLeftBlack |> Quantity.minus timePassed
+            { secondsLeftWhite = timer.timeLeftWhite |> Duration.inSeconds |> round
+            , secondsLeftBlack =
+                timer.timeLeftBlack
+                    |> Quantity.minus timePassed
+                    |> Duration.inSeconds
+                    |> round
             , timerState = timer.timerState
             }
+
+
+renderPausedTimer : Timer -> TimerViewData
+renderPausedTimer timer =
+    { secondsLeftWhite = timer.timeLeftWhite |> Duration.inSeconds |> round
+    , secondsLeftBlack = timer.timeLeftBlack |> Duration.inSeconds |> round
+    , timerState = timer.timerState
+    }
