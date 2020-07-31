@@ -381,8 +381,80 @@ doPlacePairAction tile position =
             Nothing
 
 
+{-| This function can be called when a place action is executed while exactly
+one piece is lifted.
+-}
 doPlaceSingleAction : Piece -> Tile -> Position -> Maybe Position
 doPlaceSingleAction piece tile position =
+    if isEnPassantCapture piece tile position then
+        doEnPassantPreparation tile position
+            |> doPlaceSingleActionNoSpecialMoves piece tile
+
+    else if isCastlingMove piece tile position then
+        doCastlingMove piece tile position
+
+    else
+        doPlaceSingleActionNoSpecialMoves piece tile position
+
+
+{-| An en passant capture can be identified by checking if a paws moves
+diagonally to an empty position. This happens exactly when uniting/chaining
+en passant. After moving the real target back, a normal union/chain happens.
+-}
+isEnPassantCapture : Piece -> Tile -> Position -> Bool
+isEnPassantCapture piece tile position =
+    (piece.pieceType == Pawn)
+        && (getX piece.position /= getX tile)
+        && List.all (not << isAt tile) position.pieces
+
+
+{-| Moves everything in front of the given tile back to this tile, in
+preparation for an enPassant union or chain.
+-}
+doEnPassantPreparation : Tile -> Position -> Position
+doEnPassantPreparation (Tile x y) position =
+    if y == 2 then
+        unsafeDirectMove (Tile x 3) (Tile x 2) position
+
+    else if y == 5 then
+        unsafeDirectMove (Tile x 4) (Tile x 5) position
+
+    else
+        position
+
+
+{-| A castling move is can be identified by checking if the king moves more
+than one square in the x direction.
+-}
+isCastlingMove : Piece -> Tile -> Position -> Bool
+isCastlingMove piece tile position =
+    -- TODO #17
+    False
+
+
+{-| Places the king and moves the Rook (maybe with partner). This function can
+only be called if you have verified that castling really takes place.
+-}
+doCastlingMove : Piece -> Tile -> Position -> Maybe Position
+doCastlingMove piece tile position =
+    let
+        -- TODO #17
+        rookFromTile =
+            Tile 0 0
+
+        rookToTile =
+            Tile 0 3
+    in
+    unsafePlaceAt tile position
+        |> unsafeDirectMove rookFromTile rookToTile
+        |> Just
+
+
+{-| This function can be called when a single piece is placed and it has already
+been verified that neither a castling nor a en passant capture is happening.
+-}
+doPlaceSingleActionNoSpecialMoves : Piece -> Tile -> Position -> Maybe Position
+doPlaceSingleActionNoSpecialMoves piece tile position =
     let
         targetPieces =
             List.filter (isAt tile) position.pieces
@@ -437,6 +509,24 @@ unsafePlaceAt tile position =
         | pieces = movedHand ++ position.pieces
         , liftedPieces = []
     }
+
+
+unsafeDirectMove : Tile -> Tile -> Position -> Position
+unsafeDirectMove from to position =
+    { position
+        | pieces =
+            position.pieces
+                |> List.map (unsafeDirectMovePiece from to)
+    }
+
+
+unsafeDirectMovePiece : Tile -> Tile -> Piece -> Piece
+unsafeDirectMovePiece from to piece =
+    if piece.position == from then
+        { piece | position = to }
+
+    else
+        piece
 
 
 {-| Check that there is exactly one pawn that is set to promote and then change
@@ -508,6 +598,11 @@ decodeTile =
 getY : Tile -> Int
 getY (Tile _ y) =
     y
+
+
+getX : Tile -> Int
+getX (Tile x _) =
+    x
 
 
 {-| Gets the name of a tile, like "g4" or "c7".
