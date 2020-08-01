@@ -1,5 +1,6 @@
 module Websocket exposing
     ( ClientMessage(..)
+    , CurrentMatchState
     , ServerMessage(..)
     , ShareStatus(..)
     , SyncronizedBoard
@@ -126,13 +127,17 @@ type ServerMessage
     = TechnicalError String
     | FullState SyncronizedBoard
     | ServerNextStep { index : Int, step : Value }
-    | CurrentMatchState
-        { key : String
-        , actionHistory : List Sako.Action
-        , legalActions : List Sako.Action
-        , controllingPlayer : Sako.Color
-        , timer : Maybe Timer.Timer
-        }
+    | NewMatchState CurrentMatchState
+    | MatchConnectionSuccess { key : String, state : CurrentMatchState }
+
+
+type alias CurrentMatchState =
+    { key : String
+    , actionHistory : List Sako.Action
+    , legalActions : List Sako.Action
+    , controllingPlayer : Sako.Color
+    , timer : Maybe Timer.Timer
+    }
 
 
 type alias SyncronizedBoard =
@@ -158,27 +163,30 @@ decodeServerMessage =
         , Decode.map2 (\index step -> ServerNextStep { index = index, step = step })
             (Decode.at [ "NextStep", "index" ] Decode.int)
             (Decode.at [ "NextStep", "step" ] Decode.value)
-        , decodeCurrentMatchState
+        , Decode.map NewMatchState
+            (Decode.field "CurrentMatchState" decodeMatchState)
+        , Decode.map2 (\key matchState -> MatchConnectionSuccess { key = key, state = matchState })
+            (Decode.at [ "MatchConnectionSuccess", "key" ] Decode.string)
+            (Decode.at [ "MatchConnectionSuccess", "state" ] decodeMatchState)
         ]
 
 
-decodeCurrentMatchState : Decoder ServerMessage
-decodeCurrentMatchState =
+decodeMatchState : Decoder CurrentMatchState
+decodeMatchState =
     Decode.map5
         (\key actionHistory legalActions controllingPlayer timer ->
-            CurrentMatchState
-                { key = key
-                , actionHistory = actionHistory
-                , legalActions = legalActions
-                , controllingPlayer = controllingPlayer
-                , timer = timer
-                }
+            { key = key
+            , actionHistory = actionHistory
+            , legalActions = legalActions
+            , controllingPlayer = controllingPlayer
+            , timer = timer
+            }
         )
-        (Decode.at [ "CurrentMatchState", "key" ] Decode.string)
-        (Decode.at [ "CurrentMatchState", "actions" ] (Decode.list Sako.decodeAction))
-        (Decode.at [ "CurrentMatchState", "legal_actions" ] (Decode.list Sako.decodeAction))
-        (Decode.at [ "CurrentMatchState", "controlling_player" ] Sako.decodeColor)
-        (Decode.at [ "CurrentMatchState", "timer" ] (Decode.maybe Timer.decodeTimer))
+        (Decode.field "key" Decode.string)
+        (Decode.field "actions" (Decode.list Sako.decodeAction))
+        (Decode.field "legal_actions" (Decode.list Sako.decodeAction))
+        (Decode.field "controlling_player" Sako.decodeColor)
+        (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
 
 
 send : ClientMessage -> Cmd msg

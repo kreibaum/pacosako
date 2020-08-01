@@ -22,6 +22,7 @@ pub struct SyncronizedMatch {
 #[derive(Clone)]
 pub enum ClientMatchMessage {
     GetCurrentState { key: String },
+    Subscribe { key: String },
     DoAction { key: String, action: PacoAction },
     Rollback { key: String },
     SetTimer { key: String, timer: TimerConfig },
@@ -30,7 +31,7 @@ pub enum ClientMatchMessage {
 
 impl ClientMessage for ClientMatchMessage {
     fn subscribe(key: String) -> Self {
-        ClientMatchMessage::GetCurrentState { key }
+        ClientMatchMessage::Subscribe { key }
     }
 }
 
@@ -39,6 +40,7 @@ impl ProvidesKey for ClientMatchMessage {
         match self {
             ClientMatchMessage::DoAction { key, .. } => Cow::Borrowed(key),
             ClientMatchMessage::GetCurrentState { key } => Cow::Borrowed(key),
+            ClientMatchMessage::Subscribe { key } => Cow::Borrowed(key),
             ClientMatchMessage::Rollback { key } => Cow::Borrowed(key),
             ClientMatchMessage::SetTimer { key, .. } => Cow::Borrowed(key),
             ClientMatchMessage::StartTimer { key } => Cow::Borrowed(key),
@@ -50,6 +52,10 @@ impl ProvidesKey for ClientMatchMessage {
 #[derive(Clone, Serialize)]
 pub enum ServerMatchMessage {
     CurrentMatchState(CurrentMatchState),
+    MatchConnectionSuccess {
+        key: String,
+        state: CurrentMatchState,
+    },
     Error(String),
 }
 
@@ -118,6 +124,16 @@ impl Instance for SyncronizedMatch {
 
             ClientMatchMessage::GetCurrentState { .. } => match self.current_state() {
                 Ok(state) => ctx.reply(ServerMatchMessage::CurrentMatchState(state)),
+                Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
+                    "Game logic is violated by this action: {:?}",
+                    e
+                ))),
+            },
+
+            // Subscribe is different from GetCurrentState only in the type of
+            // Response the server is sending back.
+            ClientMatchMessage::Subscribe { key } => match self.current_state() {
+                Ok(state) => ctx.reply(ServerMatchMessage::MatchConnectionSuccess { key, state }),
                 Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
                     "Game logic is violated by this action: {:?}",
                     e

@@ -7,7 +7,7 @@ the app does starts from here.
 import Animation exposing (Timeline)
 import Browser
 import Browser.Events
-import Element exposing (Element, centerX, fill, height, padding, spacing, width)
+import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
@@ -30,7 +30,7 @@ import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import Time exposing (Posix)
 import Timer
-import Websocket
+import Websocket exposing (CurrentMatchState)
 
 
 main : Program Decode.Value Model Msg
@@ -47,6 +47,7 @@ type alias Model =
     { taco : Taco
     , page : Page
     , play : PlayModel
+    , matchSetup : MatchSetupModel
     , editor : EditorModel
     , login : LoginModel
     }
@@ -54,6 +55,7 @@ type alias Model =
 
 type Page
     = PlayPage
+    | MatchSetupPage
     | EditorPage
     | LoginPage
 
@@ -203,6 +205,7 @@ sakoEditorId =
 
 type Msg
     = PlayMsgWrapper PlayMsg
+    | MatchSetupMsgWrapper MatchSetupMsg
     | EditorMsgWrapper EditorMsg
     | LoginPageMsgWrapper LoginPageMsg
     | OpenPage Page
@@ -322,8 +325,9 @@ sizeDecoder =
 init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     ( { taco = initialTaco
-      , page = EditorPage
+      , page = MatchSetupPage
       , play = initPlayModel
+      , matchSetup = initMatchSetupModel
       , editor = initialEditor flags
       , login = initialLogin
       }
@@ -343,6 +347,13 @@ update msg model =
                     updatePlayModel playMsg model.play
             in
             ( { model | play = newPlay }, cmd )
+
+        MatchSetupMsgWrapper matchSetupMsg ->
+            let
+                ( newMatchSetup, cmd ) =
+                    updateMatchSetup matchSetupMsg model.matchSetup
+            in
+            ( { model | matchSetup = newMatchSetup }, cmd )
 
         EditorMsgWrapper editorMsg ->
             let
@@ -1164,13 +1175,21 @@ updateWebsocket serverMessage model =
             in
             ( { model | editor = newEditor }, cmd )
 
-        Websocket.CurrentMatchState data ->
+        Websocket.NewMatchState data ->
             let
                 ( newGame, cmd ) =
                     updatePlayCurrentMatchState data model.play
             in
             Debug.log "got data" data
                 |> (\_ -> ( { model | play = newGame }, cmd ))
+
+        Websocket.MatchConnectionSuccess data ->
+            let
+                ( newGame, cmd ) =
+                    updatePlayMatchConnectionSuccess data model.play
+            in
+            Debug.log "got data" data
+                |> (\_ -> ( { model | play = newGame, page = PlayPage }, cmd ))
 
 
 updateEditorWebsocketFullState : { key : String, steps : List Value } -> EditorModel -> ( EditorModel, Cmd Msg )
@@ -1303,6 +1322,9 @@ globalUi model =
     case model.page of
         PlayPage ->
             playUi model.taco model.play
+
+        MatchSetupPage ->
+            matchSetupUi model.taco model.matchSetup
 
         EditorPage ->
             editorUi model.taco model.editor
@@ -2131,15 +2153,6 @@ postAnalysePosition position =
 -- I'll call this the "Play" page.
 
 
-type alias CurrentMatchState =
-    { key : String
-    , actionHistory : List Sako.Action
-    , legalActions : List Sako.Action
-    , controllingPlayer : Sako.Color
-    , timer : Maybe Timer.Timer
-    }
-
-
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
 addActionToCurrentMatchState action state =
     { state
@@ -2150,7 +2163,6 @@ addActionToCurrentMatchState action state =
 
 type alias PlayModel =
     { board : Sako.Position
-    , subscriptionRaw : String
     , subscription : Maybe String
     , currentState : CurrentMatchState
 
@@ -2163,7 +2175,6 @@ type alias PlayModel =
 initPlayModel : PlayModel
 initPlayModel =
     { board = Sako.initialPosition
-    , subscriptionRaw = ""
     , subscription = Nothing
     , currentState =
         { key = ""
@@ -2181,8 +2192,6 @@ type PlayMsg
     = PlayActionInputStep Sako.Action
     | PlayRollback
     | PlayMsgAnimationTick Posix
-    | SubscribeMatchId String
-    | PlayRawInputSubscription String
     | PlayMouseDown BoardMousePosition
     | PlayMouseUp BoardMousePosition
     | PlayMouseMove BoardMousePosition
@@ -2197,14 +2206,6 @@ updatePlayModel msg model =
 
         PlayMsgAnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
-
-        SubscribeMatchId key ->
-            ( { model | subscription = Just model.subscriptionRaw }
-            , Websocket.send (Websocket.SubscribeToMatch key)
-            )
-
-        PlayRawInputSubscription newRaw ->
-            ( { model | subscriptionRaw = newRaw }, Cmd.none )
 
         PlayRollback ->
             ( model
@@ -2294,6 +2295,12 @@ updatePlayCurrentMatchState data model =
       }
     , Cmd.none
     )
+
+
+updatePlayMatchConnectionSuccess : { key : String, state : CurrentMatchState } -> PlayModel -> ( PlayModel, Cmd Msg )
+updatePlayMatchConnectionSuccess data model =
+    { model | subscription = Just data.key }
+        |> updatePlayCurrentMatchState data.state
 
 
 {-| Iterate doAction with the actions provided on the board state.
@@ -2393,16 +2400,9 @@ playModeSidebar taco model =
             taco.now
             model.currentState.timer
          , createDummyTimer
-         , Input.text []
-            { onChange = PlayRawInputSubscription >> PlayMsgWrapper
-            , text = model.subscriptionRaw
-            , placeholder = Nothing
-            , label = Input.labelAbove [] (Element.text "Match Id")
-            }
-         , Input.button []
-            { onPress = Just (SubscribeMatchId model.subscriptionRaw |> PlayMsgWrapper)
-            , label = Element.text "Subscribe"
-            }
+         , model.subscription
+            |> Maybe.map (\id -> Element.text ("ID: " ++ id))
+            |> Maybe.withDefault (Element.text "Not connected")
          , Input.button []
             { onPress = Just (PlayRollback |> PlayMsgWrapper)
             , label = Element.text "Rollback"
@@ -2483,3 +2483,112 @@ timeLabel seconds =
     (String.fromInt m |> String.padLeft 2 '0')
         ++ ":"
         ++ (String.fromInt s |> String.padLeft 2 '0')
+
+
+
+--------------------------------------------------------------------------------
+-- Setting up a Paco Ŝako Match ------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+type MatchSetupMsg
+    = SetRawMatchId String
+    | JoinMatch
+
+
+type alias MatchSetupModel =
+    { rawMatchId : String
+    , matchConnectionStatus : MatchConnectionStatus
+    }
+
+
+type MatchConnectionStatus
+    = NoMatchConnection
+    | MatchConnectionRequested String
+
+
+initMatchSetupModel : MatchSetupModel
+initMatchSetupModel =
+    { rawMatchId = ""
+    , matchConnectionStatus = NoMatchConnection
+    }
+
+
+updateMatchSetup : MatchSetupMsg -> MatchSetupModel -> ( MatchSetupModel, Cmd Msg )
+updateMatchSetup msg model =
+    case msg of
+        SetRawMatchId rawMatchId ->
+            ( { model | rawMatchId = rawMatchId }, Cmd.none )
+
+        JoinMatch ->
+            joinMatch model
+
+
+joinMatch : MatchSetupModel -> ( MatchSetupModel, Cmd Msg )
+joinMatch model =
+    ( { model | matchConnectionStatus = MatchConnectionRequested model.rawMatchId }
+    , Websocket.send (Websocket.SubscribeToMatch model.rawMatchId)
+    )
+
+
+matchSetupUi : Taco -> MatchSetupModel -> Element Msg
+matchSetupUi taco model =
+    Element.column [ width fill, height fill, Element.scrollbarY ]
+        [ pageHeader taco MatchSetupPage Element.none
+        , Element.el [ padding 40, centerX, Font.size 30 ] (Element.text "Play Paco Ŝako")
+        , matchSetupUiInner model
+        ]
+
+
+matchSetupUiInner : MatchSetupModel -> Element Msg
+matchSetupUiInner model =
+    Element.row [ width fill, padding 5, spacing 5 ]
+        [ setupLocalMatchUi
+        , setupOnlineMatchUi
+        , joinOnlineMatchUi model
+        ]
+
+
+box : Element.Color -> List (Element Msg) -> Element Msg
+box color content =
+    Element.column [ width fill, centerX, spacing 5, centerY ] content
+        |> Element.el [ width fill, centerX, padding 10, Background.color color, height fill ]
+
+
+setupLocalMatchUi : Element Msg
+setupLocalMatchUi =
+    box (Element.rgb255 230 220 220)
+        [ Element.el [ centerX ] (Element.text "Just this PC")
+        , Input.button [ centerX ]
+            { onPress = Nothing
+            , label = Element.text "Start playing!"
+            }
+        ]
+
+
+setupOnlineMatchUi : Element Msg
+setupOnlineMatchUi =
+    box (Element.rgb255 220 230 220)
+        [ Element.el [ centerX ] (Element.text "Create a new Game")
+        , Input.button [ centerX ]
+            { onPress = Nothing
+            , label = Element.text "Create Match"
+            }
+        ]
+
+
+joinOnlineMatchUi : MatchSetupModel -> Element Msg
+joinOnlineMatchUi model =
+    box (Element.rgb255 220 220 230)
+        [ Element.el [ centerX ] (Element.text "I got an Invite")
+        , Input.text [ width fill ]
+            { onChange = SetRawMatchId >> MatchSetupMsgWrapper
+            , text = model.rawMatchId
+            , placeholder = Just (Input.placeholder [] (Element.text "Enter Match Id"))
+            , label = Input.labelAbove [] (Element.text "Match Id")
+            }
+        , Input.button []
+            { onPress = Just (JoinMatch |> MatchSetupMsgWrapper)
+            , label = Element.text "Join Game"
+            }
+        ]
