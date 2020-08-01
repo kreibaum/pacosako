@@ -9,6 +9,7 @@ import Browser
 import Browser.Events
 import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import EventsCustom exposing (BoardMousePosition)
@@ -2474,15 +2475,17 @@ createDummyTimer =
 timeLabel : Int -> String
 timeLabel seconds =
     let
-        s =
-            seconds |> modBy 60
-
-        m =
-            seconds // 60
+        data =
+            distributeSeconds seconds
     in
-    (String.fromInt m |> String.padLeft 2 '0')
+    (String.fromInt data.minutes |> String.padLeft 2 '0')
         ++ ":"
-        ++ (String.fromInt s |> String.padLeft 2 '0')
+        ++ (String.fromInt data.seconds |> String.padLeft 2 '0')
+
+
+distributeSeconds : Int -> { seconds : Int, minutes : Int }
+distributeSeconds seconds =
+    { seconds = seconds |> modBy 60, minutes = seconds // 60 }
 
 
 
@@ -2494,11 +2497,16 @@ timeLabel seconds =
 type MatchSetupMsg
     = SetRawMatchId String
     | JoinMatch
+    | CreateMatch
+    | SetTimeLimit Int
+    | SetRawTimeLimit String
 
 
 type alias MatchSetupModel =
     { rawMatchId : String
     , matchConnectionStatus : MatchConnectionStatus
+    , timeLimit : Int
+    , rawTimeLimit : String
     }
 
 
@@ -2511,6 +2519,8 @@ initMatchSetupModel : MatchSetupModel
 initMatchSetupModel =
     { rawMatchId = ""
     , matchConnectionStatus = NoMatchConnection
+    , timeLimit = 300
+    , rawTimeLimit = "300"
     }
 
 
@@ -2523,6 +2533,28 @@ updateMatchSetup msg model =
         JoinMatch ->
             joinMatch model
 
+        CreateMatch ->
+            createMatch model
+
+        SetTimeLimit newLimit ->
+            ( { model | timeLimit = newLimit, rawTimeLimit = String.fromInt newLimit }, Cmd.none )
+
+        SetRawTimeLimit newRawLimit ->
+            ( { model | rawTimeLimit = newRawLimit } |> tryParseRawLimit, Cmd.none )
+
+
+{-| Parse the rawTimeLimit into an integer and take it over to the time limit if
+parsing is successfull.
+-}
+tryParseRawLimit : MatchSetupModel -> MatchSetupModel
+tryParseRawLimit model =
+    case String.toInt model.rawTimeLimit of
+        Just newLimit ->
+            { model | timeLimit = newLimit }
+
+        Nothing ->
+            model
+
 
 joinMatch : MatchSetupModel -> ( MatchSetupModel, Cmd Msg )
 joinMatch model =
@@ -2531,64 +2563,145 @@ joinMatch model =
     )
 
 
+{-| Requests a new syncronized match from the server.
+-}
+createMatch : MatchSetupModel -> ( MatchSetupModel, Cmd Msg )
+createMatch model =
+    -- TODO #23
+    ( model, Cmd.none )
+
+
 matchSetupUi : Taco -> MatchSetupModel -> Element Msg
 matchSetupUi taco model =
     Element.column [ width fill, height fill, Element.scrollbarY ]
-        [ pageHeader taco MatchSetupPage Element.none
-        , Element.el [ padding 40, centerX, Font.size 30 ] (Element.text "Play Paco Ŝako")
+        [ Element.html FontAwesome.Styles.css
+        , pageHeader taco MatchSetupPage Element.none
+        , Element.el [ padding 40, centerX, Font.size 40, Font.bold ] (Element.text "Play Paco Ŝako")
         , matchSetupUiInner model
         ]
 
 
 matchSetupUiInner : MatchSetupModel -> Element Msg
 matchSetupUiInner model =
-    Element.row [ width fill, padding 5, spacing 5 ]
-        [ setupLocalMatchUi
-        , setupOnlineMatchUi
-        , joinOnlineMatchUi model
+    Element.row [ width (fill |> Element.maximum 1200), padding 5, spacing 5, centerX ]
+        [ joinOnlineMatchUi model
+        , setupOnlineMatchUi model
         ]
 
 
 box : Element.Color -> List (Element Msg) -> Element Msg
 box color content =
-    Element.column [ width fill, centerX, spacing 5, centerY ] content
-        |> Element.el [ width fill, centerX, padding 10, Background.color color, height fill ]
+    Element.el [ width fill, centerX, padding 10, Background.color color, height fill ]
+        (Element.column [ width fill, centerX, spacing 7 ]
+            content
+        )
 
 
-setupLocalMatchUi : Element Msg
-setupLocalMatchUi =
-    box (Element.rgb255 230 220 220)
-        [ Element.el [ centerX ] (Element.text "Just this PC")
-        , Input.button [ centerX ]
-            { onPress = Nothing
-            , label = Element.text "Start playing!"
-            }
-        ]
-
-
-setupOnlineMatchUi : Element Msg
-setupOnlineMatchUi =
+setupOnlineMatchUi : MatchSetupModel -> Element Msg
+setupOnlineMatchUi model =
     box (Element.rgb255 220 230 220)
-        [ Element.el [ centerX ] (Element.text "Create a new Game")
-        , Input.button [ centerX ]
-            { onPress = Nothing
-            , label = Element.text "Create Match"
+        [ Element.el [ centerX, Font.size 30 ] (Element.text "Create a new Game")
+        , Element.row [ width fill, spacing 7 ]
+            [ speedButton
+                { buttonIcon = Solid.bolt
+                , caption = "Blitz"
+                , event = SetTimeLimit 300 |> MatchSetupMsgWrapper
+                , selected = model.timeLimit == 300
+                }
+            , speedButton
+                { buttonIcon = Solid.hourglassHalf
+                , caption = "Slow"
+                , event = SetTimeLimit 1200 |> MatchSetupMsgWrapper
+                , selected = model.timeLimit == 1200
+                }
+            ]
+        , Element.row [ width fill, spacing 7 ]
+            [ speedButton
+                { buttonIcon = Solid.wrench
+                , caption = "Custom"
+                , event = SetTimeLimit model.timeLimit |> MatchSetupMsgWrapper
+                , selected = List.notMember model.timeLimit [ 0, 300, 1200 ]
+                }
+            , speedButton
+                { buttonIcon = Solid.dove
+                , caption = "No Timer"
+                , event = SetTimeLimit 0 |> MatchSetupMsgWrapper
+                , selected = model.timeLimit == 0
+                }
+            ]
+        , Input.text []
+            { onChange = SetRawTimeLimit >> MatchSetupMsgWrapper
+            , text = model.rawTimeLimit
+            , placeholder = Nothing
+            , label = Input.labelLeft [ centerY ] (Element.text "Time in seconds")
             }
+        , timeLimitLabel model.timeLimit
+        , bigRoundedButton (Element.rgb255 200 210 200)
+            (Just (CreateMatch |> MatchSetupMsgWrapper))
+            [ Element.text "Create Match" ]
         ]
+
+
+speedButton : { buttonIcon : Icon, caption : String, event : Msg, selected : Bool } -> Element Msg
+speedButton config =
+    bigRoundedButton (speedButtonColor config.selected)
+        (Just config.event)
+        [ icon [ centerX ] config.buttonIcon
+        , Element.el [ centerX ] (Element.text config.caption)
+        ]
+
+
+speedButtonColor : Bool -> Element.Color
+speedButtonColor selected =
+    if selected then
+        Element.rgb255 180 200 180
+
+    else
+        Element.rgb255 200 210 200
+
+
+{-| A label that translates the amount of seconds into minutes and seconds that
+are better readable.
+-}
+timeLimitLabel : Int -> Element msg
+timeLimitLabel seconds =
+    let
+        data =
+            distributeSeconds seconds
+    in
+    if seconds > 0 then
+        Element.text
+            (String.fromInt data.minutes
+                ++ " Minutes and "
+                ++ String.fromInt data.seconds
+                ++ " Seconds for each player"
+            )
+
+    else
+        Element.text "Play without time limit"
 
 
 joinOnlineMatchUi : MatchSetupModel -> Element Msg
 joinOnlineMatchUi model =
     box (Element.rgb255 220 220 230)
-        [ Element.el [ centerX ] (Element.text "I got an Invite")
-        , Input.text [ width fill ]
+        [ Element.el [ centerX, Font.size 30 ] (Element.text "I got an Invite")
+        , Input.text [ width fill, EventsCustom.onEnter (JoinMatch |> MatchSetupMsgWrapper) ]
             { onChange = SetRawMatchId >> MatchSetupMsgWrapper
             , text = model.rawMatchId
             , placeholder = Just (Input.placeholder [] (Element.text "Enter Match Id"))
-            , label = Input.labelAbove [] (Element.text "Match Id")
+            , label = Input.labelLeft [ centerY ] (Element.text "Match Id")
             }
-        , Input.button []
-            { onPress = Just (JoinMatch |> MatchSetupMsgWrapper)
-            , label = Element.text "Join Game"
-            }
+        , bigRoundedButton (Element.rgb255 200 200 210)
+            (Just (JoinMatch |> MatchSetupMsgWrapper))
+            [ Element.text "Join Game" ]
         ]
+
+
+{-| A button that is implemented via a vertical column.
+-}
+bigRoundedButton : Element.Color -> Maybe msg -> List (Element msg) -> Element msg
+bigRoundedButton color event content =
+    Input.button [ Background.color color, width fill, height fill, Border.rounded 5 ]
+        { onPress = event
+        , label = Element.column [ height fill, centerX, padding 15, spacing 10 ] content
+        }
