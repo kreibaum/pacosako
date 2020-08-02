@@ -76,8 +76,8 @@ macro_rules! lock {
 }
 
 impl WebsocketServer {
-    pub fn new_match(&self) -> String {
-        self.matches.new_instance()
+    pub fn new_match(&self, params: sync_match::MatchParameters) -> String {
+        self.matches.new_instance(params)
     }
 }
 

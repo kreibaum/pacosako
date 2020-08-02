@@ -2,12 +2,18 @@ use crate::instance_manager::{ClientMessage, Instance, ProvidesKey, ServerMessag
 use crate::timer::{Timer, TimerConfig, TimerState};
 use chrono::Utc;
 use pacosako::{PacoAction, PacoBoard, PacoError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
 /// This module implements match synchonization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
 /// already clear and we only implement the Paco Ŝako specific parts.
+
+/// Parameters required to initialize a new instance of the match.
+#[derive(Deserialize)]
+pub struct MatchParameters {
+    timer: Option<TimerConfig>,
+}
 
 /// A match is a recording of actions taken in it together with a unique
 /// identifier that can be used to connect to the game.
@@ -85,16 +91,17 @@ impl From<ServerMatchMessage> for ws::Message {
 impl Instance for SyncronizedMatch {
     type ClientMessage = ClientMatchMessage;
     type ServerMessage = ServerMatchMessage;
+    type InstanceParameters = MatchParameters;
 
     fn key(&self) -> std::borrow::Cow<String> {
         Cow::Borrowed(&self.key)
     }
 
-    fn new_with_key(key: &str) -> Self {
+    fn new_with_key(key: &str, params: MatchParameters) -> Self {
         SyncronizedMatch {
             key: key.to_owned(),
             actions: Vec::default(),
-            timer: None,
+            timer: params.timer.map(|t| t.into()),
         }
     }
 
@@ -284,7 +291,7 @@ mod test {
     /// Does a move and mostly just checks that it does not crash.
     #[test]
     fn test_legal_moves_are_ok() {
-        let mut game = SyncronizedMatch::new_with_key("Game1");
+        let mut game = SyncronizedMatch::new_with_key("Game1", MatchParameters { timer: None });
 
         game.do_action(PacoAction::Lift(BoardPosition(10))).unwrap();
         let current_state = game
@@ -305,7 +312,7 @@ mod test {
     /// Tests setting the timer before and after the game starts
     #[test]
     fn test_setting_timer() -> Result<(), PacoError> {
-        let mut game = SyncronizedMatch::new_with_key("Game1");
+        let mut game = SyncronizedMatch::new_with_key("Game1", MatchParameters { timer: None });
 
         // This should be allowed. (Assert via ?)
         game.set_timer(TimerConfig {

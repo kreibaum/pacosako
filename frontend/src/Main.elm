@@ -2498,6 +2498,7 @@ type MatchSetupMsg
     = SetRawMatchId String
     | JoinMatch
     | CreateMatch
+    | MatchCreatedOnServer String
     | SetTimeLimit Int
     | SetRawTimeLimit String
 
@@ -2536,6 +2537,9 @@ updateMatchSetup msg model =
         CreateMatch ->
             createMatch model
 
+        MatchCreatedOnServer newId ->
+            joinMatch { model | rawMatchId = newId }
+
         SetTimeLimit newLimit ->
             ( { model | timeLimit = newLimit, rawTimeLimit = String.fromInt newLimit }, Cmd.none )
 
@@ -2567,8 +2571,45 @@ joinMatch model =
 -}
 createMatch : MatchSetupModel -> ( MatchSetupModel, Cmd Msg )
 createMatch model =
-    -- TODO #23
-    ( model, Cmd.none )
+    let
+        timerConfig =
+            if model.timeLimit > 0 then
+                Just (Timer.secondsConfig { white = model.timeLimit, black = model.timeLimit })
+
+            else
+                Nothing
+    in
+    ( model, postMatchRequest timerConfig (MatchCreatedOnServer >> MatchSetupMsgWrapper) )
+
+
+{-| Use this to call the "create game" api of the server.
+-}
+postMatchRequest : Maybe Timer.TimerConfig -> (String -> Msg) -> Cmd Msg
+postMatchRequest config onSuccess =
+    Http.post
+        { url = "/api/create_game"
+        , body = Http.jsonBody (encodePostMatchRequest config)
+        , expect =
+            Http.expectString
+                (\response ->
+                    case response of
+                        Ok key ->
+                            onSuccess key
+
+                        Err e ->
+                            HttpError e
+                )
+        }
+
+
+encodePostMatchRequest : Maybe Timer.TimerConfig -> Value
+encodePostMatchRequest timer =
+    Encode.object
+        [ ( "timer"
+          , Maybe.map Timer.encodeConfig timer
+                |> Maybe.withDefault Encode.null
+          )
+        ]
 
 
 matchSetupUi : Taco -> MatchSetupModel -> Element Msg

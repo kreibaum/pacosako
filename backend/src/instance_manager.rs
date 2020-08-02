@@ -18,10 +18,11 @@ pub trait Instance: Sized {
     /// The type of messages send by the client to the server.
     type ClientMessage: ClientMessage;
     type ServerMessage: ServerMessage;
+    type InstanceParameters;
     /// The unique key used to identify the instance.
     fn key(&self) -> Cow<String>;
     /// Create a new instance and make it store the key.
-    fn new_with_key(key: &str) -> Self;
+    fn new_with_key(key: &str, params: Self::InstanceParameters) -> Self;
     /// Accept a client message and possibly send messages back.
     fn handle_message(&mut self, message: Self::ClientMessage, ctx: &mut Context<Self>);
 }
@@ -134,8 +135,8 @@ impl<T: Instance> Manager<T> {
         Manager(Arc::from(Mutex::from(SyncManager::default())))
     }
     /// Creates a new instance and returns its key.
-    pub fn new_instance(&self) -> String {
-        lock!(self).new_instance()
+    pub fn new_instance(&self, params: T::InstanceParameters) -> String {
+        lock!(self).new_instance(params)
     }
     /// Routes a message to the corresponding instance
     pub fn handle_message(&self, message: T::ClientMessage, sender: Sender) {
@@ -158,10 +159,10 @@ impl<T: Instance> Default for SyncManager<T> {
 }
 
 impl<T: Instance> SyncManager<T> {
-    fn new_instance(&mut self) -> String {
+    fn new_instance(&mut self, params: T::InstanceParameters) -> String {
         let key = generate_unique_key(&self.instances);
 
-        let new_instance = T::new_with_key(&key);
+        let new_instance = T::new_with_key(&key, params);
         self.instances
             .insert(key.clone(), InstanceMetadata::new(new_instance));
 
@@ -330,10 +331,11 @@ mod test {
     impl Instance for TestInstance {
         type ClientMessage = TestClientMsg;
         type ServerMessage = TestServerMsg;
+        type InstanceParameters = ();
         fn key(&self) -> Cow<String> {
             Cow::Borrowed(&self.key)
         }
-        fn new_with_key(key: &str) -> Self {
+        fn new_with_key(key: &str, _: ()) -> Self {
             TestInstance {
                 key: key.to_owned(),
                 value: 0,
@@ -393,7 +395,7 @@ mod test {
         let (s1, mut r1) = new_mock_sender(1);
 
         // Set up instance and connect.
-        let key = m.new_instance();
+        let key = m.new_instance(());
         m.subscribe(Cow::Owned(key.clone()), s1.clone());
 
         assert!(r1().contains(&format!("{}: {}", key, 0)));
@@ -414,7 +416,7 @@ mod test {
         // Set up instance and connect.
         let m = Manager::<TestInstance>::new();
         let (s1, mut r1) = new_mock_sender(1);
-        let key = m.new_instance();
+        let key = m.new_instance(());
         m.subscribe(Cow::Owned(key.clone()), s1.clone());
 
         // Clean channel.
@@ -445,7 +447,7 @@ mod test {
         let m = Manager::<TestInstance>::new();
         let (s1, mut r1) = new_mock_sender(1);
         let (s2, mut r2) = new_mock_sender(2);
-        let key = m.new_instance();
+        let key = m.new_instance(());
         m.subscribe(Cow::Owned(key.clone()), s1.clone());
         m.subscribe(Cow::Owned(key.clone()), s2.clone());
 

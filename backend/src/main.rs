@@ -2,8 +2,8 @@
 
 mod instance_manager;
 mod sync_match;
-mod websocket;
 mod timer;
+mod websocket;
 
 #[macro_use]
 extern crate rocket;
@@ -542,12 +542,12 @@ fn share(
     websocket::share(&(*websocket_server), steps.0)
 }
 
-#[derive(Deserialize)]
-struct GameParameters();
-
-#[get("/create_game")]
-fn create_game(websocket_server: State<WebsocketServer>) -> String {
-    websocket_server.new_match()
+#[post("/create_game", data = "<game_parameters>")]
+fn create_game(
+    websocket_server: State<WebsocketServer>,
+    game_parameters: Json<sync_match::MatchParameters>,
+) -> String {
+    websocket_server.new_match(game_parameters.0)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
