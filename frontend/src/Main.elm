@@ -5,6 +5,7 @@ the app does starts from here.
 -}
 
 import Animation exposing (Timeline)
+import Arrow exposing (Arrow)
 import Browser
 import Browser.Events
 import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
@@ -143,7 +144,18 @@ type alias EditorModel =
     , smartTool : SmartToolModel
     , shareStatus : Websocket.ShareStatus
     , rawShareKey : String
+    , showExportOptions : Bool
+    , castingDecoTileMarkers : List Tile
+    , castingDecoArrows : List Arrow
+    , ghostArrow : Maybe Arrow
+    , inputMode : EditorInputMode
     }
+
+
+type EditorInputMode
+    = EditorInputNormal
+    | EditorInputTiles
+    | EditorInputArrows
 
 
 type PositionParseResult
@@ -250,6 +262,10 @@ type EditorMsg
     | GotSharingResult Websocket.ShareStatus
     | InputRawShareKey String
     | WebsocketConnect String
+    | SetExportOptionsVisible Bool
+    | SetInputMode EditorInputMode
+    | ClearDecoTiles
+    | ClearDecoArrows
 
 
 type LoginPageMsg
@@ -297,6 +313,11 @@ initialEditor flags =
     , smartTool = initSmartTool
     , shareStatus = Websocket.NotShared
     , rawShareKey = ""
+    , showExportOptions = False
+    , castingDecoTileMarkers = []
+    , castingDecoArrows = []
+    , ghostArrow = Nothing
+    , inputMode = EditorInputNormal
     }
 
 
@@ -442,31 +463,70 @@ updateEditor msg model =
             ( model, Cmd.none )
 
         MouseDown mouse ->
-            let
-                dragData =
-                    { start = mouse, current = mouse }
-            in
-            case mouse.tile of
-                Just tile ->
-                    clickStart tile { model | drag = Just dragData }
+            case model.inputMode of
+                EditorInputNormal ->
+                    let
+                        dragData =
+                            { start = mouse, current = mouse }
+                    in
+                    case mouse.tile of
+                        Just tile ->
+                            clickStart tile { model | drag = Just dragData }
 
-                Nothing ->
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                EditorInputArrows ->
+                    ( { model | ghostArrow = Maybe.map2 Arrow mouse.tile mouse.tile }, Cmd.none )
+
+                EditorInputTiles ->
                     ( model, Cmd.none )
 
         MouseMove mouse ->
-            handleMouseMove mouse model
+            case model.inputMode of
+                EditorInputNormal ->
+                    handleMouseMove mouse model
+
+                EditorInputArrows ->
+                    case ( model.ghostArrow, mouse.tile ) of
+                        ( Just arrow, Just head ) ->
+                            ( { model | ghostArrow = Just { arrow | head = head } }, Cmd.none )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                EditorInputTiles ->
+                    ( model, Cmd.none )
 
         MouseUp mouse ->
-            let
-                drag =
-                    moveDrag mouse model.drag
-            in
-            case drag of
-                Nothing ->
-                    ( { model | drag = Nothing }, Cmd.none )
+            case model.inputMode of
+                EditorInputNormal ->
+                    let
+                        drag =
+                            moveDrag mouse model.drag
+                    in
+                    case drag of
+                        Nothing ->
+                            ( { model | drag = Nothing }, Cmd.none )
 
-                Just dragData ->
-                    clickRelease dragData.start dragData.current { model | drag = Nothing }
+                        Just dragData ->
+                            clickRelease dragData.start dragData.current { model | drag = Nothing }
+
+                EditorInputTiles ->
+                    switchCastingDecoTile mouse model
+
+                EditorInputArrows ->
+                    case ( model.ghostArrow, mouse.tile ) of
+                        ( Just arrow, Just head ) ->
+                            ( { model
+                                | castingDecoArrows = flipEntry { arrow | head = head } model.castingDecoArrows
+                                , ghostArrow = Nothing
+                              }
+                            , Cmd.none
+                            )
+
+                        _ ->
+                            ( { model | ghostArrow = Nothing }, Cmd.none )
 
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }
@@ -587,6 +647,37 @@ updateEditor msg model =
             ( { model | shareStatus = Websocket.ShareRequested }
             , Websocket.send (Websocket.Subscribe gameKey)
             )
+
+        SetExportOptionsVisible isVisible ->
+            ( { model | showExportOptions = isVisible }, Cmd.none )
+
+        SetInputMode newMode ->
+            ( { model | inputMode = newMode }, Cmd.none )
+
+        ClearDecoTiles ->
+            ( { model | castingDecoTileMarkers = [] }, Cmd.none )
+
+        ClearDecoArrows ->
+            ( { model | castingDecoArrows = [] }, Cmd.none )
+
+
+switchCastingDecoTile : BoardMousePosition -> EditorModel -> ( EditorModel, Cmd Msg )
+switchCastingDecoTile mouse model =
+    case mouse.tile of
+        Just tile ->
+            ( { model | castingDecoTileMarkers = flipEntry tile model.castingDecoTileMarkers }, Cmd.none )
+
+        Nothing ->
+            ( model, Cmd.none )
+
+
+flipEntry : a -> List a -> List a
+flipEntry entry list =
+    if List.member entry list then
+        List.remove entry list
+
+    else
+        entry :: list
 
 
 editorStateModify : EditorModel -> EditorModel
@@ -1382,11 +1473,11 @@ editorUi taco model =
         , height fill
         , Element.scrollbarY
         ]
-        [ pageHeader taco EditorPage (saveStateHeader (P.getC model.game) model.saveState)
+        [ Element.html FontAwesome.Styles.css
+        , pageHeader taco EditorPage (saveStateHeader (P.getC model.game) model.saveState)
         , Element.row
             [ width fill, height fill, Element.scrollbarY ]
-            [ Element.html FontAwesome.Styles.css
-            , positionView taco model |> Element.map EditorMsgWrapper
+            [ positionView taco model |> Element.map EditorMsgWrapper
             , sidebar taco model
             ]
         ]
@@ -1464,12 +1555,38 @@ editorViewConfig taco editor =
 
 toolDecoration : EditorModel -> List BoardDecoration
 toolDecoration model =
-    [ model.smartTool.highlight |> Maybe.map HighlightTile
-    , model.smartTool.hover |> Maybe.map PlaceTarget
-    , model.smartTool.dragStartTile
-        |> Maybe.map (\tile -> HighlightTile ( tile, HighlightBoth ))
-    ]
+    let
+        selectionHighlight =
+            model.smartTool.highlight |> Maybe.map HighlightTile
+
+        hoverHighlight =
+            model.smartTool.hover |> Maybe.map PlaceTarget
+
+        dragPiece =
+            model.smartTool.dragStartTile
+                |> Maybe.map (\tile -> HighlightTile ( tile, HighlightBoth ))
+
+        castingArrowsDeco =
+            model.castingDecoArrows
+                |> List.map CastingArrow
+
+        castingGhostArrow =
+            model.ghostArrow
+                |> Maybe.map CastingArrow
+
+        castingHighlightDeco =
+            model.castingDecoTileMarkers
+                |> List.map CastingHighlight
+    in
+    ([ selectionHighlight
+     , hoverHighlight
+     , dragPiece
+     , castingGhostArrow
+     ]
         |> List.filterMap identity
+    )
+        ++ castingArrowsDeco
+        ++ castingHighlightDeco
 
 
 dragPieceData : EditorModel -> List DragPieceData
@@ -1523,20 +1640,107 @@ dragPieceData model =
 
 sidebar : Taco -> EditorModel -> Element Msg
 sidebar taco model =
+    let
+        exportOptions =
+            if model.showExportOptions then
+                [ hideExportOptions
+                , Input.button [] { onPress = Just (EditorMsgWrapper DownloadSvg), label = Element.text "Download as Svg" }
+                , Input.button [] { onPress = Just (EditorMsgWrapper DownloadPng), label = Element.text "Download as Png" }
+                , markdownCopyPaste taco model |> Element.map EditorMsgWrapper
+                , analysisResult model
+                ]
+
+            else
+                [ showExportOptions ]
+    in
     Element.column [ width (fill |> Element.maximum 400), height fill, spacing 10, padding 10, Element.alignRight ]
-        [ sidebarActionButtons model.game |> Element.map EditorMsgWrapper
-        , Element.text "Add piece:"
-        , addPieceButtons Sako.White "White:" model.smartTool |> Element.map EditorMsgWrapper
-        , addPieceButtons Sako.Black "Black:" model.smartTool |> Element.map EditorMsgWrapper
-        , colorSchemeConfig taco
-        , viewModeConfig model
-        , shareButton model |> Element.map EditorMsgWrapper
-        , shareInput model |> Element.map EditorMsgWrapper
-        , Input.button [] { onPress = Just (EditorMsgWrapper DownloadSvg), label = Element.text "Download as Svg" }
-        , Input.button [] { onPress = Just (EditorMsgWrapper DownloadPng), label = Element.text "Download as Png" }
-        , markdownCopyPaste taco model |> Element.map EditorMsgWrapper
-        , analysisResult model
+        ([ sidebarActionButtons model.game |> Element.map EditorMsgWrapper
+         , Element.text "Add piece:"
+         , addPieceButtons Sako.White "White:" model.smartTool |> Element.map EditorMsgWrapper
+         , addPieceButtons Sako.Black "Black:" model.smartTool |> Element.map EditorMsgWrapper
+         , colorSchemeConfig taco
+         , viewModeConfig model
+         , shareButton model |> Element.map EditorMsgWrapper
+         , shareInput model |> Element.map EditorMsgWrapper
+         , tileInputMode model
+         , arrowInputMode model
+         ]
+            ++ exportOptions
+        )
+
+
+hideExportOptions : Element Msg
+hideExportOptions =
+    Input.button [] { onPress = Just (EditorMsgWrapper (SetExportOptionsVisible False)), label = Element.text "Hide Export Options" }
+
+
+showExportOptions : Element Msg
+showExportOptions =
+    Input.button [] { onPress = Just (EditorMsgWrapper (SetExportOptionsVisible True)), label = Element.text "Show Export Options" }
+
+
+tileInputMode : EditorModel -> Element Msg
+tileInputMode model =
+    Element.row [ spacing 5 ]
+        [ tileInputModeButton model
+        , tileInputClearButton model
         ]
+
+
+tileInputModeButton : EditorModel -> Element Msg
+tileInputModeButton model =
+    if model.inputMode == EditorInputTiles then
+        Input.button
+            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
+            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputNormal)), label = Element.text "Highlight On" }
+
+    else
+        Input.button [ padding 3 ]
+            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputTiles)), label = Element.text "Highlight Off" }
+
+
+tileInputClearButton : EditorModel -> Element Msg
+tileInputClearButton model =
+    if List.isEmpty model.castingDecoTileMarkers then
+        Input.button
+            [ Font.color (Element.rgb255 128 128 128) ]
+            { onPress = Nothing, label = Element.text "Clear Highlight" }
+
+    else
+        Input.button []
+            { onPress = Just (EditorMsgWrapper ClearDecoTiles), label = Element.text "Clear Highlight" }
+
+
+arrowInputMode : EditorModel -> Element Msg
+arrowInputMode model =
+    Element.row [ spacing 5 ]
+        [ arrowInputModeButton model
+        , arrowInputClearButton model
+        ]
+
+
+arrowInputModeButton : EditorModel -> Element Msg
+arrowInputModeButton model =
+    if model.inputMode == EditorInputArrows then
+        Input.button
+            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
+            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputNormal)), label = Element.text "Arrows On" }
+
+    else
+        Input.button [ padding 3 ]
+            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputArrows)), label = Element.text "Arrows Off" }
+
+
+arrowInputClearButton : EditorModel -> Element Msg
+arrowInputClearButton model =
+    if List.isEmpty model.castingDecoArrows then
+        Input.button
+            [ Font.color (Element.rgb255 128 128 128) ]
+            { onPress = Nothing, label = Element.text "Clear Arrows" }
+
+    else
+        Input.button []
+            { onPress = Just (EditorMsgWrapper ClearDecoArrows), label = Element.text "Clear Arrows" }
 
 
 sidebarActionButtons : Pivot Sako.Position -> Element EditorMsg

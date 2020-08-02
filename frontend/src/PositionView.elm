@@ -41,6 +41,7 @@ decorations some more.
 -}
 
 import Animation exposing (Timeline)
+import Arrow exposing (Arrow)
 import Dict
 import Element exposing (Element)
 import EventsCustom as Events exposing (BoardMousePosition)
@@ -110,8 +111,10 @@ viewStatic config renderData =
     in
     Svg.svg attributes
         [ board config.viewMode
+        , castingHighlightLayer config.decoration
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
+        , castingArrowLayer config.decoration
         , piecesSvg config.colorScheme renderData
         ]
         |> Element.html
@@ -165,6 +168,44 @@ type alias ViewConfig a =
     , mouseUp : Maybe (BoardMousePosition -> a)
     , mouseMove : Maybe (BoardMousePosition -> a)
     }
+
+
+castingHighlightLayer : List BoardDecoration -> Svg a
+castingHighlightLayer decorations =
+    decorations
+        |> List.filterMap getCastingHighlight
+        |> List.map oneCastingDecoTileMarker
+        |> Svg.g []
+
+
+oneCastingDecoTileMarker : Tile -> Svg a
+oneCastingDecoTileMarker tile =
+    Svg.path
+        [ translate (coordinateOfTile tile)
+        , SvgA.d "m 0 0 v 100 h 100 v -100 z"
+        , SvgA.fill "rgb(255, 0, 0)"
+        ]
+        []
+
+
+castingArrowLayer : List BoardDecoration -> Svg a
+castingArrowLayer decorations =
+    decorations
+        |> List.filterMap getCastingArrow
+        |> List.reverse
+        |> List.map drawArrow
+        |> Svg.g []
+
+
+drawArrow : Arrow -> Svg a
+drawArrow arrow =
+    Arrow.toSvg
+        [ SvgA.fill "rgb(255, 200, 0)"
+        , SvgA.strokeLinejoin "round"
+        , SvgA.stroke "black"
+        , SvgA.strokeWidth "2"
+        ]
+        arrow
 
 
 highlightLayer : List BoardDecoration -> Svg a
@@ -375,6 +416,8 @@ rowTag digit y =
 type BoardDecoration
     = HighlightTile ( Tile, Highlight )
     | PlaceTarget Tile
+    | CastingHighlight Tile
+    | CastingArrow Arrow
 
 
 type Highlight
@@ -406,6 +449,26 @@ getDropTarget : BoardDecoration -> Maybe Tile
 getDropTarget decoration =
     case decoration of
         PlaceTarget tile ->
+            Just tile
+
+        _ ->
+            Nothing
+
+
+getCastingHighlight : BoardDecoration -> Maybe Tile
+getCastingHighlight decoration =
+    case decoration of
+        CastingHighlight tile ->
+            Just tile
+
+        _ ->
+            Nothing
+
+
+getCastingArrow : BoardDecoration -> Maybe Arrow
+getCastingArrow decoration =
+    case decoration of
+        CastingArrow tile ->
             Just tile
 
         _ ->
