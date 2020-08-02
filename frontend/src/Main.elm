@@ -1181,16 +1181,14 @@ updateWebsocket serverMessage model =
                 ( newGame, cmd ) =
                     updatePlayCurrentMatchState data model.play
             in
-            Debug.log "got data" data
-                |> (\_ -> ( { model | play = newGame }, cmd ))
+            ( { model | play = newGame }, cmd )
 
         Websocket.MatchConnectionSuccess data ->
             let
                 ( newGame, cmd ) =
                     updatePlayMatchConnectionSuccess data model.play
             in
-            Debug.log "got data" data
-                |> (\_ -> ( { model | play = newGame, page = PlayPage }, cmd ))
+            ( { model | play = newGame, page = PlayPage }, cmd )
 
 
 updateEditorWebsocketFullState : { key : String, steps : List Value } -> EditorModel -> ( EditorModel, Cmd Msg )
@@ -2350,7 +2348,8 @@ historyDiff old new =
 playUi : Taco -> PlayModel -> Element Msg
 playUi taco model =
     Element.column [ width fill, height fill, Element.scrollbarY ]
-        [ pageHeader taco PlayPage Element.none
+        [ Element.html FontAwesome.Styles.css
+        , pageHeader taco PlayPage Element.none
         , Element.row
             [ width fill, height fill, Element.scrollbarY ]
             [ playPositionView taco model
@@ -2394,80 +2393,120 @@ actionDecoration action =
 
 playModeSidebar : Taco -> PlayModel -> Element Msg
 playModeSidebar taco model =
-    Element.column [ spacing 5 ]
-        ([ currentPlayerInfoInSidebar model
-         , viewTimer
-            model.currentState.controllingPlayer
-            taco.now
-            model.currentState.timer
-         , createDummyTimer
-         , model.subscription
-            |> Maybe.map (\id -> Element.text ("ID: " ++ id))
+    Element.column [ spacing 5, padding 20, height fill ]
+        [ Element.el [ Element.alignTop, width fill ]
+            (maybeViewTimerFor taco model Sako.Black)
+        , model.subscription
+            |> Maybe.map (\id -> Element.text ("Share this id with a friend: " ++ id))
             |> Maybe.withDefault (Element.text "Not connected")
-         , Input.button []
-            { onPress = Just (PlayRollback |> PlayMsgWrapper)
-            , label = Element.text "Rollback"
-            }
-         ]
-            ++ List.map legalActionChoice model.currentState.legalActions
+        , bigRoundedButton (Element.rgb255 220 220 220)
+            (Just (PlayRollback |> PlayMsgWrapper))
+            [ Element.text "Restart Move" ]
+            |> Element.el [ width fill ]
+        , maybePromotionButtons model.currentState.legalActions
+        , Element.el [ Element.alignBottom, width fill ]
+            (maybeViewTimerFor taco model Sako.White)
+        , Element.el [ height (Element.px 100) ] Element.none
+        ]
+
+
+maybeViewTimerFor : Taco -> PlayModel -> Sako.Color -> Element msg
+maybeViewTimerFor taco model player =
+    case model.currentState.timer of
+        Just timer ->
+            viewTimerFor taco.now model timer player
+
+        Nothing ->
+            bigRoundedTimerLabel (Element.rgb255 170 170 170)
+                [ Element.text "No Timer" ]
+
+
+viewTimerFor : Posix -> PlayModel -> Timer.Timer -> Sako.Color -> Element msg
+viewTimerFor now model timer player =
+    let
+        viewData =
+            Timer.render model.currentState.controllingPlayer now timer
+
+        secondsLeft =
+            if player == Sako.White then
+                viewData.secondsLeftWhite
+
+            else
+                viewData.secondsLeftBlack
+
+        color =
+            if Just player == viewData.runningFor then
+                Element.rgb255 200 240 200
+
+            else
+                Element.rgb255 170 170 170
+    in
+    bigRoundedTimerLabel color
+        [ Element.text (timeLabel secondsLeft)
+        ]
+
+
+{-| A label that is implemented via a horizontal row with a big colored background.
+Currently only used for the timer, not sure if it will stay that way.
+-}
+bigRoundedTimerLabel : Element.Color -> List (Element msg) -> Element msg
+bigRoundedTimerLabel color content =
+    Element.el [ Background.color color, width fill, height fill, Border.rounded 5 ]
+        (Element.row [ height fill, centerX, padding 15, spacing 10, Font.size 40 ]
+            content
         )
 
 
-currentPlayerInfoInSidebar : PlayModel -> Element Msg
-currentPlayerInfoInSidebar model =
-    case model.currentState.controllingPlayer of
-        Sako.White ->
-            Element.text "White's turn"
-
-        Sako.Black ->
-            Element.text "Black's turn"
-
-
-legalActionChoice : Sako.Action -> Element Msg
-legalActionChoice action =
-    Input.button []
-        { onPress = Just (PlayActionInputStep action |> PlayMsgWrapper)
-        , label = Element.text (legalActionChoiceLabel action)
-        }
-
-
-legalActionChoiceLabel : Sako.Action -> String
-legalActionChoiceLabel action =
-    case action of
-        Sako.Lift tile ->
-            "Lift " ++ Sako.tileToIdentifier tile
-
-        Sako.Place tile ->
-            "Place " ++ Sako.tileToIdentifier tile
-
-        Sako.Promote pacoType ->
-            "Promote " ++ Sako.toStringType pacoType
-
-
-viewTimer : Sako.Color -> Posix -> Maybe Timer.Timer -> Element Msg
-viewTimer player now data =
+maybePromotionButtons : List Sako.Action -> Element Msg
+maybePromotionButtons actions =
     let
-        viewData =
-            Maybe.map (Timer.render player now) data
+        canPromote =
+            actions
+                |> List.any
+                    (\a ->
+                        case a of
+                            Sako.Promote _ ->
+                                True
+
+                            _ ->
+                                False
+                    )
     in
-    case viewData of
-        Just timer ->
-            Element.column [ spacing 5 ]
-                [ Element.text (timeLabel timer.secondsLeftWhite)
-                , Element.text (timeLabel timer.secondsLeftBlack)
-                , Element.text (Debug.toString timer.timerState)
+    if canPromote then
+        promotionButtons
+
+    else
+        Element.none
+
+
+promotionButtons : Element Msg
+promotionButtons =
+    Element.column [ width fill, spacing 5 ]
+        [ Element.row [ width fill, spacing 5 ]
+            [ bigRoundedButton (Element.rgb255 200 240 200)
+                (Just (PlayActionInputStep (Sako.Promote Sako.Queen) |> PlayMsgWrapper))
+                [ icon [ centerX ] Solid.chessQueen
+                , Element.el [ centerX ] (Element.text "Queen")
                 ]
-
-        Nothing ->
-            Element.text "No Timer"
-
-
-createDummyTimer : Element Msg
-createDummyTimer =
-    Input.button []
-        { onPress = Just (RequestTimerConfig (Timer.secondsConfig { white = 200, black = 300 }) |> PlayMsgWrapper)
-        , label = Element.text "Request dummy Timer"
-        }
+            , bigRoundedButton (Element.rgb255 200 240 200)
+                (Just (PlayActionInputStep (Sako.Promote Sako.Knight) |> PlayMsgWrapper))
+                [ icon [ centerX ] Solid.chessKnight
+                , Element.el [ centerX ] (Element.text "Knight")
+                ]
+            ]
+        , Element.row [ width fill, spacing 5 ]
+            [ bigRoundedButton (Element.rgb255 200 240 200)
+                (Just (PlayActionInputStep (Sako.Promote Sako.Rook) |> PlayMsgWrapper))
+                [ icon [ centerX ] Solid.chessRook
+                , Element.el [ centerX ] (Element.text "Rook")
+                ]
+            , bigRoundedButton (Element.rgb255 200 240 200)
+                (Just (PlayActionInputStep (Sako.Promote Sako.Bishop) |> PlayMsgWrapper))
+                [ icon [ centerX ] Solid.chessBishop
+                , Element.el [ centerX ] (Element.text "Bishop")
+                ]
+            ]
+        ]
 
 
 {-| Turns an amount of seconds into a mm:ss label.

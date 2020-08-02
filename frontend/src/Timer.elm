@@ -88,6 +88,7 @@ type alias TimerViewData =
     { secondsLeftWhite : Int
     , secondsLeftBlack : Int
     , timerState : TimerState
+    , runningFor : Maybe Sako.Color
     }
 
 
@@ -151,6 +152,7 @@ renderRunningTimer currentPlayer now timer =
             { secondsLeftWhite = timer.timeLeftWhite |> Quantity.minus timePassed |> Duration.inSeconds |> round
             , secondsLeftBlack = timer.timeLeftBlack |> Duration.inSeconds |> round
             , timerState = timer.timerState
+            , runningFor = Just Sako.White
             }
 
         Sako.Black ->
@@ -161,6 +163,7 @@ renderRunningTimer currentPlayer now timer =
                     |> Duration.inSeconds
                     |> round
             , timerState = timer.timerState
+            , runningFor = Just Sako.Black
             }
 
 
@@ -169,4 +172,5 @@ renderPausedTimer timer =
     { secondsLeftWhite = timer.timeLeftWhite |> Duration.inSeconds |> round
     , secondsLeftBlack = timer.timeLeftBlack |> Duration.inSeconds |> round
     , timerState = timer.timerState
+    , runningFor = Nothing
     }
