@@ -1,3 +1,5 @@
+use crate::timeout;
+use chrono::{DateTime, Utc};
 use rand::{thread_rng, Rng};
 use std::collections::{HashMap, HashSet};
 use std::{
@@ -14,7 +16,7 @@ use ws::Sender;
 /// responsibility of the instance manager.
 
 /// An instance is the type managed by the instance manager.
-pub trait Instance: Sized {
+pub trait Instance: Sized + Send {
     /// The type of messages send by the client to the server.
     type ClientMessage: ClientMessage;
     type ServerMessage: ServerMessage;
@@ -25,6 +27,8 @@ pub trait Instance: Sized {
     fn new_with_key(key: &str, params: Self::InstanceParameters) -> Self;
     /// Accept a client message and possibly send messages back.
     fn handle_message(&mut self, message: Self::ClientMessage, ctx: &mut Context<Self>);
+    /// Called, when the instance set a timout itself and this timeout has passed
+    fn handle_timeout(&mut self, now: DateTime<Utc>, ctx: &mut Context<Self>);
 }
 
 pub trait ProvidesKey {
@@ -48,23 +52,45 @@ pub trait ServerMessage: Into<ws::Message> + Clone {
 /// later. This means technical error handling can be hidden from the business
 /// logic.
 /// The context gives the ability to broadcast messages to all clients that are
-/// connected to the
+/// connected to the same instance.
 pub struct Context<T: Instance> {
     reply_queue: Vec<T::ServerMessage>,
     broadcast_queue: Vec<T::ServerMessage>,
+    new_timeout: Option<DateTime<Utc>>,
 }
 
 impl<T: Instance> Context<T> {
+    fn new() -> Self {
+        Context {
+            reply_queue: vec![],
+            broadcast_queue: vec![],
+            new_timeout: None,
+        }
+    }
     pub fn reply(&mut self, message: T::ServerMessage) {
         self.reply_queue.push(message)
     }
     pub fn broadcast(&mut self, message: T::ServerMessage) {
         self.broadcast_queue.push(message)
     }
-    fn new() -> Self {
-        Context {
-            reply_queue: vec![],
-            broadcast_queue: vec![],
+    /// Request that the on_timeout method of this instance will be called at
+    /// the given DateTime. If this is called multiple times, the earliest
+    /// timeout will be used. This also applies for calls to set_timeout over
+    /// different handle_message calls.
+    pub fn set_timeout(&mut self, when: DateTime<Utc>) {
+        self.new_timeout = Some(Self::min_time(when, self.new_timeout));
+    }
+    /// Returns the minimum time of the two given times. Returns the first value
+    /// If the second one is None.
+    fn min_time(a: DateTime<Utc>, b: Option<DateTime<Utc>>) -> DateTime<Utc> {
+        if let Some(b) = b {
+            if a < b {
+                a
+            } else {
+                b
+            }
+        } else {
+            a
         }
     }
 }
@@ -72,12 +98,15 @@ impl<T: Instance> Context<T> {
 /// As an implementation detail for now, we lock the Manager on every access.
 /// This is of course not a good implementation and we should switch over to
 /// some kind of concurrent hashmap in the future.
-pub struct Manager<T: Instance>(Arc<Mutex<SyncManager<T>>>);
+pub struct Manager<T: Instance> {
+    sync: Arc<Mutex<SyncManager<T>>>,
+}
 
 /// Inner Manager, locked before access.
 struct SyncManager<T: Instance> {
     instances: HashMap<String, InstanceMetadata<T>>,
     clients: HashMap<Sender, ClientData>,
+    timeout_sender: crossbeam_channel::Sender<(String, DateTime<Utc>)>,
 }
 
 struct ClientData {
@@ -113,26 +142,38 @@ impl<T: Instance> InstanceMetadata<T> {
 ///     lock!(server: WebsocketServer) -> &mut SyncServer
 macro_rules! lock {
     ( $server:expr ) => {{
-        &mut *($server.0.lock().unwrap())
+        &mut *($server.sync.lock().unwrap())
     }};
 }
 
 impl<T: Instance> Clone for Manager<T> {
     fn clone(&self) -> Self {
-        Manager(self.0.clone())
+        Manager {
+            sync: self.sync.clone(),
+        }
     }
 }
 
-impl<T: Instance> Default for Manager<T> {
+impl<T: Instance + 'static> Default for Manager<T> {
     fn default() -> Self {
-        Manager(Arc::from(Mutex::from(SyncManager::default())))
+        Manager::new()
     }
 }
 
-impl<T: Instance> Manager<T> {
+impl<T: Instance + 'static> Manager<T> {
     /// Creates an empty manager that does not contain any games yet.
     pub fn new() -> Self {
-        Manager(Arc::from(Mutex::from(SyncManager::default())))
+        let new_instance = Manager {
+            sync: Arc::from(Mutex::from(SyncManager::default())),
+        };
+
+        // The Manager and the timeout thread need to know each other, as they
+        // communicate in both directions. I break this dependency loop by
+        // first creating the manager with a dead end channel, setting up the
+        // timeout thread and then replacing the sender with the new one.
+        lock!(new_instance).timeout_sender = new_instance.spawn_timeout_thread();
+
+        new_instance
     }
     /// Creates a new instance and returns its key.
     pub fn new_instance(&self, params: T::InstanceParameters) -> String {
@@ -146,6 +187,20 @@ impl<T: Instance> Manager<T> {
     pub fn subscribe(&self, key: Cow<String>, sender: Sender) {
         lock!(self).subscribe(key, sender)
     }
+    /// Spawns a thread in the background that is required to set and receive timeouts
+    fn spawn_timeout_thread(&self) -> crossbeam_channel::Sender<(String, DateTime<Utc>)> {
+        let m: Manager<T> = self.clone();
+        timeout::Timeout::spawn(Box::new(m))
+    }
+}
+
+impl<T: Instance> timeout::Callback for Manager<T> {
+    fn on_timeout(&self, key: String, now: DateTime<Utc>) {
+        // TODO: This should use std::sync::Weak instead of std::sync::Arc,
+        // because it will enable a clean shutdown of the timeout thread.
+        // Currently the reference loop will keep the Manager and thread alive.
+        lock!(self).on_timeout(key, now);
+    }
 }
 
 impl<T: Instance> Default for SyncManager<T> {
@@ -154,6 +209,7 @@ impl<T: Instance> Default for SyncManager<T> {
         SyncManager {
             instances: HashMap::new(),
             clients: HashMap::new(),
+            timeout_sender: crossbeam_channel::bounded(0).0,
         }
     }
 }
@@ -172,18 +228,20 @@ impl<T: Instance> SyncManager<T> {
     fn handle_message(&mut self, message: T::ClientMessage, sender: Sender) {
         let key = message.key();
         if let Some(instance) = self.instances.get_mut(&*key) {
-            Self::handle_message_for_instance(message, &sender, instance)
+            Self::handle_message_for_instance(&self.timeout_sender, message, &sender, instance)
         } else {
             Self::send_message(&sender, Self::error_no_instance(key));
         }
     }
 
     fn handle_message_for_instance(
+        timeout_sender: &crossbeam_channel::Sender<(String, DateTime<Utc>)>,
         message: T::ClientMessage,
         sender: &Sender,
         instance: &mut InstanceMetadata<T>,
     ) {
         let mut context = Context::new();
+        let key = message.key().into_owned();
         instance.instance.handle_message(message, &mut context);
 
         // Send messages back to client
@@ -195,6 +253,13 @@ impl<T: Instance> SyncManager<T> {
         for msg in context.broadcast_queue {
             for client in &instance.clients {
                 Self::send_message(client, msg.clone());
+            }
+        }
+
+        if let Some(when) = context.new_timeout {
+            match timeout_sender.send((key, when)) {
+                Ok(()) => { /* This is good*/ }
+                Err(_) => println!("Timer thread is dead."),
             }
         }
     }
@@ -233,6 +298,7 @@ impl<T: Instance> SyncManager<T> {
             } else {
                 instance.clients.insert(sender.clone());
                 Self::handle_message_for_instance(
+                    &self.timeout_sender,
                     T::ClientMessage::subscribe(key.into_owned()),
                     &sender,
                     instance,
@@ -250,6 +316,37 @@ impl<T: Instance> SyncManager<T> {
             "There is no instance with key {}.",
             key
         )))
+    }
+
+    fn on_timeout(&mut self, key: String, now: DateTime<Utc>) {
+        if let Some(instance) = self.instances.get_mut(&key) {
+            let mut context = Context::new();
+
+            instance.instance.handle_timeout(now, &mut context);
+
+            if !context.reply_queue.is_empty() {
+                // TODO: Ideally we would have a second context type that did
+                // not even offer the .reply( .. ) method.
+                println!(
+                    "The instance with key {} called .reply( .. ) in a timeout handler.",
+                    key
+                );
+            }
+
+            // Broadcast messages to all connected clients
+            for msg in context.broadcast_queue {
+                for client in &instance.clients {
+                    Self::send_message(client, msg.clone());
+                }
+            }
+
+            if let Some(when) = context.new_timeout {
+                match self.timeout_sender.send((key, when)) {
+                    Ok(()) => { /* This is good*/ }
+                    Err(_) => println!("Timer thread is dead."),
+                }
+            }
+        }
     }
 }
 
@@ -271,6 +368,7 @@ fn generate_key() -> String {
 #[cfg(test)]
 mod test {
     use super::*;
+    use chrono::Duration;
 
     /// This intstance manager is pretty tricky to get right, so I define a
     /// simple test instance type to test it.
@@ -354,6 +452,10 @@ mod test {
                     });
                 }
             }
+        }
+
+        fn handle_timeout(&mut self, _now: DateTime<Utc>, _ctx: &mut Context<Self>) {
+            // No timeouts used in the test.
         }
     }
 
@@ -468,5 +570,23 @@ mod test {
 
         assert!(r2().contains(&format!("{}: {}", key.clone(), 42)));
         assert_eq!(r2(), "Err(Empty)");
+    }
+
+    #[test]
+    fn test_set_timeout() {
+        let now = Utc::now();
+
+        let ctx: Context<TestInstance> = Context::new();
+        assert_eq!(ctx.new_timeout, None);
+
+        let mut ctx: Context<TestInstance> = Context::new();
+        ctx.set_timeout(now);
+        ctx.set_timeout(now + Duration::seconds(2));
+        assert_eq!(ctx.new_timeout.unwrap(), now);
+
+        let mut ctx: Context<TestInstance> = Context::new();
+        ctx.set_timeout(now);
+        ctx.set_timeout(now - Duration::seconds(2));
+        assert_eq!(ctx.new_timeout.unwrap(), now - Duration::seconds(2));
     }
 }

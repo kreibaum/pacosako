@@ -114,6 +114,8 @@ impl Instance for SyncronizedMatch {
             ClientMatchMessage::DoAction { action, .. } => {
                 match self.do_action(action) {
                     Ok(state) => {
+                        Self::set_timeout(&state, ctx);
+
                         // The state was changed, this must be broadcast to
                         // all subscribed players.
                         ctx.broadcast(ServerMatchMessage::CurrentMatchState(state))
@@ -166,10 +168,29 @@ impl Instance for SyncronizedMatch {
                 self.start_timer();
 
                 match self.current_state() {
-                    Ok(state) => ctx.broadcast(ServerMatchMessage::CurrentMatchState(state)),
+                    Ok(state) => {
+                        Self::set_timeout(&state, ctx);
+
+                        ctx.broadcast(ServerMatchMessage::CurrentMatchState(state))
+                    }
                     Err(_) => {}
                 }
             }
+        }
+    }
+
+    fn handle_timeout(
+        &mut self,
+        now: chrono::DateTime<Utc>,
+        ctx: &mut crate::instance_manager::Context<Self>,
+    ) {
+        match self.timer_progress(now, ctx) {
+            Ok(state) => {
+                Self::set_timeout(&state, ctx);
+
+                ctx.broadcast(ServerMatchMessage::CurrentMatchState(state))
+            }
+            Err(_) => {}
         }
     }
 }
@@ -279,6 +300,34 @@ impl SyncronizedMatch {
                 timer.use_time(player, Utc::now());
             }
         }
+    }
+
+    /// Set timeout so the timer can run out on its own.
+    fn set_timeout(state: &CurrentMatchState, ctx: &mut crate::instance_manager::Context<Self>) {
+        if let Some(timer) = &state.timer {
+            if timer.get_state() == TimerState::Running {
+                ctx.set_timeout(timer.timeout(state.controlling_player));
+            }
+        }
+    }
+
+    /// Is triggered when there may have been significant timer progress.
+    fn timer_progress(
+        &mut self,
+        _now: chrono::DateTime<Utc>,
+        _ctx: &mut crate::instance_manager::Context<Self>,
+    ) -> Result<CurrentMatchState, PacoError> {
+        let board = self.project()?;
+
+        self.update_timer(board.controlling_player());
+
+        Ok(CurrentMatchState {
+            key: self.key.clone(),
+            actions: self.actions.clone(),
+            legal_actions: board.actions()?,
+            controlling_player: board.controlling_player(),
+            timer: self.timer.clone(),
+        })
     }
 }
 

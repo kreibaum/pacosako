@@ -87,6 +87,17 @@ impl Timer {
     pub fn get_state(&self) -> TimerState {
         self.timer_state
     }
+
+    /// Returns the time at which the timer would run out if the given player
+    /// retains controll until then.
+    pub fn timeout(&self, player: PlayerColor) -> DateTime<Utc> {
+        let time_left = match player {
+            PlayerColor::White => self.time_left_white,
+            PlayerColor::Black => self.time_left_black,
+        };
+
+        self.last_timestamp + time_left
+    }
 }
 
 /// Gives the current state of the timer. When the timer is running it does

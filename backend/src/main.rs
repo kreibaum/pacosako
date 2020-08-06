@@ -2,6 +2,7 @@
 
 mod instance_manager;
 mod sync_match;
+mod timeout;
 mod timer;
 mod websocket;
 
