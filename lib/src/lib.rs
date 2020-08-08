@@ -81,6 +81,30 @@ impl PieceType {
     }
 }
 
+/// Possible states a board of Paco Ŝako can be in. The pacosako library only
+/// implements automatic transition to PacoVictory in case of a Paco Ŝako for
+/// either player.
+///
+/// Note that Drawing a game is not implemented yet. Possible draw reasons may
+/// be: Repeated position x3, No progress made for 50 moves (100 half-moves) or
+/// all pieces paired up. Maybe others?
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GameState {
+    Running,
+    PacoVictory(PlayerColor),
+    TimeoutVictory(PlayerColor),
+}
+
+impl GameState {
+    pub fn is_over(&self) -> bool {
+        match self {
+            GameState::Running => false,
+            GameState::PacoVictory(_) => true,
+            GameState::TimeoutVictory(_) => true,
+        }
+    }
+}
+
 /// In a DenseBoard we reserve memory for all positions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DenseBoard {
@@ -96,6 +120,7 @@ pub struct DenseBoard {
     promotion: Option<BoardPosition>,
     /// Stores castling information
     castling: Castling,
+    game_state: GameState,
 }
 
 /// Defines a random generator for Paco Ŝako games that are not over yet.
@@ -229,6 +254,7 @@ impl EditorBoard {
             en_passant: None,
             promotion: None,
             castling: Castling::new(),
+            game_state: GameState::Running,
         };
 
         // Copy piece from the `pieces` list into the dense arrays.
@@ -366,6 +392,8 @@ pub trait PacoBoard: Clone + Eq + std::hash::Hash + Display {
     /// Can we do an en passant capture right now?
     /// Returns false if you first need to lift a pawn to capture next turn.
     fn en_passant_capture_possible(&self) -> bool;
+    /// Gets the current status of the game
+    fn game_state(&self) -> GameState;
 }
 
 impl DenseBoard {
@@ -379,6 +407,7 @@ impl DenseBoard {
             en_passant: None,
             promotion: None,
             castling: Castling::new(),
+            game_state: GameState::Running,
         };
 
         // Board structure
@@ -425,6 +454,7 @@ impl DenseBoard {
             en_passant: None,
             promotion: None,
             castling: Castling::new(),
+            game_state: GameState::Running,
         }
     }
 
@@ -581,6 +611,20 @@ impl DenseBoard {
                     }
 
                     self.lifted_piece = Hand::Empty;
+
+                    // This is the only place where we need to check if we just
+                    // united wtih the king. This is because we can safely assume
+                    // that the king was not united with any other piece before.
+
+                    if Some(&Some(PieceType::King)) == self.opponent_pieces().get(target.0 as usize)
+                    {
+                        // We have united with the opponent king, the game is now won.
+                        self.game_state = GameState::PacoVictory(self.current_player);
+                    }
+
+                    // Placing without chaining means the current player switches.
+                    // Note that there still may be a hanging promoting, so the
+                    // active player does necessarily switch.
                     self.current_player = self.current_player.other();
                 }
                 Ok(self)
@@ -1168,6 +1212,11 @@ impl PacoBoard for DenseBoard {
     }
     fn actions(&self) -> Result<Vec<PacoAction>, PacoError> {
         use PacoAction::*;
+        // If the game is over, then there are no actions.
+        if self.game_state.is_over() {
+            return Ok(vec![]);
+        }
+
         if self.promotion.is_some() {
             return Ok(vec![
                 Promote(PieceType::Bishop),
@@ -1292,6 +1341,9 @@ impl PacoBoard for DenseBoard {
         } else {
             false
         }
+    }
+    fn game_state(&self) -> GameState {
+        self.game_state
     }
 }
 
@@ -2651,6 +2703,81 @@ mod tests {
         ];
         rollback_trusted_action_stack(&mut actions)?;
         assert_eq!(actions.len(), 14);
+        Ok(())
+    }
+
+    /// Checks that uniting with the king sets the game state to Victory.
+    /// Also checks that it remains running on all the preceding moves, which
+    /// incudes another union.
+    #[test]
+    fn test_white_victory_after_pacosako() -> Result<(), PacoError> {
+        let mut board = DenseBoard::new();
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "e2");
+        execute_action!(board, place, "e4");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "d7");
+        execute_action!(board, place, "d5");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "f1");
+        execute_action!(board, place, "b5");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        // Here we unite, but we don't unite with a king.
+        execute_action!(board, lift, "d5");
+        execute_action!(board, place, "e4");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        // Now we unite with the black king.
+        execute_action!(board, lift, "b5");
+        execute_action!(board, place, "e8");
+        assert_eq!(
+            board.game_state(),
+            GameState::PacoVictory(PlayerColor::White)
+        );
+
+        assert!(board.actions()?.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_black_victory_after_pacosako() -> Result<(), PacoError> {
+        let mut board = DenseBoard::new();
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "e2");
+        execute_action!(board, place, "e4");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "b8");
+        execute_action!(board, place, "c6");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "e1");
+        execute_action!(board, place, "e2");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "c6");
+        execute_action!(board, place, "d4");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "f2");
+        execute_action!(board, place, "f3");
+        assert_eq!(board.game_state(), GameState::Running);
+
+        execute_action!(board, lift, "d4");
+        execute_action!(board, place, "e2");
+        assert_eq!(
+            board.game_state(),
+            GameState::PacoVictory(PlayerColor::Black)
+        );
+
+        assert!(board.actions()?.is_empty());
+
         Ok(())
     }
 }
