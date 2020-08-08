@@ -84,6 +84,11 @@ impl Timer {
         self.timer_state
     }
 
+    /// Stops the timer
+    pub fn stop(&mut self) {
+        self.timer_state = TimerState::Stopped
+    }
+
     pub fn get_state(&self) -> TimerState {
         self.timer_state
     }
@@ -105,9 +110,15 @@ impl Timer {
 /// when an action is send to the server.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize)]
 pub enum TimerState {
+    /// A timer is in this state, when the game has not started yet.
     NotStarted,
+    /// A timer is in this state, while the game is in progress.
     Running,
+    /// A timer is in timeout when one party runs out of time. The color stored
+    /// in here is the loosing player who used up their time.
     Timeout(PlayerColor),
+    /// A timer is stopped when one party wins.
+    Stopped,
 }
 
 impl From<TimerConfig> for Timer {
@@ -155,6 +166,9 @@ mod test {
         timer.start(now2);
         assert_eq!(timer.last_timestamp, now);
         assert_eq!(timer.get_state(), TimerState::Running);
+
+        timer.stop();
+        assert_eq!(timer.get_state(), TimerState::Stopped);
     }
 
     #[test]

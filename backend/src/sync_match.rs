@@ -274,6 +274,12 @@ impl SyncronizedMatch {
         board.execute(new_action)?;
         self.actions.push(new_action);
 
+        if board.game_state().is_over() {
+            if let Some(timer) = &mut self.timer {
+                timer.stop()
+            }
+        }
+
         CurrentMatchState::try_new(self, &board)
     }
 

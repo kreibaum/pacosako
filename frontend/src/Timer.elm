@@ -98,6 +98,7 @@ type TimerState
     = NotStarted
     | Running
     | Timeout Sako.Color
+    | Stopped
 
 
 decodeTimerState : Decoder TimerState
@@ -106,6 +107,7 @@ decodeTimerState =
         [ decodeConstant "NotStarted" NotStarted
         , decodeConstant "Running" Running
         , Decode.field "Timeout" Sako.decodeColor |> Decode.map Timeout
+        , decodeConstant "Stopped" Stopped
         ]
 
 
@@ -136,6 +138,9 @@ render currentPlayer now timer =
             renderRunningTimer currentPlayer now timer
 
         Timeout _ ->
+            renderPausedTimer timer
+
+        Stopped ->
             renderPausedTimer timer
 
 

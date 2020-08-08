@@ -2722,23 +2722,23 @@ maybeVictoryStateInfo victoryState =
             Element.none
 
         Websocket.PacoVictory Sako.White ->
-            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+            bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
                 ]
 
         Websocket.PacoVictory Sako.Black ->
-            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+            bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
                 ]
 
         Websocket.TimeoutVictory Sako.White ->
-            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+            bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
                 , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")
                 ]
 
         Websocket.TimeoutVictory Sako.Black ->
-            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+            bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
                 , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")
                 ]
