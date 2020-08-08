@@ -1,6 +1,7 @@
 module Websocket exposing
     ( ClientMessage(..)
     , CurrentMatchState
+    , GameState(..)
     , ServerMessage(..)
     , ShareStatus(..)
     , SyncronizedBoard
@@ -131,12 +132,19 @@ type ServerMessage
     | MatchConnectionSuccess { key : String, state : CurrentMatchState }
 
 
+type GameState
+    = Running
+    | PacoVictory Sako.Color
+    | TimeoutVictory Sako.Color
+
+
 type alias CurrentMatchState =
     { key : String
     , actionHistory : List Sako.Action
     , legalActions : List Sako.Action
     , controllingPlayer : Sako.Color
     , timer : Maybe Timer.Timer
+    , gameState : GameState
     }
 
 
@@ -173,13 +181,14 @@ decodeServerMessage =
 
 decodeMatchState : Decoder CurrentMatchState
 decodeMatchState =
-    Decode.map5
-        (\key actionHistory legalActions controllingPlayer timer ->
+    Decode.map6
+        (\key actionHistory legalActions controllingPlayer timer gameState ->
             { key = key
             , actionHistory = actionHistory
             , legalActions = legalActions
             , controllingPlayer = controllingPlayer
             , timer = timer
+            , gameState = gameState
             }
         )
         (Decode.field "key" Decode.string)
@@ -187,6 +196,26 @@ decodeMatchState =
         (Decode.field "legal_actions" (Decode.list Sako.decodeAction))
         (Decode.field "controlling_player" Sako.decodeColor)
         (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
+        (Decode.field "game_state" decodeGameState)
+
+
+decodeGameState : Decoder GameState
+decodeGameState =
+    Decode.oneOf
+        [ Decode.string
+            |> Decode.andThen
+                (\str ->
+                    if str == "Running" then
+                        Decode.succeed Running
+
+                    else
+                        Decode.fail "Expected constant string 'Running'."
+                )
+        , Decode.map TimeoutVictory
+            (Decode.field "TimeoutVictory" Sako.decodeColor)
+        , Decode.map PacoVictory
+            (Decode.field "PacoVictory" Sako.decodeColor)
+        ]
 
 
 send : ClientMessage -> Cmd msg

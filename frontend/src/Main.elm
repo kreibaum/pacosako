@@ -2385,6 +2385,7 @@ initPlayModel =
         , legalActions = []
         , controllingPlayer = Sako.White
         , timer = Nothing
+        , gameState = Websocket.Running
         }
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     , focus = Nothing
@@ -2608,6 +2609,7 @@ playModeSidebar taco model =
             [ Element.text "Restart Move" ]
             |> Element.el [ width fill ]
         , maybePromotionButtons model.currentState.legalActions
+        , maybeVictoryStateInfo model.currentState.gameState
         , Element.el [ Element.alignBottom, width fill ]
             (maybeViewTimerFor taco model Sako.White)
         , Element.el [ height (Element.px 100) ] Element.none
@@ -2711,6 +2713,45 @@ promotionButtons =
                 ]
             ]
         ]
+
+
+maybeVictoryStateInfo : Websocket.GameState -> Element msg
+maybeVictoryStateInfo victoryState =
+    case victoryState of
+        Websocket.Running ->
+            Element.none
+
+        Websocket.PacoVictory Sako.White ->
+            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
+                ]
+
+        Websocket.PacoVictory Sako.Black ->
+            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
+                ]
+
+        Websocket.TimeoutVictory Sako.White ->
+            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
+                , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")
+                ]
+
+        Websocket.TimeoutVictory Sako.Black ->
+            bigRoundedVictoryStateLabel (Element.rgb255 240 240 200)
+                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
+                , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")
+                ]
+
+
+{-| Label that is used for the Victory status.
+-}
+bigRoundedVictoryStateLabel : Element.Color -> List (Element msg) -> Element msg
+bigRoundedVictoryStateLabel color content =
+    Element.el [ Background.color color, width fill, Border.rounded 5, Element.alignTop ]
+        (Element.column [ height fill, centerX, padding 15, spacing 5 ]
+            content
+        )
 
 
 {-| Turns an amount of seconds into a mm:ss label.
