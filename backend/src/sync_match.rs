@@ -206,6 +206,40 @@ pub struct CurrentMatchState {
     legal_actions: Vec<PacoAction>,
     controlling_player: pacosako::PlayerColor,
     timer: Option<Timer>,
+    game_state: pacosako::GameState,
+}
+
+impl CurrentMatchState {
+    /// Tries to create a new match state out of a syncronized match and an
+    /// already projected board.
+    fn try_new(
+        sync_match: &SyncronizedMatch,
+        board: &pacosako::DenseBoard,
+    ) -> Result<Self, PacoError> {
+        let game_state = Self::game_state(&board, &sync_match.timer);
+
+        Ok(CurrentMatchState {
+            key: sync_match.key.clone(),
+            actions: sync_match.actions.clone(),
+            legal_actions: if game_state.is_over() {
+                vec![]
+            } else {
+                board.actions()?
+            },
+            controlling_player: board.controlling_player(),
+            timer: sync_match.timer.clone(),
+            game_state,
+        })
+    }
+
+    fn game_state(board: &pacosako::DenseBoard, timer: &Option<Timer>) -> pacosako::GameState {
+        if let Some(timer) = timer {
+            if let TimerState::Timeout(color) = timer.get_state() {
+                return pacosako::GameState::TimeoutVictory(color.other());
+            }
+        }
+        board.game_state()
+    }
 }
 
 /// This implementation contains most of the "Business Logic" of the match.
@@ -225,31 +259,27 @@ impl SyncronizedMatch {
     fn do_action(&mut self, new_action: PacoAction) -> Result<CurrentMatchState, PacoError> {
         let mut board = self.project()?;
         let controlling_player = board.controlling_player();
+        self.update_timer(controlling_player);
+
+        // Check if the timer has run out, in that case we return an error.
+        // Timing out the timer like this is not a problem, because the timeout
+        // will ping this game instance (or may already have) and this will
+        // broadcast the game state to all connections.
+        if let Some(timer) = &self.timer {
+            if let TimerState::Timeout(_) = timer.get_state() {
+                return Err(PacoError::NotYourTurn);
+            }
+        }
 
         board.execute(new_action)?;
         self.actions.push(new_action);
 
-        self.update_timer(controlling_player);
-
-        Ok(CurrentMatchState {
-            key: self.key.clone(),
-            actions: self.actions.clone(),
-            legal_actions: board.actions()?,
-            controlling_player: board.controlling_player(),
-            timer: self.timer.clone(),
-        })
+        CurrentMatchState::try_new(self, &board)
     }
 
     /// Gets the current state and the currently available legal actions.
     fn current_state(&self) -> Result<CurrentMatchState, PacoError> {
-        let board = self.project()?;
-        Ok(CurrentMatchState {
-            key: self.key.clone(),
-            actions: self.actions.clone(),
-            legal_actions: board.actions()?,
-            controlling_player: board.controlling_player(),
-            timer: self.timer.clone(),
-        })
+        CurrentMatchState::try_new(self, &self.project()?)
     }
 
     /// Rolls back the game state to the start of the turn of the current player.
@@ -321,13 +351,7 @@ impl SyncronizedMatch {
 
         self.update_timer(board.controlling_player());
 
-        Ok(CurrentMatchState {
-            key: self.key.clone(),
-            actions: self.actions.clone(),
-            legal_actions: board.actions()?,
-            controlling_player: board.controlling_player(),
-            timer: self.timer.clone(),
-        })
+        CurrentMatchState::try_new(self, &board)
     }
 }
 

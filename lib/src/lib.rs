@@ -88,7 +88,7 @@ impl PieceType {
 /// Note that Drawing a game is not implemented yet. Possible draw reasons may
 /// be: Repeated position x3, No progress made for 50 moves (100 half-moves) or
 /// all pieces paired up. Maybe others?
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub enum GameState {
     Running,
     PacoVictory(PlayerColor),
