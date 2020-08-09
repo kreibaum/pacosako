@@ -8,7 +8,6 @@ view.
 
 import Animation exposing (Duration)
 import Duration exposing (Duration)
-import Html exposing (a)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
