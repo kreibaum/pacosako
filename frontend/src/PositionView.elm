@@ -584,7 +584,12 @@ other lists.
 -}
 determineVisualPiecesCurrentlyLifted : Sako.Position -> List VisualPacoPiece
 determineVisualPiecesCurrentlyLifted position =
-    List.map visualPieceCurrentlyLifted position.liftedPieces
+    case position.liftedPieces of
+        [ pieceOne, pieceTwo ] ->
+            visualPiecesForLiftedPair pieceOne pieceTwo
+
+        liftedPieces ->
+            List.map visualPieceCurrentlyLifted liftedPieces
 
 
 visualPieceCurrentlyLifted : Piece -> VisualPacoPiece
@@ -598,6 +603,29 @@ visualPieceCurrentlyLifted liftedPiece =
     , zOrder = 3
     , opacity = 1
     }
+
+
+visualPiecesForLiftedPair : Piece -> Piece -> List VisualPacoPiece
+visualPiecesForLiftedPair pieceOne pieceTwo =
+    [ { pieceType = pieceOne.pieceType
+      , color = pieceOne.color
+      , position =
+            coordinateOfTile pieceOne.position
+                |> addSvgCoord (SvgCoord 0 -50)
+      , identity = pieceOne.identity
+      , zOrder = 3
+      , opacity = 1
+      }
+    , { pieceType = pieceTwo.pieceType
+      , color = pieceTwo.color
+      , position =
+            coordinateOfTile pieceTwo.position
+                |> addSvgCoord (SvgCoord 0 -50)
+      , identity = pieceTwo.identity
+      , zOrder = 3
+      , opacity = 1
+      }
+    ]
 
 
 determineVisualPiecesDragged : InternalModel -> List VisualPacoPiece
