@@ -206,7 +206,7 @@ pub struct CurrentMatchState {
     legal_actions: Vec<PacoAction>,
     controlling_player: pacosako::PlayerColor,
     timer: Option<Timer>,
-    game_state: pacosako::GameState,
+    victory_state: pacosako::VictoryState,
 }
 
 impl CurrentMatchState {
@@ -216,29 +216,32 @@ impl CurrentMatchState {
         sync_match: &SyncronizedMatch,
         board: &pacosako::DenseBoard,
     ) -> Result<Self, PacoError> {
-        let game_state = Self::game_state(&board, &sync_match.timer);
+        let victory_state = Self::victory_state(&board, &sync_match.timer);
 
         Ok(CurrentMatchState {
             key: sync_match.key.clone(),
             actions: sync_match.actions.clone(),
-            legal_actions: if game_state.is_over() {
+            legal_actions: if victory_state.is_over() {
                 vec![]
             } else {
                 board.actions()?
             },
             controlling_player: board.controlling_player(),
             timer: sync_match.timer.clone(),
-            game_state,
+            victory_state: victory_state,
         })
     }
 
-    fn game_state(board: &pacosako::DenseBoard, timer: &Option<Timer>) -> pacosako::GameState {
+    fn victory_state(
+        board: &pacosako::DenseBoard,
+        timer: &Option<Timer>,
+    ) -> pacosako::VictoryState {
         if let Some(timer) = timer {
             if let TimerState::Timeout(color) = timer.get_state() {
-                return pacosako::GameState::TimeoutVictory(color.other());
+                return pacosako::VictoryState::TimeoutVictory(color.other());
             }
         }
-        board.game_state()
+        board.victory_state()
     }
 }
 
@@ -274,7 +277,7 @@ impl SyncronizedMatch {
         board.execute(new_action)?;
         self.actions.push(new_action);
 
-        if board.game_state().is_over() {
+        if board.victory_state().is_over() {
             if let Some(timer) = &mut self.timer {
                 timer.stop()
             }

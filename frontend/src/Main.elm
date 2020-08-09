@@ -2385,7 +2385,7 @@ initPlayModel =
         , legalActions = []
         , controllingPlayer = Sako.White
         , timer = Nothing
-        , gameState = Websocket.Running
+        , gameState = Sako.Running
         }
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     , focus = Nothing
@@ -2715,29 +2715,29 @@ promotionButtons =
         ]
 
 
-maybeVictoryStateInfo : Websocket.GameState -> Element msg
+maybeVictoryStateInfo : Sako.VictoryState -> Element msg
 maybeVictoryStateInfo victoryState =
     case victoryState of
-        Websocket.Running ->
+        Sako.Running ->
             Element.none
 
-        Websocket.PacoVictory Sako.White ->
+        Sako.PacoVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
                 ]
 
-        Websocket.PacoVictory Sako.Black ->
+        Sako.PacoVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
                 ]
 
-        Websocket.TimeoutVictory Sako.White ->
+        Sako.TimeoutVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
                 , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")
                 ]
 
-        Websocket.TimeoutVictory Sako.Black ->
+        Sako.TimeoutVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
                 [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
                 , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")

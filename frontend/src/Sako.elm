@@ -5,10 +5,12 @@ module Sako exposing
     , Position
     , Tile(..)
     , Type(..)
+    , VictoryState(..)
     , actionTile
     , decodeAction
     , decodeColor
     , decodePosition
+    , decodeVictoryState
     , doAction
     , emptyPosition
     , encodeAction
@@ -311,6 +313,31 @@ actionTile action =
 
         _ ->
             Nothing
+
+
+type VictoryState
+    = Running
+    | PacoVictory Color
+    | TimeoutVictory Color
+
+
+decodeVictoryState : Decoder VictoryState
+decodeVictoryState =
+    Decode.oneOf
+        [ Decode.string
+            |> Decode.andThen
+                (\str ->
+                    if str == "Running" then
+                        Decode.succeed Running
+
+                    else
+                        Decode.fail "Expected constant string 'Running'."
+                )
+        , Decode.map TimeoutVictory
+            (Decode.field "TimeoutVictory" decodeColor)
+        , Decode.map PacoVictory
+            (Decode.field "PacoVictory" decodeColor)
+        ]
 
 
 {-| Validates and executes an action. This does not validate that the position
