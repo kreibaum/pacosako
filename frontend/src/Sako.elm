@@ -417,8 +417,8 @@ doPlaceSingleAction piece tile position =
         doEnPassantPreparation tile position
             |> doPlaceSingleActionNoSpecialMoves piece tile
 
-    else if isCastlingMove piece tile position then
-        doCastlingMove piece tile position
+    else if isCastlingMove piece tile then
+        doCastlingMove tile position
 
     else
         doPlaceSingleActionNoSpecialMoves piece tile position
@@ -453,28 +453,49 @@ doEnPassantPreparation (Tile x y) position =
 {-| A castling move is can be identified by checking if the king moves more
 than one square in the x direction.
 -}
-isCastlingMove : Piece -> Tile -> Position -> Bool
-isCastlingMove piece tile position =
-    -- TODO #17
-    False
+isCastlingMove : Piece -> Tile -> Bool
+isCastlingMove piece tile =
+    piece.pieceType == King && abs (getX tile - getX piece.position) > 1
 
 
 {-| Places the king and moves the Rook (maybe with partner). This function can
 only be called if you have verified that castling really takes place.
 -}
-doCastlingMove : Piece -> Tile -> Position -> Maybe Position
-doCastlingMove piece tile position =
-    let
-        -- TODO #17
-        rookFromTile =
-            Tile 0 0
+doCastlingMove : Tile -> Position -> Maybe Position
+doCastlingMove tile position =
+    Maybe.map
+        (\( rookFromTile, rookToTile ) ->
+            unsafePlaceAt tile position
+                |> unsafeDirectMove rookFromTile rookToTile
+        )
+        (getCastlingRookTiles tile)
 
-        rookToTile =
-            Tile 0 3
-    in
-    unsafePlaceAt tile position
-        |> unsafeDirectMove rookFromTile rookToTile
-        |> Just
+
+{-| Given a tile the king moves into in a castling action, this retuns the
+resulting movement of the rook.
+-}
+getCastlingRookTiles : Tile -> Maybe ( Tile, Tile )
+getCastlingRookTiles tile =
+    case tile of
+        -- White Queenside
+        Tile 2 0 ->
+            Just ( Tile 0 0, Tile 3 0 )
+
+        -- White Kingside
+        Tile 6 0 ->
+            Just ( Tile 7 0, Tile 5 0 )
+
+        -- Black Queenside
+        Tile 2 7 ->
+            Just ( Tile 0 7, Tile 3 7 )
+
+        -- Black Kingside
+        Tile 6 7 ->
+            Just ( Tile 7 7, Tile 5 7 )
+
+        -- Invalid castling move
+        _ ->
+            Nothing
 
 
 {-| This function can be called when a single piece is placed and it has already
