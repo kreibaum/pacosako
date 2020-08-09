@@ -2372,6 +2372,7 @@ type alias PlayModel =
     -- later: , preview : Maybe Sako.Position
     , timeline : Timeline OpaqueRenderData
     , focus : Maybe Tile
+    , dragState : DragState
     }
 
 
@@ -2389,6 +2390,7 @@ initPlayModel =
         }
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     , focus = Nothing
+    , dragState = Nothing
     }
 
 
@@ -2415,20 +2417,14 @@ updatePlayModel msg model =
             , Websocket.send (Websocket.Rollback (Maybe.withDefault "" model.subscription))
             )
 
-        PlayMouseDown _ ->
-            ( model, Cmd.none )
+        PlayMouseDown pos ->
+            updateMouseDown pos model
 
         PlayMouseUp pos ->
-            -- Check if the position is an allowed action.
-            case Maybe.andThen (legalActionAt model.currentState) pos.tile of
-                Just action ->
-                    updateActionInputStep action model
+            updateMouseUp pos model
 
-                Nothing ->
-                    ( model, Cmd.none )
-
-        PlayMouseMove _ ->
-            ( model, Cmd.none )
+        PlayMouseMove pos ->
+            updateMouseMove pos model
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
@@ -2437,6 +2433,145 @@ legalActionAt state tile =
         |> List.filter (\action -> Sako.actionTile action == Just tile)
         -- There can never be two actions on the same square, so this is safe.
         |> List.head
+
+
+liftActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
+liftActionAt state tile =
+    state.legalActions
+        |> List.filter (\action -> Sako.actionTile action == Just tile)
+        |> List.filterMap
+            (\a ->
+                case a of
+                    Sako.Lift _ ->
+                        Just a
+
+                    _ ->
+                        Nothing
+            )
+        -- There can never be two actions on the same square, so this is safe.
+        |> List.head
+
+
+{-| Call this method do execute a lift action and initialize drag an drop.
+Only call it, when you have checked, that there is a legal lift action at the
+clicked tile.
+-}
+updateMouseDown : BoardMousePosition -> PlayModel -> ( PlayModel, Cmd Msg )
+updateMouseDown pos model =
+    -- Check if there is a piece we can lift at this position.
+    case Maybe.andThen (liftActionAt model.currentState) pos.tile of
+        Just action ->
+            updateActionInputStep action
+                { model
+                    | dragState = Just { start = pos, current = pos }
+                }
+
+        Nothing ->
+            updateTryRegrabLiftedPiece pos model
+
+
+{-| Checks if there is already a lifted piece at the given position and allows
+us to take hold of it again.
+-}
+updateTryRegrabLiftedPiece : BoardMousePosition -> PlayModel -> ( PlayModel, Cmd Msg )
+updateTryRegrabLiftedPiece pos model =
+    let
+        liftedPieces =
+            model.board.liftedPieces
+                |> List.head
+                |> Maybe.map (\p -> p.position)
+    in
+    if liftedPieces == pos.tile && pos.tile /= Nothing then
+        ( { model
+            | dragState = Just { start = pos, current = pos }
+            , timeline =
+                Animation.interrupt
+                    (renderPlayViewDragging { start = pos, current = pos } model)
+                    model.timeline
+          }
+        , Cmd.none
+        )
+
+    else
+        ( model, Cmd.none )
+
+
+updateMouseUp : BoardMousePosition -> PlayModel -> ( PlayModel, Cmd Msg )
+updateMouseUp pos model =
+    case Maybe.andThen (legalActionAt model.currentState) pos.tile of
+        -- Check if the position is an allowed action.
+        Just action ->
+            updateActionInputStep action { model | dragState = Nothing }
+
+        Nothing ->
+            ( { model
+                | dragState = Nothing
+                , timeline =
+                    Animation.queue
+                        ( Animation.milliseconds 200, PositionView.renderStatic model.board )
+                        model.timeline
+              }
+            , Cmd.none
+            )
+
+
+updateMouseMove : BoardMousePosition -> PlayModel -> ( PlayModel, Cmd Msg )
+updateMouseMove mousePosition model =
+    case model.dragState of
+        Just dragState ->
+            updateMouseMoveDragging
+                { dragState
+                    | current = mousePosition
+                }
+                model
+
+        Nothing ->
+            ( model, Cmd.none )
+
+
+updateMouseMoveDragging :
+    { start : BoardMousePosition
+    , current : BoardMousePosition
+    }
+    -> PlayModel
+    -> ( PlayModel, Cmd Msg )
+updateMouseMoveDragging dragState model =
+    ( { model
+        | dragState =
+            Just dragState
+        , timeline =
+            Animation.interrupt
+                (renderPlayViewDragging dragState model)
+                model.timeline
+      }
+    , Cmd.none
+    )
+
+
+renderPlayViewDragging :
+    { start : BoardMousePosition
+    , current : BoardMousePosition
+    }
+    -> PlayModel
+    -> OpaqueRenderData
+renderPlayViewDragging dragState model =
+    let
+        dragDelta =
+            SvgCoord
+                (dragState.current.x - dragState.start.x)
+                (dragState.current.y - dragState.start.y)
+    in
+    PositionView.render
+        -- There is a bunch of info that is only in here for the
+        -- design page which still needs more renderer refactoring.
+        -- Note that the highlight is not even used.
+        { highlight = Nothing
+        , dragStartTile = Nothing
+        , dragDelta = Just dragDelta
+        , hover = Nothing
+        , draggingPieces = DraggingPiecesNormal []
+        }
+        model.board
 
 
 updateActionInputStep : Sako.Action -> PlayModel -> ( PlayModel, Cmd Msg )
@@ -2571,8 +2706,10 @@ playPositionView taco play =
 
 playDecoration : PlayModel -> List PositionView.BoardDecoration
 playDecoration play =
-    play.currentState.legalActions
+    (play.currentState.legalActions
         |> List.filterMap actionDecoration
+    )
+        ++ playViewHighlight play
 
 
 actionDecoration : Sako.Action -> Maybe PositionView.BoardDecoration
@@ -2583,6 +2720,22 @@ actionDecoration action =
 
         _ ->
             Nothing
+
+
+{-| Decides what kind of highlight should be shown when rendering the play view.
+-}
+playViewHighlight : PlayModel -> List BoardDecoration
+playViewHighlight model =
+    let
+        tile =
+            Maybe.andThen (\dragState -> dragState.current.tile) model.dragState
+
+        dropAction =
+            tile
+                |> Maybe.andThen (legalActionAt model.currentState)
+    in
+    Maybe.map2 (\t _ -> [ HighlightTile ( t, HighlightBoth ) ]) tile dropAction
+        |> Maybe.withDefault []
 
 
 playModeSidebar : Taco -> PlayModel -> Element Msg

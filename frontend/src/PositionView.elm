@@ -70,7 +70,8 @@ viewTimeline config timeline =
 render : InternalModel -> Sako.Position -> OpaqueRenderData
 render internalModel position =
     determineVisualPiecesDragged internalModel
-        ++ renderStatic position
+        ++ determineVisualPiecesCurrentlyLifted internalModel.dragDelta position
+        ++ determineVisualPiecesAtRest position
 
 
 {-| If you have a game position where no user input is happening (no drag and
@@ -78,7 +79,7 @@ drop, no selection) you can just render this game position directly.
 -}
 renderStatic : Sako.Position -> OpaqueRenderData
 renderStatic position =
-    determineVisualPiecesCurrentlyLifted position
+    determineVisualPiecesCurrentlyLifted Nothing position
         ++ determineVisualPiecesAtRest position
 
 
@@ -582,36 +583,50 @@ restingZOrder color =
 {-| Here we return List a instead of Maybe a to allow easier combination with
 other lists.
 -}
-determineVisualPiecesCurrentlyLifted : Sako.Position -> List VisualPacoPiece
-determineVisualPiecesCurrentlyLifted position =
+determineVisualPiecesCurrentlyLifted : Maybe SvgCoord -> Sako.Position -> List VisualPacoPiece
+determineVisualPiecesCurrentlyLifted maybeDragDelta position =
     case position.liftedPieces of
         [ pieceOne, pieceTwo ] ->
-            visualPiecesForLiftedPair pieceOne pieceTwo
+            visualPiecesForLiftedPair maybeDragDelta pieceOne pieceTwo
 
         liftedPieces ->
-            List.map visualPieceCurrentlyLifted liftedPieces
+            List.map (visualPieceCurrentlyLifted maybeDragDelta) liftedPieces
 
 
-visualPieceCurrentlyLifted : Piece -> VisualPacoPiece
-visualPieceCurrentlyLifted liftedPiece =
+visualPieceCurrentlyLifted : Maybe SvgCoord -> Piece -> VisualPacoPiece
+visualPieceCurrentlyLifted dragDelta liftedPiece =
+    let
+        offset =
+            dragDelta
+                |> Maybe.withDefault (handCoordinateOffset liftedPiece.color)
+    in
     { pieceType = liftedPiece.pieceType
     , color = liftedPiece.color
     , position =
         coordinateOfTile liftedPiece.position
-            |> addSvgCoord (handCoordinateOffset liftedPiece.color)
+            |> addSvgCoord offset
     , identity = liftedPiece.identity
     , zOrder = 3
     , opacity = 1
     }
 
 
-visualPiecesForLiftedPair : Piece -> Piece -> List VisualPacoPiece
-visualPiecesForLiftedPair pieceOne pieceTwo =
+visualPiecesForLiftedPair : Maybe SvgCoord -> Piece -> Piece -> List VisualPacoPiece
+visualPiecesForLiftedPair dragDelta pieceOne pieceTwo =
+    let
+        offsetOne =
+            dragDelta
+                |> Maybe.withDefault (SvgCoord 0 -50)
+
+        offsetTwo =
+            dragDelta
+                |> Maybe.withDefault (SvgCoord 0 -50)
+    in
     [ { pieceType = pieceOne.pieceType
       , color = pieceOne.color
       , position =
             coordinateOfTile pieceOne.position
-                |> addSvgCoord (SvgCoord 0 -50)
+                |> addSvgCoord offsetOne
       , identity = pieceOne.identity
       , zOrder = 3
       , opacity = 1
@@ -620,7 +635,7 @@ visualPiecesForLiftedPair pieceOne pieceTwo =
       , color = pieceTwo.color
       , position =
             coordinateOfTile pieceTwo.position
-                |> addSvgCoord (SvgCoord 0 -50)
+                |> addSvgCoord offsetTwo
       , identity = pieceTwo.identity
       , zOrder = 3
       , opacity = 1
@@ -628,6 +643,9 @@ visualPiecesForLiftedPair pieceOne pieceTwo =
     ]
 
 
+{-| TODO Deprecated: Externally tracking which pieces need to be dragged is
+outdated. Instead, the drag delta will be applied to all lifted pieces.
+-}
 determineVisualPiecesDragged : InternalModel -> List VisualPacoPiece
 determineVisualPiecesDragged internalModel =
     case internalModel.draggingPieces of
