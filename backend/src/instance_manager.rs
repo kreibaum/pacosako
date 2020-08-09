@@ -192,6 +192,10 @@ impl<T: Instance + 'static> Manager<T> {
         let m: Manager<T> = self.clone();
         timeout::Timeout::spawn(Box::new(m))
     }
+    /// Runs a function on the instance assocciated with the key
+    pub fn run<A, F: FnOnce(&T) -> A>(&self, key: String, f: F) -> Option<A> {
+        lock!(self).run(key, f)
+    }
 }
 
 impl<T: Instance> timeout::Callback for Manager<T> {
@@ -347,6 +351,11 @@ impl<T: Instance> SyncManager<T> {
                 }
             }
         }
+    }
+
+    /// Runs a function on the instance assocciated with the key
+    fn run<A, F: FnOnce(&T) -> A>(&mut self, key: String, f: F) -> Option<A> {
+        self.instances.get(&key).map(|meta| f(&meta.instance))
     }
 }
 

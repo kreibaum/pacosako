@@ -79,6 +79,10 @@ impl WebsocketServer {
     pub fn new_match(&self, params: sync_match::MatchParameters) -> String {
         self.matches.new_instance(params)
     }
+
+    pub fn borrow_match_manager(&self) -> &instance_manager::Manager<sync_match::SyncronizedMatch> {
+        &self.matches
+    }
 }
 
 /// All allowed messages that may be send by the client to the server.

@@ -551,6 +551,23 @@ fn create_game(
     websocket_server.new_match(game_parameters.0)
 }
 
+#[get("/game/<key>")]
+fn get_game(
+    key: String,
+    websocket_server: State<WebsocketServer>,
+) -> Result<Json<sync_match::CurrentMatchState>, Json<ServerError>> {
+    let manager = websocket_server.borrow_match_manager();
+    let state = manager.run(key, |sync_match| sync_match.current_state());
+
+    match state {
+        None => Err(Json(ServerError::NotFound)),
+        Some(Ok(state)) => Ok(Json(state)),
+        Some(Err(_)) => Err(Json(ServerError::GameError {
+            message: "The game state is corrupted".to_string(),
+        })),
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Start the server ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -583,6 +600,7 @@ fn main() {
                 article_post_visible,
                 share,
                 create_game,
+                get_game,
             ],
         )
         .launch();

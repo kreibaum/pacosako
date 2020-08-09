@@ -287,7 +287,7 @@ impl SyncronizedMatch {
     }
 
     /// Gets the current state and the currently available legal actions.
-    fn current_state(&self) -> Result<CurrentMatchState, PacoError> {
+    pub fn current_state(&self) -> Result<CurrentMatchState, PacoError> {
         CurrentMatchState::try_new(self, &self.project()?)
     }
 
