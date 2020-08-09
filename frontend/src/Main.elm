@@ -2399,7 +2399,6 @@ type PlayMsg
     | PlayMouseDown BoardMousePosition
     | PlayMouseUp BoardMousePosition
     | PlayMouseMove BoardMousePosition
-    | RequestTimerConfig Timer.TimerConfig
 
 
 updatePlayModel : PlayMsg -> PlayModel -> ( PlayModel, Cmd Msg )
@@ -2430,16 +2429,6 @@ updatePlayModel msg model =
 
         PlayMouseMove _ ->
             ( model, Cmd.none )
-
-        RequestTimerConfig timerConfig ->
-            ( model
-            , Websocket.send
-                (Websocket.SetTimer
-                    { key = Maybe.withDefault "" model.subscription
-                    , timer = timerConfig
-                    }
-                )
-            )
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
