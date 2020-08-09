@@ -114,8 +114,8 @@ viewStatic config renderData =
         , castingHighlightLayer config.decoration
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
-        , castingArrowLayer config.decoration
         , piecesSvg config.colorScheme renderData
+        , castingArrowLayer config.decoration
         ]
         |> Element.html
 
