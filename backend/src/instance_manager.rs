@@ -350,9 +350,21 @@ impl<T: Instance> SyncManager<T> {
     }
 }
 
-/// Returns a key that is not yet used in the map.
+/// Returns a number key that is not yet used in the map.
 pub fn generate_unique_key<T>(map: &HashMap<String, T>) -> String {
-    let rand_string = generate_key();
+    generate_unique_key_generic(map, || generate_key())
+}
+
+/// Returns an alphabetic key that is not yet used in the map.
+pub fn generate_unique_key_alphabetic<T>(map: &HashMap<String, T>) -> String {
+    generate_unique_key_generic(map, || alphabetic_key(3))
+}
+
+fn generate_unique_key_generic<T, F: Fn() -> String>(
+    map: &HashMap<String, T>,
+    generator: F,
+) -> String {
+    let rand_string = generator();
     if map.contains_key(&rand_string) {
         generate_unique_key(map)
     } else {
@@ -363,6 +375,18 @@ pub fn generate_unique_key<T>(map: &HashMap<String, T>) -> String {
 fn generate_key() -> String {
     let code: usize = thread_rng().gen_range(0, 9000);
     format!("{}", code + 1000)
+}
+/// Generates a key consisting of only letters. We do this to differentiate the
+/// designer keys from the game keys.
+fn alphabetic_key(length: usize) -> String {
+    use rand::seq::SliceRandom;
+
+    // Here we exclude I, J and O because they can be easily mistaken.
+    let letters: Vec<_> = "ABCDEFGHKLMNPQRSTUVWXYZ".chars().collect();
+
+    letters
+        .choose_multiple(&mut rand::thread_rng(), length)
+        .collect()
 }
 
 #[cfg(test)]

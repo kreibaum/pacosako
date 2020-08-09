@@ -205,7 +205,7 @@ fn share_(server: &mut SyncServer, steps: Vec<serde_json::Value>) -> String {
 
 /// Returns a key that is not yet used in the map.
 fn generate_key<T>(map: &HashMap<String, T>) -> String {
-    instance_manager::generate_unique_key(map)
+    instance_manager::generate_unique_key_alphabetic(map)
 }
 
 fn find_connection_by_sender_mut<'a>(
