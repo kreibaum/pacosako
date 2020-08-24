@@ -12,3 +12,6 @@ Cargo.lock
 # Elm excludes
 /frontend/elm-stuff/
 /target/
+
+# Server log
+/backend/server.log
