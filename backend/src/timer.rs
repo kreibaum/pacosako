@@ -7,7 +7,7 @@ use std::convert::From;
 /// pacosako in order to work with the player colors. Otherwise it is not
 /// specific to Paco Ŝako.
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TimerConfig {
     #[serde(
         serialize_with = "serialize_seconds",
@@ -21,7 +21,7 @@ pub struct TimerConfig {
     pub time_budget_black: Duration,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Timer {
     last_timestamp: DateTime<Utc>,
     #[serde(serialize_with = "serialize_seconds")]

@@ -25,7 +25,7 @@ pub struct SyncronizedMatch {
 }
 
 /// Message that may be send by the client to the server.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ClientMatchMessage {
     GetCurrentState { key: String },
     Subscribe { key: String },
@@ -55,7 +55,7 @@ impl ProvidesKey for ClientMatchMessage {
 }
 
 /// Messages that may be send by the server to the client.
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub enum ServerMatchMessage {
     CurrentMatchState(CurrentMatchState),
     MatchConnectionSuccess {
@@ -199,7 +199,7 @@ impl Instance for SyncronizedMatch {
 /// clients whenever the game state changes. As it is only a list of some
 /// actions, it should be lightweight enough that sending around the whole
 /// history is not a bottleneck.
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct CurrentMatchState {
     key: String,
     actions: Vec<PacoAction>,

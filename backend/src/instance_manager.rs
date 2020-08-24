@@ -2,6 +2,7 @@ use crate::timeout;
 use chrono::{DateTime, Utc};
 use rand::{thread_rng, Rng};
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use std::{
     borrow::Cow,
     sync::{Arc, Mutex},
@@ -36,12 +37,12 @@ pub trait ProvidesKey {
     fn key(&self) -> Cow<String>;
 }
 
-pub trait ClientMessage: ProvidesKey + Clone {
+pub trait ClientMessage: ProvidesKey + Clone + Debug {
     /// Create a client messsage that represents a client subscribing.
     fn subscribe(key: String) -> Self;
 }
 
-pub trait ServerMessage: Into<ws::Message> + Clone {
+pub trait ServerMessage: Into<ws::Message> + Clone + Debug {
     /// Allows us to send messages to the client without knowing about the
     /// server message type in detail.
     fn error(message: Cow<String>) -> Self;
@@ -225,15 +226,17 @@ impl<T: Instance> SyncManager<T> {
         let new_instance = T::new_with_key(&key, params);
         self.instances
             .insert(key.clone(), InstanceMetadata::new(new_instance));
-
+        info!("Created new instance with key {}", key);
         key
     }
 
     fn handle_message(&mut self, message: T::ClientMessage, sender: Sender) {
+        debug!("Handling client message {:?}", message);
         let key = message.key();
         if let Some(instance) = self.instances.get_mut(&*key) {
             Self::handle_message_for_instance(&self.timeout_sender, message, &sender, instance)
         } else {
+            warn!("Got a client message with no assocciated : {:?}", message);
             Self::send_message(&sender, Self::error_no_instance(key));
         }
     }
@@ -263,7 +266,7 @@ impl<T: Instance> SyncManager<T> {
         if let Some(when) = context.new_timeout {
             match timeout_sender.send((key, when)) {
                 Ok(()) => { /* This is good*/ }
-                Err(_) => println!("Timer thread is dead."),
+                Err(e) => error!("Timer thread is dead: {:?}", e),
             }
         }
     }
@@ -271,11 +274,12 @@ impl<T: Instance> SyncManager<T> {
     fn send_message(sender: &Sender, message: T::ServerMessage) {
         match sender.send(message) {
             Ok(()) => { /* Nothing to do, we are happy. */ }
-            Err(_) => todo!("handle ws send errors"),
+            Err(e) => error!("Websocket send error: {:?}", e),
         }
     }
 
     fn subscribe(&mut self, key: Cow<String>, sender: Sender) {
+        debug!("A client is subscribing to the instance {}.", key);
         // Check if an instance with this key exists
         if let Some(instance) = self.instances.get_mut(&*key) {
             let mut client_already_connected = false;
@@ -292,6 +296,7 @@ impl<T: Instance> SyncManager<T> {
             }
 
             if client_already_connected {
+                warn!("The client is already connected to the instance {}.", key);
                 Self::send_message(
                     &sender,
                     T::ServerMessage::error(Cow::Owned(format!(
@@ -300,6 +305,7 @@ impl<T: Instance> SyncManager<T> {
                     ))),
                 );
             } else {
+                debug!("Subscribing to the instance {} by a client was successful.", key);
                 instance.clients.insert(sender.clone());
                 Self::handle_message_for_instance(
                     &self.timeout_sender,
@@ -309,6 +315,7 @@ impl<T: Instance> SyncManager<T> {
                 );
             }
         } else {
+            warn!("The instance {} does not exist.", key);
             Self::send_message(&sender, Self::error_no_instance(key));
         }
     }
@@ -323,6 +330,7 @@ impl<T: Instance> SyncManager<T> {
     }
 
     fn on_timeout(&mut self, key: String, now: DateTime<Utc>) {
+        debug!("The timer thread reported a potential timeout for {}.", key);
         if let Some(instance) = self.instances.get_mut(&key) {
             let mut context = Context::new();
 
@@ -331,7 +339,7 @@ impl<T: Instance> SyncManager<T> {
             if !context.reply_queue.is_empty() {
                 // TODO: Ideally we would have a second context type that did
                 // not even offer the .reply( .. ) method.
-                println!(
+                error!(
                     "The instance with key {} called .reply( .. ) in a timeout handler.",
                     key
                 );
@@ -347,7 +355,7 @@ impl<T: Instance> SyncManager<T> {
             if let Some(when) = context.new_timeout {
                 match self.timeout_sender.send((key, when)) {
                     Ok(()) => { /* This is good*/ }
-                    Err(_) => println!("Timer thread is dead."),
+                    Err(e) => error!("Timer thread is dead: {:?}", e),
                 }
             }
         }
@@ -415,7 +423,7 @@ mod test {
         value: i64,
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     enum TestClientMsg {
         Set { key: String, value: i64 },
         Get { key: String },
@@ -436,7 +444,7 @@ mod test {
         }
     }
 
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     enum TestServerMsg {
         IsNow { key: String, value: i64 },
         Oups { error: String },

@@ -11,6 +11,9 @@ extern crate rocket;
 #[macro_use]
 extern crate rocket_contrib;
 extern crate pbkdf2;
+#[macro_use]
+extern crate log;
+extern crate simplelog;
 use pacosako::{DenseBoard, PacoError, SakoSearchResult};
 use rand::{thread_rng, Rng};
 use rocket::http::{Cookie, Cookies};
@@ -569,10 +572,32 @@ fn get_game(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Set up logging //////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+fn init_logger() {
+    use simplelog::*;
+
+    CombinedLogger::init(vec![
+        TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed),
+        WriteLogger::new(
+            LevelFilter::Debug,
+            Config::default(),
+            File::create("server.log").unwrap(),
+        ),
+    ])
+    .unwrap();
+
+    debug!("Logger successfully initialized");
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Start the server ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 fn main() {
+    init_logger();
+
     // Launch the websocket server
     let websocket_server = websocket::run_websocket();
 
