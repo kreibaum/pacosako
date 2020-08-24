@@ -2202,13 +2202,16 @@ getCurrentLogin =
             Http.expectJson
                 (\result ->
                     case result of
-                        Ok payload ->
+                        Ok (Just payload) ->
                             LoginSuccess payload
+
+                        Ok Nothing ->
+                            LogoutSuccess
 
                         Err err ->
                             HttpError err
                 )
-                decodeUser
+                (Decode.maybe decodeUser)
         }
 
 

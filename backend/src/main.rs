@@ -467,7 +467,7 @@ fn check_password(login: &LoginRequest, conn: &DbConn) -> Result<bool, rusqlite:
 
 /// Retrieve the user's ID, if any.
 #[get("/user_id")]
-fn user_id(user: User) -> Json<User> {
+fn user_id(user: Option<User>) -> Json<Option<User>> {
     Json(user)
 }
 
