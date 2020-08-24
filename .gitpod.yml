@@ -26,4 +26,4 @@ github:
     addLabel: prebuilt-in-gitpod
 vscode:
   extensions:
-    - elmTooling.elm-ls-vscode@1.0.2:ccsppLRHYHd4pWC/J88aJQ==
+    - elmTooling.elm-ls-vscode@1.2.0:HTRkzUtSfZ5H2p6bPf2IHw==
