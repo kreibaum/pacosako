@@ -733,15 +733,23 @@ regularKeyUp : String -> EditorModel -> ( EditorModel, Cmd Msg )
 regularKeyUp key model =
     case key of
         "Delete" ->
-            let
-                ( newTool, outMsg ) =
-                    updateSmartToolDelete (P.getC model.game) model.smartTool
-            in
-            handleToolOutputMsg outMsg
-                { model | smartTool = newTool }
+            deleteSelectedPiece model
+
+        "Backspace" ->
+            deleteSelectedPiece model
 
         _ ->
             ( model, Cmd.none )
+
+
+deleteSelectedPiece : EditorModel -> ( EditorModel, Cmd Msg )
+deleteSelectedPiece model =
+    let
+        ( newTool, outMsg ) =
+            updateSmartToolDelete (P.getC model.game) model.smartTool
+    in
+    handleToolOutputMsg outMsg
+        { model | smartTool = newTool }
 
 
 clickStart : Tile -> EditorModel -> ( EditorModel, Cmd Msg )
