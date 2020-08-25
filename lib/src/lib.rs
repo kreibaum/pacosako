@@ -1703,7 +1703,7 @@ pub fn rollback_trusted_action_stack(actions: &mut Vec<PacoAction>) -> Result<()
 }
 
 /// Finds the last point in the action sequence where the active player changed.
-fn find_last_checkpoint_index(actions: &mut Vec<PacoAction>) -> Result<usize, PacoError> {
+fn find_last_checkpoint_index(actions: &Vec<PacoAction>) -> Result<usize, PacoError> {
     let mut board = DenseBoard::new();
     let mut action_counter = 0;
     let mut last_checkpoint_index = action_counter;
@@ -1717,6 +1717,11 @@ fn find_last_checkpoint_index(actions: &mut Vec<PacoAction>) -> Result<usize, Pa
             last_checkpoint_index = action_counter;
             last_controlling_player = new_controlling_player;
         }
+    }
+
+    // Check if the game is still running, otherwise we can't roll back.
+    if board.victory_state().is_over() {
+        return Ok(actions.len());
     }
 
     Ok(last_checkpoint_index)
@@ -2703,6 +2708,25 @@ mod tests {
         ];
         rollback_trusted_action_stack(&mut actions)?;
         assert_eq!(actions.len(), 14);
+        Ok(())
+    }
+
+    /// If you end your turn with a promotion and also unite with the king in
+    /// the same action, then this can't be rolled back.
+    #[test]
+    fn test_rollback_promotion_king_union() -> Result<(), PacoError> {
+        use PacoAction::*;
+        #[rustfmt::skip]
+        let mut actions = vec![
+            Lift(pos("f2")), Place(pos("f4")), Lift(pos("f7")), Place(pos("f5")),
+            Lift(pos("g2")), Place(pos("g4")), Lift(pos("f5")), Place(pos("g4")),
+            Lift(pos("f4")), Place(pos("f5")), Lift(pos("a7")), Place(pos("a6")),
+            Lift(pos("f5")), Place(pos("f6")), Lift(pos("a6")), Place(pos("a5")),
+            Lift(pos("f6")), Place(pos("f7")), Lift(pos("a5")), Place(pos("a4")),
+            Lift(pos("f7")), Place(pos("e8")),
+        ];
+        rollback_trusted_action_stack(&mut actions)?;
+        assert_eq!(actions.len(), 22);
         Ok(())
     }
 
