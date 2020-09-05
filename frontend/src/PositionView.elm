@@ -14,6 +14,7 @@ module PositionView exposing
     , nextHighlight
     , render
     , renderStatic
+    , translate
     , viewStatic
     , viewTimeline
     )
@@ -104,7 +105,7 @@ viewStatic config renderData =
         attributes =
             [ SvgA.width "100%"
             , SvgA.height "100%"
-            , viewBox (boardViewBox config.viewMode)
+            , determineViewBox config
             , SvgA.preserveAspectRatio "xMidYMid"
             ]
                 ++ events
@@ -117,6 +118,8 @@ viewStatic config renderData =
         , dropTargetLayer config.decoration
         , piecesSvg config.colorScheme renderData
         , castingArrowLayer config.decoration
+        , config.additionalSvg
+            |> Maybe.withDefault (Svg.g [] [])
         ]
         |> Element.html
 
@@ -168,6 +171,8 @@ type alias ViewConfig a =
     , mouseDown : Maybe (BoardMousePosition -> a)
     , mouseUp : Maybe (BoardMousePosition -> a)
     , mouseMove : Maybe (BoardMousePosition -> a)
+    , additionalSvg : Maybe (Svg a)
+    , replaceViewport : Maybe Rect
     }
 
 
@@ -511,6 +516,13 @@ viewBox rect =
         , String.fromFloat rect.height
         ]
         |> SvgA.viewBox
+
+
+determineViewBox : ViewConfig a -> Svg.Attribute msg
+determineViewBox config =
+    config.replaceViewport
+        |> Maybe.withDefault (boardViewBox config.viewMode)
+        |> viewBox
 
 
 type alias Rect =

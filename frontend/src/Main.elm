@@ -24,12 +24,15 @@ import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
+import Maybe.Extra as Maybe
 import Pieces
 import Pivot as P exposing (Pivot)
 import Ports
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, SvgCoord(..), ViewMode(..), coordinateOfTile, nextHighlight)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
+import Svg exposing (Svg)
+import Svg.Attributes as SvgA
 import Time exposing (Posix)
 import Timer
 import Websocket exposing (CurrentMatchState)
@@ -1558,6 +1561,8 @@ editorViewConfig taco editor =
     , mouseDown = Just MouseDown
     , mouseUp = Just MouseUp
     , mouseMove = Just MouseMove
+    , additionalSvg = Nothing
+    , replaceViewport = Nothing
     }
 
 
@@ -2054,6 +2059,8 @@ parsedMarkdownPaste taco model =
                                 , mouseDown = Nothing
                                 , mouseUp = Nothing
                                 , mouseMove = Nothing
+                                , additionalSvg = Nothing
+                                , replaceViewport = Nothing
                                 }
                         , Element.text "Load"
                         ]
@@ -2710,6 +2717,8 @@ playPositionView taco play =
             , mouseDown = Just (PlayMouseDown >> PlayMsgWrapper)
             , mouseUp = Just (PlayMouseUp >> PlayMsgWrapper)
             , mouseMove = Just (PlayMouseMove >> PlayMsgWrapper)
+            , additionalSvg = playTimerSvg taco.now play
+            , replaceViewport = playTimerReplaceViewport play
             }
             play.timeline
         )
@@ -2747,6 +2756,90 @@ playViewHighlight model =
     in
     Maybe.map2 (\t _ -> [ HighlightTile ( t, HighlightBoth ) ]) tile dropAction
         |> Maybe.withDefault []
+
+
+playTimerSvg : Posix -> PlayModel -> Maybe (Svg a)
+playTimerSvg now model =
+    model.currentState.timer
+        |> Maybe.map (justPlayTimerSvg now model)
+
+
+justPlayTimerSvg : Posix -> PlayModel -> Timer.Timer -> Svg a
+justPlayTimerSvg now model timer =
+    let
+        viewData =
+            Timer.render model.currentState.controllingPlayer now timer
+    in
+    Svg.g []
+        [ timerTagSvg
+            { caption = timeLabel viewData.secondsLeftWhite
+            , player = Sako.White
+            , at = SvgCoord 0 880
+            }
+        , timerTagSvg
+            { caption = timeLabel viewData.secondsLeftBlack
+            , player = Sako.Black
+            , at = SvgCoord 0 -70
+            }
+        ]
+
+
+{-| Creates a little rectangle with a text which can be used to display the
+timer for one player. Picks colors automatically based on the player.
+-}
+timerTagSvg :
+    { caption : String
+    , player : Sako.Color
+    , at : SvgCoord
+    }
+    -> Svg msg
+timerTagSvg data =
+    let
+        ( backgroundColor, textColor ) =
+            case data.player of
+                Sako.White ->
+                    ( "#eee", "#333" )
+
+                Sako.Black ->
+                    ( "#333", "#eee" )
+    in
+    Svg.g [ PositionView.translate data.at ]
+        [ Svg.rect [ SvgA.width "200", SvgA.height "50", SvgA.fill backgroundColor ] []
+        , timerTextSvg (SvgA.fill textColor) data.caption
+        ]
+
+
+timerTextSvg : Svg.Attribute msg -> String -> Svg msg
+timerTextSvg fill caption =
+    Svg.text_
+        [ SvgA.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
+        , SvgA.x "100"
+        , SvgA.y "30"
+        , fill
+        ]
+        [ Svg.text caption ]
+
+
+playTimerReplaceViewport :
+    PlayModel
+    ->
+        Maybe
+            { x : Float
+            , y : Float
+            , width : Float
+            , height : Float
+            }
+playTimerReplaceViewport play =
+    if Maybe.isNothing play.currentState.timer then
+        Nothing
+
+    else
+        Just
+            { x = -70
+            , y = -80
+            , width = 900
+            , height = 1020
+            }
 
 
 playModeSidebar : Taco -> PlayModel -> Element Msg
