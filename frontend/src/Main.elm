@@ -28,11 +28,12 @@ import Maybe.Extra as Maybe
 import Pieces
 import Pivot as P exposing (Pivot)
 import Ports
-import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, SvgCoord(..), ViewMode(..), coordinateOfTile, nextHighlight)
+import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, ViewMode(..), coordinateOfTile, nextHighlight)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
+import Svg.Custom as Svg
 import Time exposing (Posix)
 import Timer
 import Websocket exposing (CurrentMatchState)
@@ -170,7 +171,7 @@ type PositionParseResult
 type alias SmartToolModel =
     { highlight : Maybe ( Tile, Highlight )
     , dragStartTile : Maybe Tile
-    , dragDelta : Maybe SvgCoord
+    , dragDelta : Maybe Svg.Coord
     , draggingPieces : DraggingPieces
     , hover : Maybe Tile
     , identityCounter : Int
@@ -1112,7 +1113,7 @@ updateSmartToolStartDrag position startTile model =
 
 updateSmartToolContinueDrag : BoardMousePosition -> BoardMousePosition -> SmartToolModel -> ( SmartToolModel, ToolOutputMsg )
 updateSmartToolContinueDrag aPos bPos model =
-    ( { model | dragDelta = Just (SvgCoord (bPos.x - aPos.x) (bPos.y - aPos.y)) }
+    ( { model | dragDelta = Just (Svg.Coord (bPos.x - aPos.x) (bPos.y - aPos.y)) }
     , ToolNoOp
     )
 
@@ -1609,16 +1610,16 @@ dragPieceData model =
             List.map
                 (\piece ->
                     let
-                        (SvgCoord dx dy) =
+                        (Svg.Coord dx dy) =
                             model.smartTool.dragDelta
-                                |> Maybe.withDefault (SvgCoord 0 0)
+                                |> Maybe.withDefault (Svg.Coord 0 0)
 
-                        (SvgCoord x y) =
+                        (Svg.Coord x y) =
                             coordinateOfTile piece.position
                     in
                     { color = piece.color
                     , pieceType = piece.pieceType
-                    , coord = SvgCoord (x + dx) (y + dy)
+                    , coord = Svg.Coord (x + dx) (y + dy)
                     , identity = piece.identity
                     }
                 )
@@ -1626,20 +1627,20 @@ dragPieceData model =
 
         DraggingPiecesLifted singlePiece ->
             let
-                (SvgCoord dx dy) =
+                (Svg.Coord dx dy) =
                     model.smartTool.dragDelta
-                        |> Maybe.withDefault (SvgCoord 0 0)
+                        |> Maybe.withDefault (Svg.Coord 0 0)
 
-                (SvgCoord x y) =
+                (Svg.Coord x y) =
                     coordinateOfTile singlePiece.position
 
-                (SvgCoord offset_x offset_y) =
+                (Svg.Coord offset_x offset_y) =
                     --handCoordinateOffset singlePiece.color
-                    SvgCoord 0 0
+                    Svg.Coord 0 0
             in
             [ { color = singlePiece.color
               , pieceType = singlePiece.pieceType
-              , coord = SvgCoord (x + dx + offset_x) (y + dy + offset_y)
+              , coord = Svg.Coord (x + dx + offset_x) (y + dy + offset_y)
               , identity = singlePiece.identity
               }
             ]
@@ -2575,7 +2576,7 @@ renderPlayViewDragging :
 renderPlayViewDragging dragState model =
     let
         dragDelta =
-            SvgCoord
+            Svg.Coord
                 (dragState.current.x - dragState.start.x)
                 (dragState.current.y - dragState.start.y)
     in
@@ -2774,12 +2775,12 @@ justPlayTimerSvg now model timer =
         [ timerTagSvg
             { caption = timeLabel viewData.secondsLeftWhite
             , player = Sako.White
-            , at = SvgCoord 0 880
+            , at = Svg.Coord 0 880
             }
         , timerTagSvg
             { caption = timeLabel viewData.secondsLeftBlack
             , player = Sako.Black
-            , at = SvgCoord 0 -70
+            , at = Svg.Coord 0 -70
             }
         ]
 
@@ -2790,7 +2791,7 @@ timer for one player. Picks colors automatically based on the player.
 timerTagSvg :
     { caption : String
     , player : Sako.Color
-    , at : SvgCoord
+    , at : Svg.Coord
     }
     -> Svg msg
 timerTagSvg data =
@@ -2803,7 +2804,7 @@ timerTagSvg data =
                 Sako.Black ->
                     ( "#333", "#eee" )
     in
-    Svg.g [ PositionView.translate data.at ]
+    Svg.g [ Svg.translate data.at ]
         [ Svg.rect [ SvgA.width "200", SvgA.height "50", SvgA.fill backgroundColor ] []
         , timerTextSvg (SvgA.fill textColor) data.caption
         ]

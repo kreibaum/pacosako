@@ -6,15 +6,12 @@ module PositionView exposing
     , Highlight(..)
     , InternalModel
     , OpaqueRenderData
-    , SvgCoord(..)
     , ViewConfig
     , ViewMode(..)
-    , addSvgCoord
     , coordinateOfTile
     , nextHighlight
     , render
     , renderStatic
-    , translate
     , viewStatic
     , viewTimeline
     )
@@ -51,6 +48,7 @@ import Pieces
 import Sako exposing (Piece, Tile(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
+import Svg.Custom as Svg
 
 
 type alias OpaqueRenderData =
@@ -131,7 +129,7 @@ update this in response to internal messages.
 type alias InternalModel =
     { highlight : Maybe ( Tile, Highlight )
     , dragStartTile : Maybe Tile
-    , dragDelta : Maybe SvgCoord
+    , dragDelta : Maybe Svg.Coord
     , hover : Maybe Tile
     , draggingPieces : DraggingPieces
     }
@@ -150,7 +148,7 @@ render stage we make use of the Animator library.
 type alias VisualPacoPiece =
     { pieceType : Sako.Type
     , color : Sako.Color
-    , position : SvgCoord
+    , position : Svg.Coord
     , identity : String
     , zOrder : Int
     , opacity : Float
@@ -172,7 +170,7 @@ type alias ViewConfig a =
     , mouseUp : Maybe (BoardMousePosition -> a)
     , mouseMove : Maybe (BoardMousePosition -> a)
     , additionalSvg : Maybe (Svg a)
-    , replaceViewport : Maybe Rect
+    , replaceViewport : Maybe Svg.Rect
     }
 
 
@@ -187,7 +185,7 @@ castingHighlightLayer decorations =
 oneCastingDecoTileMarker : Tile -> Svg a
 oneCastingDecoTileMarker tile =
     Svg.path
-        [ translate (coordinateOfTile tile)
+        [ Svg.translate (coordinateOfTile tile)
         , SvgA.d "m 0 0 v 100 h 100 v -100 z"
         , SvgA.fill "rgb(255, 0, 0)"
         ]
@@ -275,7 +273,7 @@ highlightSvg ( tile, highlight ) =
                     SvgA.d "m 50 0 l 50 50 l -50 50 l -50 -50 z"
     in
     Svg.path
-        [ translate (coordinateOfTile tile)
+        [ Svg.translate (coordinateOfTile tile)
         , shape
         , SvgA.fill "rgb(255, 255, 100)"
         ]
@@ -309,33 +307,20 @@ piecesSvg colorScheme pieces =
         |> Svg.g []
 
 
-handCoordinateOffset : Sako.Color -> SvgCoord
+handCoordinateOffset : Sako.Color -> Svg.Coord
 handCoordinateOffset color =
     case color of
         Sako.White ->
-            SvgCoord -25 -50
+            Svg.Coord -25 -50
 
         Sako.Black ->
-            SvgCoord 25 -50
+            Svg.Coord 25 -50
 
 
 pieceSvg : Pieces.ColorScheme -> VisualPacoPiece -> Svg msg
 pieceSvg colorScheme piece =
-    Svg.g [ translate piece.position, opacity piece.opacity ]
+    Svg.g [ Svg.translate piece.position, opacity piece.opacity ]
         [ Pieces.figure colorScheme piece.pieceType piece.color ]
-
-
-{-| A "style='transform: translate(x, y)'" attribute for an svg node.
--}
-translate : SvgCoord -> Svg.Attribute msg
-translate (SvgCoord x y) =
-    SvgA.style
-        ("transform: translate("
-            ++ String.fromInt x
-            ++ "px, "
-            ++ String.fromInt y
-            ++ "px)"
-        )
 
 
 opacity : Float -> Svg.Attribute msg
@@ -436,7 +421,7 @@ type Highlight
 type alias DragPieceData =
     { color : Sako.Color
     , pieceType : Sako.Type
-    , coord : SvgCoord
+    , coord : Svg.Coord
     , identity : String
     }
 
@@ -488,7 +473,7 @@ type alias DragState =
         }
 
 
-boardViewBox : ViewMode -> Rect
+boardViewBox : ViewMode -> Svg.Rect
 boardViewBox viewMode =
     case viewMode of
         ShowNumbers ->
@@ -506,59 +491,19 @@ boardViewBox viewMode =
             }
 
 
-viewBox : Rect -> Svg.Attribute msg
-viewBox rect =
-    String.join
-        " "
-        [ String.fromFloat rect.x
-        , String.fromFloat rect.y
-        , String.fromFloat rect.width
-        , String.fromFloat rect.height
-        ]
-        |> SvgA.viewBox
-
-
 determineViewBox : ViewConfig a -> Svg.Attribute msg
 determineViewBox config =
     config.replaceViewport
         |> Maybe.withDefault (boardViewBox config.viewMode)
-        |> viewBox
-
-
-type alias Rect =
-    { x : Float
-    , y : Float
-    , width : Float
-    , height : Float
-    }
-
-
-
---------------------------------------------------------------------------------
--- Svg Coord type --------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-{-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in
-both directions but additional objects are rendered outside.
--}
-type SvgCoord
-    = SvgCoord Int Int
-
-
-{-| Add two SVG coordinates, this is applied to each coordinate individually.
--}
-addSvgCoord : SvgCoord -> SvgCoord -> SvgCoord
-addSvgCoord (SvgCoord x1 y1) (SvgCoord x2 y2) =
-    SvgCoord (x1 + x2) (y1 + y2)
+        |> Svg.makeViewBox
 
 
 {-| Given a logical tile, compute the top left corner coordinates in the svg
 coordinate system.
 -}
-coordinateOfTile : Tile -> SvgCoord
+coordinateOfTile : Tile -> Svg.Coord
 coordinateOfTile (Tile x y) =
-    SvgCoord (100 * x) (700 - 100 * y)
+    Svg.Coord (100 * x) (700 - 100 * y)
 
 
 
@@ -595,7 +540,7 @@ restingZOrder color =
 {-| Here we return List a instead of Maybe a to allow easier combination with
 other lists.
 -}
-determineVisualPiecesCurrentlyLifted : Maybe SvgCoord -> Sako.Position -> List VisualPacoPiece
+determineVisualPiecesCurrentlyLifted : Maybe Svg.Coord -> Sako.Position -> List VisualPacoPiece
 determineVisualPiecesCurrentlyLifted maybeDragDelta position =
     case position.liftedPieces of
         [ pieceOne, pieceTwo ] ->
@@ -605,7 +550,7 @@ determineVisualPiecesCurrentlyLifted maybeDragDelta position =
             List.map (visualPieceCurrentlyLifted maybeDragDelta) liftedPieces
 
 
-visualPieceCurrentlyLifted : Maybe SvgCoord -> Piece -> VisualPacoPiece
+visualPieceCurrentlyLifted : Maybe Svg.Coord -> Piece -> VisualPacoPiece
 visualPieceCurrentlyLifted dragDelta liftedPiece =
     let
         offset =
@@ -616,29 +561,29 @@ visualPieceCurrentlyLifted dragDelta liftedPiece =
     , color = liftedPiece.color
     , position =
         coordinateOfTile liftedPiece.position
-            |> addSvgCoord offset
+            |> Svg.addCoord offset
     , identity = liftedPiece.identity
     , zOrder = 3
     , opacity = 1
     }
 
 
-visualPiecesForLiftedPair : Maybe SvgCoord -> Piece -> Piece -> List VisualPacoPiece
+visualPiecesForLiftedPair : Maybe Svg.Coord -> Piece -> Piece -> List VisualPacoPiece
 visualPiecesForLiftedPair dragDelta pieceOne pieceTwo =
     let
         offsetOne =
             dragDelta
-                |> Maybe.withDefault (SvgCoord 0 -50)
+                |> Maybe.withDefault (Svg.Coord 0 -50)
 
         offsetTwo =
             dragDelta
-                |> Maybe.withDefault (SvgCoord 0 -50)
+                |> Maybe.withDefault (Svg.Coord 0 -50)
     in
     [ { pieceType = pieceOne.pieceType
       , color = pieceOne.color
       , position =
             coordinateOfTile pieceOne.position
-                |> addSvgCoord offsetOne
+                |> Svg.addCoord offsetOne
       , identity = pieceOne.identity
       , zOrder = 3
       , opacity = 1
@@ -647,7 +592,7 @@ visualPiecesForLiftedPair dragDelta pieceOne pieceTwo =
       , color = pieceTwo.color
       , position =
             coordinateOfTile pieceTwo.position
-                |> addSvgCoord offsetTwo
+                |> Svg.addCoord offsetTwo
       , identity = pieceTwo.identity
       , zOrder = 3
       , opacity = 1
@@ -669,8 +614,8 @@ determineVisualPiecesDragged internalModel =
                         , color = piece.color
                         , position =
                             internalModel.dragDelta
-                                |> Maybe.withDefault (SvgCoord 0 0)
-                                |> addSvgCoord (coordinateOfTile piece.position)
+                                |> Maybe.withDefault (Svg.Coord 0 0)
+                                |> Svg.addCoord (coordinateOfTile piece.position)
                         , identity = piece.identity
                         , zOrder = 3
                         , opacity = 1
@@ -682,9 +627,9 @@ determineVisualPiecesDragged internalModel =
               , color = singlePiece.color
               , position =
                     internalModel.dragDelta
-                        |> Maybe.withDefault (SvgCoord 0 0)
-                        |> addSvgCoord (coordinateOfTile singlePiece.position)
-                        |> addSvgCoord (handCoordinateOffset singlePiece.color)
+                        |> Maybe.withDefault (Svg.Coord 0 0)
+                        |> Svg.addCoord (coordinateOfTile singlePiece.position)
+                        |> Svg.addCoord (handCoordinateOffset singlePiece.color)
               , identity = singlePiece.identity
               , zOrder = 3
               , opacity = 1
@@ -727,15 +672,15 @@ animateFadeIn t _ piece ls =
 animateInterpolate : Float -> a -> VisualPacoPiece -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
 animateInterpolate t _ old new ls =
     let
-        (SvgCoord x1 y1) =
+        (Svg.Coord x1 y1) =
             old.position
 
-        (SvgCoord x2 y2) =
+        (Svg.Coord x2 y2) =
             new.position
     in
     { new
         | position =
-            SvgCoord
+            Svg.Coord
                 (round (toFloat x1 * (1 - t) + toFloat x2 * t))
                 (round (toFloat y1 * (1 - t) + toFloat y2 * t))
         , zOrder =
