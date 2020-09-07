@@ -596,6 +596,8 @@ fn init_logger() {
 ////////////////////////////////////////////////////////////////////////////////
 
 fn main() {
+    use rocket::fairing::AdHoc;
+
     init_logger();
 
     // Launch the websocket server
@@ -605,6 +607,12 @@ fn main() {
     rocket::ignite()
         .manage(websocket_server)
         .attach(DbConn::fairing())
+        .attach(AdHoc::on_request("Request Logger", |req, _| {
+            info!("Request started for: {}", req.uri());
+        }))
+        .attach(AdHoc::on_response("Response Logger", |res, _| {
+            info!("Request ended for: {}", res.uri());
+        }))
         .mount("/", routes![index, elm, favicon, examples])
         .mount(
             "/api/",
