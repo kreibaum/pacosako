@@ -260,9 +260,9 @@ type EditorMsg
     | InputRawShareKey String
     | WebsocketConnect String
     | SetExportOptionsVisible Bool
-    | SetInputMode (Maybe CastingDeco.InputMode)
-    | ClearDecoTiles
-    | ClearDecoArrows
+    | SetInputModeEditor (Maybe CastingDeco.InputMode)
+    | ClearDecoTilesEditor
+    | ClearDecoArrowsEditor
 
 
 type LoginPageMsg
@@ -622,13 +622,13 @@ updateEditor msg model =
         SetExportOptionsVisible isVisible ->
             ( { model | showExportOptions = isVisible }, Cmd.none )
 
-        SetInputMode newMode ->
+        SetInputModeEditor newMode ->
             ( { model | inputMode = newMode }, Cmd.none )
 
-        ClearDecoTiles ->
+        ClearDecoTilesEditor ->
             ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
 
-        ClearDecoArrows ->
+        ClearDecoArrowsEditor ->
             ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
 
 
@@ -1617,11 +1617,19 @@ sidebar taco model =
          , viewModeConfig model
          , shareButton model |> Element.map EditorMsgWrapper
          , shareInput model |> Element.map EditorMsgWrapper
-         , tileInputMode model
-         , arrowInputMode model
+         , CastingDeco.configView castingDecoMessagesEditor model.inputMode model.castingDeco
          ]
             ++ exportOptions
         )
+
+
+castingDecoMessagesEditor : CastingDeco.Messages Msg
+castingDecoMessagesEditor =
+    { setInputMode = EditorMsgWrapper << SetInputModeEditor
+    , clearTiles = EditorMsgWrapper ClearDecoTilesEditor
+    , clearArrows = EditorMsgWrapper ClearDecoArrowsEditor
+    }
+
 
 
 hideExportOptions : Element Msg
@@ -1632,70 +1640,6 @@ hideExportOptions =
 showExportOptions : Element Msg
 showExportOptions =
     Input.button [] { onPress = Just (EditorMsgWrapper (SetExportOptionsVisible True)), label = Element.text "Show Export Options" }
-
-
-tileInputMode : EditorModel -> Element Msg
-tileInputMode model =
-    Element.row [ spacing 5 ]
-        [ tileInputModeButton model
-        , tileInputClearButton model
-        ]
-
-
-tileInputModeButton : EditorModel -> Element Msg
-tileInputModeButton model =
-    if model.inputMode == Just CastingDeco.InputTiles then
-        Input.button
-            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode Nothing)), label = Element.text "Highlight On" }
-
-    else
-        Input.button [ padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode (Just CastingDeco.InputTiles))), label = Element.text "Highlight Off" }
-
-
-tileInputClearButton : EditorModel -> Element Msg
-tileInputClearButton model =
-    if List.isEmpty model.castingDeco.tiles then
-        Input.button
-            [ Font.color (Element.rgb255 128 128 128) ]
-            { onPress = Nothing, label = Element.text "Clear Highlight" }
-
-    else
-        Input.button []
-            { onPress = Just (EditorMsgWrapper ClearDecoTiles), label = Element.text "Clear Highlight" }
-
-
-arrowInputMode : EditorModel -> Element Msg
-arrowInputMode model =
-    Element.row [ spacing 5 ]
-        [ arrowInputModeButton model
-        , arrowInputClearButton model
-        ]
-
-
-arrowInputModeButton : EditorModel -> Element Msg
-arrowInputModeButton model =
-    if model.inputMode == Just CastingDeco.InputArrows then
-        Input.button
-            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode Nothing)), label = Element.text "Arrows On" }
-
-    else
-        Input.button [ padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode (Just CastingDeco.InputArrows))), label = Element.text "Arrows Off" }
-
-
-arrowInputClearButton : EditorModel -> Element Msg
-arrowInputClearButton model =
-    if List.isEmpty model.castingDeco.arrows then
-        Input.button
-            [ Font.color (Element.rgb255 128 128 128) ]
-            { onPress = Nothing, label = Element.text "Clear Arrows" }
-
-    else
-        Input.button []
-            { onPress = Just (EditorMsgWrapper ClearDecoArrows), label = Element.text "Clear Arrows" }
 
 
 sidebarActionButtons : Pivot Sako.Position -> Element EditorMsg
