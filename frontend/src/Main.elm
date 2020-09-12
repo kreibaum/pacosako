@@ -8,6 +8,7 @@ import Animation exposing (Timeline)
 import Arrow exposing (Arrow)
 import Browser
 import Browser.Events
+import CastingDeco
 import Element exposing (Element, centerX, centerY, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
@@ -149,17 +150,9 @@ type alias EditorModel =
     , shareStatus : Websocket.ShareStatus
     , rawShareKey : String
     , showExportOptions : Bool
-    , castingDecoTileMarkers : List Tile
-    , castingDecoArrows : List Arrow
-    , ghostArrow : Maybe Arrow
-    , inputMode : EditorInputMode
+    , castingDeco : CastingDeco.Model
+    , inputMode : Maybe CastingDeco.InputMode
     }
-
-
-type EditorInputMode
-    = EditorInputNormal
-    | EditorInputTiles
-    | EditorInputArrows
 
 
 type PositionParseResult
@@ -267,7 +260,7 @@ type EditorMsg
     | InputRawShareKey String
     | WebsocketConnect String
     | SetExportOptionsVisible Bool
-    | SetInputMode EditorInputMode
+    | SetInputMode (Maybe CastingDeco.InputMode)
     | ClearDecoTiles
     | ClearDecoArrows
 
@@ -317,11 +310,9 @@ initialEditor flags =
     , smartTool = initSmartTool
     , shareStatus = Websocket.NotShared
     , rawShareKey = ""
-    , showExportOptions = False
-    , castingDecoTileMarkers = []
-    , castingDecoArrows = []
-    , ghostArrow = Nothing
-    , inputMode = EditorInputNormal
+    , showExportOptions = Basics.False
+    , castingDeco = CastingDeco.initModel
+    , inputMode = Nothing
     }
 
 
@@ -468,7 +459,7 @@ updateEditor msg model =
 
         MouseDown mouse ->
             case model.inputMode of
-                EditorInputNormal ->
+                Nothing ->
                     let
                         dragData =
                             { start = mouse, current = mouse }
@@ -480,31 +471,20 @@ updateEditor msg model =
                         Nothing ->
                             ( model, Cmd.none )
 
-                EditorInputArrows ->
-                    ( { model | ghostArrow = Maybe.map2 Arrow mouse.tile mouse.tile }, Cmd.none )
-
-                EditorInputTiles ->
-                    ( model, Cmd.none )
+                Just mode ->
+                    ( { model | castingDeco = CastingDeco.mouseDown mode mouse model.castingDeco }, Cmd.none )
 
         MouseMove mouse ->
             case model.inputMode of
-                EditorInputNormal ->
+                Nothing ->
                     handleMouseMove mouse model
 
-                EditorInputArrows ->
-                    case ( model.ghostArrow, mouse.tile ) of
-                        ( Just arrow, Just head ) ->
-                            ( { model | ghostArrow = Just { arrow | head = head } }, Cmd.none )
-
-                        _ ->
-                            ( model, Cmd.none )
-
-                EditorInputTiles ->
-                    ( model, Cmd.none )
+                Just mode ->
+                    ( { model | castingDeco = CastingDeco.mouseMove mode mouse model.castingDeco }, Cmd.none )
 
         MouseUp mouse ->
             case model.inputMode of
-                EditorInputNormal ->
+                Nothing ->
                     let
                         drag =
                             moveDrag mouse model.drag
@@ -516,21 +496,8 @@ updateEditor msg model =
                         Just dragData ->
                             clickRelease dragData.start dragData.current { model | drag = Nothing }
 
-                EditorInputTiles ->
-                    switchCastingDecoTile mouse model
-
-                EditorInputArrows ->
-                    case ( model.ghostArrow, mouse.tile ) of
-                        ( Just arrow, Just head ) ->
-                            ( { model
-                                | castingDecoArrows = flipEntry { arrow | head = head } model.castingDecoArrows
-                                , ghostArrow = Nothing
-                              }
-                            , Cmd.none
-                            )
-
-                        _ ->
-                            ( { model | ghostArrow = Nothing }, Cmd.none )
+                Just mode ->
+                    ( { model | castingDeco = CastingDeco.mouseUp mode mouse model.castingDeco }, Cmd.none )
 
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }
@@ -659,29 +626,10 @@ updateEditor msg model =
             ( { model | inputMode = newMode }, Cmd.none )
 
         ClearDecoTiles ->
-            ( { model | castingDecoTileMarkers = [] }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
 
         ClearDecoArrows ->
-            ( { model | castingDecoArrows = [] }, Cmd.none )
-
-
-switchCastingDecoTile : BoardMousePosition -> EditorModel -> ( EditorModel, Cmd Msg )
-switchCastingDecoTile mouse model =
-    case mouse.tile of
-        Just tile ->
-            ( { model | castingDecoTileMarkers = flipEntry tile model.castingDecoTileMarkers }, Cmd.none )
-
-        Nothing ->
-            ( model, Cmd.none )
-
-
-flipEntry : a -> List a -> List a
-flipEntry entry list =
-    if List.member entry list then
-        List.remove entry list
-
-    else
-        entry :: list
+            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
 
 
 editorStateModify : EditorModel -> EditorModel
@@ -1567,6 +1515,13 @@ editorViewConfig taco editor =
     }
 
 
+castingDecoMappers : { tile : Tile -> BoardDecoration, arrow : Arrow -> BoardDecoration }
+castingDecoMappers =
+    { tile = CastingHighlight
+    , arrow = CastingArrow
+    }
+
+
 toolDecoration : EditorModel -> List BoardDecoration
 toolDecoration model =
     let
@@ -1579,28 +1534,14 @@ toolDecoration model =
         dragPiece =
             model.smartTool.dragStartTile
                 |> Maybe.map (\tile -> HighlightTile ( tile, HighlightBoth ))
-
-        castingArrowsDeco =
-            model.castingDecoArrows
-                |> List.map CastingArrow
-
-        castingGhostArrow =
-            model.ghostArrow
-                |> Maybe.map CastingArrow
-
-        castingHighlightDeco =
-            model.castingDecoTileMarkers
-                |> List.map CastingHighlight
     in
     ([ selectionHighlight
      , hoverHighlight
      , dragPiece
-     , castingGhostArrow
      ]
         |> List.filterMap identity
     )
-        ++ castingArrowsDeco
-        ++ castingHighlightDeco
+        ++ CastingDeco.toDecoration castingDecoMappers model.castingDeco
 
 
 dragPieceData : EditorModel -> List DragPieceData
@@ -1703,19 +1644,19 @@ tileInputMode model =
 
 tileInputModeButton : EditorModel -> Element Msg
 tileInputModeButton model =
-    if model.inputMode == EditorInputTiles then
+    if model.inputMode == Just CastingDeco.InputTiles then
         Input.button
             [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputNormal)), label = Element.text "Highlight On" }
+            { onPress = Just (EditorMsgWrapper (SetInputMode Nothing)), label = Element.text "Highlight On" }
 
     else
         Input.button [ padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputTiles)), label = Element.text "Highlight Off" }
+            { onPress = Just (EditorMsgWrapper (SetInputMode (Just CastingDeco.InputTiles))), label = Element.text "Highlight Off" }
 
 
 tileInputClearButton : EditorModel -> Element Msg
 tileInputClearButton model =
-    if List.isEmpty model.castingDecoTileMarkers then
+    if List.isEmpty model.castingDeco.tiles then
         Input.button
             [ Font.color (Element.rgb255 128 128 128) ]
             { onPress = Nothing, label = Element.text "Clear Highlight" }
@@ -1735,19 +1676,19 @@ arrowInputMode model =
 
 arrowInputModeButton : EditorModel -> Element Msg
 arrowInputModeButton model =
-    if model.inputMode == EditorInputArrows then
+    if model.inputMode == Just CastingDeco.InputArrows then
         Input.button
             [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputNormal)), label = Element.text "Arrows On" }
+            { onPress = Just (EditorMsgWrapper (SetInputMode Nothing)), label = Element.text "Arrows On" }
 
     else
         Input.button [ padding 3 ]
-            { onPress = Just (EditorMsgWrapper (SetInputMode EditorInputArrows)), label = Element.text "Arrows Off" }
+            { onPress = Just (EditorMsgWrapper (SetInputMode (Just CastingDeco.InputArrows))), label = Element.text "Arrows Off" }
 
 
 arrowInputClearButton : EditorModel -> Element Msg
 arrowInputClearButton model =
-    if List.isEmpty model.castingDecoArrows then
+    if List.isEmpty model.castingDeco.arrows then
         Input.button
             [ Font.color (Element.rgb255 128 128 128) ]
             { onPress = Nothing, label = Element.text "Clear Arrows" }
