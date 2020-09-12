@@ -1631,7 +1631,6 @@ castingDecoMessagesEditor =
     }
 
 
-
 hideExportOptions : Element Msg
 hideExportOptions =
     Input.button [] { onPress = Just (EditorMsgWrapper (SetExportOptionsVisible False)), label = Element.text "Hide Export Options" }
@@ -2277,6 +2276,8 @@ type alias PlayModel =
     , timeline : Timeline OpaqueRenderData
     , focus : Maybe Tile
     , dragState : DragState
+    , castingDeco : CastingDeco.Model
+    , inputMode : Maybe CastingDeco.InputMode
     }
 
 
@@ -2295,6 +2296,8 @@ initPlayModel =
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     , focus = Nothing
     , dragState = Nothing
+    , castingDeco = CastingDeco.initModel
+    , inputMode = Nothing
     }
 
 
@@ -2305,6 +2308,17 @@ type PlayMsg
     | PlayMouseDown BoardMousePosition
     | PlayMouseUp BoardMousePosition
     | PlayMouseMove BoardMousePosition
+    | SetInputModePlay (Maybe CastingDeco.InputMode)
+    | ClearDecoTilesPlay
+    | ClearDecoArrowsPlay
+
+
+castingDecoMessagesPlay : CastingDeco.Messages Msg
+castingDecoMessagesPlay =
+    { setInputMode = PlayMsgWrapper << SetInputModePlay
+    , clearTiles = PlayMsgWrapper ClearDecoTilesPlay
+    , clearArrows = PlayMsgWrapper ClearDecoArrowsPlay
+    }
 
 
 updatePlayModel : PlayMsg -> PlayModel -> ( PlayModel, Cmd Msg )
@@ -2322,13 +2336,37 @@ updatePlayModel msg model =
             )
 
         PlayMouseDown pos ->
-            updateMouseDown pos model
+            case model.inputMode of
+                Nothing ->
+                    updateMouseDown pos model
+
+                Just mode ->
+                    ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Cmd.none )
 
         PlayMouseUp pos ->
-            updateMouseUp pos model
+            case model.inputMode of
+                Nothing ->
+                    updateMouseUp pos model
+
+                Just mode ->
+                    ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Cmd.none )
 
         PlayMouseMove pos ->
-            updateMouseMove pos model
+            case model.inputMode of
+                Nothing ->
+                    updateMouseMove pos model
+
+                Just mode ->
+                    ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Cmd.none )
+
+        SetInputModePlay inputMode ->
+            ( { model | inputMode = inputMode }, Cmd.none )
+
+        ClearDecoTilesPlay ->
+            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
+
+        ClearDecoArrowsPlay ->
+            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
@@ -2616,6 +2654,7 @@ playDecoration play =
         |> List.filterMap actionDecoration
     )
         ++ playViewHighlight play
+        ++ CastingDeco.toDecoration castingDecoMappers play.castingDeco
 
 
 actionDecoration : Sako.Action -> Maybe PositionView.BoardDecoration
@@ -2742,6 +2781,7 @@ playModeSidebar taco model =
             |> Element.el [ width fill ]
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
+        , CastingDeco.configView castingDecoMessagesPlay model.inputMode model.castingDeco
         , Element.el [ Element.alignBottom, width fill ]
             (maybeViewTimerFor taco model Sako.White)
         , Element.el [ height (Element.px 100) ] Element.none
