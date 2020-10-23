@@ -7,7 +7,6 @@ module PositionView exposing
     , InternalModel
     , OpaqueRenderData
     , ViewConfig
-    , ViewMode(..)
     , coordinateOfTile
     , nextHighlight
     , render
@@ -110,7 +109,7 @@ viewStatic config renderData =
                 ++ idAttribute
     in
     Svg.svg attributes
-        [ board config.viewMode
+        [ board
         , castingHighlightLayer config.decoration
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
@@ -155,14 +154,8 @@ type alias VisualPacoPiece =
     }
 
 
-type ViewMode
-    = ShowNumbers
-    | CleanBoard
-
-
 type alias ViewConfig a =
     { colorScheme : Pieces.ColorScheme
-    , viewMode : ViewMode
     , nodeId : Maybe String
     , decoration : List BoardDecoration
     , dragPieceData : List DragPieceData
@@ -328,33 +321,8 @@ opacity o =
     SvgA.opacity <| String.fromFloat o
 
 
-board : ViewMode -> Svg msg
-board mode =
-    let
-        decoration =
-            case mode of
-                ShowNumbers ->
-                    [ columnTag "a" "50"
-                    , columnTag "b" "150"
-                    , columnTag "c" "250"
-                    , columnTag "d" "350"
-                    , columnTag "e" "450"
-                    , columnTag "f" "550"
-                    , columnTag "g" "650"
-                    , columnTag "h" "750"
-                    , rowTag "1" "770"
-                    , rowTag "2" "670"
-                    , rowTag "3" "570"
-                    , rowTag "4" "470"
-                    , rowTag "5" "370"
-                    , rowTag "6" "270"
-                    , rowTag "7" "170"
-                    , rowTag "8" "70"
-                    ]
-
-                CleanBoard ->
-                    []
-    in
+board : Svg msg
+board =
     Svg.g []
         ([ Svg.rect
             [ SvgA.x "-10"
@@ -378,28 +346,49 @@ board mode =
             ]
             []
          ]
-            ++ decoration
+            ++ boardNumbers
         )
 
 
-columnTag : String -> String -> Svg msg
-columnTag letter x =
+boardNumbers : List (Svg a)
+boardNumbers =
+    [ columnTag "a" "85" "#9F9"
+    , columnTag "b" "185" "#595"
+    , columnTag "c" "285" "#9F9"
+    , columnTag "d" "385" "#595"
+    , columnTag "e" "485" "#9F9"
+    , columnTag "f" "585" "#595"
+    , columnTag "g" "685" "#9F9"
+    , columnTag "h" "785" "#595"
+    , rowTag "1" "730" "#9F9"
+    , rowTag "2" "630" "#595"
+    , rowTag "3" "530" "#9F9"
+    , rowTag "4" "430" "#595"
+    , rowTag "5" "330" "#9F9"
+    , rowTag "6" "230" "#595"
+    , rowTag "7" "130" "#9F9"
+    , rowTag "8" "30" "#595"
+    ]
+
+
+columnTag : String -> String -> String -> Svg msg
+columnTag letter x color =
     Svg.text_
-        [ SvgA.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
+        [ SvgA.style "text-anchor:middle;font-size:30px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
         , SvgA.x x
-        , SvgA.y "870"
-        , SvgA.fill "#555"
+        , SvgA.y "793"
+        , SvgA.fill color
         ]
         [ Svg.text letter ]
 
 
-rowTag : String -> String -> Svg msg
-rowTag digit y =
+rowTag : String -> String -> String -> Svg msg
+rowTag digit y color =
     Svg.text_
-        [ SvgA.style "text-anchor:end;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
-        , SvgA.x "-25"
+        [ SvgA.style "text-anchor:end;font-size:30px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;"
+        , SvgA.x "22"
         , SvgA.y y
-        , SvgA.fill "#555"
+        , SvgA.fill color
         ]
         [ Svg.text digit ]
 
@@ -473,28 +462,19 @@ type alias DragState =
         }
 
 
-boardViewBox : ViewMode -> Svg.Rect
-boardViewBox viewMode =
-    case viewMode of
-        ShowNumbers ->
-            { x = -70
-            , y = -30
-            , width = 900
-            , height = 920
-            }
-
-        CleanBoard ->
-            { x = -30
-            , y = -30
-            , width = 860
-            , height = 860
-            }
+boardViewBox : Svg.Rect
+boardViewBox =
+    { x = -30
+    , y = -30
+    , width = 860
+    , height = 860
+    }
 
 
 determineViewBox : ViewConfig a -> Svg.Attribute msg
 determineViewBox config =
     config.replaceViewport
-        |> Maybe.withDefault (boardViewBox config.viewMode)
+        |> Maybe.withDefault boardViewBox
         |> Svg.makeViewBox
 
 

@@ -29,7 +29,7 @@ import Maybe.Extra as Maybe
 import Pieces
 import Pivot as P exposing (Pivot)
 import Ports
-import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, ViewMode(..), coordinateOfTile, nextHighlight)
+import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, coordinateOfTile, nextHighlight)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import Svg exposing (Svg)
@@ -144,7 +144,6 @@ type alias EditorModel =
     , windowSize : ( Int, Int )
     , userPaste : String
     , pasteParsed : PositionParseResult
-    , viewMode : ViewMode
     , analysis : Maybe AnalysisReport
     , smartTool : SmartToolModel
     , shareStatus : Websocket.ShareStatus
@@ -247,7 +246,6 @@ type EditorMsg
     | SvgReadyForDownload String
     | UpdateUserPaste String
     | UseUserPaste Sako.Position
-    | SetViewMode ViewMode
     | SavePosition Sako.Position SaveState
     | PositionSaveSuccess SavePositionDone
     | RequestRandomPosition
@@ -305,7 +303,6 @@ initialEditor flags =
     , windowSize = parseWindowSize flags
     , userPaste = ""
     , pasteParsed = NoInput
-    , viewMode = ShowNumbers
     , analysis = Nothing
     , smartTool = initSmartTool
     , shareStatus = Websocket.NotShared
@@ -567,9 +564,6 @@ updateEditor msg model =
                 |> animateToCurrentPosition
             , Cmd.none
             )
-
-        SetViewMode newViewMode ->
-            ( { model | viewMode = newViewMode }, Cmd.none )
 
         SavePosition position saveState ->
             ( model, postSave position saveState )
@@ -1503,7 +1497,6 @@ positionViewInner taco editor =
 editorViewConfig : Taco -> EditorModel -> PositionView.ViewConfig EditorMsg
 editorViewConfig taco editor =
     { colorScheme = taco.colorScheme
-    , viewMode = editor.viewMode
     , nodeId = Just sakoEditorId
     , decoration = toolDecoration editor
     , dragPieceData = dragPieceData editor
@@ -1614,7 +1607,6 @@ sidebar taco model =
          , addPieceButtons Sako.White "White:" model.smartTool |> Element.map EditorMsgWrapper
          , addPieceButtons Sako.Black "Black:" model.smartTool |> Element.map EditorMsgWrapper
          , colorSchemeConfig taco
-         , viewModeConfig model
          , shareButton model |> Element.map EditorMsgWrapper
          , shareInput model |> Element.map EditorMsgWrapper
          , CastingDeco.configView castingDecoMessagesEditor model.inputMode model.castingDeco
@@ -1828,14 +1820,6 @@ colorSchemeConfigBlack taco =
         ]
 
 
-viewModeConfig : EditorModel -> Element Msg
-viewModeConfig editor =
-    Element.wrappedRow [ spacing 5 ]
-        [ toolConfigOption editor.viewMode (SetViewMode >> EditorMsgWrapper) ShowNumbers "Show numbers"
-        , toolConfigOption editor.viewMode (SetViewMode >> EditorMsgWrapper) CleanBoard "Hide numbers"
-        ]
-
-
 {-| The share button indicates what kind of board is currently shared and how
 -}
 shareButton : EditorModel -> Element EditorMsg
@@ -1937,7 +1921,6 @@ parsedMarkdownPaste taco model =
                         [ PositionView.renderStatic pacoPosition
                             |> PositionView.viewStatic
                                 { colorScheme = taco.colorScheme
-                                , viewMode = CleanBoard
                                 , nodeId = Nothing
                                 , decoration = []
                                 , dragPieceData = []
@@ -2634,7 +2617,6 @@ playPositionView taco play =
     Element.el [ width fill, height fill, Element.scrollbarY ]
         (PositionView.viewTimeline
             { colorScheme = taco.colorScheme
-            , viewMode = ShowNumbers
             , nodeId = Just sakoEditorId
             , decoration = playDecoration play
             , dragPieceData = []
@@ -2699,7 +2681,7 @@ justPlayTimerSvg now model timer =
         [ timerTagSvg
             { caption = timeLabel viewData.secondsLeftWhite
             , player = Sako.White
-            , at = Svg.Coord 0 880
+            , at = Svg.Coord 0 820
             }
         , timerTagSvg
             { caption = timeLabel viewData.secondsLeftBlack
@@ -2763,7 +2745,7 @@ playTimerReplaceViewport play =
             { x = -70
             , y = -80
             , width = 900
-            , height = 1020
+            , height = 960
             }
 
 
