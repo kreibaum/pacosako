@@ -1,6 +1,6 @@
 # Pacosako
 
-[![Build Status](https://travis-ci.org/kreibaum/pacosako.svg?branch=master)](https://travis-ci.org/kreibaum/pacosako)
+[![Build Status](https://travis-ci.com/kreibaum/pacosako.svg?branch=master)](https://travis-ci.com/kreibaum/pacosako)
 [![codecov](https://codecov.io/gh/kreibaum/pacosako/branch/master/graph/badge.svg)](https://codecov.io/gh/kreibaum/pacosako)
 
 This is the codebase for the [pacoplay.com website](http://pacoplay.com). It has a frontend written in
