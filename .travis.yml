@@ -29,3 +29,7 @@ after_success: |
   cd ../lib
   cargo tarpaulin --ignore-tests --out Xml
   bash <(curl -s https://codecov.io/bash)
+
+before_install:
+  - openssl aes-256-cbc -K $encrypted_38b64a02c502_key -iv $encrypted_38b64a02c502_iv
+    -in deployment-key.pem.enc -out deployment-key.pem -d
