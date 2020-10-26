@@ -15,3 +15,6 @@ Cargo.lock
 
 # Server log
 /backend/server.log
+
+# Secrets
+/scripts/deployment-key.pem
