@@ -13,9 +13,7 @@
   </head>
 
   <body>
-    <canvas id="offscreen-canvas">
-      Canvas not supported
-    </canvas>
+    <canvas id="offscreen-canvas"> Canvas not supported </canvas>
     <div id="elm"></div>
     <script>
       // Set up a new mutation observer, that will fire custom events for all
@@ -174,26 +172,39 @@
       }
 
       // Connect to the websocket to syncronize state
+
+      function connectWebsocketToPort(ws) {
+        // When a message arrives, this is forwarded to the elm application.
+        ws.onmessage = function (event) {
+          app.ports.websocketReceive.send(JSON.parse(event.data));
+        };
+        // Messages from elm are forwarded to the websocket.
+        app.ports.websocketSend.subscribe((data) =>
+          ws.send(JSON.stringify(data))
+        );
+      }
+
+      async function askForWebsocket() {
+        let websocket_port = await fetch("/api/websocket/port").then((r) =>
+          r.text()
+        );
+        webSocket = new WebSocket(
+          `ws://${window.location.hostname}:${websocket_port}`
+        );
+        connectWebsocketToPort(webSocket);
+      }
+
       // When developing in gitpod, we need to connect to a different subdomain,
       // see https://github.com/kreibaum/pacosako/issues/14
-
       let re = new RegExp("8000-([a-z0-9-.]*\.gitpod\.io)");
       let match = re.exec(window.location.hostname);
       let webSocket;
       if (match !== null) {
-        webSocket = new WebSocket(`wss://3012-${match[1]}`);
+        webSocket = new WebSocket(`wss://3010-${match[1]}`);
+        connectWebsocketToPort(webSocket);
       } else {
-        webSocket = new WebSocket(`ws://${window.location.hostname}:3012`);
+        askForWebsocket();
       }
-
-      // When a message arrives, this is forwarded to the elm application.
-      webSocket.onmessage = function (event) {
-        app.ports.websocketReceive.send(JSON.parse(event.data));
-      };
-      // Messages from elm are forwarded to the websocket.
-      app.ports.websocketSend.subscribe((data) =>
-        webSocket.send(JSON.stringify(data))
-      );
     </script>
   </body>
 </html>

@@ -309,21 +309,27 @@ fn next_step(
 /// General Websocket infrastructure functions /////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Spawns a thread to run a websocket server.
-pub fn run_websocket() -> WebsocketServer {
-    let server = WebsocketServer::default();
-    run_websocket_internal(server.clone());
-    server
+/// Creates the struct for a websocket server but does not launch it yet.
+pub fn prepare_websocket() -> WebsocketServer {
+    WebsocketServer::default()
 }
 
-fn run_websocket_internal(server: WebsocketServer) {
+/// Starts up a thread that will run the websocket server.
+pub fn init_websocket(server: WebsocketServer, port: u16) {
     thread::spawn(move || {
-        listen("0.0.0.0:3012", |sender| {
+        listen(format!("0.0.0.0:{}", port), |sender| {
             // For each sender, we need to store an Arc to the SyncServer.
             let server = server.clone();
             move |msg| on_message(&server, &sender, msg)
         })
     });
+}
+
+/// Spawns a thread to run a websocket server.
+pub fn run_websocket() -> WebsocketServer {
+    let server = WebsocketServer::default();
+    init_websocket(server.clone(), 3012);
+    server
 }
 
 /// Decodes the message from the client and handles errors if they occur.

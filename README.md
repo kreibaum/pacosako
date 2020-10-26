@@ -71,3 +71,30 @@ To connect to the aws ec2 instance running the server with ssh, run
 When starting the server on port 8000, you need to set up a routing rule in the firewall
 
     iptables -t nat -I PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8000
+
+### NGNIX config
+
+To host pacoplay.com and dev.pacoplay.com on the same machine, I am using
+[http://nginx.org/](nginx) as a reverse proxy. Configuration is
+
+    # /etc/nginx/sites-available/prod
+    server {
+        listen 8888;
+        server_name pacoplay.com;
+
+        location / {
+            proxy_pass http://localhost:8000;
+        }
+    }
+
+    # /etc/nginx/sites-available/staging
+    server {
+        listen 8888;
+        server_name dev.pacoplay.com;
+
+        location / {
+            proxy_pass http://localhost:8001;
+        }
+    }
+
+The websocket port is different for these two deployment stages by configuration.

@@ -595,17 +595,34 @@ fn init_logger() {
 // Start the server ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Struct to read the websocket_port config parameter from the rocket config
+/// which is used to launch the websocket server.
+struct WebsocketPort(u16);
+
+#[get("/websocket/port")]
+fn websocket_port(port: State<WebsocketPort>) -> Json<u16> {
+    Json(port.0)
+}
+
 fn main() {
     use rocket::fairing::AdHoc;
 
     init_logger();
 
     // Launch the websocket server
-    let websocket_server = websocket::run_websocket();
+    let websocket_server = websocket::prepare_websocket();
 
     // Launch the regular webserver
     rocket::ignite()
-        .manage(websocket_server)
+        .manage(websocket_server.clone())
+        .attach(AdHoc::on_attach("Websocket Config", |rocket| {
+            let websocket_port: u16 =
+                rocket.config().get_int("websocket_port").unwrap_or(1111) as u16;
+
+            websocket::init_websocket(websocket_server, websocket_port);
+
+            Ok(rocket.manage(WebsocketPort(websocket_port)))
+        }))
         .attach(DbConn::fairing())
         .attach(AdHoc::on_request("Request Logger", |req, _| {
             info!("Request started for: {}", req.uri());
@@ -634,6 +651,7 @@ fn main() {
                 share,
                 create_game,
                 get_game,
+                websocket_port,
             ],
         )
         .launch();
