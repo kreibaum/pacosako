@@ -11,8 +11,9 @@ rust:
 
 before_script: |
   bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
-  apt install npm
-  npm install -g elm@latest-0.19.1
+  curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+  gunzip elm.gz
+  chmod +x elm
 
 script:
   - cd backend
@@ -22,7 +23,7 @@ script:
   - cd ..
   - mkdir target
   - cd frontend
-  - elm make src/Main.elm --output=../target/elm.js
+  - ./elm make src/Main.elm --output=../target/elm.js
 
 after_success: |
   # Create and upload a report for codecov.io
