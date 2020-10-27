@@ -15,6 +15,7 @@ before_script: |
   gunzip elm.gz
   chmod +x elm
   cat scripts/known_hosts >> ~/.ssh/known_hosts
+  chmod 400 ~/scripts/deployment-key.pem
 
 script:
   - cd backend
