@@ -3,6 +3,10 @@
 
 pwd
 
+cd backend
+cargo build --release
+cd ..
+
 # Prepare
 ssh -i ./scripts/deployment-key.pem ubuntu@ec2-3-15-154-181.us-east-2.compute.amazonaws.com "rm -Rf ~/deploy; mkdir deploy; mkdir deploy/backend; mkdir deploy/target"
 
