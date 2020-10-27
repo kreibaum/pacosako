@@ -21,9 +21,8 @@ script:
   - cargo build
   - cargo test
   - cd ..
-  - mkdir target
   - cd frontend
-  - ./elm make src/Main.elm --output=../target/elm.js
+  - ../elm make src/Main.elm --output=../target/elm.js
 
 after_success: |
   # Create and upload a report for codecov.io
