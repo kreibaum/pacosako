@@ -11,6 +11,7 @@ rust:
 
 before_script: |
   bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
+  apt install npm
   npm install -g elm@latest-0.19.1
 
 script:
