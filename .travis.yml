@@ -11,12 +11,17 @@ rust:
 
 before_script: |
   bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
+  npm install -g elm@latest-0.19.1
 
 script:
   - cd backend
   - cargo clean
   - cargo build
   - cargo test
+  - cd ..
+  - mkdir target
+  - cd frontend
+  - elm make src/Main.elm --output=../target/elm.js
 
 after_success: |
   # Create and upload a report for codecov.io
