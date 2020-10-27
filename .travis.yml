@@ -23,6 +23,7 @@ script:
   - cd ..
   - cd frontend
   - ../elm make src/Main.elm --output=../target/elm.js
+  - cd ..
 
 after_success: |
   # Create and upload a report for codecov.io
@@ -36,6 +37,10 @@ after_success: |
   cargo tarpaulin --ignore-tests --out Xml
   bash <(curl -s https://codecov.io/bash)
 
+  # Now we do the deployment
+  cd ..
+  chmod +x ./scripts/deploy.sh
+  ./scripts/deploy.sh
 before_install:
   - openssl aes-256-cbc -K $encrypted_38b64a02c502_key -iv $encrypted_38b64a02c502_iv
     -in scripts/deployment-key.pem.enc -out scripts/deployment-key.pem -d
