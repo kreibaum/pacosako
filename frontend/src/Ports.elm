@@ -1,5 +1,6 @@
 port module Ports exposing
     ( logToConsole
+    , playSound
     , requestSvgNodeContent
     , responseSvgNodeContent
     , triggerPngDownload
@@ -53,3 +54,8 @@ Do no use this port directly, it is wrapped by the Websocket.elm module.
 
 -}
 port websocketReceive : (Value -> msg) -> Sub msg
+
+
+{-| Playing the "piece placed on chess board" sound file.
+-}
+port playSound : () -> Cmd msg

@@ -53,6 +53,11 @@ fn examples() -> File {
     File::open("../target/examples.txt").unwrap()
 }
 
+#[get("/static/place_piece.mp3")]
+fn place_piece() -> File {
+    File::open("../target/place_piece.mp3").unwrap()
+}
+
 /// This enum holds all errors that can be returned by the API. The errors are
 /// returned as a JSON and may be displayed in the user interface.
 #[derive(Serialize, Debug)]
@@ -380,7 +385,7 @@ fn main() {
         .attach(AdHoc::on_response("Response Logger", |res, _| {
             info!("Request ended for: {}", res.uri());
         }))
-        .mount("/", routes![index, elm, favicon, examples])
+        .mount("/", routes![index, elm, favicon, examples, place_piece])
         .mount(
             "/api/",
             routes![

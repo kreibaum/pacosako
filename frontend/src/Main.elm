@@ -2514,11 +2514,22 @@ updateActionInputStep action model =
                 ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
                 model.timeline
       }
-    , Websocket.DoAction
-        { key = Maybe.withDefault "" model.subscription
-        , action = action
-        }
-        |> Websocket.send
+    , Cmd.batch
+        [ Websocket.DoAction
+            { key = Maybe.withDefault "" model.subscription
+            , action = action
+            }
+            |> Websocket.send
+        , case action of
+            Sako.Place _ ->
+                Ports.playSound ()
+
+            Sako.Lift _ ->
+                Cmd.none
+
+            Sako.Promote _ ->
+                Cmd.none
+        ]
     )
 
 
