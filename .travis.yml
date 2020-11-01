@@ -5,6 +5,10 @@ addons:
   apt:
     packages:
       - libssl-dev
+  snaps:
+    - name: node
+      confinement: classic
+      channel: 15/stable
 cache: cargo
 rust:
   - nightly
@@ -12,6 +16,7 @@ rust:
 before_script: |
   bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
   curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+  sudo npm install -g elm-spa@latest
   gunzip elm.gz
   chmod +x elm
   cat scripts/known_hosts >> ~/.ssh/known_hosts
