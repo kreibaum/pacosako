@@ -9,6 +9,9 @@ cp frontend/static/* target/
 cd frontend
 elm make src/Main.elm --output=../target/elm.js
 cd ..
+# Supporting typescript code.
+tsc --outFile target/main.js frontend/static/main.ts
+
 
 # Prebuild server
 # When I tried this, gitpod got stuck during prebuild.

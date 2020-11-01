@@ -1,5 +1,5 @@
 FROM gitpod/workspace-full
-                    
+
 USER gitpod
 
 # Install custom tools, runtime, etc. using apt-get
@@ -14,4 +14,4 @@ USER gitpod
 RUN bash -cl "rustup default nightly"
 
 # The frontend is using elm, this is not included in workspace-full
-RUN bash -cl "npm install -g elm@latest-0.19.1 elm-live@next elm-format elm-spa@latest"
+RUN bash -cl "npm install -g elm@latest-0.19.1 elm-live@next elm-format elm-spa@latest typescript"

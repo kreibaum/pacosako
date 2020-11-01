@@ -48,6 +48,11 @@ fn elm() -> File {
     File::open("../target/elm.js").unwrap()
 }
 
+#[get("/main.js")]
+fn main_js() -> File {
+    File::open("../target/main.js").unwrap()
+}
+
 #[get("/static/examples.txt")]
 fn examples() -> File {
     File::open("../target/examples.txt").unwrap()
@@ -385,7 +390,10 @@ fn main() {
         .attach(AdHoc::on_response("Response Logger", |res, _| {
             info!("Request ended for: {}", res.uri());
         }))
-        .mount("/", routes![index, elm, favicon, examples, place_piece])
+        .mount(
+            "/",
+            routes![index, elm, favicon, examples, place_piece, main_js],
+        )
         .mount(
             "/api/",
             routes![
