@@ -72,6 +72,22 @@ When starting the server on port 8000, you need to set up a routing rule in the 
 
     iptables -t nat -I PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8000
 
+### Directory structure on server
+
+I am currently using the following directory structure:
+
+    ~/
+      db/
+        stage.sqlite
+        prod.sqlite
+        backup/
+      prod/
+        ..
+      stage/
+        ..
+      deploy/
+        ..
+
 ### NGNIX config
 
 To host pacoplay.com and dev.pacoplay.com on the same machine, I am using
