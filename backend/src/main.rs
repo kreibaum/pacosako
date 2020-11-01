@@ -361,29 +361,42 @@ fn websocket_port(port: State<WebsocketPort>) -> Json<u16> {
     Json(port.0)
 }
 
+/// Initialize the database Pool and register it as a Rocket state.
+fn init_database_pool(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
+    info!("Creating database pool");
+    // If there is no database specified, the server is allowed to just
+    // crash. This is why we can "safely" unwrap.
+    let database_path: String = rocket.config().get_string("database_path").unwrap();
+    let pool = task::block_on(db::Pool::new(&database_path)).unwrap();
+
+    Ok(rocket.manage(pool))
+}
+
+/// Initialize the websocket server and register it as a rocket state.
+/// By registering it as a rocket state it can be used as a service by handlers.
+/// At the moment I need that for creating games, but I may be able to avoid this in the future.
+fn init_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
+    let websocket_server = websocket::prepare_websocket();
+    let websocket_port: u16 = rocket.config().get_int("websocket_port").unwrap_or(1111) as u16;
+
+    websocket::init_websocket(websocket_server.clone(), websocket_port);
+
+    Ok(rocket
+        .manage(websocket_server)
+        .manage(WebsocketPort(websocket_port)))
+}
+
 fn main() {
     use rocket::fairing::AdHoc;
 
     init_logger();
 
-    info!("Creating database pool");
-    let pool = task::block_on(db::Pool::new("data/database.sqlite")).unwrap();
-
-    // Launch the websocket server
-    let websocket_server = websocket::prepare_websocket();
-
-    // Launch the regular webserver
+    // All the other components are created inside rocket.attach because this
+    // gives them access to the rocket configuration and I can properly separate
+    // the different stages like that.
     rocket::ignite()
-        .manage(websocket_server.clone())
-        .manage(pool)
-        .attach(AdHoc::on_attach("Websocket Config", |rocket| {
-            let websocket_port: u16 =
-                rocket.config().get_int("websocket_port").unwrap_or(1111) as u16;
-
-            websocket::init_websocket(websocket_server, websocket_port);
-
-            Ok(rocket.manage(WebsocketPort(websocket_port)))
-        }))
+        .attach(AdHoc::on_attach("Database Pool", init_database_pool))
+        .attach(AdHoc::on_attach("Websocket Config", init_websocket_server))
         .attach(AdHoc::on_request("Request Logger", |req, _| {
             info!("Request started for: {}", req.uri());
         }))

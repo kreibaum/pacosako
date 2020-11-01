@@ -4,17 +4,16 @@
 secret_key = "DZjhqgZ1fDFCnNqxCC+T6K0Y+bKvZGlvg5hc9+oj4yY="
 port = 8000
 websocket_port = 3010
+database_path = "data/database.sqlite"
 
 [staging]
 # Staging is running on the prod server as well and is using the dev.pacoplay.com subdomain.
 # This is why we need different ports.
 port = 8001
 websocket_port = 3011
+database_path = "../../db/stage.sqlite"
 
 [production]
 port = 8000
 websocket_port = 3012
-
-[global.databases]
-sqlite_logs = { url = "./data/database.sqlite" }
-
+database_path = "../../db/prod.sqlite"
