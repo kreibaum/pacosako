@@ -10,7 +10,7 @@ cd frontend
 elm make src/Main.elm --output=../target/elm.js
 cd ..
 # Supporting typescript code.
-tsc --outFile target/main.js frontend/static/main.ts
+tsc
 
 
 # Prebuild server

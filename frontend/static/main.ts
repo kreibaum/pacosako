@@ -1,5 +1,10 @@
 /// Main typescript file that handles the ports and flags for elm.
 
+/// Type Declaration to make the typescript compiler stop complaining about elm.
+/// This could be more precise listing also the ports that we have for better
+/// controll.
+declare var Elm: any;
+
 // Set up a new mutation observer, that will fire custom events for all
 // svg elements when there is a click event or a motion event.
 // The coordinates will be automatically transformed into SVG local
@@ -90,19 +95,19 @@ app.ports.triggerPngDownload.subscribe(function (request) {
     if (svgElement) {
         // Change the size of the svg node to match the requested output size.
         // We create a copy because we don't want to change the original element.
-        let svgClone = svgElement.cloneNode(true);
+        let svgClone = svgElement.cloneNode(true) as HTMLElement;
         // The attributes .width and .height on <svg> don't do what you would expect.
         svgClone.setAttribute("width", request.outputWidth);
         svgClone.setAttribute("height", request.outputHeight);
 
         // https://stackoverflow.com/a/33227005
         let svgURL = new XMLSerializer().serializeToString(svgClone);
-        let canvas = document.getElementById("offscreen-canvas");
+        let canvas = document.getElementById("offscreen-canvas") as HTMLCanvasElement;
         canvas.width = request.outputWidth;
         canvas.height = request.outputHeight;
         let img = new Image();
         img.onload = function () {
-            canvas.getContext("2d").drawImage(this, 0, 0);
+            canvas.getContext("2d").drawImage(img, 0, 0);
             download(canvas, "pacoSako.png");
         };
         img.src =
@@ -113,8 +118,7 @@ app.ports.triggerPngDownload.subscribe(function (request) {
 /** Canvas Donwload from https://codepen.io/joseluisq/pen/mnkLu */
 function download(canvas, filename) {
     /// create an "off-screen" anchor tag
-    var lnk = document.createElement("a"),
-        e;
+    var lnk = document.createElement("a");
 
     /// the key here is to set the download attribute of the a tag
     lnk.download = filename;
@@ -126,7 +130,7 @@ function download(canvas, filename) {
 
     /// create a "fake" click-event to trigger the download
     if (document.createEvent) {
-        e = document.createEvent("MouseEvents");
+        let e = document.createEvent("MouseEvents");
         /// This is deprecated, there is probably a better way to do this now.
         /// https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/initMouseEvent
         /// Hopefully, the other way also has a better format when run through
@@ -150,8 +154,8 @@ function download(canvas, filename) {
         );
 
         lnk.dispatchEvent(e);
-    } else if (lnk.fireEvent) {
-        lnk.fireEvent("onclick");
+    } else if ((lnk as any).fireEvent) {
+        (lnk as any).fireEvent("onclick");
     }
 }
 
