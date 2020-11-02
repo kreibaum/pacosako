@@ -30,6 +30,7 @@ import Pieces
 import Pivot as P exposing (Pivot)
 import Ports
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, coordinateOfTile, nextHighlight)
+import Reactive exposing (Device(..))
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import Svg exposing (Svg)
@@ -227,6 +228,7 @@ type Msg
     | WebsocketMsg Websocket.ServerMessage
     | WebsocketErrorMsg Decode.Error
     | UpdateNow Posix
+    | WindowResize Int Int
 
 
 {-| Messages that may only affect data in the position editor page.
@@ -236,7 +238,6 @@ type EditorMsg
     | MouseDown BoardMousePosition
     | MouseMove BoardMousePosition
     | MouseUp BoardMousePosition
-    | WindowResize Int Int
     | Undo
     | Redo
     | Reset Sako.Position
@@ -293,14 +294,14 @@ encodeDownloadRequest record =
         ]
 
 
-initialEditor : Decode.Value -> EditorModel
-initialEditor flags =
+initialEditor : ( Int, Int ) -> EditorModel
+initialEditor windowSize =
     { saveState = SaveNotRequired
     , game = P.singleton Sako.initialPosition
     , preview = Nothing
     , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
     , drag = Nothing
-    , windowSize = parseWindowSize flags
+    , windowSize = windowSize
     , userPaste = ""
     , pasteParsed = NoInput
     , analysis = Nothing
@@ -340,9 +341,9 @@ init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     ( { taco = initialTaco
       , page = MatchSetupPage
-      , play = initPlayModel
+      , play = initPlayModel (parseWindowSize flags)
       , matchSetup = initMatchSetupModel
-      , editor = initialEditor flags
+      , editor = initialEditor (parseWindowSize flags)
       , login = initialLogin
       }
     , getCurrentLogin
@@ -430,6 +431,21 @@ update msg model =
             in
             ( { model | taco = { taco | now = posix } }, Cmd.none )
 
+        WindowResize width height ->
+            let
+                oldEditor =
+                    model.editor
+
+                oldPlay =
+                    model.play
+            in
+            ( { model
+                | editor = { oldEditor | windowSize = ( width, height ) }
+                , play = { oldPlay | windowSize = ( width, height ) }
+              }
+            , Cmd.none
+            )
+
 
 {-| Helper function to update the color scheme inside the taco.
 -}
@@ -495,11 +511,6 @@ updateEditor msg model =
 
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseUp mode mouse model.castingDeco }, Cmd.none )
-
-        WindowResize width height ->
-            ( { model | windowSize = ( width, height ) }
-            , Cmd.none
-            )
 
         Undo ->
             ( applyUndo model, Cmd.none )
@@ -1300,7 +1311,6 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Browser.Events.onResize WindowResize
-            |> Sub.map EditorMsgWrapper
         , Browser.Events.onKeyUp (Decode.map KeyUp decodeKeyStroke)
             |> Sub.map EditorMsgWrapper
         , Ports.responseSvgNodeContent SvgReadyForDownload
@@ -2254,6 +2264,7 @@ type alias PlayModel =
     { board : Sako.Position
     , subscription : Maybe String
     , currentState : CurrentMatchState
+    , windowSize : ( Int, Int )
 
     -- later: , preview : Maybe Sako.Position
     , timeline : Timeline OpaqueRenderData
@@ -2264,9 +2275,10 @@ type alias PlayModel =
     }
 
 
-initPlayModel : PlayModel
-initPlayModel =
+initPlayModel : ( Int, Int ) -> PlayModel
+initPlayModel windowSize =
     { board = Sako.initialPosition
+    , windowSize = windowSize
     , subscription = Nothing
     , currentState =
         { key = ""
@@ -2612,6 +2624,16 @@ historyDiff old new =
 
 playUi : Taco -> PlayModel -> Element Msg
 playUi taco model =
+    case Reactive.classify model.windowSize of
+        LandscapeDevice ->
+            playUiLandscape taco model
+
+        PortraitDevice ->
+            playUiPortrait taco model
+
+
+playUiLandscape : Taco -> PlayModel -> Element Msg
+playUiLandscape taco model =
     Element.column [ width fill, height fill, Element.scrollbarY ]
         [ Element.html FontAwesome.Styles.css
         , pageHeader taco PlayPage Element.none
@@ -2623,9 +2645,22 @@ playUi taco model =
         ]
 
 
+playUiPortrait : Taco -> PlayModel -> Element Msg
+playUiPortrait taco model =
+    Element.column [ width fill, height fill ]
+        [ Element.html FontAwesome.Styles.css
+        , pageHeader taco PlayPage Element.none
+        , Element.column
+            [ width fill, height fill ]
+            [ playPositionView taco model
+            , playModeSidebar taco model
+            ]
+        ]
+
+
 playPositionView : Taco -> PlayModel -> Element Msg
 playPositionView taco play =
-    Element.el [ width fill, height fill, Element.scrollbarY ]
+    Element.el [ width fill, height fill ]
         (PositionView.viewTimeline
             { colorScheme = taco.colorScheme
             , nodeId = Just sakoEditorId
@@ -2763,11 +2798,7 @@ playTimerReplaceViewport play =
 playModeSidebar : Taco -> PlayModel -> Element Msg
 playModeSidebar taco model =
     Element.column [ spacing 5, padding 20, height fill ]
-        [ Element.el [ Element.alignTop, width fill ]
-            (maybeViewTimerFor taco model Sako.Black)
-        , model.subscription
-            |> Maybe.map (\id -> Element.text ("Share this id with a friend: " ++ id))
-            |> Maybe.withDefault (Element.text "Not connected")
+        [ gameCodeLabel model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
             (Just (PlayRollback |> PlayMsgWrapper))
             [ Element.text "Restart Move" ]
@@ -2775,46 +2806,20 @@ playModeSidebar taco model =
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
         , CastingDeco.configView castingDecoMessagesPlay model.inputMode model.castingDeco
-        , Element.el [ Element.alignBottom, width fill ]
-            (maybeViewTimerFor taco model Sako.White)
-        , Element.el [ height (Element.px 100) ] Element.none
         ]
 
 
-maybeViewTimerFor : Taco -> PlayModel -> Sako.Color -> Element msg
-maybeViewTimerFor taco model player =
-    case model.currentState.timer of
-        Just timer ->
-            viewTimerFor taco.now model timer player
+gameCodeLabel : Maybe String -> Element msg
+gameCodeLabel subscription =
+    case subscription of
+        Just id ->
+            Element.column [ width fill, spacing 5 ]
+                [ bigRoundedTimerLabel (Element.rgb255 220 220 220) [ Element.text id ]
+                , Element.text "Share this id with a friend."
+                ]
 
         Nothing ->
-            bigRoundedTimerLabel (Element.rgb255 170 170 170)
-                [ Element.text "No Timer" ]
-
-
-viewTimerFor : Posix -> PlayModel -> Timer.Timer -> Sako.Color -> Element msg
-viewTimerFor now model timer player =
-    let
-        viewData =
-            Timer.render model.currentState.controllingPlayer now timer
-
-        secondsLeft =
-            if player == Sako.White then
-                viewData.secondsLeftWhite
-
-            else
-                viewData.secondsLeftBlack
-
-        color =
-            if Just player == viewData.runningFor then
-                Element.rgb255 200 240 200
-
-            else
-                Element.rgb255 170 170 170
-    in
-    bigRoundedTimerLabel color
-        [ Element.text (timeLabel secondsLeft)
-        ]
+            Element.text "Not connected"
 
 
 {-| A label that is implemented via a horizontal row with a big colored background.
