@@ -4,7 +4,7 @@
 screen -X -S prod quit
 
 # Makes a backup of the prod server
-cp -r ~/stage ~/prod-backup
+cp -r ~/prod ~/prod-backup
 
 # Makes a backup of the prod database
 cp ~/db/prod.sqlite ~/db/backup/$(date +"%Y-%m-%d;%H:%M").sqlite
