@@ -22,6 +22,7 @@ use rand::{thread_rng, Rng};
 use rocket::http::{Cookie, Cookies};
 use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest, Request};
+use rocket::response::NamedFile;
 use rocket::response::{Flash, Redirect};
 use rocket::State;
 use rocket_contrib::json::Json;
@@ -34,33 +35,33 @@ use websocket::WebsocketServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 #[get("/")]
-fn index() -> File {
-    File::open("../target/index.html").unwrap()
+fn index() -> NamedFile {
+    NamedFile::open("../target/index.html").unwrap()
 }
 
 #[get("/favicon.svg")]
-fn favicon() -> File {
-    File::open("../target/favicon.svg").unwrap()
+fn favicon() -> NamedFile {
+    NamedFile::open("../target/favicon.svg").unwrap()
 }
 
 #[get("/elm.js")]
-fn elm() -> File {
-    File::open("../target/elm.js").unwrap()
+fn elm() -> NamedFile {
+    NamedFile::open("../target/elm.js").unwrap()
 }
 
 #[get("/main.js")]
-fn main_js() -> File {
-    File::open("../target/main.js").unwrap()
+fn main_js() -> NamedFile {
+    NamedFile::open("../target/main.js").unwrap()
 }
 
 #[get("/static/examples.txt")]
-fn examples() -> File {
-    File::open("../target/examples.txt").unwrap()
+fn examples() -> NamedFile {
+    NamedFile::open("../target/examples.txt").unwrap()
 }
 
 #[get("/static/place_piece.mp3")]
-fn place_piece() -> File {
-    File::open("../target/place_piece.mp3").unwrap()
+fn place_piece() -> NamedFile {
+    NamedFile::open("../target/place_piece.mp3").unwrap()
 }
 
 /// This enum holds all errors that can be returned by the API. The errors are
