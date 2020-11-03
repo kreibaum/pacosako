@@ -6,6 +6,7 @@ the app does starts from here.
 
 import Animation exposing (Timeline)
 import Api.Backend
+import Api.Websocket as Websocket exposing (CurrentMatchState)
 import Arrow exposing (Arrow)
 import Browser
 import Browser.Events
@@ -40,7 +41,6 @@ import Svg.Attributes as SvgA
 import Svg.Custom as Svg
 import Time exposing (Posix)
 import Timer
-import Websocket exposing (CurrentMatchState)
 
 
 main : Program Decode.Value Model Msg

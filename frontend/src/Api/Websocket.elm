@@ -1,4 +1,4 @@
-module Websocket exposing
+module Api.Websocket exposing
     ( ClientMessage(..)
     , CurrentMatchState
     , ServerMessage(..)
