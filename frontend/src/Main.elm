@@ -5,6 +5,7 @@ the app does starts from here.
 -}
 
 import Animation exposing (Timeline)
+import Api.Backend
 import Arrow exposing (Arrow)
 import Browser
 import Browser.Events
@@ -33,6 +34,7 @@ import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, Dra
 import Reactive exposing (Device(..))
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
+import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg
@@ -85,55 +87,6 @@ type alias LoginModel =
     { usernameRaw : String
     , passwordRaw : String
     }
-
-
-{-| Represents the possible save states a persisted object can have.
-
-TODO: Add "Currently Saving", with and without id, then update saveStateStored
-and saveStateModify accordingly
-
--}
-type SaveState
-    = SaveIsCurrent Int
-    | SaveIsModified Int
-    | SaveDoesNotExist
-    | SaveNotRequired
-
-
-{-| Update a save state when something is changed in the editor
--}
-saveStateModify : SaveState -> SaveState
-saveStateModify old =
-    case old of
-        SaveIsCurrent id ->
-            SaveIsModified id
-
-        SaveNotRequired ->
-            SaveDoesNotExist
-
-        otherwise ->
-            otherwise
-
-
-saveStateStored : Int -> SaveState -> SaveState
-saveStateStored newId _ =
-    SaveIsCurrent newId
-
-
-saveStateId : SaveState -> Maybe Int
-saveStateId saveState =
-    case saveState of
-        SaveIsCurrent id ->
-            Just id
-
-        SaveIsModified id ->
-            Just id
-
-        SaveDoesNotExist ->
-            Nothing
-
-        SaveNotRequired ->
-            Nothing
 
 
 type alias EditorModel =
@@ -346,7 +299,8 @@ init flags =
       , editor = initialEditor (parseWindowSize flags)
       , login = initialLogin
       }
-    , getCurrentLogin
+    , Api.Backend.getCurrentLogin HttpError
+        (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
     )
 
 
@@ -416,7 +370,7 @@ update msg model =
             )
 
         HttpError error ->
-            ( model, Ports.logToConsole (describeError error) )
+            ( model, Ports.logToConsole (Api.Backend.describeError error) )
 
         WebsocketMsg serverMessage ->
             updateWebsocket serverMessage model
@@ -577,13 +531,18 @@ updateEditor msg model =
             )
 
         SavePosition position saveState ->
-            ( model, postSave position saveState )
+            ( model
+            , Api.Backend.postSave position
+                saveState
+                HttpError
+                (EditorMsgWrapper << PositionSaveSuccess)
+            )
 
         PositionSaveSuccess data ->
             ( { model | saveState = saveStateStored data.id model.saveState }, Cmd.none )
 
         RequestRandomPosition ->
-            ( model, getRandomPosition )
+            ( model, Api.Backend.getRandomPosition HttpError (EditorMsgWrapper << GotRandomPosition) )
 
         GotRandomPosition newPosition ->
             ( { model | game = addHistoryState newPosition model.game }
@@ -592,7 +551,7 @@ updateEditor msg model =
             )
 
         RequestAnalysePosition position ->
-            ( model, postAnalysePosition position )
+            ( model, Api.Backend.postAnalysePosition position HttpError (EditorMsgWrapper << GotAnalysePosition) )
 
         GotAnalysePosition analysis ->
             ( { model | analysis = Just analysis }, Cmd.none )
@@ -1340,10 +1299,17 @@ updateLoginPage msg loginPageModel =
             ( { loginPageModel | passwordRaw = newText }, Cmd.none )
 
         TryLogin ->
-            ( loginPageModel, postLoginPassword { username = loginPageModel.usernameRaw, password = loginPageModel.passwordRaw } )
+            ( loginPageModel
+            , Api.Backend.postLoginPassword
+                { username = loginPageModel.usernameRaw
+                , password = loginPageModel.passwordRaw
+                }
+                HttpError
+                LoginSuccess
+            )
 
         Logout ->
-            ( loginPageModel, getLogout )
+            ( loginPageModel, Api.Backend.getLogout HttpError (\() -> LogoutSuccess) )
 
 
 {-| Let the animation know about the current time.
@@ -2024,131 +1990,8 @@ loginHeaderInfo taco =
 
 
 --------------------------------------------------------------------------------
--- REST api --------------------------------------------------------------------
+-- REST api - Mostly moved to Api.Backend exept for some alias definitions. ----
 --------------------------------------------------------------------------------
-
-
-describeError : Http.Error -> String
-describeError error =
-    case error of
-        Http.BadUrl url ->
-            "Bad url: " ++ url
-
-        Http.Timeout ->
-            "Timeout error."
-
-        Http.NetworkError ->
-            "Network error."
-
-        Http.BadStatus statusCode ->
-            "Bad status: " ++ String.fromInt statusCode
-
-        Http.BadBody body ->
-            "Bad body: " ++ body
-
-
-defaultErrorHandler : (a -> Msg) -> Result Http.Error a -> Msg
-defaultErrorHandler happyPath result =
-    case result of
-        Ok username ->
-            happyPath username
-
-        Err error ->
-            HttpError error
-
-
-type alias LoginData =
-    { username : String
-    , password : String
-    }
-
-
-encodeLoginData : LoginData -> Value
-encodeLoginData record =
-    Encode.object
-        [ ( "username", Encode.string <| record.username )
-        , ( "password", Encode.string <| record.password )
-        ]
-
-
-decodeUser : Decoder User
-decodeUser =
-    Decode.map2 User
-        (Decode.field "user_id" Decode.int)
-        (Decode.field "username" Decode.string)
-
-
-postLoginPassword : LoginData -> Cmd Msg
-postLoginPassword data =
-    Http.post
-        { url = "/api/login/password"
-        , body = Http.jsonBody (encodeLoginData data)
-        , expect = Http.expectJson (defaultErrorHandler LoginSuccess) decodeUser
-        }
-
-
-getCurrentLogin : Cmd Msg
-getCurrentLogin =
-    Http.get
-        { url = "/api/user_id"
-        , expect =
-            Http.expectJson
-                (\result ->
-                    case result of
-                        Ok (Just payload) ->
-                            LoginSuccess payload
-
-                        Ok Nothing ->
-                            LogoutSuccess
-
-                        Err err ->
-                            HttpError err
-                )
-                (Decode.maybe decodeUser)
-        }
-
-
-getLogout : Cmd Msg
-getLogout =
-    Http.get
-        { url = "/api/logout"
-        , expect = Http.expectWhatever (defaultErrorHandler (\() -> LogoutSuccess))
-        }
-
-
-postSave : Sako.Position -> SaveState -> Cmd Msg
-postSave position saveState =
-    case saveStateId saveState of
-        Just id ->
-            postSaveUpdate position id
-
-        Nothing ->
-            postSaveCreate position
-
-
-{-| The server treats this object as an opaque JSON object.
--}
-type alias CreatePositionData =
-    { notation : String
-    }
-
-
-encodeCreatePositionData : CreatePositionData -> Value
-encodeCreatePositionData record =
-    Encode.object
-        [ ( "notation", Encode.string <| record.notation )
-        ]
-
-
-encodeCreatePosition : Sako.Position -> Value
-encodeCreatePosition position =
-    Encode.object
-        [ ( "data"
-          , encodeCreatePositionData
-                { notation = Sako.exportExchangeNotation position
-                }
-          )
-        ]
 
 
 type alias SavePositionDone =
@@ -2156,90 +1999,11 @@ type alias SavePositionDone =
     }
 
 
-decodeSavePositionDone : Decoder SavePositionDone
-decodeSavePositionDone =
-    Decode.map SavePositionDone
-        (Decode.field "id" Decode.int)
-
-
-postSaveCreate : Sako.Position -> Cmd Msg
-postSaveCreate position =
-    Http.post
-        { url = "/api/position"
-        , body = Http.jsonBody (encodeCreatePosition position)
-        , expect =
-            Http.expectJson
-                (defaultErrorHandler (EditorMsgWrapper << PositionSaveSuccess))
-                decodeSavePositionDone
-        }
-
-
-postSaveUpdate : Sako.Position -> Int -> Cmd Msg
-postSaveUpdate position id =
-    Http.post
-        { url = "/api/position/" ++ String.fromInt id
-        , body = Http.jsonBody (encodeCreatePosition position)
-        , expect =
-            Http.expectJson
-                (defaultErrorHandler (EditorMsgWrapper << PositionSaveSuccess))
-                decodeSavePositionDone
-        }
-
-
-type alias StoredPositionData =
-    { notation : String
-    }
-
-
-decodeStoredPositionData : Decoder StoredPositionData
-decodeStoredPositionData =
-    Decode.map StoredPositionData
-        (Decode.field "notation" Decode.string)
-
-
-decodePacoPositionData : Decoder Sako.Position
-decodePacoPositionData =
-    Decode.andThen
-        (\json ->
-            json.notation
-                |> Sako.importExchangeNotation
-                |> Result.map Decode.succeed
-                |> Result.withDefault (Decode.fail "Data has wrong shape.")
-        )
-        decodeStoredPositionData
-
-
-getRandomPosition : Cmd Msg
-getRandomPosition =
-    Http.get
-        { url = "/api/random"
-        , expect = Http.expectJson (defaultErrorHandler (EditorMsgWrapper << GotRandomPosition)) decodePacoPositionData
-        }
-
-
 type alias AnalysisReport =
     { text_summary : String
 
     -- TODO: search_result: SakoSearchResult,
     }
-
-
-decodeAnalysisReport : Decoder AnalysisReport
-decodeAnalysisReport =
-    Decode.map AnalysisReport
-        (Decode.field "text_summary" Decode.string)
-
-
-postAnalysePosition : Sako.Position -> Cmd Msg
-postAnalysePosition position =
-    Http.post
-        { url = "/api/analyse"
-        , body = Http.jsonBody (encodeCreatePosition position)
-        , expect =
-            Http.expectJson
-                (defaultErrorHandler (EditorMsgWrapper << GotAnalysePosition))
-                decodeAnalysisReport
-        }
 
 
 
@@ -3033,37 +2797,7 @@ createMatch model =
             else
                 Nothing
     in
-    ( model, postMatchRequest timerConfig (MatchCreatedOnServer >> MatchSetupMsgWrapper) )
-
-
-{-| Use this to call the "create game" api of the server.
--}
-postMatchRequest : Maybe Timer.TimerConfig -> (String -> Msg) -> Cmd Msg
-postMatchRequest config onSuccess =
-    Http.post
-        { url = "/api/create_game"
-        , body = Http.jsonBody (encodePostMatchRequest config)
-        , expect =
-            Http.expectString
-                (\response ->
-                    case response of
-                        Ok key ->
-                            onSuccess key
-
-                        Err e ->
-                            HttpError e
-                )
-        }
-
-
-encodePostMatchRequest : Maybe Timer.TimerConfig -> Value
-encodePostMatchRequest timer =
-    Encode.object
-        [ ( "timer"
-          , Maybe.map Timer.encodeConfig timer
-                |> Maybe.withDefault Encode.null
-          )
-        ]
+    ( model, Api.Backend.postMatchRequest timerConfig HttpError (MatchCreatedOnServer >> MatchSetupMsgWrapper) )
 
 
 matchSetupUi : Taco -> MatchSetupModel -> Element Msg
