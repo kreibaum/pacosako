@@ -1,9 +1,9 @@
 module Api.Backend exposing (Api, describeError, getCurrentLogin, getLogout, getRandomPosition, postAnalysePosition, postLoginPassword, postMatchRequest, postSave)
 
+import Api.Ports as Ports
 import Http exposing (Error)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
-import Ports
 import Sako
 import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
 import Timer

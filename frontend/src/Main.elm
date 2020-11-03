@@ -6,6 +6,7 @@ the app does starts from here.
 
 import Animation exposing (Timeline)
 import Api.Backend
+import Api.Ports as Ports
 import Api.Websocket as Websocket exposing (CurrentMatchState)
 import Arrow exposing (Arrow)
 import Browser
@@ -30,7 +31,6 @@ import List.Extra as List
 import Maybe.Extra as Maybe
 import Pieces
 import Pivot as P exposing (Pivot)
-import Ports
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, coordinateOfTile, nextHighlight)
 import Reactive exposing (Device(..))
 import Result.Extra as Result

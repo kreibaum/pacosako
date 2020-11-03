@@ -1,4 +1,4 @@
-port module Ports exposing
+port module Api.Ports exposing
     ( logToConsole
     , playSound
     , requestSvgNodeContent

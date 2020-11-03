@@ -26,10 +26,10 @@ I do allow this module access to the Sako module.
 
 -}
 
+import Api.Ports as Ports
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
-import Ports
 import Sako
 import Timer
 
