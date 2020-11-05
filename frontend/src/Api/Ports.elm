@@ -1,8 +1,11 @@
 port module Api.Ports exposing
-    ( logToConsole
+    ( aiState
+    , logToConsole
     , playSound
+    , requestMoveFromAi
     , requestSvgNodeContent
     , responseSvgNodeContent
+    , subscribeMoveFromAi
     , triggerPngDownload
     , websocketReceive
     , websocketSend
@@ -59,3 +62,29 @@ port websocketReceive : (Value -> msg) -> Sub msg
 {-| Playing the "piece placed on chess board" sound file.
 -}
 port playSound : () -> Cmd msg
+
+
+
+--------------------------------------------------------------------------------
+-- AI Web Worker ports ---------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+{-| Information about the state of the AI.
+-}
+port aiState : (Value -> msg) -> Sub msg
+
+
+{-| Restart the AI thread.
+-}
+port restartAiWorker : () -> Cmd msg
+
+
+{-| Given the current game state, this requests a move from the AI.
+-}
+port requestMoveFromAi : Value -> Cmd msg
+
+
+{-| After calling `requestMoveFromAi` this response should be received once.
+-}
+port subscribeMoveFromAi : (Value -> msg) -> Sub msg

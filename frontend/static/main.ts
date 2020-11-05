@@ -206,3 +206,24 @@ function play_sound() {
 if (app.ports.playSound) {
     app.ports.playSound.subscribe(() => play_sound());
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Ports for the AI Web Worker /////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+let aiWorker = new Worker('ai_worker.js');
+
+function decide_move(data: any) {
+    aiWorker.postMessage(data);
+}
+
+function commit_actions(message: MessageEvent<any>) {
+    app.ports.subscribeMoveFromAi.send(message.data)
+}
+
+aiWorker.onmessage = commit_actions;
+
+if (app.ports.requestMoveFromAi) {
+    app.ports.requestMoveFromAi.subscribe(decide_move)
+}

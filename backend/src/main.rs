@@ -19,9 +19,11 @@ use async_std::task::block_on;
 use db::Pool;
 use pacosako::{DenseBoard, PacoError, SakoSearchResult};
 use rand::{thread_rng, Rng};
+use rocket::http::ContentType;
 use rocket::http::{Cookie, Cookies};
 use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest, Request};
+use rocket::response::content::Content;
 use rocket::response::NamedFile;
 use rocket::response::{Flash, Redirect};
 use rocket::State;
@@ -52,6 +54,11 @@ fn elm() -> NamedFile {
 #[get("/main.js")]
 fn main_js() -> NamedFile {
     NamedFile::open("../target/main.js").unwrap()
+}
+
+#[get("/ai_worker.js")]
+fn ai_worker() -> NamedFile {
+    NamedFile::open("../target/ai_worker.js").unwrap()
 }
 
 #[get("/static/examples.txt")]
@@ -406,7 +413,15 @@ fn main() {
         }))
         .mount(
             "/",
-            routes![index, elm, favicon, examples, place_piece, main_js],
+            routes![
+                index,
+                elm,
+                favicon,
+                examples,
+                place_piece,
+                main_js,
+                ai_worker
+            ],
         )
         .mount(
             "/api/",

@@ -5,6 +5,7 @@ the app does starts from here.
 -}
 
 import Animation exposing (Timeline)
+import Api.Ai
 import Api.Backend
 import Api.Ports as Ports
 import Api.Websocket as Websocket exposing (CurrentMatchState)
@@ -1278,6 +1279,7 @@ subscriptions model =
         , Animation.subscription model.editor.timeline AnimationTick
         , Animation.subscription model.play.timeline (PlayMsgAnimationTick >> PlayMsgWrapper)
         , Time.every 1000 UpdateNow
+        , Api.Ai.subscribeMoveFromAi (PlayMsgWrapper AiCrashed) (MoveFromAi >> PlayMsgWrapper)
         ]
 
 
@@ -2070,6 +2072,9 @@ type PlayMsg
     | SetInputModePlay (Maybe CastingDeco.InputMode)
     | ClearDecoTilesPlay
     | ClearDecoArrowsPlay
+    | MoveFromAi Sako.Action
+    | RequestAiMove
+    | AiCrashed
 
 
 castingDecoMessagesPlay : CastingDeco.Messages Msg
@@ -2126,6 +2131,15 @@ updatePlayModel msg model =
 
         ClearDecoArrowsPlay ->
             ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
+
+        MoveFromAi action ->
+            updateActionInputStep action model
+
+        RequestAiMove ->
+            ( model, Api.Ai.requestMoveFromAi )
+
+        AiCrashed ->
+            ( model, Ports.logToConsole "Ai Crashed" )
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
@@ -2275,6 +2289,9 @@ renderPlayViewDragging dragState model =
         model.board
 
 
+{-| Add the given action to the list of all actions taken and sends it to the
+server for confirmation. Will also trigger an animation.
+-}
 updateActionInputStep : Sako.Action -> PlayModel -> ( PlayModel, Cmd Msg )
 updateActionInputStep action model =
     let
@@ -2570,6 +2587,11 @@ playModeSidebar taco model =
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
         , CastingDeco.configView castingDecoMessagesPlay model.inputMode model.castingDeco
+
+        -- , Input.button []
+        --     { onPress = Just (PlayMsgWrapper RequestAiMove)
+        --     , label = Element.text "Request Ai Move"
+        --     }
         ]
 
 

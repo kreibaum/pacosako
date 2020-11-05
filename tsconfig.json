@@ -8,6 +8,7 @@
         "outDir": "target"
     },
     "files": [
-        "frontend/static/main.ts"
+        "frontend/static/main.ts",
+        "frontend/static/ai_worker.ts"
     ],
 }
