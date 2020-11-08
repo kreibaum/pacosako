@@ -8,6 +8,7 @@ echo Prebuild of elm frontend
 mkdir -p target
 cp frontend/static/* target/
 cd frontend
+elm-spa build
 elm make src/Main.elm --output=../target/elm.js
 cd ..
 # Supporting typescript code.

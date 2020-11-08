@@ -29,6 +29,7 @@ script:
   - cargo test
   - cd ..
   - cd frontend
+  - elm-spa build
   - ../elm make src/Main.elm --output=../target/elm.js
   - cd ..
 

@@ -11,6 +11,7 @@ Cargo.lock
 
 # Elm excludes
 /frontend/elm-stuff/
+/frontend/src/Spa/Generated
 /target/
 
 # Server log
@@ -20,4 +21,4 @@ Cargo.lock
 /scripts/deployment-key.pem
 
 # Development Database
-/backend/data/*
+/backend/data
