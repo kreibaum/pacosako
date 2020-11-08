@@ -9,7 +9,15 @@ addons:
     - name: node
       confinement: classic
       channel: 15/stable
-cache: cargo
+cache:
+  - cargo
+  - $TRAVIS_BUILD_DIR/backend/target
+  - $TRAVIS_BUILD_DIR/lib/target
+# We don't want coverage to be cached and uploaded again on the next build.
+# So we are removing them just to be sure.
+before_cache:
+  - rm -f $TRAVIS_BUILD_DIR/backend/target/tarpaulin
+  - rm -f $TRAVIS_BUILD_DIR/lib/target/tarpaulin
 rust:
   - nightly
 
@@ -23,21 +31,23 @@ before_script: |
   cat scripts/known_hosts >> ~/.ssh/known_hosts
   chmod 400 ./scripts/deployment-key.pem
 
-script:
-  - cd backend
-  - mkdir -p data
-  - sqlx database create
-  - sqlx migrate run
-  - cargo clean
-  - cargo build
-  - cargo test
-  - cd ..
-  - cd frontend
-  - elm-spa build
-  - ../elm make src/Main.elm --output=../target/elm.js
-  - cd ..
+script: |
+  # test backend
+  cd backend
+  mkdir -p data
+  sqlx database create
+  sqlx migrate run
+  cargo clean
+  cargo build
+  cargo test
+  cd ..
 
-after_success: |
+  # build frontend
+  cd frontend
+  elm-spa build
+  ../elm make src/Main.elm --output=../target/elm.js
+  cd ..
+
   # Create and upload a report for codecov.io
   # Token is not required on Travis-CI, [..] for public repositories.
   cd backend
@@ -49,10 +59,12 @@ after_success: |
   cargo tarpaulin --ignore-tests --out Xml
   bash <(curl -s https://codecov.io/bash)
 
+after_success: |
   # Now we do the deployment
   cd ..
   chmod +x ./scripts/deploy.sh
   ./scripts/deploy.sh
+
 before_install:
   - openssl aes-256-cbc -K $encrypted_38b64a02c502_key -iv $encrypted_38b64a02c502_iv
     -in scripts/deployment-key.pem.enc -out scripts/deployment-key.pem -d
