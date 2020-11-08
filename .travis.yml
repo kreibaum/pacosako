@@ -24,6 +24,8 @@ before_script: |
 
 script:
   - cd backend
+  - sqlx database create
+  - sqlx migrate run
   - cargo clean
   - cargo build
   - cargo test
