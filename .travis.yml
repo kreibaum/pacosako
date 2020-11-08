@@ -25,6 +25,7 @@ before_script: |
 
 script:
   - cd backend
+  - mkdir -p data
   - sqlx database create
   - sqlx migrate run
   - cargo clean
