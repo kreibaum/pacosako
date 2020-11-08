@@ -26,6 +26,7 @@ import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Html exposing (Html)
 import Http
+import I18n.Strings as I18n exposing (Language(..), t)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
@@ -42,6 +43,7 @@ import Svg.Attributes as SvgA
 import Svg.Custom as Svg
 import Time exposing (Posix)
 import Timer
+import Tutorial
 
 
 main : Program Decode.Value Model Msg
@@ -61,6 +63,7 @@ type alias Model =
     , matchSetup : MatchSetupModel
     , editor : EditorModel
     , login : LoginModel
+    , language : Language
     }
 
 
@@ -69,6 +72,7 @@ type Page
     | MatchSetupPage
     | EditorPage
     | LoginPage
+    | TutorialPage
 
 
 type alias User =
@@ -183,6 +187,7 @@ type Msg
     | WebsocketErrorMsg Decode.Error
     | UpdateNow Posix
     | WindowResize Int Int
+    | SetLanguage Language
 
 
 {-| Messages that may only affect data in the position editor page.
@@ -299,6 +304,7 @@ init flags =
       , matchSetup = initMatchSetupModel
       , editor = initialEditor (parseWindowSize flags)
       , login = initialLogin
+      , language = I18n.English
       }
     , Api.Backend.getCurrentLogin HttpError
         (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
@@ -400,6 +406,9 @@ update msg model =
               }
             , Cmd.none
             )
+
+        SetLanguage lang ->
+            ( { model | language = lang }, Cmd.none )
 
 
 {-| Helper function to update the color scheme inside the taco.
@@ -1354,6 +1363,9 @@ globalUi model =
         LoginPage ->
             loginUi model.taco model.login
 
+        TutorialPage ->
+            tutorialUi model.taco model.language
+
 
 type alias PageHeaderInfo =
     { currentPage : Page
@@ -1369,6 +1381,7 @@ pageHeader taco currentPage additionalHeader =
     Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
         [ pageHeaderButton [] { currentPage = currentPage, targetPage = PlayPage, caption = "Play Paco Ŝako" }
         , pageHeaderButton [] { currentPage = currentPage, targetPage = EditorPage, caption = "Design Puzzles" }
+        , pageHeaderButton [] { currentPage = currentPage, targetPage = TutorialPage, caption = "Tutorial" }
         , additionalHeader
         , loginHeaderInfo taco
         ]
@@ -1988,6 +2001,21 @@ loginHeaderInfo taco =
     in
     Input.button [ Element.alignRight ]
         { onPress = Just (OpenPage LoginPage), label = loginCaption }
+
+
+
+--------------------------------------------------------------------------------
+-- Tutorial page ---------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+tutorialUi : Taco -> Language -> Element Msg
+tutorialUi taco lang =
+    Element.column [ width fill, height fill, Element.scrollbarY ]
+        [ Element.html FontAwesome.Styles.css
+        , pageHeader taco TutorialPage Element.none
+        , Tutorial.tutorialPage lang SetLanguage
+        ]
 
 
 
@@ -2827,7 +2855,7 @@ matchSetupUi taco model =
     Element.column [ width fill, height fill, Element.scrollbarY ]
         [ Element.html FontAwesome.Styles.css
         , pageHeader taco MatchSetupPage Element.none
-        , Element.el [ padding 40, centerX, Font.size 40, Font.bold ] (Element.text "Play Paco Ŝako")
+        , Element.el [ padding 40, centerX, Font.size 40 ] (Element.text "Play Paco Ŝako")
         , matchSetupUiInner model
         ]
 
