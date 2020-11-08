@@ -13,5 +13,8 @@ USER gitpod
 # to stable rust when Rocket 0.5 (async) releases.
 RUN bash -cl "rustup default nightly"
 
+# SQLx command line utility for migration scripts.
+RUN bash -cl "cargo install --version=0.1.0-beta.1 sqlx-cli"
+
 # The frontend is using elm, this is not included in workspace-full
 RUN bash -cl "npm install -g elm@latest-0.19.1 elm-live@next elm-format elm-spa@latest typescript"
