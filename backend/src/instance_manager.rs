@@ -1,5 +1,5 @@
 use crate::timeout;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use rand::{thread_rng, Rng};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -108,6 +108,8 @@ struct SyncManager<T: Instance> {
     instances: HashMap<String, InstanceMetadata<T>>,
     clients: HashMap<Sender, ClientData>,
     timeout_sender: crossbeam_channel::Sender<(String, DateTime<Utc>)>,
+    /// Keeps a log of the last few games that were created.
+    last_created: Vec<(String, DateTime<Utc>)>,
 }
 
 struct ClientData {
@@ -197,6 +199,9 @@ impl<T: Instance + 'static> Manager<T> {
     pub fn run<A, F: FnOnce(&T) -> A>(&self, key: String, f: F) -> Option<A> {
         lock!(self).run(key, f)
     }
+    pub fn recently_created_games(&self) -> Vec<String> {
+        lock!(self).recently_created_games()
+    }
 }
 
 impl<T: Instance> timeout::Callback for Manager<T> {
@@ -215,6 +220,7 @@ impl<T: Instance> Default for SyncManager<T> {
             instances: HashMap::new(),
             clients: HashMap::new(),
             timeout_sender: crossbeam_channel::bounded(0).0,
+            last_created: Vec::with_capacity(5),
         }
     }
 }
@@ -226,8 +232,28 @@ impl<T: Instance> SyncManager<T> {
         let new_instance = T::new_with_key(&key, params);
         self.instances
             .insert(key.clone(), InstanceMetadata::new(new_instance));
+        self.remember_creation(key.clone(), Utc::now());
+
         info!("Created new instance with key {}", key);
         key
+    }
+
+    /// Stores the game in a short list of recently created games.
+    fn remember_creation(&mut self, key: String, now: DateTime<Utc>) {
+        // We never store more than 5 recently created games.
+        if self.last_created.len() >= 5 {
+            self.last_created.remove(0);
+        }
+        self.last_created.push((key, now));
+    }
+
+    /// Shows newest instaces up to five from the last five minutes
+    pub fn recently_created_games(&mut self) -> Vec<String> {
+        self.last_created
+            .iter()
+            .filter(|&t| t.1 > Utc::now() - Duration::minutes(5))
+            .map(|t| t.0.clone())
+            .collect()
     }
 
     fn handle_message(&mut self, message: T::ClientMessage, sender: Sender) {
@@ -305,7 +331,10 @@ impl<T: Instance> SyncManager<T> {
                     ))),
                 );
             } else {
-                debug!("Subscribing to the instance {} by a client was successful.", key);
+                debug!(
+                    "Subscribing to the instance {} by a client was successful.",
+                    key
+                );
                 instance.clients.insert(sender.clone());
                 Self::handle_message_for_instance(
                     &self.timeout_sender,

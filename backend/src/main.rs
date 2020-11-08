@@ -334,6 +334,15 @@ fn get_game(
     }
 }
 
+#[get("/game/recent")]
+fn recently_created_games(websocket_server: State<WebsocketServer>) -> Json<Vec<String>> {
+    Json(
+        websocket_server
+            .borrow_match_manager()
+            .recently_created_games(),
+    )
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Set up logging //////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -437,6 +446,7 @@ fn main() {
                 create_game,
                 get_game,
                 websocket_port,
+                recently_created_games,
             ],
         )
         .launch();
