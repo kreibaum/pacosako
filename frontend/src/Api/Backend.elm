@@ -1,4 +1,19 @@
-module Api.Backend exposing (Api, describeError, getCurrentLogin, getLogout, getRandomPosition, postAnalysePosition, postLoginPassword, postMatchRequest, postSave)
+module Api.Backend exposing
+    ( Api
+    , describeError
+    , getCurrentLogin
+    , getLogout
+    , getRandomPosition
+    , getRecentGameKeys
+    , postAnalysePosition
+    , postLoginPassword
+    , postMatchRequest
+    , postSave
+    )
+
+{-| Server API. This is a mixed bag of all the GET and POST calls we can make to
+the server api.
+-}
 
 import Api.Ports as Ports
 import Http exposing (Error)
@@ -260,6 +275,18 @@ postAnalysePosition position =
 --------------------------------------------------------------------------------
 -- Handling Play Page ----------------------------------------------------------
 --------------------------------------------------------------------------------
+
+
+{-| GET a list of all recently creates games.
+-}
+getRecentGameKeys : Api (List String) msg
+getRecentGameKeys =
+    getJson
+        { url = "/api/game/recent"
+        , decoder =
+            Decode.list Decode.string
+                |> Decode.map List.reverse
+        }
 
 
 {-| Use this to call the "create game" api of the server.

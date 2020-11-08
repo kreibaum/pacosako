@@ -35,6 +35,7 @@ import Pieces
 import Pivot as P exposing (Pivot)
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, coordinateOfTile, nextHighlight)
 import Reactive exposing (Device(..))
+import RemoteData exposing (WebData)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
@@ -306,8 +307,11 @@ init flags =
       , login = initialLogin
       , language = I18n.English
       }
-    , Api.Backend.getCurrentLogin HttpError
-        (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
+    , Cmd.batch
+        [ Api.Backend.getCurrentLogin HttpError
+            (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
+        , refreshRecentGames
+        ]
     )
 
 
@@ -2769,6 +2773,9 @@ type MatchSetupMsg
     | MatchCreatedOnServer String
     | SetTimeLimit Int
     | SetRawTimeLimit String
+    | RefreshRecentGames
+    | GotRecentGames (List String)
+    | ErrorRecentGames Http.Error
 
 
 type alias MatchSetupModel =
@@ -2776,6 +2783,7 @@ type alias MatchSetupModel =
     , matchConnectionStatus : MatchConnectionStatus
     , timeLimit : Int
     , rawTimeLimit : String
+    , recentGames : WebData (List String)
     }
 
 
@@ -2790,6 +2798,7 @@ initMatchSetupModel =
     , matchConnectionStatus = NoMatchConnection
     , timeLimit = 300
     , rawTimeLimit = "300"
+    , recentGames = RemoteData.Loading
     }
 
 
@@ -2813,6 +2822,22 @@ updateMatchSetup msg model =
 
         SetRawTimeLimit newRawLimit ->
             ( { model | rawTimeLimit = newRawLimit } |> tryParseRawLimit, Cmd.none )
+
+        GotRecentGames games ->
+            ( { model | recentGames = RemoteData.Success games }, Cmd.none )
+
+        ErrorRecentGames error ->
+            ( { model | recentGames = RemoteData.Failure error }, Cmd.none )
+
+        RefreshRecentGames ->
+            ( { model | recentGames = RemoteData.Loading }, refreshRecentGames )
+
+
+refreshRecentGames : Cmd Msg
+refreshRecentGames =
+    Api.Backend.getRecentGameKeys
+        (ErrorRecentGames >> MatchSetupMsgWrapper)
+        (GotRecentGames >> MatchSetupMsgWrapper)
 
 
 {-| Parse the rawTimeLimit into an integer and take it over to the time limit if
@@ -2862,9 +2887,12 @@ matchSetupUi taco model =
 
 matchSetupUiInner : MatchSetupModel -> Element Msg
 matchSetupUiInner model =
-    Element.row [ width (fill |> Element.maximum 1200), padding 5, spacing 5, centerX ]
-        [ joinOnlineMatchUi model
-        , setupOnlineMatchUi model
+    Element.column [ width (fill |> Element.maximum 1200), padding 5, spacing 5, centerX ]
+        [ Element.row [ width fill, spacing 5, centerX ]
+            [ joinOnlineMatchUi model
+            , setupOnlineMatchUi model
+            ]
+        , recentGamesList model.recentGames
         ]
 
 
@@ -2983,4 +3011,60 @@ bigRoundedButton color event content =
     Input.button [ Background.color color, width fill, height fill, Border.rounded 5 ]
         { onPress = event
         , label = Element.column [ height fill, centerX, padding 15, spacing 10 ] content
+        }
+
+
+recentGamesList : WebData (List String) -> Element Msg
+recentGamesList data =
+    case data of
+        RemoteData.NotAsked ->
+            Input.button [ padding 10 ]
+                { onPress = Just (RefreshRecentGames |> MatchSetupMsgWrapper)
+                , label = Element.text "Search for recent games"
+                }
+
+        RemoteData.Loading ->
+            Element.el [ padding 10 ]
+                (Element.text "Searching for recent games...")
+
+        RemoteData.Failure _ ->
+            Input.button [ padding 10 ]
+                { onPress = Just (RefreshRecentGames |> MatchSetupMsgWrapper)
+                , label = Element.text "Error while searching for games! Try again?"
+                }
+
+        RemoteData.Success games ->
+            recentGamesListSuccess games
+
+
+recentGamesListSuccess : List String -> Element Msg
+recentGamesListSuccess games =
+    if List.isEmpty games then
+        Input.button [ padding 10 ]
+            { onPress = Just (RefreshRecentGames |> MatchSetupMsgWrapper)
+            , label = Element.text "There were no games recently started. Check again?"
+            }
+
+    else
+        Element.row [ width fill, spacing 5 ]
+            (List.map recentGamesListSuccessOne games
+                ++ [ Input.button
+                        [ padding 10
+                        , Background.color (Element.rgb 0.9 0.9 0.9)
+                        ]
+                        { onPress = Just (RefreshRecentGames |> MatchSetupMsgWrapper)
+                        , label = Element.text "Refresh"
+                        }
+                   ]
+            )
+
+
+recentGamesListSuccessOne : String -> Element Msg
+recentGamesListSuccessOne game =
+    Input.button
+        [ padding 10
+        , Background.color (Element.rgb 0.9 0.9 0.9)
+        ]
+        { onPress = Just (SetRawMatchId game |> MatchSetupMsgWrapper)
+        , label = Element.text game
         }
