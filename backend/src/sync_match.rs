@@ -150,7 +150,7 @@ impl Instance for SyncronizedMatch {
             },
 
             ClientMatchMessage::Rollback { .. } => match self.rollback() {
-                Ok(state) => ctx.reply(ServerMatchMessage::CurrentMatchState(state)),
+                Ok(state) => ctx.broadcast(ServerMatchMessage::CurrentMatchState(state)),
                 Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
                     "Game logic is violated by this action: {:?}",
                     e
