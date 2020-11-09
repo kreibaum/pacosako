@@ -19,7 +19,6 @@ import File.Download
 import FontAwesome.Icon exposing (Icon, viewIcon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
-import FontAwesome.Styles
 import Html exposing (Html)
 import Http
 import I18n.Strings as I18n exposing (Language(..), t)
@@ -35,7 +34,8 @@ import RemoteData exposing (WebData)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
-import Spa.Document exposing (Document)
+import Shared
+import Spa.Document exposing (Document, LegacyPage(..))
 import Spa.Page as Page
 import Spa.Url exposing (Url)
 import Svg exposing (Svg)
@@ -52,7 +52,7 @@ type alias Params =
 
 type alias Model =
     { taco : Taco
-    , page : Page
+    , page : LegacyPage
     , play : PlayModel
     , matchSetup : MatchSetupModel
     , editor : EditorModel
@@ -68,7 +68,7 @@ type Msg
     | MatchSetupMsgWrapper MatchSetupMsg
     | EditorMsgWrapper EditorMsg
     | LoginPageMsgWrapper LoginPageMsg
-    | OpenPage Page
+    | OpenPage LegacyPage
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
     | HttpError Http.Error
@@ -89,16 +89,9 @@ page =
         , update = update
         , view = view
         , subscriptions = subscriptions
-        , save = always identity
-        , load = \_ model -> ( model, Cmd.none )
+        , save = save
+        , load = \shared model -> ( { model | page = shared.legacyPage }, Cmd.none )
         }
-
-
-
--- VIEW
--- view : Model -> Html Msg
--- view model =
---     Element.layout [ height fill, Element.scrollbarY ] (globalUi model)
 
 
 view : Model -> Document Msg
@@ -108,20 +101,29 @@ view model =
     }
 
 
+save : Model -> Shared.Model -> Shared.Model
+save model shared =
+    { shared
+        | legacyPage = model.page
+        , login = model.taco.login
+    }
+
+
+load : Shared.Model -> Model -> ( Model, Cmd Msg )
+load shared model =
+    let
+        oldTaco =
+            model.taco
+    in
+    ( { model | page = shared.legacyPage, taco = { oldTaco | login = shared.login } }, Cmd.none )
+
+
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- All of my old code from Main.elm --------------------------------------------
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-
-
-type Page
-    = PlayPage
-    | MatchSetupPage
-    | EditorPage
-    | LoginPage
-    | TutorialPage
 
 
 type alias User =
@@ -1395,44 +1397,6 @@ globalUi model =
             tutorialUi model.taco model.language
 
 
-type alias PageHeaderInfo =
-    { currentPage : Page
-    , targetPage : Page
-    , caption : String
-    }
-
-
-{-| Header that is shared by all pages.
--}
-pageHeader : Taco -> Page -> Element Msg -> Element Msg
-pageHeader taco currentPage additionalHeader =
-    Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton [] { currentPage = currentPage, targetPage = PlayPage, caption = "Play Paco Ŝako" }
-        , pageHeaderButton [] { currentPage = currentPage, targetPage = EditorPage, caption = "Design Puzzles" }
-        , pageHeaderButton [] { currentPage = currentPage, targetPage = TutorialPage, caption = "Tutorial" }
-        , additionalHeader
-        , loginHeaderInfo taco
-        ]
-
-
-pageHeaderButton : List (Element.Attribute Msg) -> PageHeaderInfo -> Element Msg
-pageHeaderButton attributes { currentPage, targetPage, caption } =
-    Input.button
-        (padding 10
-            :: (backgroundFocus (currentPage == targetPage)
-                    ++ attributes
-               )
-        )
-        { onPress =
-            if currentPage == targetPage then
-                Nothing
-
-            else
-                Just (OpenPage targetPage)
-        , label = Element.text caption
-        }
-
-
 
 --------------------------------------------------------------------------------
 -- Editor viev -----------------------------------------------------------------
@@ -1441,18 +1405,10 @@ pageHeaderButton attributes { currentPage, targetPage, caption } =
 
 editorUi : Taco -> EditorModel -> Element Msg
 editorUi taco model =
-    Element.column
-        [ width fill
-        , height fill
-        , Element.scrollbarY
-        ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco EditorPage (saveStateHeader (P.getC model.game) model.saveState)
-        , Element.row
-            [ width fill, height fill, Element.scrollbarY ]
-            [ positionView taco model |> Element.map EditorMsgWrapper
-            , sidebar taco model
-            ]
+    Element.row
+        [ width fill, height fill, Element.scrollbarY ]
+        [ positionView taco model |> Element.map EditorMsgWrapper
+        , sidebar taco model
         ]
 
 
@@ -1975,16 +1931,12 @@ analysisResult editorModel =
 
 loginUi : Taco -> LoginModel -> Element Msg
 loginUi taco loginPageData =
-    Element.column [ width fill ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco LoginPage Element.none
-        , case taco.login of
-            Just user ->
-                loginInfoPage user
+    case taco.login of
+        Just user ->
+            loginInfoPage user
 
-            Nothing ->
-                loginDialog taco loginPageData
-        ]
+        Nothing ->
+            loginDialog taco loginPageData
 
 
 loginDialog : Taco -> LoginModel -> Element Msg
@@ -2016,21 +1968,6 @@ loginInfoPage user =
         ]
 
 
-loginHeaderInfo : Taco -> Element Msg
-loginHeaderInfo taco =
-    let
-        loginCaption =
-            case taco.login of
-                Just user ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.user, Element.text user.username ]
-
-                Nothing ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text "Login" ]
-    in
-    Input.button [ Element.alignRight ]
-        { onPress = Just (OpenPage LoginPage), label = loginCaption }
-
-
 
 --------------------------------------------------------------------------------
 -- Tutorial page ---------------------------------------------------------------
@@ -2039,11 +1976,7 @@ loginHeaderInfo taco =
 
 tutorialUi : Taco -> Language -> Element Msg
 tutorialUi taco lang =
-    Element.column [ width fill, height fill, Element.scrollbarY ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco TutorialPage Element.none
-        , Tutorial.tutorialPage lang SetLanguage
-        ]
+    Tutorial.tutorialPage lang SetLanguage
 
 
 
@@ -2471,27 +2404,19 @@ playUi taco model =
 
 playUiLandscape : Taco -> PlayModel -> Element Msg
 playUiLandscape taco model =
-    Element.column [ width fill, height fill, Element.scrollbarY ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco PlayPage Element.none
-        , Element.row
-            [ width fill, height fill, Element.scrollbarY ]
-            [ playPositionView taco model
-            , playModeSidebar taco model
-            ]
+    Element.row
+        [ width fill, height fill, Element.scrollbarY ]
+        [ playPositionView taco model
+        , playModeSidebar taco model
         ]
 
 
 playUiPortrait : Taco -> PlayModel -> Element Msg
 playUiPortrait taco model =
-    Element.column [ width fill, height fill ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco PlayPage Element.none
-        , Element.column
-            [ width fill, height fill ]
-            [ playPositionView taco model
-            , playModeSidebar taco model
-            ]
+    Element.column
+        [ width fill, height fill ]
+        [ playPositionView taco model
+        , playModeSidebar taco model
         ]
 
 
@@ -2901,10 +2826,8 @@ createMatch model =
 
 matchSetupUi : Taco -> MatchSetupModel -> Element Msg
 matchSetupUi taco model =
-    Element.column [ width fill, height fill, Element.scrollbarY ]
-        [ Element.html FontAwesome.Styles.css
-        , pageHeader taco MatchSetupPage Element.none
-        , Element.el [ padding 40, centerX, Font.size 40 ] (Element.text "Play Paco Ŝako")
+    Element.column [ width fill, height fill, scrollbarY ]
+        [ Element.el [ padding 40, centerX, Font.size 40 ] (Element.text "Play Paco Ŝako")
         , matchSetupUiInner model
         ]
 
