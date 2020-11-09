@@ -39,6 +39,11 @@ fn index() -> NamedFile {
     NamedFile::open("../target/index.html").unwrap()
 }
 
+#[get("/<_path..>", rank = 2)]
+fn index_fallback(_path: std::path::PathBuf) -> NamedFile {
+    index()
+}
+
 #[get("/favicon.svg")]
 fn favicon() -> NamedFile {
     NamedFile::open("../target/favicon.svg").unwrap()
@@ -449,5 +454,6 @@ fn main() {
                 recently_created_games,
             ],
         )
+        .mount("/", routes![index_fallback])
         .launch();
 }
