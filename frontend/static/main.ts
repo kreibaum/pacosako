@@ -68,12 +68,26 @@ var observer = new MutationObserver(function (mutations) {
 
 observer.observe(document.body, { childList: true, subtree: true });
 
+
+// Retrive local storage
+let localStorageData = JSON.parse(localStorage.getItem('localStorage'));
+
 // Pass the window size to elm on init. This way we already know it on startup.
 let windowSize = { width: window.innerWidth, height: window.innerHeight };
 var app = Elm.Main.init({
     node: document.getElementById("elm"),
-    flags: windowSize,
+    flags: {
+        "windowSize": windowSize,
+        "localStorage": localStorageData
+    },
 });
+
+if (app.ports.writeToLocalStorage) {
+    app.ports.writeToLocalStorage.subscribe(function (data) {
+        localStorage.setItem('localStorage', JSON.stringify(data));
+        console.log(`Wrote ${JSON.stringify(data)} into local storage`);
+    });
+}
 
 app.ports.logToConsole.subscribe((message) => console.log(message));
 

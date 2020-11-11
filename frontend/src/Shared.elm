@@ -8,6 +8,7 @@ module Shared exposing
     , view
     )
 
+import Api.LocalStorage as LocalStorage
 import Browser.Navigation exposing (Key)
 import Element exposing (..)
 import Element.Background as Background
@@ -17,7 +18,8 @@ import FontAwesome.Icon exposing (Icon, viewIcon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
-import Json.Decode as Decode exposing (Value)
+import Json.Decode as Decode exposing (Decoder, Value, bool)
+import Json.Encode as Encode exposing (Value)
 import Spa.Document exposing (Document, LegacyPage(..))
 import Spa.Generated.Route as Route
 import Url exposing (Url)
@@ -34,22 +36,46 @@ type alias Flags =
 type alias Model =
     { url : Url
     , key : Key
-    , flags : Value
+    , windowSize : ( Int, Int )
     , legacyPage : LegacyPage
     , login : Maybe User
+
+    -- Even when not logged in, you can set a username that is shown to other
+    -- people sharing a game with you.
+    , username : String
+    , permissions : List LocalStorage.Permission
     }
 
 
 init : Flags -> Url -> Key -> ( Model, Cmd Msg )
 init flags url key =
+    let
+        ls =
+            LocalStorage.load flags
+    in
     ( { url = url
       , key = key
-      , flags = flags
+      , windowSize = parseWindowSize flags
       , legacyPage = MatchSetupPage
       , login = Nothing
+      , username = ls.data.username
+      , permissions = ls.permissions
       }
-    , Cmd.none
+    , LocalStorage.store ls
     )
+
+
+parseWindowSize : Value -> ( Int, Int )
+parseWindowSize value =
+    Decode.decodeValue sizeDecoder value
+        |> Result.withDefault ( 100, 100 )
+
+
+sizeDecoder : Decoder ( Int, Int )
+sizeDecoder =
+    Decode.map2 (\x y -> ( x, y ))
+        (Decode.field "width" Decode.int)
+        (Decode.field "height" Decode.int)
 
 
 

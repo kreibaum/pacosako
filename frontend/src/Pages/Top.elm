@@ -85,7 +85,7 @@ type Msg
 page : Page.Page Params Model Msg
 page =
     Page.application
-        { init = \shared params -> init shared.flags
+        { init = \shared params -> init shared
         , update = update
         , view = view
         , subscriptions = subscriptions
@@ -315,26 +315,13 @@ initialTaco =
     { colorScheme = Pieces.defaultColorScheme, login = Nothing, now = Time.millisToPosix 0 }
 
 
-parseWindowSize : Decode.Value -> ( Int, Int )
-parseWindowSize value =
-    Decode.decodeValue sizeDecoder value
-        |> Result.withDefault ( 100, 100 )
-
-
-sizeDecoder : Decoder ( Int, Int )
-sizeDecoder =
-    Decode.map2 (\x y -> ( x, y ))
-        (Decode.field "width" Decode.int)
-        (Decode.field "height" Decode.int)
-
-
-init : Decode.Value -> ( Model, Cmd Msg )
-init flags =
+init : Shared.Model -> ( Model, Cmd Msg )
+init shared =
     ( { taco = initialTaco
       , page = MatchSetupPage
-      , play = initPlayModel (parseWindowSize flags)
+      , play = initPlayModel shared.windowSize
       , matchSetup = initMatchSetupModel
-      , editor = initialEditor (parseWindowSize flags)
+      , editor = initialEditor shared.windowSize
       , login = initialLogin
       , language = I18n.English
       }

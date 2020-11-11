@@ -1,6 +1,8 @@
 module I18n.Strings exposing
     ( I18nToken
     , Language(..)
+    , decodeLanguage
+    , encodeLanguage
     , t
     , tutorialCombosLoopsChains
     , tutorialCreativePlayingStyle
@@ -23,7 +25,8 @@ module I18n.Strings exposing
 
 -}
 
-import Html exposing (a)
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode exposing (Value)
 
 
 {-| List of all supported languages. Default language is english.
@@ -31,6 +34,33 @@ import Html exposing (a)
 type Language
     = English
     | Dutch
+
+
+encodeLanguage : Language -> Value
+encodeLanguage lang =
+    case lang of
+        English ->
+            Encode.string "English"
+
+        Dutch ->
+            Encode.string "Dutch"
+
+
+decodeLanguage : Decoder Language
+decodeLanguage =
+    Decode.string
+        |> Decode.andThen
+            (\str ->
+                case str of
+                    "English" ->
+                        Decode.succeed English
+
+                    "Dutch" ->
+                        Decode.succeed Dutch
+
+                    otherwise ->
+                        Decode.fail ("Language not supported: " ++ otherwise)
+            )
 
 
 {-| Opaque type to represent all language versions of a string.
