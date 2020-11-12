@@ -1,5 +1,6 @@
-module Tutorial exposing (tutorialPage)
+module Pages.Tutorial exposing (Model, Msg, Params, page)
 
+import Api.LocalStorage exposing (LocalStorage)
 import Browser exposing (element)
 import Element exposing (Element, centerX, el, fill, height, maximum, padding, paragraph, scrollbarY, spacing, text, width)
 import Element.Background as Background
@@ -8,6 +9,82 @@ import Element.Input as Input
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
 import I18n.Strings as I18n exposing (I18nToken, Language(..), t)
+import Shared
+import Spa.Document exposing (Document)
+import Spa.Page as Page exposing (Page)
+import Spa.Url as Url exposing (Url)
+
+
+page : Page Params Model Msg
+page =
+    Page.application
+        { init = init
+        , update = update
+        , subscriptions = subscriptions
+        , view = view
+        , save = save
+        , load = load
+        }
+
+
+
+-- INIT
+
+
+type alias Params =
+    ()
+
+
+type alias Model =
+    Language
+
+
+init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
+init shared { params } =
+    ( shared.language, Cmd.none )
+
+
+
+-- UPDATE
+
+
+type Msg
+    = SetLanguage Language
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        SetLanguage lang ->
+            ( lang, Api.LocalStorage.triggerSave )
+
+
+save : Model -> Shared.Model -> Shared.Model
+save model shared =
+    { shared | language = model }
+
+
+load : Shared.Model -> Model -> ( Model, Cmd Msg )
+load shared model =
+    ( shared.language, Cmd.none )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.none
+
+
+
+-- VIEW
+
+
+view : Model -> Document Msg
+view lang =
+    { title = "Tutorial"
+    , body =
+        [ tutorialPage lang SetLanguage
+        ]
+    }
 
 
 {-| The tutorial needs only a language and this is stored outside. It contains

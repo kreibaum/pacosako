@@ -9,7 +9,7 @@ module Shared exposing
     )
 
 import Api.LocalStorage as LocalStorage
-import Browser.Navigation exposing (Key)
+import Browser.Navigation exposing (Key, pushUrl)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Font as Font
@@ -18,6 +18,7 @@ import FontAwesome.Icon exposing (Icon, viewIcon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
+import I18n.Strings as I18n exposing (Language)
 import Json.Decode as Decode exposing (Decoder, Value, bool)
 import Json.Encode as Encode exposing (Value)
 import Spa.Document exposing (Document, LegacyPage(..))
@@ -39,6 +40,7 @@ type alias Model =
     , windowSize : ( Int, Int )
     , legacyPage : LegacyPage
     , login : Maybe User
+    , language : Language
 
     -- Even when not logged in, you can set a username that is shown to other
     -- people sharing a game with you.
@@ -58,10 +60,11 @@ init flags url key =
       , windowSize = parseWindowSize flags
       , legacyPage = MatchSetupPage
       , login = Nothing
+      , language = ls.data.language
       , username = ls.data.username
       , permissions = ls.permissions
       }
-    , LocalStorage.store ls
+    , Cmd.none
     )
 
 
@@ -84,18 +87,51 @@ sizeDecoder =
 
 type Msg
     = OpenPage LegacyPage
+    | TriggerSaveLocalStorage
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         OpenPage page ->
-            ( { model | legacyPage = page }, Cmd.none )
+            openPage page model
+
+        TriggerSaveLocalStorage ->
+            ( model, triggerSaveLocalStorage model )
+
+
+openPage : LegacyPage -> Model -> ( Model, Cmd Msg )
+openPage page model =
+    ( { model | legacyPage = Debug.log "page in openPage" page }
+    , case page of
+        PlayPage ->
+            pushUrl model.key (Route.toString Route.Top)
+
+        MatchSetupPage ->
+            pushUrl model.key (Route.toString Route.Top)
+
+        EditorPage ->
+            pushUrl model.key (Route.toString Route.Top)
+
+        LoginPage ->
+            pushUrl model.key (Route.toString Route.Top)
+
+        TutorialPage ->
+            pushUrl model.key (Route.toString Route.Tutorial)
+    )
+
+
+triggerSaveLocalStorage : Model -> Cmd msg
+triggerSaveLocalStorage model =
+    LocalStorage.store
+        { data = { username = model.username, language = model.language }
+        , permissions = model.permissions
+        }
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    LocalStorage.subscribeSave TriggerSaveLocalStorage
 
 
 

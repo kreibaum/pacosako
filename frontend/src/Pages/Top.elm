@@ -43,7 +43,6 @@ import Svg.Attributes as SvgA
 import Svg.Custom as Svg
 import Time exposing (Posix)
 import Timer
-import Tutorial
 
 
 type alias Params =
@@ -318,7 +317,7 @@ initialTaco =
 init : Shared.Model -> ( Model, Cmd Msg )
 init shared =
     ( { taco = initialTaco
-      , page = MatchSetupPage
+      , page = shared.legacyPage
       , play = initPlayModel shared.windowSize
       , matchSetup = initMatchSetupModel
       , editor = initialEditor shared.windowSize
@@ -1381,7 +1380,7 @@ globalUi model =
             loginUi model.taco model.login
 
         TutorialPage ->
-            tutorialUi model.taco model.language
+            Element.text "Error - This page should not be accessed this way."
 
 
 
@@ -1953,17 +1952,6 @@ loginInfoPage user =
         , Element.text ("ID: " ++ String.fromInt user.id)
         , Input.button [] { label = Element.text "Logout", onPress = Just (LoginPageMsgWrapper Logout) }
         ]
-
-
-
---------------------------------------------------------------------------------
--- Tutorial page ---------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-tutorialUi : Taco -> Language -> Element Msg
-tutorialUi taco lang =
-    Tutorial.tutorialPage lang SetLanguage
 
 
 

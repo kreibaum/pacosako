@@ -5,6 +5,8 @@ port module Api.LocalStorage exposing
     , load
     , setPermission
     , store
+    , subscribeSave
+    , triggerSave
     )
 
 {-| This module handles storing information in Local Storage as well as a
@@ -218,7 +220,9 @@ decodeDataV1 =
 
 
 
----- Various helper functions
+--------------------------------------------------------------------------------
+---- Various helper functions --------------------------------------------------
+--------------------------------------------------------------------------------
 
 
 encodeNullable : (a -> Value) -> Maybe a -> Value
@@ -229,3 +233,32 @@ encodeNullable encode thing =
 
         Nothing ->
             Encode.null
+
+
+
+--------------------------------------------------------------------------------
+--- Trampoline functionality ---------------------------------------------------
+--------------------------------------------------------------------------------
+-- The trampolineIn and trampolineOut are a way to send a global message.
+-- This is used to trigger a save of the local storage from any component.
+-- The Shared.Model itself is updated by the page's save method.
+
+
+port trampolineOut : () -> Cmd msg
+
+
+port trampolineIn : (() -> msg) -> Sub msg
+
+
+{-| Make sure to always trigger this port when you update data that should be
+stored in local storage. The Shared Module will then automatically respond and
+trigger a save.
+-}
+triggerSave : Cmd msg
+triggerSave =
+    trampolineOut ()
+
+
+subscribeSave : msg -> Sub msg
+subscribeSave msg =
+    trampolineIn (\() -> msg)

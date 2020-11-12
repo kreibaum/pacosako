@@ -89,6 +89,15 @@ if (app.ports.writeToLocalStorage) {
     });
 }
 
+// The trampolineIn and trampolineOut are a way to send a global message.
+// This is used to trigger a save of the local storage from any component.
+// The Shared.Model itself is updated by the page's save method.
+if (app.ports.trampolineOut && app.ports.trampolineIn) {
+    app.ports.trampolineOut.subscribe(() => {
+        app.ports.trampolineIn.send(null);
+    });
+}
+
 app.ports.logToConsole.subscribe((message) => console.log(message));
 
 // Ports to extract an svg node as xml from the dom.
