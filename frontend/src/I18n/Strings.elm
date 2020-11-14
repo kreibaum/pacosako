@@ -154,16 +154,16 @@ tutorialGoal =
 tutorialCombosLoopsChains : I18nToken ( String, Maybe String )
 tutorialCombosLoopsChains =
     I18nToken
-        { english = ( "Combo's, Loop, Ketting", Nothing )
-        , dutch = ( "Combos, loops and chains", Nothing )
+        { english = ( "Combos, loops and chains", Nothing )
+        , dutch = ( "Combo's, Loop, Ketting", Nothing )
         }
 
 
 tutorialStrategy : I18nToken ( String, Maybe String )
 tutorialStrategy =
     I18nToken
-        { english = ( "Strategie", Nothing )
-        , dutch = ( "Strategy", Nothing )
+        { english = ( "Strategy", Nothing )
+        , dutch = ( "Strategie", Nothing )
         }
 
 
