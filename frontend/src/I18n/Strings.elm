@@ -131,7 +131,7 @@ tutorialMovement : I18nToken ( String, Maybe String )
 tutorialMovement =
     I18nToken
         { english = ( "Movement of the pieces", Nothing )
-        , dutch = ( "Beweging van de stukken", Nothing )
+        , dutch = ( "Beweging van de stukken", Just "mCoara3xUlk" )
         }
 
 
