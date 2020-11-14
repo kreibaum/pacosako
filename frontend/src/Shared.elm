@@ -2,13 +2,16 @@ module Shared exposing
     ( Flags
     , Model
     , Msg
+    , User
     , init
     , subscriptions
     , update
     , view
     )
 
+import Api.Backend
 import Api.LocalStorage as LocalStorage
+import Api.Ports
 import Browser.Navigation exposing (Key, pushUrl)
 import Element exposing (..)
 import Element.Background as Background
@@ -18,6 +21,7 @@ import FontAwesome.Icon exposing (Icon, viewIcon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
+import Http
 import I18n.Strings as I18n exposing (Language)
 import Json.Decode as Decode exposing (Decoder, Value, bool)
 import Json.Encode as Encode exposing (Value)
@@ -39,7 +43,7 @@ type alias Model =
     , key : Key
     , windowSize : ( Int, Int )
     , legacyPage : LegacyPage
-    , login : Maybe User
+    , user : Maybe User
     , language : Language
 
     -- Even when not logged in, you can set a username that is shown to other
@@ -59,12 +63,13 @@ init flags url key =
       , key = key
       , windowSize = parseWindowSize flags
       , legacyPage = MatchSetupPage
-      , login = Nothing
+      , user = Nothing
       , language = ls.data.language
       , username = ls.data.username
       , permissions = ls.permissions
       }
-    , Cmd.none
+    , Api.Backend.getCurrentLogin HttpError
+        (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
     )
 
 
@@ -88,6 +93,9 @@ sizeDecoder =
 type Msg
     = OpenPage LegacyPage
     | TriggerSaveLocalStorage
+    | HttpError Http.Error
+    | LoginSuccess User
+    | LogoutSuccess
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -98,6 +106,15 @@ update msg model =
 
         TriggerSaveLocalStorage ->
             ( model, triggerSaveLocalStorage model )
+
+        HttpError error ->
+            ( model, Api.Ports.logToConsole (Api.Backend.describeError error) )
+
+        LoginSuccess user ->
+            ( { model | user = Just user }, Cmd.none )
+
+        LogoutSuccess ->
+            ( { model | user = Nothing }, Cmd.none )
 
 
 openPage : LegacyPage -> Model -> ( Model, Cmd Msg )
@@ -114,7 +131,7 @@ openPage page model =
             pushUrl model.key (Route.toString Route.Top)
 
         LoginPage ->
-            pushUrl model.key (Route.toString Route.Top)
+            pushUrl model.key (Route.toString Route.Login)
 
         TutorialPage ->
             pushUrl model.key (Route.toString Route.Tutorial)
@@ -172,7 +189,7 @@ pageHeader model additionalHeader =
         , pageHeaderButton [] { currentPage = model.legacyPage, targetPage = EditorPage, caption = "Design Puzzles" }
         , pageHeaderButton [] { currentPage = model.legacyPage, targetPage = TutorialPage, caption = "Tutorial" }
         , additionalHeader
-        , loginHeaderInfo model.login
+        , loginHeaderInfo model.user
         ]
 
 

@@ -30,7 +30,7 @@ import Pieces
 import Pivot as P exposing (Pivot)
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, coordinateOfTile, nextHighlight)
 import Reactive exposing (Device(..))
-import RemoteData exposing (WebData)
+import RemoteData exposing (RemoteData, WebData)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
@@ -55,7 +55,6 @@ type alias Model =
     , play : PlayModel
     , matchSetup : MatchSetupModel
     , editor : EditorModel
-    , login : LoginModel
     , language : Language
 
     -- , url : Url Params
@@ -66,13 +65,10 @@ type Msg
     = PlayMsgWrapper PlayMsg
     | MatchSetupMsgWrapper MatchSetupMsg
     | EditorMsgWrapper EditorMsg
-    | LoginPageMsgWrapper LoginPageMsg
     | OpenPage LegacyPage
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
     | HttpError Http.Error
-    | LoginSuccess User
-    | LogoutSuccess
     | AnimationTick Posix
     | WebsocketMsg Websocket.ServerMessage
     | WebsocketErrorMsg Decode.Error
@@ -89,7 +85,7 @@ page =
         , view = view
         , subscriptions = subscriptions
         , save = save
-        , load = \shared model -> ( { model | page = shared.legacyPage }, Cmd.none )
+        , load = load
         }
 
 
@@ -104,7 +100,7 @@ save : Model -> Shared.Model -> Shared.Model
 save model shared =
     { shared
         | legacyPage = model.page
-        , login = model.taco.login
+        , user = model.taco.login
     }
 
 
@@ -114,7 +110,9 @@ load shared model =
         oldTaco =
             model.taco
     in
-    ( { model | page = shared.legacyPage, taco = { oldTaco | login = shared.login } }, Cmd.none )
+    ( { model | page = shared.legacyPage, taco = { oldTaco | login = shared.user } }
+    , refreshRecentGames
+    )
 
 
 
@@ -254,13 +252,6 @@ type EditorMsg
     | ClearDecoArrowsEditor
 
 
-type LoginPageMsg
-    = TypeUsername String
-    | TypePassword String
-    | TryLogin
-    | Logout
-
-
 type alias KeyStroke =
     { key : String
     , ctrlKey : Bool
@@ -304,31 +295,21 @@ initialEditor windowSize =
     }
 
 
-initialLogin : LoginModel
-initialLogin =
-    { usernameRaw = "", passwordRaw = "" }
-
-
-initialTaco : Taco
-initialTaco =
-    { colorScheme = Pieces.defaultColorScheme, login = Nothing, now = Time.millisToPosix 0 }
+initialTaco : Shared.Model -> Taco
+initialTaco shared =
+    { colorScheme = Pieces.defaultColorScheme, login = shared.user, now = Time.millisToPosix 0 }
 
 
 init : Shared.Model -> ( Model, Cmd Msg )
 init shared =
-    ( { taco = initialTaco
+    ( { taco = initialTaco shared
       , page = shared.legacyPage
       , play = initPlayModel shared.windowSize
       , matchSetup = initMatchSetupModel
       , editor = initialEditor shared.windowSize
-      , login = initialLogin
       , language = I18n.English
       }
-    , Cmd.batch
-        [ Api.Backend.getCurrentLogin HttpError
-            (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
-        , refreshRecentGames
-        ]
+    , refreshRecentGames
     )
 
 
@@ -359,13 +340,6 @@ update msg model =
             in
             ( { model | editor = editorModel }, editorCmd )
 
-        LoginPageMsgWrapper loginPageMsg ->
-            let
-                ( loginPageModel, loginPageCmd ) =
-                    updateLoginPage loginPageMsg model.login
-            in
-            ( { model | login = loginPageModel }, loginPageCmd )
-
         WhiteSideColor newSideColor ->
             ( { model | taco = setColorScheme (Pieces.setWhite newSideColor model.taco.colorScheme) model.taco }
             , Cmd.none
@@ -378,22 +352,6 @@ update msg model =
 
         OpenPage newPage ->
             ( { model | page = newPage }
-            , Cmd.none
-            )
-
-        LoginSuccess user ->
-            ( { model
-                | taco = setLoggedInUser user model.taco
-                , login = initialLogin
-              }
-            , Cmd.none
-            )
-
-        LogoutSuccess ->
-            ( { model
-                | taco = removeLoggedInUser model.taco
-                , login = initialLogin
-              }
             , Cmd.none
             )
 
@@ -437,16 +395,6 @@ update msg model =
 setColorScheme : Pieces.ColorScheme -> Taco -> Taco
 setColorScheme colorScheme taco =
     { taco | colorScheme = colorScheme }
-
-
-setLoggedInUser : User -> Taco -> Taco
-setLoggedInUser user taco =
-    { taco | login = Just user }
-
-
-removeLoggedInUser : Taco -> Taco
-removeLoggedInUser taco =
-    { taco | login = Nothing }
 
 
 updateEditor : EditorMsg -> EditorModel -> ( EditorModel, Cmd Msg )
@@ -1321,29 +1269,6 @@ decodeKeyStroke =
         (Decode.field "altKey" Decode.bool)
 
 
-updateLoginPage : LoginPageMsg -> LoginModel -> ( LoginModel, Cmd Msg )
-updateLoginPage msg loginPageModel =
-    case msg of
-        TypeUsername newText ->
-            ( { loginPageModel | usernameRaw = newText }, Cmd.none )
-
-        TypePassword newText ->
-            ( { loginPageModel | passwordRaw = newText }, Cmd.none )
-
-        TryLogin ->
-            ( loginPageModel
-            , Api.Backend.postLoginPassword
-                { username = loginPageModel.usernameRaw
-                , password = loginPageModel.passwordRaw
-                }
-                HttpError
-                LoginSuccess
-            )
-
-        Logout ->
-            ( loginPageModel, Api.Backend.getLogout HttpError (\() -> LogoutSuccess) )
-
-
 {-| Let the animation know about the current time.
 -}
 updateTimeline : Posix -> Model -> Model
@@ -1376,10 +1301,7 @@ globalUi model =
         EditorPage ->
             editorUi model.taco model.editor
 
-        LoginPage ->
-            loginUi model.taco model.login
-
-        TutorialPage ->
+        _ ->
             Element.text "Error - This page should not be accessed this way."
 
 
@@ -1396,36 +1318,6 @@ editorUi taco model =
         [ positionView taco model |> Element.map EditorMsgWrapper
         , sidebar taco model
         ]
-
-
-saveStateHeader : Sako.Position -> SaveState -> Element Msg
-saveStateHeader position saveState =
-    case saveState of
-        SaveIsCurrent id ->
-            Element.el [ padding 10, Font.color (Element.rgb255 150 200 150), Font.bold ] (Element.text <| "Saved. (id=" ++ String.fromInt id ++ ")")
-
-        SaveIsModified id ->
-            Input.button
-                [ padding 10
-                , Font.color (Element.rgb255 200 150 150)
-                , Font.bold
-                ]
-                { onPress = Just (EditorMsgWrapper (SavePosition position saveState))
-                , label = Element.text <| "Unsaved Changes! (id=" ++ String.fromInt id ++ ")"
-                }
-
-        SaveDoesNotExist ->
-            Input.button
-                [ padding 10
-                , Font.color (Element.rgb255 200 150 150)
-                , Font.bold
-                ]
-                { onPress = Just (EditorMsgWrapper (SavePosition position saveState))
-                , label = Element.text "Unsaved Changes!"
-                }
-
-        SaveNotRequired ->
-            Element.none
 
 
 positionView : Taco -> EditorModel -> Element EditorMsg
@@ -1706,21 +1598,6 @@ backgroundFocus isFocused =
         []
 
 
-{-| A toolConfigOption represents one of several possible choices. If it represents the currently
-choosen value (single selection only) it is highlighted. When clicked it will send a message.
--}
-toolConfigOption : a -> (a -> msg) -> a -> String -> Element msg
-toolConfigOption currentValue msg buttonValue caption =
-    Input.button
-        (padding 5
-            :: backgroundFocus (currentValue == buttonValue)
-        )
-        { onPress = Just (msg buttonValue)
-        , label =
-            Element.text caption
-        }
-
-
 colorPicker : (Pieces.SideColor -> msg) -> Pieces.SideColor -> Pieces.SideColor -> Element msg
 colorPicker msg currentColor newColor =
     let
@@ -1907,51 +1784,6 @@ analysisResult editorModel =
 
         Nothing ->
             Element.none
-
-
-
---------------------------------------------------------------------------------
--- Login ui --------------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-loginUi : Taco -> LoginModel -> Element Msg
-loginUi taco loginPageData =
-    case taco.login of
-        Just user ->
-            loginInfoPage user
-
-        Nothing ->
-            loginDialog taco loginPageData
-
-
-loginDialog : Taco -> LoginModel -> Element Msg
-loginDialog _ loginPageData =
-    Element.column []
-        [ Input.username []
-            { label = Input.labelAbove [] (Element.text "Username")
-            , onChange = TypeUsername >> LoginPageMsgWrapper
-            , placeholder = Just (Input.placeholder [] (Element.text "Username"))
-            , text = loginPageData.usernameRaw
-            }
-        , Input.currentPassword []
-            { label = Input.labelAbove [] (Element.text "Password")
-            , onChange = TypePassword >> LoginPageMsgWrapper
-            , placeholder = Just (Input.placeholder [] (Element.text "Password"))
-            , text = loginPageData.passwordRaw
-            , show = False
-            }
-        , Input.button [] { label = Element.text "Login", onPress = Just (LoginPageMsgWrapper TryLogin) }
-        ]
-
-
-loginInfoPage : User -> Element Msg
-loginInfoPage user =
-    Element.column [ padding 10, spacing 10 ]
-        [ Element.text ("Username: " ++ user.username)
-        , Element.text ("ID: " ++ String.fromInt user.id)
-        , Input.button [] { label = Element.text "Logout", onPress = Just (LoginPageMsgWrapper Logout) }
-        ]
 
 
 
