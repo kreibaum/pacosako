@@ -3,10 +3,9 @@
 
 use async_std::net::{TcpListener, TcpStream};
 use async_std::task;
-use async_tungstenite::tungstenite::protocol::Message;
-use async_tungstenite::{self, WebSocketStream};
+use async_tungstenite::{self, tungstenite::protocol::Message, WebSocketStream};
 use futures::{
-    channel::mpsc::{unbounded, UnboundedSender},
+    channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
     future, pin_mut,
 };
 use futures::{prelude::*, stream::SplitStream};
@@ -21,24 +20,51 @@ use std::{
 
 type Tx = UnboundedSender<Message>;
 #[derive(Default, Clone, Debug)]
-struct PeerMap(Arc<Mutex<HashMap<SocketAddr, Tx>>>);
+struct PeerMap {
+    map: Arc<Mutex<HashMap<SocketAddr, Tx>>>,
+}
 
 impl PeerMap {
-    fn broadcast(&self, msg: Message) {
+    /// Send a message to all connected clients. You should rarely use this.
+    fn broadcast(&self, msg: impl Into<Message>) {
+        self._broadcast(msg.into())
+    }
+
+    fn _broadcast(&self, msg: Message) {
         info!("Broadcasting message to all connected clients.");
 
-        let peers = self.0.lock().unwrap();
-
-        // We want to broadcast the message to everyone except ourselves.
+        let peers = self.map.lock().expect("Mutex was poisoned");
 
         for (peer_addr, recp) in peers.iter() {
-            if let Err(_) = recp.unbounded_send(msg.clone()) {
-                warn!(
-                    "Closed Receiver not properly removed from map: {}",
-                    peer_addr
-                );
-            }
+            Self::_send(peer_addr, recp, msg.clone());
         }
+    }
+
+    fn _send(addr: &SocketAddr, recp: &UnboundedSender<Message>, msg: Message) {
+        if let Err(_) = recp.unbounded_send(msg) {
+            warn!("Closed receiver not properly removed from map: {}", addr);
+        }
+    }
+
+    /// Register a new websocket client into the map and get a Receiver that you
+    /// need to hook up to your websocket write stream.
+    fn insert(&self, addr: SocketAddr) -> UnboundedReceiver<Message> {
+        let (tx, rx) = unbounded();
+
+        self.map
+            .lock()
+            .expect("Mutex was poisoned")
+            .insert(addr, tx);
+
+        rx
+    }
+
+    fn remove(&self, addr: &SocketAddr) {
+        self.map.lock().expect("Mutex was poisoned").remove(addr);
+    }
+
+    fn connection_count(&self) -> usize {
+        self.map.lock().expect("Mutex was poisoned").len()
     }
 }
 
@@ -73,13 +99,12 @@ async fn accept_connection(
 
     // Create a channel that we can put into the peer map. When we receive
     // messages over this channel, we pass it to our client.
-    let (tx, rx) = unbounded();
-    peer_map.0.lock().unwrap().insert(addr, tx);
+    // let (tx, rx) = unbounded();
+    let rx = peer_map.insert(addr);
 
-    let connection_count = peer_map.0.lock().unwrap().len();
     peer_map.broadcast(Message::Text(format!(
         "There are currently {} connected sockets.",
-        connection_count
+        peer_map.connection_count()
     )));
 
     let receive_from_others = rx.map(Ok).forward(write);
@@ -88,59 +113,73 @@ async fn accept_connection(
     info!("New WebSocket connection: {}", addr);
     // handle_connection(ws_stream).await?;
 
-    let broadcast_incoming = broadcast_incoming(peer_map.clone(), addr, read);
-
+    let broadcast_incoming = message_loop(peer_map.clone(), addr, read);
     pin_mut!(broadcast_incoming);
+
     // Wait for one of the futures to complete. The receive_from_others should
     // stay available all the time, so I expect this to only resolve when
     // broadcast_incoming resolves.
     future::select(broadcast_incoming, receive_from_others).await;
 
     info!("Connection closed: {}", addr);
-    peer_map.0.lock().unwrap().remove(&addr);
+    peer_map.remove(&addr);
 
-    let connection_count = peer_map.0.lock().unwrap().len();
     peer_map.broadcast(Message::Text(format!(
         "There are currently {} connected sockets.",
-        connection_count
+        peer_map.connection_count()
     )));
 
     // Websocket terminated successfully.
     Ok(())
 }
 
-fn broadcast_incoming(
+async fn message_loop(
     peer_map: PeerMap,
     addr: SocketAddr,
-    read: SplitStream<WebSocketStream<TcpStream>>,
-) -> impl Future {
-    read.try_filter(|msg| {
-        // Broadcasting a Close message from one client
-        // will close the other clients.
-        future::ready(!msg.is_close())
-    })
-    .try_for_each(move |msg| {
-        info!(
-            "Received a message from {}: {}",
-            addr,
-            msg.to_text().unwrap(),
-        );
-        let peers = peer_map.0.lock().unwrap();
+    mut read: SplitStream<WebSocketStream<TcpStream>>,
+) -> async_tungstenite::tungstenite::Result<()> {
+    loop {
+        match read.next().await {
+            Some(msg) => {
+                let msg = msg?;
 
-        // We want to broadcast the message to everyone except ourselves.
-        let broadcast_recipients = peers.iter().filter(|(peer_addr, _)| peer_addr != &&addr);
+                if msg.is_text() || msg.is_binary() {
+                    info!(
+                        "Received a message from {}: {}",
+                        addr,
+                        msg.to_text().unwrap(),
+                    );
 
-        for (peer_addr, recp) in broadcast_recipients {
-            if let Err(_) = recp.unbounded_send(msg.clone()) {
-                warn!(
-                    "Closed Receiver not properly removed from map: {}",
-                    peer_addr
-                );
+                    react_to_message(peer_map.clone(), addr, msg)?;
+                } else if msg.is_close() {
+                    return Ok(());
+                }
             }
+            None => return Ok(()), // terminated
         }
+    }
+}
 
-        future::ok(())
-    })
+fn react_to_message(
+    peer_map: PeerMap,
+    addr: SocketAddr,
+    msg: Message,
+) -> async_tungstenite::tungstenite::Result<()> {
+    let peers = peer_map.map.lock().unwrap();
+
+    // We want to broadcast the message to everyone except ourselves.
+    let broadcast_recipients = peers.iter().filter(|(peer_addr, _)| peer_addr != &&addr);
+
+    for (peer_addr, recp) in broadcast_recipients {
+        if let Err(_) = recp.unbounded_send(msg.clone()) {
+            warn!(
+                "Closed Receiver not properly removed from map: {}",
+                peer_addr
+            );
+        }
+    }
+
+    Ok(())
 }
 
 pub fn spawn(port: u16) {

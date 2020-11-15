@@ -109,6 +109,8 @@ struct SyncManager<T: Instance> {
     clients: HashMap<Sender, ClientData>,
     timeout_sender: crossbeam_channel::Sender<(String, DateTime<Utc>)>,
     /// Keeps a log of the last few games that were created.
+    /// This is not really great, we'll eventually pull this directly from the
+    /// DB as needed, as we don't want last_created for all types of instances.
     last_created: Vec<(String, DateTime<Utc>)>,
 }
 

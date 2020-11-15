@@ -1,6 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
 mod db;
+mod editor;
 mod instance_manager;
 mod sync_match;
 mod timeout;
