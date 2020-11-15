@@ -6,6 +6,7 @@ mod sync_match;
 mod timeout;
 mod timer;
 mod websocket;
+mod ws2;
 
 #[macro_use]
 extern crate rocket;
@@ -410,6 +411,8 @@ fn main() {
     use rocket::fairing::AdHoc;
 
     init_logger();
+
+    ws2::spawn(3020);
 
     // All the other components are created inside rocket.attach because this
     // gives them access to the rocket configuration and I can properly separate
