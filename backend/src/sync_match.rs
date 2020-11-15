@@ -71,19 +71,17 @@ impl ServerMessage for ServerMatchMessage {
     }
 }
 
-impl From<ServerMatchMessage> for ws::Message {
+impl From<ServerMatchMessage> for String {
     fn from(msg: ServerMatchMessage) -> Self {
         use serde_json::ser::to_string;
 
-        let text = match to_string(&msg) {
+        match to_string(&msg) {
             Ok(value) => value,
             Err(e) => format!(
                 "An error occurred when serializing a websocket server message: {}",
                 e
             ),
-        };
-
-        ws::Message::text(text)
+        }
     }
 }
 

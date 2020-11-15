@@ -42,7 +42,7 @@ pub trait ClientMessage: ProvidesKey + Clone + Debug {
     fn subscribe(key: String) -> Self;
 }
 
-pub trait ServerMessage: Into<ws::Message> + Clone + Debug {
+pub trait ServerMessage: Into<String> + Clone + Debug {
     /// Allows us to send messages to the client without knowing about the
     /// server message type in detail.
     fn error(message: Cow<String>) -> Self;
@@ -300,7 +300,7 @@ impl<T: Instance> SyncManager<T> {
     }
 
     fn send_message(sender: &Sender, message: T::ServerMessage) {
-        match sender.send(message) {
+        match sender.send(ws::Message::text(message)) {
             Ok(()) => { /* Nothing to do, we are happy. */ }
             Err(e) => error!("Websocket send error: {:?}", e),
         }
@@ -481,11 +481,11 @@ mod test {
         Oups { error: String },
     }
 
-    impl From<TestServerMsg> for ws::Message {
+    impl From<TestServerMsg> for String {
         fn from(msg: TestServerMsg) -> Self {
             match msg {
-                TestServerMsg::IsNow { key, value } => Self::text(format!("{}: {}", key, value)),
-                TestServerMsg::Oups { error } => Self::text(error),
+                TestServerMsg::IsNow { key, value } => format!("{}: {}", key, value),
+                TestServerMsg::Oups { error } => error,
             }
         }
     }

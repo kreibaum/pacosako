@@ -112,18 +112,16 @@ impl instance_manager::ServerMessage for ServerMessage {
 }
 
 /// This is for the old websocket server!
-impl From<ServerMessage> for ws::Message {
+impl From<ServerMessage> for String {
     fn from(msg: ServerMessage) -> Self {
         use serde_json::ser::to_string;
 
-        let text = match to_string(&msg) {
+        match to_string(&msg) {
             Ok(value) => value,
             Err(e) => format!(
                 "An error occurred when serializing a websocket server message: {}",
                 e
             ),
-        };
-
-        ws::Message::text(text)
+        }
     }
 }
