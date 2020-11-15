@@ -2,7 +2,6 @@
 /// find interesting positions.
 use pacosako::types::BoardPosition;
 use pacosako::{DenseBoard, PacoAction, PacoError, SakoSearchResult};
-use std::cmp::{max, min};
 use std::collections::HashSet;
 
 // use rand::distributions::{Distribution, Standard};
@@ -12,7 +11,6 @@ fn main() -> Result<(), PacoError> {
     // Randomly generate DenseBoards and try to find one with long chains.
 
     let mut rng = thread_rng();
-    let mut best_length = 0;
     let mut counter: usize = 0;
 
     loop {
@@ -46,21 +44,11 @@ fn main() -> Result<(), PacoError> {
         // let max_chain_length: usize = max(max_white, max_black);
         // let min_chain_length: usize = max(min_white, min_black);
 
-        if let Some(text) = puzzle_book_for_children(&sequences) {
-            // println!("{}, ", text);
-
-            // println!("\n\n");
-            // println!("Randomly generated board (n = {}):", counter);
+        if let Some(_) = puzzle_book_for_children(&sequences) {
             println!("{}", board);
-
-            // println!("White: {} - {}", min_white, max_white);
-            // println!("Black: {} - {}", min_black, max_black);
-            // println!("{:?}", sequences);
-            // println!("Best Max length: {}", max_chain_length);
-            // println!("Best Min length: {}", min_chain_length);
         }
 
-        if (counter >= 1000) {
+        if counter >= 1000 {
             return Ok(());
         }
     }
