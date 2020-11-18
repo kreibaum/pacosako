@@ -583,16 +583,14 @@ its type.
 doPromoteAction : Type -> Position -> Maybe Position
 doPromoteAction pieceType position =
     let
-        opponentHomeRow =
-            case position.currentPlayer of
-                White ->
-                    7
+        whitePawnFilter p =
+            getY p.position == 7 && p.color == White
 
-                Black ->
-                    0
+        blackPawnFilter p =
+            getY p.position == 0 && p.color == Black
 
         pawnFilter p =
-            p.pieceType == Pawn && getY p.position == opponentHomeRow && p.color == position.currentPlayer
+            p.pieceType == Pawn && (whitePawnFilter p || blackPawnFilter p)
 
         ownPawnsOnHomeRow =
             position.pieces
@@ -672,6 +670,8 @@ tileToIdentifier (Tile x y) =
 type alias Position =
     { pieces : List Piece
     , liftedPieces : List Piece
+
+    -- the currentPlayer flag is currently defective and not properly updated.
     , currentPlayer : Color
     }
 
