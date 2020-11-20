@@ -9,6 +9,7 @@ module PositionView exposing
     , ViewConfig
     , coordinateOfTile
     , nextHighlight
+    , pastMovementIndicatorList
     , render
     , renderStatic
     , viewStatic
@@ -110,6 +111,7 @@ viewStatic config renderData =
     in
     Svg.svg attributes
         [ board
+        , pastMovementIndicatorLayer config.decoration
         , castingHighlightLayer config.decoration
         , highlightLayer config.decoration
         , dropTargetLayer config.decoration
@@ -211,6 +213,24 @@ highlightLayer decorations =
         |> List.filterMap getHighlightTile
         |> List.map highlightSvg
         |> Svg.g []
+
+
+pastMovementIndicatorLayer : List BoardDecoration -> Svg a
+pastMovementIndicatorLayer decorations =
+    decorations
+        |> List.filterMap getPastMovementIndicator
+        |> List.map onePastMovementIndicator
+        |> Svg.g []
+
+
+onePastMovementIndicator : Tile -> Svg a
+onePastMovementIndicator tile =
+    Svg.path
+        [ Svg.translate (coordinateOfTile tile)
+        , SvgA.d "m 0 0 v 100 h 100 v -100 z"
+        , SvgA.fill "rgba(255, 255, 0, 0.5)"
+        ]
+        []
 
 
 nextHighlight : Tile -> Maybe ( Tile, Highlight ) -> Maybe ( Tile, Highlight )
@@ -398,6 +418,7 @@ type BoardDecoration
     | PlaceTarget Tile
     | CastingHighlight Tile
     | CastingArrow Arrow
+    | PastMovementIndicator Tile
 
 
 type Highlight
@@ -439,6 +460,16 @@ getCastingHighlight : BoardDecoration -> Maybe Tile
 getCastingHighlight decoration =
     case decoration of
         CastingHighlight tile ->
+            Just tile
+
+        _ ->
+            Nothing
+
+
+getPastMovementIndicator : BoardDecoration -> Maybe Tile
+getPastMovementIndicator decoration =
+    case decoration of
+        PastMovementIndicator tile ->
             Just tile
 
         _ ->
@@ -667,3 +698,68 @@ animateInterpolate t _ old new ls =
             round (toFloat old.zOrder * (1 - t) + toFloat new.zOrder * t)
     }
         :: ls
+
+
+{-| The past movement indicator list show what the opponent did in their last
+move. If there is nothing to highlight, it just returns an empty list.
+
+The tiles are returned in order, so you are able to identify the lifting tile.
+
+-}
+pastMovementIndicatorList : Sako.Position -> List Sako.Action -> List Tile
+pastMovementIndicatorList position actions =
+    if List.isEmpty position.liftedPieces then
+        pastMovementIndicatorListSettled actions
+
+    else
+        pastMovementIndicatorListInProcess actions
+
+
+{-| Given an action list like [Lift 1, Place 1, Place 2, Lift 2, Place 3] this
+function returns [Lift 2, Place 3].
+-}
+pastMovementIndicatorListSettled : List Sako.Action -> List Tile
+pastMovementIndicatorListSettled actions =
+    List.foldl
+        (\a ls ->
+            case a of
+                Sako.Lift tile ->
+                    -- Discard everything and start new when we encounter a lift.
+                    [ tile ]
+
+                Sako.Place tile ->
+                    tile :: ls
+
+                Sako.Promote _ ->
+                    ls
+        )
+        []
+        actions
+        |> List.reverse
+
+
+{-| Given an action list like [Lift 1, Place 1, Place 2, Lift 2, Place 3] this
+function returns [Lift 1, Place 1, Place 2].
+-}
+pastMovementIndicatorListInProcess : List Sako.Action -> List Tile
+pastMovementIndicatorListInProcess actions =
+    -- This algorithm is basically the same as pastMovementIndicatorListSettled
+    -- but we remember the last list we had instead of discarding. So at the end
+    -- we just return the remembered list.
+    List.foldl
+        (\a ( ls1, ls2 ) ->
+            case a of
+                Sako.Lift tile ->
+                    -- Remember the last list and start a new list when we encounter a lift.
+                    ( ls2, [ tile ] )
+
+                Sako.Place tile ->
+                    ( ls1, tile :: ls2 )
+
+                Sako.Promote _ ->
+                    ( ls1, ls2 )
+        )
+        ( [], [] )
+        actions
+        |> (\( ls1, ls2 ) -> ls1)
+        |> List.reverse

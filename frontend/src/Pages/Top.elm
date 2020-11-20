@@ -2252,6 +2252,9 @@ playDecoration play =
     )
         ++ playViewHighlight play
         ++ CastingDeco.toDecoration castingDecoMappers play.castingDeco
+        ++ (PositionView.pastMovementIndicatorList play.board play.currentState.actionHistory
+                |> List.map PositionView.PastMovementIndicator
+           )
 
 
 actionDecoration : Sako.Action -> Maybe PositionView.BoardDecoration
