@@ -5,7 +5,8 @@
 use crate::instance_manager::{self, Context, Instance, ProvidesKey};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use serde_json::from_str;
+use std::{borrow::Cow, convert::TryFrom};
 
 #[derive(Serialize, Clone, Debug)]
 pub struct SyncronizedBoard {
@@ -88,6 +89,17 @@ impl instance_manager::ClientMessage for ClientMessage {
     }
 }
 
+impl TryFrom<&str> for ClientMessage {
+    type Error = &'static str;
+
+    fn try_from(text: &str) -> Result<Self, Self::Error> {
+        if let Ok(client_message) = from_str(text) {
+            Ok(client_message)
+        } else {
+            Err("Message could not be decoded.")
+        }
+    }
+}
 /// All allowed messages that may be send by the server to the client.
 #[derive(Serialize, Clone, Debug)]
 pub enum ServerMessage {

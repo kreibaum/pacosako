@@ -3,8 +3,8 @@ use crate::timer::{Timer, TimerConfig, TimerState};
 use chrono::Utc;
 use pacosako::{PacoAction, PacoBoard, PacoError};
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-
+use serde_json::de::from_str;
+use std::{borrow::Cow, convert::TryFrom};
 /// This module implements match synchonization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
 /// already clear and we only implement the Paco Ŝako specific parts.
@@ -25,7 +25,7 @@ pub struct SyncronizedMatch {
 }
 
 /// Message that may be send by the client to the server.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub enum ClientMatchMessage {
     GetCurrentState { key: String },
     Subscribe { key: String },
@@ -33,6 +33,18 @@ pub enum ClientMatchMessage {
     Rollback { key: String },
     SetTimer { key: String, timer: TimerConfig },
     StartTimer { key: String },
+}
+
+impl TryFrom<&str> for ClientMatchMessage {
+    type Error = &'static str;
+
+    fn try_from(text: &str) -> Result<Self, Self::Error> {
+        if let Ok(client_message) = from_str(text) {
+            Ok(client_message)
+        } else {
+            Err("Message could not be decoded.")
+        }
+    }
 }
 
 impl ClientMessage for ClientMatchMessage {

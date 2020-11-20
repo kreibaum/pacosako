@@ -1,11 +1,14 @@
 use crate::timeout;
 use chrono::{DateTime, Duration, Utc};
 use rand::{thread_rng, Rng};
-use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::{
     borrow::Cow,
     sync::{Arc, Mutex},
+};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
 };
 use ws::Sender;
 
@@ -187,6 +190,11 @@ impl<T: Instance + 'static> Manager<T> {
     /// Routes a message to the corresponding instance
     pub fn handle_message(&self, message: T::ClientMessage, sender: Sender) {
         lock!(self).handle_message(message, sender)
+    }
+    /// Routes a message to the corresponding instance
+    pub fn handle_message_2(&self, message: T::ClientMessage, addr: SocketAddr) {
+        // TODO: Rewrite the instance manager to use tungstenite
+        // lock!(self).handle_message_2(message, addr)
     }
     /// Subscribes a sender to the instance with the given key.
     pub fn subscribe(&self, key: Cow<String>, sender: Sender) {
