@@ -257,7 +257,7 @@ update msg model =
             )
 
         KeyUp stroke ->
-            keyUp stroke model
+            ( keyUp stroke model, Cmd.none )
 
         DownloadSvg ->
             ( model, Api.Ports.requestSvgNodeContent sakoEditorId )
@@ -391,7 +391,7 @@ applyRedo model =
 
 {-| Handles all key presses.
 -}
-keyUp : KeyStroke -> Model -> ( Model, Cmd Msg )
+keyUp : KeyStroke -> Model -> Model
 keyUp stroke model =
     if stroke.ctrlKey == False && stroke.altKey == False then
         regularKeyUp stroke.key model
@@ -400,25 +400,25 @@ keyUp stroke model =
         ctrlKeyUp stroke.key model
 
     else
-        ( model, Cmd.none )
+        model
 
 
 {-| Handles all ctrl + <?> shortcuts.
 -}
-ctrlKeyUp : String -> Model -> ( Model, Cmd Msg )
+ctrlKeyUp : String -> Model -> Model
 ctrlKeyUp key model =
     case key of
         "z" ->
-            ( applyUndo model, Cmd.none )
+            applyUndo model
 
         "y" ->
-            ( applyRedo model, Cmd.none )
+            applyRedo model
 
         _ ->
-            ( model, Cmd.none )
+            model
 
 
-regularKeyUp : String -> Model -> ( Model, Cmd Msg )
+regularKeyUp : String -> Model -> Model
 regularKeyUp key model =
     case key of
         "Delete" ->
@@ -428,10 +428,10 @@ regularKeyUp key model =
             deleteSelectedPiece model
 
         _ ->
-            ( model, Cmd.none )
+            model
 
 
-deleteSelectedPiece : Model -> ( Model, Cmd Msg )
+deleteSelectedPiece : Model -> Model
 deleteSelectedPiece model =
     let
         ( newTool, outMsg ) =
@@ -524,31 +524,27 @@ currentRenderData editor =
         |> PositionView.render (reduceSmartToolModel editor.smartTool)
 
 
-{-| TODO: Eliminate Cmd in return tuple.
--}
-handleToolOutputMsg : ToolOutputMsg -> Model -> ( Model, Cmd Msg )
+handleToolOutputMsg : ToolOutputMsg -> Model -> Model
 handleToolOutputMsg msg model =
     case msg of
         ToolNoOp ->
-            ( model, Cmd.none )
+            model
 
         ToolCommit position ->
-            ( { model
+            { model
                 | game = addHistoryState position model.game
                 , timeline =
                     model.timeline
                         |> Animation.interrupt (currentRenderData model)
                 , preview = Nothing
-              }
+            }
                 |> animateToCurrentPosition
-            , Cmd.none
-            )
 
         ToolPreview preview ->
-            ( { model | preview = Just preview }, Cmd.none )
+            { model | preview = Just preview }
 
         ToolRollback ->
-            ( { model | preview = Nothing }, Cmd.none )
+            { model | preview = Nothing }
 
 
 animationSpeed : Animation.Duration
