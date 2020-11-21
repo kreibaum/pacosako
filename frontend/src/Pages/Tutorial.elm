@@ -80,7 +80,7 @@ subscriptions model =
 
 view : Model -> Document Msg
 view lang =
-    { title = "Tutorial"
+    { title = t lang I18n.tutorialPageTitle
     , body =
         [ tutorialPage lang SetLanguage
         ]

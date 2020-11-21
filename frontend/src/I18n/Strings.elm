@@ -13,6 +13,7 @@ module I18n.Strings exposing
     , tutorialHeader
     , tutorialMovement
     , tutorialNoVideo
+    , tutorialPageTitle
     , tutorialSetup
     , tutorialSpecialRules
     , tutorialStrategy
@@ -101,6 +102,14 @@ t lang (I18nToken token) =
 --------------------------------------------------------------------------------
 -- Tutorial page ---------------------------------------------------------------
 --------------------------------------------------------------------------------
+
+
+tutorialPageTitle : I18nToken String
+tutorialPageTitle =
+    I18nToken
+        { english = "Learn Paco Ŝako - pacoplay.com"
+        , dutch = "Leer Paco Ŝako - pacoplay.com"
+        }
 
 
 tutorialHeader : I18nToken String

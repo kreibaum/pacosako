@@ -128,7 +128,7 @@ openPage page model =
             pushUrl model.key (Route.toString Route.Top)
 
         EditorPage ->
-            pushUrl model.key (Route.toString Route.Top)
+            pushUrl model.key (Route.toString Route.Editor)
 
         LoginPage ->
             pushUrl model.key (Route.toString Route.Login)
