@@ -28,7 +28,7 @@ import Json.Encode as Encode exposing (Value)
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Pieces
-import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, coordinateOfTile, nextHighlight)
+import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
 import Reactive exposing (Device(..))
 import RemoteData exposing (RemoteData, WebData)
 import Result.Extra as Result
@@ -40,7 +40,7 @@ import Spa.Page as Page
 import Spa.Url exposing (Url)
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
-import Svg.Custom as Svg
+import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Timer
 
@@ -328,7 +328,7 @@ initPlayModel windowSize =
         , timer = Nothing
         , gameState = Sako.Running
         }
-    , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
+    , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
     , focus = Nothing
     , dragState = Nothing
     , castingDeco = CastingDeco.initModel
@@ -497,7 +497,7 @@ updateMouseUp pos model =
                 | dragState = Nothing
                 , timeline =
                     Animation.queue
-                        ( Animation.milliseconds 200, PositionView.renderStatic model.board )
+                        ( Animation.milliseconds 200, PositionView.renderStatic WhiteBottom model.board )
                         model.timeline
               }
             , Cmd.none
@@ -559,6 +559,7 @@ renderPlayViewDragging dragState model =
         , dragDelta = Just dragDelta
         , hover = Nothing
         , draggingPieces = DraggingPiecesNormal []
+        , rotation = WhiteBottom
         }
         model.board
 
@@ -578,7 +579,7 @@ updateActionInputStep action model =
         , currentState = addActionToCurrentMatchState action model.currentState
         , timeline =
             Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
+                ( Animation.milliseconds 200, PositionView.renderStatic WhiteBottom newBoard )
                 model.timeline
       }
     , Cmd.batch
@@ -621,7 +622,7 @@ updatePlayCurrentMatchState data model =
         , board = newBoard
         , timeline =
             Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic newBoard )
+                ( Animation.milliseconds 200, PositionView.renderStatic WhiteBottom newBoard )
                 model.timeline
       }
     , Cmd.none

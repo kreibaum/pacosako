@@ -13,6 +13,7 @@ import Html.Events
 import Json.Decode as Decode exposing (Decoder)
 import Sako exposing (Tile(..))
 import Svg exposing (Attribute)
+import Svg.Custom as Svg exposing (BoardRotation, safeTileCoordinate)
 import Svg.Events
 
 
@@ -23,46 +24,34 @@ type alias BoardMousePosition =
     }
 
 
-boardMousePosition : Float -> Float -> BoardMousePosition
-boardMousePosition x y =
+boardMousePosition : BoardRotation -> Float -> Float -> BoardMousePosition
+boardMousePosition rotation x y =
     { x = round x
     , y = round y
-    , tile = safeTileCoordinate (round x) (round y)
+    , tile = safeTileCoordinate rotation (Svg.Coord (round x) (round y))
     }
 
 
-{-| Transforms an Svg coordinate into a logical tile coordinte.
-Returns Nothing, if the SvgCoordinate is outside the board.
--}
-safeTileCoordinate : Int -> Int -> Maybe Tile
-safeTileCoordinate x y =
-    if 0 <= x && x < 800 && 0 <= y && y < 800 then
-        Just (Tile (x // 100) (7 - y // 100))
-
-    else
-        Nothing
-
-
-decodeBoardMousePosition : Decoder BoardMousePosition
-decodeBoardMousePosition =
-    Decode.map2 boardMousePosition
+decodeBoardMousePosition : BoardRotation -> Decoder BoardMousePosition
+decodeBoardMousePosition rotation =
+    Decode.map2 (boardMousePosition rotation)
         (Decode.at [ "detail", "x" ] Decode.float)
         (Decode.at [ "detail", "y" ] Decode.float)
 
 
-svgDown : (BoardMousePosition -> msg) -> Attribute msg
-svgDown message =
-    Svg.Events.on "svgdown" (Decode.map message decodeBoardMousePosition)
+svgDown : BoardRotation -> (BoardMousePosition -> msg) -> Attribute msg
+svgDown rotation message =
+    Svg.Events.on "svgdown" (Decode.map message (decodeBoardMousePosition rotation))
 
 
-svgMove : (BoardMousePosition -> msg) -> Attribute msg
-svgMove message =
-    Svg.Events.on "svgmove" (Decode.map message decodeBoardMousePosition)
+svgMove : BoardRotation -> (BoardMousePosition -> msg) -> Attribute msg
+svgMove rotation message =
+    Svg.Events.on "svgmove" (Decode.map message (decodeBoardMousePosition rotation))
 
 
-svgUp : (BoardMousePosition -> msg) -> Attribute msg
-svgUp message =
-    Svg.Events.on "svgup" (Decode.map message decodeBoardMousePosition)
+svgUp : BoardRotation -> (BoardMousePosition -> msg) -> Attribute msg
+svgUp rotation message =
+    Svg.Events.on "svgup" (Decode.map message (decodeBoardMousePosition rotation))
 
 
 {-| Event attribute that triggens when the element has focus and the user

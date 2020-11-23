@@ -8,6 +8,7 @@ import Array exposing (length)
 import Sako exposing (Tile(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
+import Svg.Custom as Svg exposing (BoardRotation(..))
 
 
 type alias Arrow =
@@ -16,11 +17,11 @@ type alias Arrow =
     }
 
 
-toSvg : List (Svg.Attribute a) -> Arrow -> Svg a
-toSvg attributes arrow =
+toSvg : BoardRotation -> List (Svg.Attribute a) -> Arrow -> Svg a
+toSvg rotation attributes arrow =
     if arrow.head /= arrow.tail then
         Svg.path
-            ([ matrixTrafo arrow
+            ([ matrixTrafo rotation arrow
              , arrowPath arrow
              ]
                 ++ attributes
@@ -34,9 +35,13 @@ toSvg attributes arrow =
 {-| Given a logical tile, compute the top left corner coordinates in the svg
 coordinate system.
 -}
-coordinateOfTile : Tile -> ( Float, Float )
-coordinateOfTile (Tile x y) =
-    ( toFloat (100 * x), toFloat (700 - 100 * y) )
+coordinateOfTileFloat : BoardRotation -> Tile -> ( Float, Float )
+coordinateOfTileFloat rotation tile =
+    let
+        (Svg.Coord x y) =
+            Svg.coordinateOfTile rotation tile
+    in
+    ( toFloat x, toFloat y )
 
 
 tailWidth : Float
@@ -49,14 +54,14 @@ headWidth =
     40
 
 
-delta : Arrow -> ( Float, Float )
-delta arrow =
+delta : BoardRotation -> Arrow -> ( Float, Float )
+delta rotation arrow =
     let
         ( x1, y1 ) =
-            coordinateOfTile arrow.tail
+            coordinateOfTileFloat rotation arrow.tail
 
         ( x2, y2 ) =
-            coordinateOfTile arrow.head
+            coordinateOfTileFloat rotation arrow.head
     in
     ( x2 - x1, y2 - y1 )
 
@@ -65,7 +70,8 @@ length : Arrow -> Float
 length arrow =
     let
         ( dx, dy ) =
-            delta arrow
+            -- The length is independent of the orientation.
+            delta WhiteBottom arrow
     in
     sqrt (dx ^ 2 + dy ^ 2)
 
@@ -105,14 +111,14 @@ arrowPath arrow =
 This is a transformation which projects (0, 0) to arrow.tail and
 projects (L, 0) to arrow.head, while preserving angles and distances.
 -}
-matrixTrafo : Arrow -> Svg.Attribute a
-matrixTrafo arrow =
+matrixTrafo : BoardRotation -> Arrow -> Svg.Attribute a
+matrixTrafo rotation arrow =
     let
         ( x1, y1 ) =
-            coordinateOfTile arrow.tail
+            coordinateOfTileFloat rotation arrow.tail
 
         ( dx, dy ) =
-            delta arrow
+            delta rotation arrow
 
         l =
             length arrow

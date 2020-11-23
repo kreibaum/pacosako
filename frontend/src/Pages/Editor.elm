@@ -21,7 +21,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Pieces
 import Pivot as P exposing (Pivot)
-import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, coordinateOfTile, nextHighlight)
+import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
@@ -30,7 +30,7 @@ import Spa.Document exposing (Document)
 import Spa.Page as Page exposing (Page)
 import Spa.Url as Url exposing (Url)
 import Svg.Attributes as SvgA
-import Svg.Custom as Svg
+import Svg.Custom as Svg exposing (BoardRotation(..), coordinateOfTile)
 import Time exposing (Posix)
 
 
@@ -111,7 +111,7 @@ initialEditor windowSize =
     { saveState = SaveNotRequired
     , game = P.singleton Sako.initialPosition
     , preview = Nothing
-    , timeline = Animation.init (PositionView.renderStatic Sako.initialPosition)
+    , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
     , drag = Nothing
     , windowSize = windowSize
     , userPaste = ""
@@ -1033,7 +1033,7 @@ dragPieceData model =
                                 |> Maybe.withDefault (Svg.Coord 0 0)
 
                         (Svg.Coord x y) =
-                            coordinateOfTile piece.position
+                            coordinateOfTile WhiteBottom piece.position
                     in
                     { color = piece.color
                     , pieceType = piece.pieceType
@@ -1050,7 +1050,7 @@ dragPieceData model =
                         |> Maybe.withDefault (Svg.Coord 0 0)
 
                 (Svg.Coord x y) =
-                    coordinateOfTile singlePiece.position
+                    coordinateOfTile WhiteBottom singlePiece.position
 
                 (Svg.Coord offset_x offset_y) =
                     --handCoordinateOffset singlePiece.color
@@ -1087,6 +1087,7 @@ reduceSmartToolModel smart =
     , dragDelta = smart.dragDelta
     , hover = smart.hover
     , draggingPieces = smart.draggingPieces
+    , rotation = WhiteBottom
     }
 
 
@@ -1382,7 +1383,7 @@ parsedMarkdownPaste model =
                 { onPress = Just (UseUserPaste pacoPosition)
                 , label =
                     Element.row [ spacing 5 ]
-                        [ PositionView.renderStatic pacoPosition
+                        [ PositionView.renderStatic WhiteBottom pacoPosition
                             |> PositionView.viewStatic
                                 { colorScheme = model.colorScheme
                                 , nodeId = Nothing

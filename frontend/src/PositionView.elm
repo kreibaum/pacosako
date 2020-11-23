@@ -7,7 +7,6 @@ module PositionView exposing
     , InternalModel
     , OpaqueRenderData
     , ViewConfig
-    , coordinateOfTile
     , nextHighlight
     , pastMovementIndicatorList
     , render
@@ -48,13 +47,24 @@ import Pieces
 import Sako exposing (Piece, Tile(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
-import Svg.Custom as Svg
+import Svg.Custom as Svg exposing (BoardRotation, coordinateOfTile)
 
 
+{-| A representatio of the board where most of the rendering is already done,
+but we are still able to interpolate between different stages.
+
+Bikeshedding possible names: Keyframe, ..
+
+-}
 type alias OpaqueRenderData =
-    List VisualPacoPiece
+    { pieces : List VisualPacoPiece
+    , rotation : BoardRotation
+    }
 
 
+{-| Given a timeline of render data, we turn it into an actual visual element
+respecting the animation that may be running in the timeline.
+-}
 viewTimeline : ViewConfig a -> Timeline OpaqueRenderData -> Element a
 viewTimeline config timeline =
     case Animation.animate timeline of
@@ -66,20 +76,28 @@ viewTimeline config timeline =
                 |> viewStatic config
 
 
+{-| Renders a position into an intermediate render data object.
+-}
 render : InternalModel -> Sako.Position -> OpaqueRenderData
 render internalModel position =
-    determineVisualPiecesDragged internalModel
-        ++ determineVisualPiecesCurrentlyLifted internalModel.dragDelta position
-        ++ determineVisualPiecesAtRest position
+    { pieces =
+        determineVisualPiecesDragged internalModel
+            ++ determineVisualPiecesCurrentlyLifted internalModel.rotation internalModel.dragDelta position
+            ++ determineVisualPiecesAtRest internalModel.rotation position
+    , rotation = internalModel.rotation
+    }
 
 
 {-| If you have a game position where no user input is happening (no drag and
 drop, no selection) you can just render this game position directly.
 -}
-renderStatic : Sako.Position -> OpaqueRenderData
-renderStatic position =
-    determineVisualPiecesCurrentlyLifted Nothing position
-        ++ determineVisualPiecesAtRest position
+renderStatic : BoardRotation -> Sako.Position -> OpaqueRenderData
+renderStatic rotation position =
+    { pieces =
+        determineVisualPiecesCurrentlyLifted rotation Nothing position
+            ++ determineVisualPiecesAtRest rotation position
+    , rotation = rotation
+    }
 
 
 viewStatic : ViewConfig a -> OpaqueRenderData -> Element a
@@ -94,9 +112,9 @@ viewStatic config renderData =
                     []
 
         events =
-            [ Maybe.map Events.svgDown config.mouseDown
-            , Maybe.map Events.svgUp config.mouseUp
-            , Maybe.map Events.svgMove config.mouseMove
+            [ Maybe.map (Events.svgDown renderData.rotation) config.mouseDown
+            , Maybe.map (Events.svgUp renderData.rotation) config.mouseUp
+            , Maybe.map (Events.svgMove renderData.rotation) config.mouseMove
             ]
                 |> List.filterMap (\x -> x)
 
@@ -111,12 +129,12 @@ viewStatic config renderData =
     in
     Svg.svg attributes
         [ board
-        , pastMovementIndicatorLayer config.decoration
-        , castingHighlightLayer config.decoration
-        , highlightLayer config.decoration
-        , dropTargetLayer config.decoration
-        , piecesSvg config.colorScheme renderData
-        , castingArrowLayer config.decoration
+        , pastMovementIndicatorLayer renderData.rotation config.decoration
+        , castingHighlightLayer renderData.rotation config.decoration
+        , highlightLayer renderData.rotation config.decoration
+        , dropTargetLayer renderData.rotation config.decoration
+        , piecesSvg config.colorScheme renderData.pieces
+        , castingArrowLayer renderData.rotation config.decoration
         , config.additionalSvg
             |> Maybe.withDefault (Svg.g [] [])
         ]
@@ -133,6 +151,7 @@ type alias InternalModel =
     , dragDelta : Maybe Svg.Coord
     , hover : Maybe Tile
     , draggingPieces : DraggingPieces
+    , rotation : BoardRotation
     }
 
 
@@ -169,36 +188,36 @@ type alias ViewConfig a =
     }
 
 
-castingHighlightLayer : List BoardDecoration -> Svg a
-castingHighlightLayer decorations =
+castingHighlightLayer : BoardRotation -> List BoardDecoration -> Svg a
+castingHighlightLayer rotation decorations =
     decorations
         |> List.filterMap getCastingHighlight
-        |> List.map oneCastingDecoTileMarker
+        |> List.map (oneCastingDecoTileMarker rotation)
         |> Svg.g []
 
 
-oneCastingDecoTileMarker : Tile -> Svg a
-oneCastingDecoTileMarker tile =
+oneCastingDecoTileMarker : BoardRotation -> Tile -> Svg a
+oneCastingDecoTileMarker rotation tile =
     Svg.path
-        [ Svg.translate (coordinateOfTile tile)
+        [ Svg.translate (coordinateOfTile rotation tile)
         , SvgA.d "m 0 0 v 100 h 100 v -100 z"
         , SvgA.fill "rgb(255, 0, 0)"
         ]
         []
 
 
-castingArrowLayer : List BoardDecoration -> Svg a
-castingArrowLayer decorations =
+castingArrowLayer : BoardRotation -> List BoardDecoration -> Svg a
+castingArrowLayer rotation decorations =
     decorations
         |> List.filterMap getCastingArrow
         |> List.reverse
-        |> List.map drawArrow
+        |> List.map (drawArrow rotation)
         |> Svg.g []
 
 
-drawArrow : Arrow -> Svg a
-drawArrow arrow =
-    Arrow.toSvg
+drawArrow : BoardRotation -> Arrow -> Svg a
+drawArrow rotation arrow =
+    Arrow.toSvg rotation
         [ SvgA.fill "rgb(255, 200, 0)"
         , SvgA.strokeLinejoin "round"
         , SvgA.stroke "black"
@@ -207,26 +226,26 @@ drawArrow arrow =
         arrow
 
 
-highlightLayer : List BoardDecoration -> Svg a
-highlightLayer decorations =
+highlightLayer : BoardRotation -> List BoardDecoration -> Svg a
+highlightLayer rotation decorations =
     decorations
         |> List.filterMap getHighlightTile
-        |> List.map highlightSvg
+        |> List.map (highlightSvg rotation)
         |> Svg.g []
 
 
-pastMovementIndicatorLayer : List BoardDecoration -> Svg a
-pastMovementIndicatorLayer decorations =
+pastMovementIndicatorLayer : BoardRotation -> List BoardDecoration -> Svg a
+pastMovementIndicatorLayer rotation decorations =
     decorations
         |> List.filterMap getPastMovementIndicator
-        |> List.map onePastMovementIndicator
+        |> List.map (onePastMovementIndicator rotation)
         |> Svg.g []
 
 
-onePastMovementIndicator : Tile -> Svg a
-onePastMovementIndicator tile =
+onePastMovementIndicator : BoardRotation -> Tile -> Svg a
+onePastMovementIndicator rotation tile =
     Svg.path
-        [ Svg.translate (coordinateOfTile tile)
+        [ Svg.translate (coordinateOfTile rotation tile)
         , SvgA.d "m 0 0 v 100 h 100 v -100 z"
         , SvgA.fill "rgba(255, 255, 0, 0.5)"
         ]
@@ -268,8 +287,8 @@ nextHighlight newTile maybeHighlight =
                 Just ( newTile, HighlightBoth )
 
 
-highlightSvg : ( Tile, Highlight ) -> Svg a
-highlightSvg ( tile, highlight ) =
+highlightSvg : BoardRotation -> ( Tile, Highlight ) -> Svg a
+highlightSvg rotation ( tile, highlight ) =
     let
         shape =
             case highlight of
@@ -286,27 +305,31 @@ highlightSvg ( tile, highlight ) =
                     SvgA.d "m 50 0 l 50 50 l -50 50 l -50 -50 z"
     in
     Svg.path
-        [ Svg.translate (coordinateOfTile tile)
+        [ Svg.translate (coordinateOfTile rotation tile)
         , shape
         , SvgA.fill "rgb(255, 255, 100)"
         ]
         []
 
 
-dropTargetLayer : List BoardDecoration -> Svg a
-dropTargetLayer decorations =
+dropTargetLayer : BoardRotation -> List BoardDecoration -> Svg a
+dropTargetLayer rotation decorations =
     decorations
         |> List.filterMap getDropTarget
-        |> List.map dropTargetSvg
+        |> List.map (dropTargetSvg rotation)
         |> Svg.g []
 
 
-dropTargetSvg : Tile -> Svg a
-dropTargetSvg (Tile x y) =
+dropTargetSvg : BoardRotation -> Tile -> Svg a
+dropTargetSvg rotation tile =
+    let
+        (Svg.Coord x y) =
+            coordinateOfTile rotation tile
+    in
     Svg.circle
         [ SvgA.r "20"
-        , SvgA.cx (String.fromInt (100 * x + 50))
-        , SvgA.cy (String.fromInt (700 - 100 * y + 50))
+        , SvgA.cx (String.fromInt (x + 50))
+        , SvgA.cy (String.fromInt (y + 50))
         , SvgA.fill "rgb(200, 200, 200)"
         ]
         []
@@ -509,28 +532,20 @@ determineViewBox config =
         |> Svg.makeViewBox
 
 
-{-| Given a logical tile, compute the top left corner coordinates in the svg
-coordinate system.
--}
-coordinateOfTile : Tile -> Svg.Coord
-coordinateOfTile (Tile x y) =
-    Svg.Coord (100 * x) (700 - 100 * y)
-
-
 
 --------------------------------------------------------------------------------
 -- Animator specific code ------------------------------------------------------
 --------------------------------------------------------------------------------
 
 
-determineVisualPiecesAtRest : Sako.Position -> List VisualPacoPiece
-determineVisualPiecesAtRest position =
+determineVisualPiecesAtRest : BoardRotation -> Sako.Position -> List VisualPacoPiece
+determineVisualPiecesAtRest rotation position =
     position.pieces
         |> List.map
             (\p ->
                 { pieceType = p.pieceType
                 , color = p.color
-                , position = coordinateOfTile p.position
+                , position = coordinateOfTile rotation p.position
                 , identity = p.identity
                 , zOrder = restingZOrder p.color
                 , opacity = 1
@@ -551,18 +566,18 @@ restingZOrder color =
 {-| Here we return List a instead of Maybe a to allow easier combination with
 other lists.
 -}
-determineVisualPiecesCurrentlyLifted : Maybe Svg.Coord -> Sako.Position -> List VisualPacoPiece
-determineVisualPiecesCurrentlyLifted maybeDragDelta position =
+determineVisualPiecesCurrentlyLifted : BoardRotation -> Maybe Svg.Coord -> Sako.Position -> List VisualPacoPiece
+determineVisualPiecesCurrentlyLifted rotation maybeDragDelta position =
     case position.liftedPieces of
         [ pieceOne, pieceTwo ] ->
-            visualPiecesForLiftedPair maybeDragDelta pieceOne pieceTwo
+            visualPiecesForLiftedPair rotation maybeDragDelta pieceOne pieceTwo
 
         liftedPieces ->
-            List.map (visualPieceCurrentlyLifted maybeDragDelta) liftedPieces
+            List.map (visualPieceCurrentlyLifted rotation maybeDragDelta) liftedPieces
 
 
-visualPieceCurrentlyLifted : Maybe Svg.Coord -> Piece -> VisualPacoPiece
-visualPieceCurrentlyLifted dragDelta liftedPiece =
+visualPieceCurrentlyLifted : BoardRotation -> Maybe Svg.Coord -> Piece -> VisualPacoPiece
+visualPieceCurrentlyLifted rotation dragDelta liftedPiece =
     let
         offset =
             dragDelta
@@ -571,7 +586,7 @@ visualPieceCurrentlyLifted dragDelta liftedPiece =
     { pieceType = liftedPiece.pieceType
     , color = liftedPiece.color
     , position =
-        coordinateOfTile liftedPiece.position
+        coordinateOfTile rotation liftedPiece.position
             |> Svg.addCoord offset
     , identity = liftedPiece.identity
     , zOrder = 3
@@ -579,8 +594,8 @@ visualPieceCurrentlyLifted dragDelta liftedPiece =
     }
 
 
-visualPiecesForLiftedPair : Maybe Svg.Coord -> Piece -> Piece -> List VisualPacoPiece
-visualPiecesForLiftedPair dragDelta pieceOne pieceTwo =
+visualPiecesForLiftedPair : BoardRotation -> Maybe Svg.Coord -> Piece -> Piece -> List VisualPacoPiece
+visualPiecesForLiftedPair rotation dragDelta pieceOne pieceTwo =
     let
         offsetOne =
             dragDelta
@@ -593,7 +608,7 @@ visualPiecesForLiftedPair dragDelta pieceOne pieceTwo =
     [ { pieceType = pieceOne.pieceType
       , color = pieceOne.color
       , position =
-            coordinateOfTile pieceOne.position
+            coordinateOfTile rotation pieceOne.position
                 |> Svg.addCoord offsetOne
       , identity = pieceOne.identity
       , zOrder = 3
@@ -602,7 +617,7 @@ visualPiecesForLiftedPair dragDelta pieceOne pieceTwo =
     , { pieceType = pieceTwo.pieceType
       , color = pieceTwo.color
       , position =
-            coordinateOfTile pieceTwo.position
+            coordinateOfTile rotation pieceTwo.position
                 |> Svg.addCoord offsetTwo
       , identity = pieceTwo.identity
       , zOrder = 3
@@ -626,7 +641,7 @@ determineVisualPiecesDragged internalModel =
                         , position =
                             internalModel.dragDelta
                                 |> Maybe.withDefault (Svg.Coord 0 0)
-                                |> Svg.addCoord (coordinateOfTile piece.position)
+                                |> Svg.addCoord (coordinateOfTile internalModel.rotation piece.position)
                         , identity = piece.identity
                         , zOrder = 3
                         , opacity = 1
@@ -639,7 +654,7 @@ determineVisualPiecesDragged internalModel =
               , position =
                     internalModel.dragDelta
                         |> Maybe.withDefault (Svg.Coord 0 0)
-                        |> Svg.addCoord (coordinateOfTile singlePiece.position)
+                        |> Svg.addCoord (coordinateOfTile internalModel.rotation singlePiece.position)
                         |> Svg.addCoord (handCoordinateOffset singlePiece.color)
               , identity = singlePiece.identity
               , zOrder = 3
@@ -652,22 +667,25 @@ animateTransition : { t : Float, old : OpaqueRenderData, new : OpaqueRenderData 
 animateTransition { t, old, new } =
     let
         oldPieces =
-            List.map (\p -> ( p.identity, p )) old |> Dict.fromList
+            List.map (\p -> ( p.identity, p )) old.pieces |> Dict.fromList
 
         newPieces =
-            List.map (\p -> ( p.identity, p )) new |> Dict.fromList
+            List.map (\p -> ( p.identity, p )) new.pieces |> Dict.fromList
 
         -- Simple polinomial with derivation 0 at t=0 and t=1.
         smoothT =
             -2 * t ^ 3 + 3 * t ^ 2
     in
-    Dict.merge
-        (animateFadeOut smoothT)
-        (animateInterpolate smoothT)
-        (animateFadeIn smoothT)
-        oldPieces
-        newPieces
-        []
+    { pieces =
+        Dict.merge
+            (animateFadeOut smoothT)
+            (animateInterpolate smoothT)
+            (animateFadeIn smoothT)
+            oldPieces
+            newPieces
+            []
+    , rotation = new.rotation
+    }
 
 
 animateFadeOut : Float -> a -> VisualPacoPiece -> List VisualPacoPiece -> List VisualPacoPiece
