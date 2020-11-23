@@ -6,13 +6,14 @@ import Api.Ports
 import Arrow exposing (Arrow)
 import Browser.Events
 import CastingDeco
+import Custom.Element exposing (icon)
+import Custom.Events exposing (BoardMousePosition)
 import Element exposing (Element, centerX, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
-import EventsCustom exposing (BoardMousePosition)
 import File.Download
-import FontAwesome.Icon exposing (Icon, viewIcon)
+import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Http
@@ -1342,11 +1343,6 @@ colorSchemeConfigBlack taco =
         , colorPicker BlackSideColor taco.colorScheme.black Pieces.pinkPieceColor
         , colorPicker BlackSideColor taco.colorScheme.black Pieces.blackPieceColor
         ]
-
-
-icon : List (Element.Attribute msg) -> Icon -> Element msg
-icon attributes iconType =
-    Element.el attributes (Element.html (viewIcon iconType))
 
 
 markdownCopyPaste : Model -> Element Msg

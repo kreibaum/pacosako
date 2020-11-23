@@ -1,9 +1,9 @@
 module Pages.Login exposing (Model, Msg, Params, getCurrentLogin, page)
 
+import Custom.Events exposing (onEnter)
 import Element exposing (Element, padding, spacing)
 import Element.Border as Border
 import Element.Input as Input
-import EventsCustom exposing (onEnter)
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)

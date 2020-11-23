@@ -13,11 +13,11 @@ import Api.Backend
 import Api.LocalStorage as LocalStorage
 import Api.Ports
 import Browser.Navigation exposing (Key, pushUrl)
+import Custom.Element exposing (icon)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
-import FontAwesome.Icon exposing (Icon, viewIcon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
@@ -239,8 +239,3 @@ backgroundFocus isFocused =
 
     else
         []
-
-
-icon : List (Element.Attribute msg) -> Icon -> Element msg
-icon attributes iconType =
-    Element.el attributes (Element.html (viewIcon iconType))

@@ -13,11 +13,11 @@ module CastingDeco exposing
     )
 
 import Arrow exposing (Arrow)
+import Custom.Events exposing (BoardMousePosition)
 import Element exposing (Element, padding, spacing)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
-import EventsCustom exposing (BoardMousePosition)
 import List.Extra as List
 import Sako exposing (Tile)
 
@@ -178,9 +178,10 @@ configView : Messages msg -> Maybe InputMode -> Model -> Element msg
 configView messages mode model =
     Element.column [ spacing 10 ]
         [ normalInputModeButton messages mode
-            , tileInputMode messages mode model
+        , tileInputMode messages mode model
         , arrowInputMode messages mode model
         ]
+
 
 normalInputModeButton : Messages msg -> Maybe InputMode -> Element msg
 normalInputModeButton messages mode =

@@ -40,9 +40,9 @@ decorations some more.
 
 import Animation exposing (Timeline)
 import Arrow exposing (Arrow)
+import Custom.Events as Events exposing (BoardMousePosition)
 import Dict
 import Element exposing (Element)
-import EventsCustom as Events exposing (BoardMousePosition)
 import Maybe
 import Pieces
 import Sako exposing (Piece, Tile(..))

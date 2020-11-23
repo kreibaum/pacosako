@@ -1,5 +1,9 @@
 module Main exposing (main)
 
+{-| Entry point of the elm application. As we are using elm-spa, you'll want to
+take a look into Shared.elm the Pages folder instead.
+-}
+
 import Browser
 import Browser.Navigation as Nav
 import Shared exposing (Flags)

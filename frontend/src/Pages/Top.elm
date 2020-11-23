@@ -9,14 +9,15 @@ import Arrow exposing (Arrow)
 import Browser
 import Browser.Events
 import CastingDeco
+import Custom.Element exposing (icon)
+import Custom.Events exposing (BoardMousePosition)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import EventsCustom exposing (BoardMousePosition)
 import File.Download
-import FontAwesome.Icon exposing (Icon, viewIcon)
+import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Html exposing (Html)
@@ -944,11 +945,6 @@ promotionButtons =
         ]
 
 
-icon : List (Element.Attribute msg) -> Icon -> Element msg
-icon attributes iconType =
-    Element.el attributes (Element.html (viewIcon iconType))
-
-
 maybeVictoryStateInfo : Sako.VictoryState -> Element msg
 maybeVictoryStateInfo victoryState =
     case victoryState of
@@ -1236,7 +1232,7 @@ joinOnlineMatchUi : MatchSetupModel -> Element Msg
 joinOnlineMatchUi model =
     box (Element.rgb255 220 220 230)
         [ Element.el [ centerX, Font.size 30 ] (Element.text "I got an Invite")
-        , Input.text [ width fill, EventsCustom.onEnter (JoinMatch |> MatchSetupMsgWrapper) ]
+        , Input.text [ width fill, Custom.Events.onEnter (JoinMatch |> MatchSetupMsgWrapper) ]
             { onChange = SetRawMatchId >> MatchSetupMsgWrapper
             , text = model.rawMatchId
             , placeholder = Just (Input.placeholder [] (Element.text "Enter Match Id"))

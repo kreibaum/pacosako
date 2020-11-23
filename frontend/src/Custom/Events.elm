@@ -1,4 +1,4 @@
-module EventsCustom exposing (BoardMousePosition, onEnter, svgDown, svgMove, svgUp)
+module Custom.Events exposing (BoardMousePosition, onEnter, svgDown, svgMove, svgUp)
 
 {-| The default events we get for SVG graphics are a problem, because they are
 using external coordinates. It is a lot easier to work with internal coordinates
