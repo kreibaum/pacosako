@@ -312,6 +312,7 @@ type alias PlayModel =
     , dragState : DragState
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
+    , rotation : BoardRotation
     }
 
 
@@ -333,6 +334,7 @@ initPlayModel windowSize =
     , dragState = Nothing
     , castingDeco = CastingDeco.initModel
     , inputMode = Nothing
+    , rotation = WhiteBottom
     }
 
 
@@ -349,6 +351,7 @@ type PlayMsg
     | MoveFromAi Sako.Action
     | RequestAiMove
     | AiCrashed
+    | SetRotation BoardRotation
 
 
 castingDecoMessagesPlay : CastingDeco.Messages Msg
@@ -414,6 +417,9 @@ updatePlayModel msg model =
 
         AiCrashed ->
             ( model, Ports.logToConsole "Ai Crashed" )
+
+        SetRotation rotation ->
+            ( setRotation rotation model, Cmd.none )
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
@@ -497,7 +503,7 @@ updateMouseUp pos model =
                 | dragState = Nothing
                 , timeline =
                     Animation.queue
-                        ( Animation.milliseconds 200, PositionView.renderStatic WhiteBottom model.board )
+                        ( Animation.milliseconds 200, PositionView.renderStatic model.rotation model.board )
                         model.timeline
               }
             , Cmd.none
@@ -559,7 +565,7 @@ renderPlayViewDragging dragState model =
         , dragDelta = Just dragDelta
         , hover = Nothing
         , draggingPieces = DraggingPiecesNormal []
-        , rotation = WhiteBottom
+        , rotation = model.rotation
         }
         model.board
 
@@ -579,7 +585,7 @@ updateActionInputStep action model =
         , currentState = addActionToCurrentMatchState action model.currentState
         , timeline =
             Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic WhiteBottom newBoard )
+                ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
                 model.timeline
       }
     , Cmd.batch
@@ -622,7 +628,7 @@ updatePlayCurrentMatchState data model =
         , board = newBoard
         , timeline =
             Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic WhiteBottom newBoard )
+                ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
                 model.timeline
       }
     , Cmd.none
@@ -678,6 +684,17 @@ historyDiff old new =
                 Nothing
 
 
+setRotation : BoardRotation -> PlayModel -> PlayModel
+setRotation rotation model =
+    { model
+        | rotation = rotation
+        , timeline =
+            Animation.queue
+                ( Animation.milliseconds 200, PositionView.renderStatic rotation model.board )
+                model.timeline
+    }
+
+
 playUi : Taco -> PlayModel -> Element Msg
 playUi taco model =
     case Reactive.classify model.windowSize of
@@ -693,7 +710,7 @@ playUiLandscape taco model =
     Element.row
         [ width fill, height fill, Element.scrollbarY ]
         [ playPositionView taco model
-        , playModeSidebar taco model
+        , sidebar taco model
         ]
 
 
@@ -702,7 +719,7 @@ playUiPortrait taco model =
     Element.column
         [ width fill, height fill ]
         [ playPositionView taco model
-        , playModeSidebar taco model
+        , sidebar taco model
         ]
 
 
@@ -783,14 +800,33 @@ justPlayTimerSvg now model timer =
         [ timerTagSvg
             { caption = timeLabel viewData.secondsLeftWhite
             , player = Sako.White
-            , at = Svg.Coord 0 820
+            , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.White)
             }
         , timerTagSvg
             { caption = timeLabel viewData.secondsLeftBlack
             , player = Sako.Black
-            , at = Svg.Coord 0 -70
+            , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.Black)
             }
         ]
+
+
+{-| Determines the Y position of the on-svg timer label. This is required to
+flip the labels when the board is flipped to have Black at the bottom.
+-}
+timerLabelYPosition : BoardRotation -> Sako.Color -> Int
+timerLabelYPosition rotation color =
+    case ( rotation, color ) of
+        ( WhiteBottom, Sako.White ) ->
+            820
+
+        ( WhiteBottom, Sako.Black ) ->
+            -70
+
+        ( BlackBottom, Sako.White ) ->
+            -70
+
+        ( BlackBottom, Sako.Black ) ->
+            820
 
 
 {-| Creates a little rectangle with a text which can be used to display the
@@ -851,8 +887,8 @@ playTimerReplaceViewport play =
             }
 
 
-playModeSidebar : Taco -> PlayModel -> Element Msg
-playModeSidebar taco model =
+sidebar : Taco -> PlayModel -> Element Msg
+sidebar taco model =
     Element.column [ spacing 5, padding 20, height fill ]
         [ gameCodeLabel model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
@@ -861,7 +897,11 @@ playModeSidebar taco model =
             |> Element.el [ width fill ]
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
+        , Element.el [ padding 10 ] Element.none
         , CastingDeco.configView castingDecoMessagesPlay model.inputMode model.castingDeco
+        , Element.el [ padding 10 ] Element.none
+        , Element.text "Play as:"
+        , rotationButtons model.rotation
 
         -- , Input.button []
         --     { onPress = Just (PlayMsgWrapper RequestAiMove)
@@ -1001,6 +1041,27 @@ timeLabel seconds =
 distributeSeconds : Int -> { seconds : Int, minutes : Int }
 distributeSeconds seconds =
     { seconds = seconds |> modBy 60, minutes = seconds // 60 }
+
+
+rotationButtons : BoardRotation -> Element Msg
+rotationButtons rotation =
+    Element.row [ spacing 10 ]
+        [ rotationButton WhiteBottom rotation "White"
+        , rotationButton BlackBottom rotation "Black"
+        ]
+
+
+rotationButton : BoardRotation -> BoardRotation -> String -> Element Msg
+rotationButton rotation currentRotation label =
+    if rotation == currentRotation then
+        Input.button
+            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
+            { onPress = Nothing, label = Element.text label }
+
+    else
+        Input.button
+            [ padding 3 ]
+            { onPress = SetRotation rotation |> PlayMsgWrapper |> Just, label = Element.text label }
 
 
 
