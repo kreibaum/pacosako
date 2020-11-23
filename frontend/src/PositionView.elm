@@ -128,7 +128,7 @@ viewStatic config renderData =
                 ++ idAttribute
     in
     Svg.svg attributes
-        [ board
+        [ board renderData.rotation
         , pastMovementIndicatorLayer renderData.rotation config.decoration
         , castingHighlightLayer renderData.rotation config.decoration
         , highlightLayer renderData.rotation config.decoration
@@ -364,8 +364,8 @@ opacity o =
     SvgA.opacity <| String.fromFloat o
 
 
-board : Svg msg
-board =
+board : BoardRotation -> Svg msg
+board rotation =
     Svg.g []
         ([ Svg.rect
             [ SvgA.x "-10"
@@ -389,29 +389,50 @@ board =
             ]
             []
          ]
-            ++ boardNumbers
+            ++ boardNumbers rotation
         )
 
 
-boardNumbers : List (Svg a)
-boardNumbers =
-    [ columnTag "a" "85" "#9F9"
-    , columnTag "b" "185" "#595"
-    , columnTag "c" "285" "#9F9"
-    , columnTag "d" "385" "#595"
-    , columnTag "e" "485" "#9F9"
-    , columnTag "f" "585" "#595"
-    , columnTag "g" "685" "#9F9"
-    , columnTag "h" "785" "#595"
-    , rowTag "1" "730" "#9F9"
-    , rowTag "2" "630" "#595"
-    , rowTag "3" "530" "#9F9"
-    , rowTag "4" "430" "#595"
-    , rowTag "5" "330" "#9F9"
-    , rowTag "6" "230" "#595"
-    , rowTag "7" "130" "#9F9"
-    , rowTag "8" "30" "#595"
-    ]
+boardNumbers : BoardRotation -> List (Svg a)
+boardNumbers rotation =
+    case rotation of
+        Svg.WhiteBottom ->
+            [ columnTag "a" "85" "#9F9"
+            , columnTag "b" "185" "#595"
+            , columnTag "c" "285" "#9F9"
+            , columnTag "d" "385" "#595"
+            , columnTag "e" "485" "#9F9"
+            , columnTag "f" "585" "#595"
+            , columnTag "g" "685" "#9F9"
+            , columnTag "h" "785" "#595"
+            , rowTag "1" "730" "#9F9"
+            , rowTag "2" "630" "#595"
+            , rowTag "3" "530" "#9F9"
+            , rowTag "4" "430" "#595"
+            , rowTag "5" "330" "#9F9"
+            , rowTag "6" "230" "#595"
+            , rowTag "7" "130" "#9F9"
+            , rowTag "8" "30" "#595"
+            ]
+
+        Svg.BlackBottom ->
+            [ columnTag "h" "14" "#9F9"
+            , columnTag "g" "114" "#595"
+            , columnTag "f" "214" "#9F9"
+            , columnTag "e" "314" "#595"
+            , columnTag "d" "414" "#9F9"
+            , columnTag "c" "514" "#595"
+            , columnTag "b" "614" "#9F9"
+            , columnTag "a" "714" "#595"
+            , rowTag "8" "730" "#9F9"
+            , rowTag "7" "630" "#595"
+            , rowTag "6" "530" "#9F9"
+            , rowTag "5" "430" "#595"
+            , rowTag "4" "330" "#9F9"
+            , rowTag "3" "230" "#595"
+            , rowTag "2" "130" "#9F9"
+            , rowTag "1" "30" "#595"
+            ]
 
 
 columnTag : String -> String -> String -> Svg msg
