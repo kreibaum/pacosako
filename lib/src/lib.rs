@@ -879,9 +879,13 @@ impl DenseBoard {
         if let Some(step) = position.add((0, forward)) {
             if self.is_empty(step) {
                 possible_moves.push(step);
-                // If we are on the base row, check if we can move another step.
-                let base_row = if self.current_player == White { 1 } else { 6 };
-                if position.y() == base_row {
+                // If we are on the base row or further back, check if we can move another step.
+                let double_move_allowed = if self.current_player == White {
+                    position.y() <= 1
+                } else {
+                    position.y() >= 6
+                };
+                if double_move_allowed {
                     if let Some(step_2) = step.add((0, forward)) {
                         if self.is_empty(step_2) {
                             possible_moves.push(step_2);
