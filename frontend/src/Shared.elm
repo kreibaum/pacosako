@@ -25,7 +25,7 @@ import Http
 import I18n.Strings as I18n exposing (Language)
 import Json.Decode as Decode exposing (Decoder, Value, bool)
 import Json.Encode as Encode exposing (Value)
-import Spa.Document exposing (Document, LegacyPage(..))
+import Spa.Document exposing (Document)
 import Spa.Generated.Route as Route exposing (Route)
 import Url exposing (Url)
 
@@ -42,7 +42,6 @@ type alias Model =
     { url : Url
     , key : Key
     , windowSize : ( Int, Int )
-    , legacyPage : LegacyPage
     , user : Maybe User
     , language : Language
 
@@ -58,18 +57,10 @@ init flags url key =
     let
         ls =
             LocalStorage.load flags
-
-        initialLegacyPage =
-            if Debug.log "route" (Route.fromUrl url) == Just Route.Top then
-                MatchSetupPage
-
-            else
-                PlayPage
     in
     ( { url = url
       , key = key
       , windowSize = parseWindowSize flags
-      , legacyPage = initialLegacyPage
       , user = Nothing
       , language = ls.data.language
       , username = ls.data.username
@@ -98,8 +89,7 @@ sizeDecoder =
 
 
 type Msg
-    = OpenPage LegacyPage
-    | TriggerSaveLocalStorage
+    = TriggerSaveLocalStorage
     | HttpError Http.Error
     | LoginSuccess User
     | LogoutSuccess
@@ -108,9 +98,6 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        OpenPage page ->
-            openPage page model
-
         TriggerSaveLocalStorage ->
             ( model, triggerSaveLocalStorage model )
 
@@ -122,27 +109,6 @@ update msg model =
 
         LogoutSuccess ->
             ( { model | user = Nothing }, Cmd.none )
-
-
-openPage : LegacyPage -> Model -> ( Model, Cmd Msg )
-openPage page model =
-    ( { model | legacyPage = Debug.log "page in openPage" page }
-    , case page of
-        PlayPage ->
-            pushUrl model.key (Route.toString Route.Top)
-
-        MatchSetupPage ->
-            pushUrl model.key (Route.toString Route.Top)
-
-        EditorPage ->
-            pushUrl model.key (Route.toString Route.Editor)
-
-        LoginPage ->
-            pushUrl model.key (Route.toString Route.Login)
-
-        TutorialPage ->
-            pushUrl model.key (Route.toString Route.Tutorial)
-    )
 
 
 triggerSaveLocalStorage : Model -> Cmd msg
@@ -177,13 +143,6 @@ view { page, toMsg } model =
                 ++ page.body
             )
         ]
-    }
-
-
-type alias PageHeaderInfo =
-    { currentPage : LegacyPage
-    , targetPage : LegacyPage
-    , caption : String
     }
 
 

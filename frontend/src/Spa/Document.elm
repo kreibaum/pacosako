@@ -1,6 +1,5 @@
 module Spa.Document exposing
     ( Document
-    , LegacyPage(..)
     , map
     , toBrowserDocument
     )
@@ -15,14 +14,6 @@ type alias Document msg =
     { title : String
     , body : List (Element msg)
     }
-
-
-type LegacyPage
-    = PlayPage
-    | MatchSetupPage
-    | EditorPage
-    | LoginPage
-    | TutorialPage
 
 
 map : (msg1 -> msg2) -> Document msg1 -> Document msg2
