@@ -254,14 +254,28 @@ setupOnlineMatchUi model =
         [ Element.el [ centerX, Font.size 30 ] (Element.text "Create a new Game")
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
+                { buttonIcon = Solid.spaceShuttle
+                , caption = "Lightspeed"
+                , event = SetTimeLimit 180
+                , selected = model.timeLimit == 180
+                }
+            , speedButton
                 { buttonIcon = Solid.bolt
                 , caption = "Blitz"
                 , event = SetTimeLimit 300
                 , selected = model.timeLimit == 300
                 }
+            ]
+        , Element.row [ width fill, spacing 7 ]
+            [ speedButton
+                { buttonIcon = Solid.frog
+                , caption = "Rapid"
+                , event = SetTimeLimit 600
+                , selected = model.timeLimit == 600
+                }
             , speedButton
-                { buttonIcon = Solid.hourglassHalf
-                , caption = "Slow"
+                { buttonIcon = Solid.couch
+                , caption = "Relaxed"
                 , event = SetTimeLimit 1200
                 , selected = model.timeLimit == 1200
                 }
@@ -271,7 +285,7 @@ setupOnlineMatchUi model =
                 { buttonIcon = Solid.wrench
                 , caption = "Custom"
                 , event = SetTimeLimit model.timeLimit
-                , selected = List.notMember model.timeLimit [ 0, 300, 1200 ]
+                , selected = List.notMember model.timeLimit [ 0, 180, 300, 600, 1200 ]
                 }
             , speedButton
                 { buttonIcon = Solid.dove
