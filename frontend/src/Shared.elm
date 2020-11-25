@@ -26,7 +26,7 @@ import I18n.Strings as I18n exposing (Language)
 import Json.Decode as Decode exposing (Decoder, Value, bool)
 import Json.Encode as Encode exposing (Value)
 import Spa.Document exposing (Document, LegacyPage(..))
-import Spa.Generated.Route as Route
+import Spa.Generated.Route as Route exposing (Route)
 import Url exposing (Url)
 
 
@@ -58,11 +58,18 @@ init flags url key =
     let
         ls =
             LocalStorage.load flags
+
+        initialLegacyPage =
+            if Debug.log "route" (Route.fromUrl url) == Just Route.Top then
+                MatchSetupPage
+
+            else
+                PlayPage
     in
     ( { url = url
       , key = key
       , windowSize = parseWindowSize flags
-      , legacyPage = MatchSetupPage
+      , legacyPage = initialLegacyPage
       , user = Nothing
       , language = ls.data.language
       , username = ls.data.username
@@ -185,28 +192,18 @@ type alias PageHeaderInfo =
 pageHeader : Model -> Element Msg -> Element Msg
 pageHeader model additionalHeader =
     Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton [] { currentPage = model.legacyPage, targetPage = PlayPage, caption = "Play Paco Ŝako" }
-        , pageHeaderButton [] { currentPage = model.legacyPage, targetPage = EditorPage, caption = "Design Puzzles" }
-        , pageHeaderButton [] { currentPage = model.legacyPage, targetPage = TutorialPage, caption = "Tutorial" }
+        [ pageHeaderButton Route.Top "Play Paco Ŝako"
+        , pageHeaderButton Route.Editor "Design Puzzles"
+        , pageHeaderButton Route.Tutorial "Tutorial"
         , additionalHeader
         , loginHeaderInfo model.user
         ]
 
 
-pageHeaderButton : List (Element.Attribute Msg) -> PageHeaderInfo -> Element Msg
-pageHeaderButton attributes { currentPage, targetPage, caption } =
-    Input.button
-        (padding 10
-            :: (backgroundFocus (currentPage == targetPage)
-                    ++ attributes
-               )
-        )
-        { onPress =
-            if currentPage == targetPage then
-                Nothing
-
-            else
-                Just (OpenPage targetPage)
+pageHeaderButton : Route -> String -> Element Msg
+pageHeaderButton route caption =
+    Element.link [ padding 10 ]
+        { url = Route.toString route
         , label = Element.text caption
         }
 
@@ -228,8 +225,10 @@ loginHeaderInfo login =
                 Nothing ->
                     Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text "Login" ]
     in
-    Input.button [ Element.alignRight ]
-        { onPress = Just (OpenPage LoginPage), label = loginCaption }
+    Element.link [ Element.alignRight ]
+        { url = Route.toString Route.Login
+        , label = loginCaption
+        }
 
 
 backgroundFocus : Bool -> List (Element.Attribute msg)

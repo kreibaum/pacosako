@@ -182,45 +182,87 @@ function download(canvas, filename) {
     }
 }
 
-// Connect to the websocket to syncronize state
+/**
+ * Wrapper for the websocket that takes care of several additional aspects:
+ * 
+ * - Registering to the elm port
+ * - Forwarding messages that were send before the websocket could be created
+ * - Eventually, I'll want some reconnection behaviour in here as well.
+ */
+class WebsocketWrapper {
 
-function connectWebsocketToPort(ws) {
-    // When a message arrives, this is forwarded to the elm application.
-    ws.onmessage = function (event) {
-        app.ports.websocketReceive.send(JSON.parse(event.data));
-    };
-    // Messages from elm are forwarded to the websocket.
-    app.ports.websocketSend.subscribe((data) =>
-        ws.send(JSON.stringify(data))
-    );
+    private ws: WebSocket | undefined = undefined;
+    private queue: any[] = [];
+
+    constructor() {
+        this.connect();
+
+        // Messages from elm are forwarded to the websocket.
+        if (app.ports.websocketSend) {
+            app.ports.websocketSend.subscribe((data) => this.trySend(data));
+        }
+    }
+
+    /**
+     * Establish websocket connection.
+     */
+    private async connect() {
+        let address = await this.getWebsocketAddress();
+        console.log("Websocket: Connecting...")
+        this.ws = new WebSocket(address);
+        this.ws.onopen = ev => this.onopen(ev)
+        this.ws.onmessage = ev => this.onmessage(ev)
+    }
+
+    private async getWebsocketAddress(): Promise<string> {
+        // Check if we are running inside gitpod
+        let re = new RegExp("8000-([a-z0-9-.]*\.gitpod\.io)");
+        let match = re.exec(window.location.hostname);
+        if (match !== null) {
+            return `wss://3010-${match[1]}`;
+        }
+        console.log("Websocket: Getting port...")
+        let websocket_port = await fetch("/api/websocket/port").then((r) =>
+            r.text()
+        );
+        return `ws://${window.location.hostname}:${websocket_port}`;
+    }
+
+    private onopen(ev: Event) {
+        console.log("Websocket connection established.");
+        console.log(`There are ${this.queue.length} messages waiting to be send.`)
+        let messages = this.queue;
+        this.queue = [];
+        messages.forEach(msg => {
+            this.trySend(msg)
+        });
+    }
+
+    private onmessage(ev: MessageEvent<any>) {
+        if (app.ports.websocketReceive) {
+            app.ports.websocketReceive.send(JSON.parse(ev.data));
+        }
+    }
+
+    /** 
+     * If the websocket is open, send the message. Otherwise put it in the queue.
+     */
+    private trySend(msg: any) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(msg));
+        } else {
+            this.queue.push(msg);
+        }
+    }
 }
 
-async function askForWebsocket() {
-    let websocket_port = await fetch("/api/websocket/port").then((r) =>
-        r.text()
-    );
-    webSocket = new WebSocket(
-        `ws://${window.location.hostname}:${websocket_port}`
-    );
-    connectWebsocketToPort(webSocket);
-}
+new WebsocketWrapper();
 
-// When developing in gitpod, we need to connect to a different subdomain,
-// see https://github.com/kreibaum/pacosako/issues/14
-let re = new RegExp("8000-([a-z0-9-.]*\.gitpod\.io)");
-let match = re.exec(window.location.hostname);
-let webSocket;
-if (match !== null) {
-    webSocket = new WebSocket(`wss://3010-${match[1]}`);
-    connectWebsocketToPort(webSocket);
-} else {
-    askForWebsocket();
-}
 
 // Playing sounds. Note that this can't play multiple sounds at once yet.
 // If you trigger the placement sound again while it is still running,
 // it will be skipped.
-let piece_placement_sound = new Audio("./static/place_piece.mp3");
+let piece_placement_sound = new Audio("/static/place_piece.mp3");
 
 function play_sound() {
     piece_placement_sound.play();
@@ -235,7 +277,7 @@ if (app.ports.playSound) {
 // Ports for the AI Web Worker /////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-let aiWorker = new Worker('ai_worker.js');
+let aiWorker = new Worker('/ai_worker.js');
 
 function decide_move(data: any) {
     aiWorker.postMessage(data);
