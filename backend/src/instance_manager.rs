@@ -277,6 +277,8 @@ impl<T: Instance> SyncManager<T> {
         }
     }
 
+    /// Figures out which instance is responible for a message and hands it the
+    /// message for handling.
     fn handle_message_for_instance(
         timeout_sender: &crossbeam_channel::Sender<(String, DateTime<Utc>)>,
         message: T::ClientMessage,
@@ -333,26 +335,19 @@ impl<T: Instance> SyncManager<T> {
 
             if client_already_connected {
                 warn!("The client is already connected to the instance {}.", key);
-                Self::send_message(
-                    &sender,
-                    T::ServerMessage::error(Cow::Owned(format!(
-                        "Client is already connected to {}.",
-                        key
-                    ))),
-                );
             } else {
                 debug!(
                     "Subscribing to the instance {} by a client was successful.",
                     key
                 );
                 instance.clients.insert(sender.clone());
-                Self::handle_message_for_instance(
-                    &self.timeout_sender,
-                    T::ClientMessage::subscribe(key.into_owned()),
-                    &sender,
-                    instance,
-                );
             }
+            Self::handle_message_for_instance(
+                &self.timeout_sender,
+                T::ClientMessage::subscribe(key.into_owned()),
+                &sender,
+                instance,
+            );
         } else {
             warn!("The instance {} does not exist.", key);
             Self::send_message(&sender, Self::error_no_instance(key));
