@@ -536,7 +536,7 @@ subscriptions model =
 
 view : Model -> Document Msg
 view model =
-    { title = "Game.Id_String"
+    { title = "Play Paco Ŝako - pacoplay.com"
     , body = [ playUi model ]
     }
 
