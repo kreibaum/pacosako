@@ -11,7 +11,7 @@ import Browser.Events
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Custom.Element exposing (icon)
-import Custom.Events exposing (BoardMousePosition)
+import Custom.Events exposing (BoardMousePosition, fireMsg, forKey, onKeyUpAttr)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -350,7 +350,7 @@ joinOnlineMatchUi : Model -> Element Msg
 joinOnlineMatchUi model =
     box (Element.rgb255 220 220 230)
         [ Element.el [ centerX, Font.size 30 ] (Element.text "I got an Invite")
-        , Input.text [ width fill, Custom.Events.onEnter JoinMatch ]
+        , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
             { onChange = SetRawMatchId
             , text = model.rawMatchId
             , placeholder = Just (Input.placeholder [] (Element.text "Enter Match Id"))

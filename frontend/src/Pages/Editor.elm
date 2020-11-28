@@ -7,7 +7,7 @@ import Arrow exposing (Arrow)
 import Browser.Events
 import CastingDeco
 import Custom.Element exposing (icon)
-import Custom.Events exposing (BoardMousePosition)
+import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
 import Element exposing (Element, centerX, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Font as Font
@@ -78,13 +78,6 @@ type PositionParseResult
     | ParseSuccess Sako.Position
 
 
-type alias KeyStroke =
-    { key : String
-    , ctrlKey : Bool
-    , altKey : Bool
-    }
-
-
 type alias DownloadRequest =
     { svgNode : String
     , outputWidth : Int
@@ -136,8 +129,8 @@ type Msg
     | MouseUp BoardMousePosition
     | Undo
     | Redo
+    | DeleteSelectedPiece
     | Reset Sako.Position
-    | KeyUp KeyStroke
     | DownloadSvg
     | DownloadPng
     | SvgReadyForDownload String
@@ -173,10 +166,21 @@ load shared model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ Browser.Events.onKeyUp (Decode.map KeyUp decodeKeyStroke)
+        [ Custom.Events.onKeyUp keybindings
         , Api.Ports.responseSvgNodeContent SvgReadyForDownload
         , Animation.subscription model.timeline AnimationTick
         ]
+
+
+{-| The central pace to register all page wide shortcuts.
+-}
+keybindings : List (KeyBinding Msg)
+keybindings =
+    [ forKey "z" |> withCtrl |> fireMsg Undo
+    , forKey "y" |> withCtrl |> fireMsg Redo
+    , forKey "Delete" |> fireMsg DeleteSelectedPiece
+    , forKey "Backspace" |> fireMsg DeleteSelectedPiece
+    ]
 
 
 {-| Let the animation know about the current time.
@@ -184,14 +188,6 @@ subscriptions model =
 updateTimeline : Posix -> Model -> Model
 updateTimeline now model =
     { model | timeline = Animation.tick now model.timeline }
-
-
-decodeKeyStroke : Decoder KeyStroke
-decodeKeyStroke =
-    Decode.map3 KeyStroke
-        (Decode.field "key" Decode.string)
-        (Decode.field "ctrlKey" Decode.bool)
-        (Decode.field "altKey" Decode.bool)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -257,8 +253,8 @@ update msg model =
             , Cmd.none
             )
 
-        KeyUp stroke ->
-            ( keyUp stroke model, Cmd.none )
+        DeleteSelectedPiece ->
+            ( deleteSelectedPiece model, Cmd.none )
 
         DownloadSvg ->
             ( model, Api.Ports.requestSvgNodeContent sakoEditorId )
@@ -388,48 +384,6 @@ applyRedo : Model -> Model
 applyRedo model =
     { model | game = P.withRollback P.goR model.game }
         |> animateToCurrentPosition
-
-
-{-| Handles all key presses.
--}
-keyUp : KeyStroke -> Model -> Model
-keyUp stroke model =
-    if stroke.ctrlKey == False && stroke.altKey == False then
-        regularKeyUp stroke.key model
-
-    else if stroke.ctrlKey == True && stroke.altKey == False then
-        ctrlKeyUp stroke.key model
-
-    else
-        model
-
-
-{-| Handles all ctrl + <?> shortcuts.
--}
-ctrlKeyUp : String -> Model -> Model
-ctrlKeyUp key model =
-    case key of
-        "z" ->
-            applyUndo model
-
-        "y" ->
-            applyRedo model
-
-        _ ->
-            model
-
-
-regularKeyUp : String -> Model -> Model
-regularKeyUp key model =
-    case key of
-        "Delete" ->
-            deleteSelectedPiece model
-
-        "Backspace" ->
-            deleteSelectedPiece model
-
-        _ ->
-            model
 
 
 deleteSelectedPiece : Model -> Model

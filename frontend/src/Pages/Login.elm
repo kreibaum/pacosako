@@ -1,6 +1,6 @@
 module Pages.Login exposing (Model, Msg, Params, getCurrentLogin, page)
 
-import Custom.Events exposing (onEnter)
+import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Element exposing (Element, padding, spacing)
 import Element.Border as Border
 import Element.Input as Input
@@ -168,7 +168,7 @@ loginDialog params model =
             , placeholder = Just (Input.placeholder [] (Element.text "Username"))
             , text = model.usernameRaw
             }
-        , Input.currentPassword [ onEnter TryLogin ]
+        , Input.currentPassword [ onKeyUpAttr [ forKey "Enter" |> fireMsg TryLogin ] ]
             { label = Input.labelAbove [] (Element.text "Password")
             , onChange = TypePassword
             , placeholder = Just (Input.placeholder [] (Element.text "Password"))
