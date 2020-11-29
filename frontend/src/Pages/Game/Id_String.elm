@@ -10,7 +10,7 @@ import Browser
 import Browser.Events
 import CastingDeco
 import Custom.Element exposing (icon)
-import Custom.Events exposing (BoardMousePosition)
+import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -122,6 +122,7 @@ type Msg
     | SetInputModePlay (Maybe CastingDeco.InputMode)
     | ClearDecoTilesPlay
     | ClearDecoArrowsPlay
+    | ClearDecoComplete
     | MoveFromAi Sako.Action
     | RequestAiMove
     | AiCrashed
@@ -177,6 +178,16 @@ update msg model =
 
         ClearDecoArrowsPlay ->
             ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
+
+        ClearDecoComplete ->
+            ( { model
+                | castingDeco =
+                    model.castingDeco
+                        |> CastingDeco.clearTiles
+                        |> CastingDeco.clearArrows
+              }
+            , Cmd.none
+            )
 
         MoveFromAi action ->
             updateActionInputStep action model
@@ -527,7 +538,20 @@ subscriptions model =
         , Animation.subscription model.timeline PlayMsgAnimationTick
         , Api.Websocket.listen WebsocketMsg WebsocketErrorMsg
         , Api.Ai.subscribeMoveFromAi AiCrashed MoveFromAi
+        , Custom.Events.onKeyUp keybindings
         ]
+
+
+{-| The central pace to register all page wide shortcuts.
+-}
+keybindings : List (KeyBinding Msg)
+keybindings =
+    [ forKey "1" |> fireMsg (SetInputModePlay Nothing)
+    , forKey "2" |> fireMsg (SetInputModePlay (Just CastingDeco.InputTiles))
+    , forKey "3" |> fireMsg (SetInputModePlay (Just CastingDeco.InputArrows))
+    , forKey " " |> fireMsg ClearDecoComplete
+    , forKey "0" |> fireMsg ClearDecoComplete
+    ]
 
 
 
