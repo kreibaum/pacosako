@@ -31,6 +31,7 @@ use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use websocket::WebsocketServer;
+use ws2::WS2;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Static Files ////////////////////////////////////////////////////////////////
@@ -413,7 +414,7 @@ fn main() {
 
     init_logger();
 
-    // ws2::spawn(3020);
+    WS2::spawn(3020);
 
     // All the other components are created inside rocket.attach because this
     // gives them access to the rocket configuration and I can properly separate

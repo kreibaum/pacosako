@@ -1,6 +1,6 @@
 use crate::instance_manager::{ClientMessage, Instance, ProvidesKey, ServerMessage};
 use crate::timer::{Timer, TimerConfig, TimerState};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use pacosako::{PacoAction, PacoBoard, PacoError};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
@@ -15,12 +15,21 @@ pub struct MatchParameters {
     timer: Option<TimerConfig>,
 }
 
+/// A paco sako action together with a timestamp that remembers when it was done.
+/// This timestamp is important for replays.
+#[derive(Serialize, Clone, Debug)]
+struct StampedAction {
+    #[serde(flatten)]
+    action: PacoAction,
+    timestamp: DateTime<Utc>,
+}
+
 /// A match is a recording of actions taken in it together with a unique
 /// identifier that can be used to connect to the game.
 /// It also takes care of tracking the timing and ensures actions are legal.
 pub struct SyncronizedMatch {
     key: String,
-    actions: Vec<PacoAction>,
+    actions: Vec<StampedAction>,
     timer: Option<Timer>,
 }
 
@@ -212,7 +221,7 @@ impl Instance for SyncronizedMatch {
 #[derive(Serialize, Clone, Debug)]
 pub struct CurrentMatchState {
     key: String,
-    actions: Vec<PacoAction>,
+    actions: Vec<StampedAction>,
     legal_actions: Vec<PacoAction>,
     controlling_player: pacosako::PlayerColor,
     timer: Option<Timer>,
@@ -263,7 +272,7 @@ impl SyncronizedMatch {
         // have been added to the action list.
         let mut board = pacosako::DenseBoard::new();
         for action in &self.actions {
-            board.execute_trusted(action.clone())?;
+            board.execute_trusted(action.action.clone())?;
         }
         Ok(board)
     }
@@ -285,7 +294,10 @@ impl SyncronizedMatch {
         }
 
         board.execute(new_action)?;
-        self.actions.push(new_action);
+        self.actions.push(StampedAction {
+            action: new_action,
+            timestamp: Utc::now(),
+        });
 
         if board.victory_state().is_over() {
             if let Some(timer) = &mut self.timer {
@@ -303,8 +315,25 @@ impl SyncronizedMatch {
 
     /// Rolls back the game state to the start of the turn of the current player.
     fn rollback(&mut self) -> Result<CurrentMatchState, PacoError> {
-        pacosako::rollback_trusted_action_stack(&mut self.actions)?;
+        Self::rollback_trusted_action_stack(&mut self.actions)?;
         self.current_state()
+    }
+
+    /// Takes a board state that is provided in terms of an action history and
+    /// rolls back an in-progress move. This will never change the active player.
+    /// Rolling back on a settled board state does nothing.
+    /// The action stack is assumed to only contain legal moves and the moves are
+    /// not validated.
+    fn rollback_trusted_action_stack(actions: &mut Vec<StampedAction>) -> Result<(), PacoError> {
+        let last_checkpoint_index =
+            pacosako::find_last_checkpoint_index(actions.iter().map(|a| &a.action))?;
+
+        // Remove all moves to get back to last_checkpoint_index
+        while actions.len() > last_checkpoint_index {
+            actions.pop();
+        }
+
+        Ok(())
     }
 
     /// Sets the timer configuration of the game. This will return an error if
@@ -393,7 +422,10 @@ mod test {
         // recalculating the current state does not lead to surprises.
         let current_state_2 = game.current_state().unwrap();
         assert_eq!(current_state.key, current_state_2.key);
-        assert_eq!(current_state.actions, current_state_2.actions);
+        let no_stamps: Vec<PacoAction> = current_state.actions.iter().map(|a| a.action).collect();
+        let no_stamps_2: Vec<PacoAction> =
+            current_state_2.actions.iter().map(|a| a.action).collect();
+        assert_eq!(no_stamps, no_stamps_2);
         assert_eq!(current_state.legal_actions, current_state_2.legal_actions);
 
         // there are two moves in the state and 16 possible actions.

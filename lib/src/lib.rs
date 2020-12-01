@@ -1690,24 +1690,12 @@ pub fn execute_sequence<T: PacoBoard>(
     Ok(new_state)
 }
 
-/// Takes a board state that is provided in terms of an action history and
-/// rolls back an in-progress move. This will never change the active player.
-/// Rolling back on a settled board state does nothing.
+/// Finds the last point in the action sequence where the active player changed.
 /// The action stack is assumed to only contain legal moves and the moves are
 /// not validated.
-pub fn rollback_trusted_action_stack(actions: &mut Vec<PacoAction>) -> Result<(), PacoError> {
-    let last_checkpoint_index = find_last_checkpoint_index(actions)?;
-
-    // Remove all moves to get back to last_checkpoint_index
-    while actions.len() > last_checkpoint_index {
-        actions.pop();
-    }
-
-    Ok(())
-}
-
-/// Finds the last point in the action sequence where the active player changed.
-fn find_last_checkpoint_index(actions: &Vec<PacoAction>) -> Result<usize, PacoError> {
+pub fn find_last_checkpoint_index<'a>(
+    actions: impl Iterator<Item = &'a PacoAction>,
+) -> Result<usize, PacoError> {
     let mut board = DenseBoard::new();
     let mut action_counter = 0;
     let mut last_checkpoint_index = action_counter;
@@ -1725,7 +1713,7 @@ fn find_last_checkpoint_index(actions: &Vec<PacoAction>) -> Result<usize, PacoEr
 
     // Check if the game is still running, otherwise we can't roll back.
     if board.victory_state().is_over() {
-        return Ok(actions.len());
+        return Ok(action_counter);
     }
 
     Ok(last_checkpoint_index)
