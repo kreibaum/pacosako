@@ -19,6 +19,7 @@ extern crate simplelog;
 use async_std::task;
 use async_std::task::block_on;
 use db::Pool;
+use instance_manager::Instance;
 use pacosako::{DenseBoard, PacoError, SakoSearchResult};
 use rand::{thread_rng, Rng};
 use rocket::http::{Cookie, Cookies};
@@ -30,6 +31,7 @@ use rocket::State;
 use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
+use sync_match::{MatchParameters, SyncronizedMatch};
 use websocket::WebsocketServer;
 use ws2::WS2;
 
@@ -321,8 +323,30 @@ fn share(
 fn create_game(
     websocket_server: State<WebsocketServer>,
     game_parameters: Json<sync_match::MatchParameters>,
-) -> String {
-    websocket_server.new_match(game_parameters.0)
+    pool: State<Pool>,
+) -> Result<String, anyhow::Error> {
+    // Create a match on the database and return the id.
+    // The Websocket will then have to hydrate it on its own. While that is
+    // mildly inefficient, it decouples the websocket server from the rocket
+    // server a bit.
+
+    let key = task::block_on(_create_game(game_parameters.0.clone(), pool.clone()))?;
+    Ok(key)
+    // Ok(websocket_server.new_match(game_parameters.0))
+}
+
+async fn _create_game(
+    game_parameters: sync_match::MatchParameters,
+    pool: Pool,
+) -> Result<String, anyhow::Error> {
+    info!("Creating a new game on client request.");
+    use db::game::StoreAs;
+    let mut game = SyncronizedMatch::new_with_key("0", game_parameters).store()?;
+    let mut conn = pool.0.acquire().await?;
+    game.insert(&mut conn).await?;
+
+    info!("Creating game created with id {}.", game.id);
+    Ok(format!("{}", game.id))
 }
 
 #[get("/game/<key>")]
@@ -343,12 +367,21 @@ fn get_game(
 }
 
 #[get("/game/recent")]
-fn recently_created_games(websocket_server: State<WebsocketServer>) -> Json<Vec<String>> {
-    Json(
-        websocket_server
-            .borrow_match_manager()
-            .recently_created_games(),
-    )
+fn recently_created_games(pool: State<Pool>) -> Json<Vec<String>> {
+    let recent = task::block_on(_recently_created_games(pool.clone()));
+
+    match recent {
+        Ok(recent) => Json(recent.iter().map(|m| m.key.to_string()).collect()),
+        Err(_) => Json(vec![]),
+    }
+}
+
+async fn _recently_created_games(pool: Pool) -> Result<Vec<SyncronizedMatch>, anyhow::Error> {
+    use db::game::StoreAs;
+    let raw = db::game::RawGame::latest(&mut pool.0.acquire().await?).await?;
+    let vec: Result<Vec<SyncronizedMatch>, anyhow::Error> =
+        raw.iter().map(|r| SyncronizedMatch::load(r)).collect();
+    vec
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,6 +435,12 @@ fn init_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocke
     let websocket_server = websocket::prepare_websocket();
     let websocket_port: u16 = rocket.config().get_int("websocket_port").unwrap_or(1111) as u16;
 
+    if let Some(pool) = rocket.state::<Pool>() {
+        websocket_server
+            .borrow_match_manager()
+            .with_pool(pool.clone());
+    }
+
     websocket::init_websocket(websocket_server.clone(), websocket_port);
 
     Ok(rocket
@@ -414,7 +453,7 @@ fn main() {
 
     init_logger();
 
-    WS2::spawn(3020);
+    // WS2::spawn(3020);
 
     // All the other components are created inside rocket.attach because this
     // gives them access to the rocket configuration and I can properly separate

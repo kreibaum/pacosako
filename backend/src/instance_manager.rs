@@ -1,4 +1,8 @@
-use crate::timeout;
+use crate::{
+    db::{game::Conn, Pool},
+    timeout,
+};
+use async_std::task;
 use chrono::{DateTime, Duration, Utc};
 use rand::{thread_rng, Rng};
 use std::fmt::Debug;
@@ -33,6 +37,12 @@ pub trait Instance: Sized + Send {
     fn handle_message(&mut self, message: Self::ClientMessage, ctx: &mut Context<Self>);
     /// Called, when the instance set a timout itself and this timeout has passed
     fn handle_timeout(&mut self, now: DateTime<Utc>, ctx: &mut Context<Self>);
+    /// Loading games from the database is an optional features for instances
+    /// right now.
+    fn load_from_db(key: &str, conn: Conn) -> Result<Self, anyhow::Error>;
+    /// storing games to the database is an optional feature for instances
+    /// right now.
+    fn store_to_db(&self, conn: Conn) -> Result<(), anyhow::Error>;
 }
 
 pub trait ProvidesKey {
@@ -115,6 +125,8 @@ struct SyncManager<T: Instance> {
     /// This is not really great, we'll eventually pull this directly from the
     /// DB as needed, as we don't want last_created for all types of instances.
     last_created: Vec<(String, DateTime<Utc>)>,
+    /// To load games on demand from the DB, we need to know the connection pool.
+    pool: Option<Pool>,
 }
 
 struct ClientData {
@@ -183,6 +195,9 @@ impl<T: Instance + 'static> Manager<T> {
 
         new_instance
     }
+    pub fn with_pool(&self, pool: Pool) {
+        lock!(self).with_pool(pool);
+    }
     /// Creates a new instance and returns its key.
     pub fn new_instance(&self, params: T::InstanceParameters) -> String {
         lock!(self).new_instance(params)
@@ -231,11 +246,17 @@ impl<T: Instance> Default for SyncManager<T> {
             clients: HashMap::new(),
             timeout_sender: crossbeam_channel::bounded(0).0,
             last_created: Vec::with_capacity(5),
+            pool: None,
         }
     }
 }
 
 impl<T: Instance> SyncManager<T> {
+    /// Add a pool to load games from the database on demand.
+    fn with_pool(&mut self, pool: Pool) {
+        self.pool = Some(pool);
+    }
+
     fn new_instance(&mut self, params: T::InstanceParameters) -> String {
         let key = generate_unique_key(&self.instances);
 
@@ -269,8 +290,10 @@ impl<T: Instance> SyncManager<T> {
     fn handle_message(&mut self, message: T::ClientMessage, sender: Sender) {
         debug!("Handling client message {:?}", message);
         let key = message.key();
+        let pool = &self.pool;
         if let Some(instance) = self.instances.get_mut(&*key) {
-            Self::handle_message_for_instance(&self.timeout_sender, message, &sender, instance)
+            Self::handle_message_for_instance(&self.timeout_sender, message, &sender, instance);
+            Self::store_to_db(&instance.instance, pool);
         } else {
             warn!("Got a client message with no assocciated : {:?}", message);
             Self::send_message(&sender, Self::error_no_instance(key));
@@ -316,8 +339,51 @@ impl<T: Instance> SyncManager<T> {
         }
     }
 
+    /// Will try to load the agreement from the database if it is not in the
+    /// cache yet.
+    fn ensure_in_cache(&mut self, key: &str) {
+        // If it is not in the cache
+        if self.instances.get_mut(&*key).is_some() {
+            return;
+        }
+        if let Some(ref pool) = self.pool {
+            info!("Loading the instance for key {}.", key);
+            // But it can be found on the database
+            if let Ok(instance) = task::block_on(Self::load_from_db(key, pool.clone())) {
+                info!("Inserting the instance for key {} into the cache.", key);
+                // Then we put it into the cache
+                self.instances
+                    .insert(key.to_string(), InstanceMetadata::new(instance));
+            }
+        } else {
+            warn!("No database pool available to load instances");
+        }
+    }
+
+    async fn load_from_db(key: &str, pool: Pool) -> Result<T, anyhow::Error> {
+        T::load_from_db(key, pool.0.acquire().await?)
+    }
+
+    /// Stores an instance on the database, if possible.
+    fn store_to_db(instance: &T, pool: &Option<Pool>) {
+        if let Some(ref pool) = pool {
+            info!("Storing instance {} to DB.", instance.key());
+            // But it can be found on the database
+            if let Ok(_) = task::block_on(Self::_store_to_db(instance, pool.clone())) {
+                info!("Storing for {} done.", instance.key());
+            }
+        }
+    }
+
+    async fn _store_to_db(instance: &T, pool: Pool) -> Result<(), anyhow::Error> {
+        instance.store_to_db(pool.0.acquire().await?)
+    }
+
     fn subscribe(&mut self, key: Cow<String>, sender: Sender) {
         debug!("A client is subscribing to the instance {}.", key);
+
+        self.ensure_in_cache(&*key);
+
         // Check if an instance with this key exists
         if let Some(instance) = self.instances.get_mut(&*key) {
             let mut client_already_connected = false;
@@ -365,6 +431,7 @@ impl<T: Instance> SyncManager<T> {
 
     fn on_timeout(&mut self, key: String, now: DateTime<Utc>) {
         debug!("The timer thread reported a potential timeout for {}.", key);
+        let pool = &self.pool;
         if let Some(instance) = self.instances.get_mut(&key) {
             let mut context = Context::new();
 
@@ -385,6 +452,8 @@ impl<T: Instance> SyncManager<T> {
                     Self::send_message(client, msg.clone());
                 }
             }
+
+            Self::store_to_db(&instance.instance, pool);
 
             if let Some(when) = context.new_timeout {
                 match self.timeout_sender.send((key, when)) {
@@ -531,6 +600,14 @@ mod test {
 
         fn handle_timeout(&mut self, _now: DateTime<Utc>, _ctx: &mut Context<Self>) {
             // No timeouts used in the test.
+        }
+
+        fn load_from_db(key: &str, _conn: Conn) -> Result<Self, anyhow::Error> {
+            Err(anyhow::anyhow!("Loading from db not imlemented."))
+        }
+
+        fn store_to_db(&self, _conn: Conn) -> Result<(), anyhow::Error> {
+            Err(anyhow::anyhow!("Storing to db not imlemented."))
         }
     }
 

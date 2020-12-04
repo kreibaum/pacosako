@@ -59,6 +59,14 @@ impl Instance for SyncronizedBoard {
     fn handle_timeout(&mut self, _now: DateTime<Utc>, _ctx: &mut Context<Self>) {
         // We are not using timeouts.
     }
+
+    fn load_from_db(key: &str, conn: crate::db::game::Conn) -> Result<Self, anyhow::Error> {
+        Err(anyhow::anyhow!("Loading from db not imlemented."))
+    }
+
+    fn store_to_db(&self, conn: crate::db::game::Conn) -> Result<(), anyhow::Error> {
+        Err(anyhow::anyhow!("Storing to db not imlemented."))
+    }
 }
 
 /// All allowed messages that may be send by the client to the server.

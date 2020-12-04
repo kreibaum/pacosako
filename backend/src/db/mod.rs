@@ -1,9 +1,13 @@
+/// Everything related to the play page.
+pub(crate) mod game;
+
 use super::{LoginRequest, Position, SavePositionRequest, SavePositionResponse, ServerError, User};
 /// All database logic for the pacosako game server lives in this project.
 /// We are using sqlx to talk to an sqlite database.
 use sqlx::sqlite::SqlitePool;
 
-pub struct Pool(SqlitePool);
+#[derive(Clone)]
+pub struct Pool(pub SqlitePool);
 
 struct PositionRaw {
     id: i64,

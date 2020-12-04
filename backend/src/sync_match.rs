@@ -1,5 +1,12 @@
-use crate::instance_manager::{ClientMessage, Instance, ProvidesKey, ServerMessage};
-use crate::timer::{Timer, TimerConfig, TimerState};
+use crate::{
+    db,
+    instance_manager::{ClientMessage, Instance, ProvidesKey, ServerMessage},
+};
+use crate::{
+    db::game::StoreAs,
+    timer::{Timer, TimerConfig, TimerState},
+};
+use async_std::task;
 use chrono::{DateTime, Utc};
 use pacosako::{PacoAction, PacoBoard, PacoError};
 use serde::{Deserialize, Serialize};
@@ -10,15 +17,15 @@ use std::{borrow::Cow, convert::TryFrom};
 /// already clear and we only implement the Paco Ŝako specific parts.
 
 /// Parameters required to initialize a new instance of the match.
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct MatchParameters {
     timer: Option<TimerConfig>,
 }
 
 /// A paco sako action together with a timestamp that remembers when it was done.
 /// This timestamp is important for replays.
-#[derive(Serialize, Clone, Debug)]
-struct StampedAction {
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct StampedAction {
     #[serde(flatten)]
     action: PacoAction,
     timestamp: DateTime<Utc>,
@@ -28,9 +35,10 @@ struct StampedAction {
 /// identifier that can be used to connect to the game.
 /// It also takes care of tracking the timing and ensures actions are legal.
 pub struct SyncronizedMatch {
-    key: String,
-    actions: Vec<StampedAction>,
-    timer: Option<Timer>,
+    // TODO: Stop leaking private members by implementing stringify & parse in here.
+    pub key: String,
+    pub actions: Vec<StampedAction>,
+    pub timer: Option<Timer>,
 }
 
 /// Message that may be send by the client to the server.
@@ -212,6 +220,36 @@ impl Instance for SyncronizedMatch {
             Err(_) => {}
         }
     }
+
+    fn load_from_db(key: &str, conn: crate::db::game::Conn) -> Result<Self, anyhow::Error> {
+        // So now I can't be in an async function because I am in a trait
+        // But I need to be in an async function to properly work with sqlx :-/
+        task::block_on(_load_from_db(key, conn))
+    }
+
+    fn store_to_db(&self, conn: db::game::Conn) -> Result<(), anyhow::Error> {
+        task::block_on(_store_to_db(self, conn))
+    }
+}
+
+async fn _load_from_db(
+    key: &str,
+    mut conn: crate::db::game::Conn,
+) -> Result<SyncronizedMatch, anyhow::Error> {
+    if let Some(game) = db::game::RawGame::select(key.parse()?, &mut conn).await? {
+        Ok(SyncronizedMatch::load(&game)?)
+    } else {
+        Err(anyhow::anyhow!("Game with key {} not found.", key))
+    }
+}
+
+async fn _store_to_db(
+    game: &SyncronizedMatch,
+    mut conn: db::game::Conn,
+) -> Result<(), anyhow::Error> {
+    let game = game.store()?;
+    game.update(&mut conn).await?;
+    Ok(())
 }
 
 /// A complete description of the match state. This is currently send to all

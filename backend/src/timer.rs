@@ -21,12 +21,18 @@ pub struct TimerConfig {
     pub time_budget_black: Duration,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Timer {
     last_timestamp: DateTime<Utc>,
-    #[serde(serialize_with = "serialize_seconds")]
+    #[serde(
+        serialize_with = "serialize_seconds",
+        deserialize_with = "deserialize_seconds"
+    )]
     time_left_white: Duration,
-    #[serde(serialize_with = "serialize_seconds")]
+    #[serde(
+        serialize_with = "serialize_seconds",
+        deserialize_with = "deserialize_seconds"
+    )]
     time_left_black: Duration,
     timer_state: TimerState,
     config: TimerConfig,
@@ -108,7 +114,7 @@ impl Timer {
 /// Gives the current state of the timer. When the timer is running it does
 /// not know which player is currently controlling it. The time will be reduced
 /// when an action is send to the server.
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum TimerState {
     /// A timer is in this state, when the game has not started yet.
     NotStarted,
