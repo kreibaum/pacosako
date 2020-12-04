@@ -3,6 +3,8 @@ module I18n.Strings exposing
     , Language(..)
     , decodeLanguage
     , encodeLanguage
+    , gamesArePublicHint
+    , hideGamesArePublicHint
     , t
     , tutorialCombosLoopsChains
     , tutorialCreativePlayingStyle
@@ -96,6 +98,28 @@ t lang (I18nToken token) =
 
         Dutch ->
             token.dutch
+
+
+
+--------------------------------------------------------------------------------
+-- Shared page -----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+gamesArePublicHint : I18nToken String
+gamesArePublicHint =
+    I18nToken
+        { english = "All games you play are stored indefinitely and publicly available!"
+        , dutch = "Alle games die je speelt, worden voor onbepaalde tijd opgeslagen en zijn openbaar beschikbaar!"
+        }
+
+
+hideGamesArePublicHint : I18nToken String
+hideGamesArePublicHint =
+    I18nToken
+        { english = "Hide message."
+        , dutch = "Bericht verbergen."
+        }
 
 
 

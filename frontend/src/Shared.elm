@@ -10,7 +10,7 @@ module Shared exposing
     )
 
 import Api.Backend
-import Api.LocalStorage as LocalStorage
+import Api.LocalStorage as LocalStorage exposing (Permission(..))
 import Api.Ports
 import Browser.Navigation exposing (Key, pushUrl)
 import Custom.Element exposing (icon)
@@ -22,7 +22,7 @@ import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Http
-import I18n.Strings as I18n exposing (Language)
+import I18n.Strings as I18n exposing (Language, t)
 import Json.Decode as Decode exposing (Decoder, Value, bool)
 import Json.Encode as Encode exposing (Value)
 import Spa.Document exposing (Document)
@@ -93,6 +93,7 @@ type Msg
     | HttpError Http.Error
     | LoginSuccess User
     | LogoutSuccess
+    | UserHidesGamesArePublicHint
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -109,6 +110,18 @@ update msg model =
 
         LogoutSuccess ->
             ( { model | user = Nothing }, Cmd.none )
+
+        UserHidesGamesArePublicHint ->
+            userHidesGamesArePublicHint model
+
+
+userHidesGamesArePublicHint : Model -> ( Model, Cmd Msg )
+userHidesGamesArePublicHint model =
+    let
+        newModel =
+            { model | permissions = HideGamesArePublicHint :: model.permissions }
+    in
+    ( newModel, triggerSaveLocalStorage newModel )
 
 
 triggerSaveLocalStorage : Model -> Cmd msg
@@ -135,9 +148,11 @@ view :
 view { page, toMsg } model =
     { title = page.title
     , body =
-        [ Element.column [ width fill, height fill, Element.scrollbarY ]
-            ([ Element.html FontAwesome.Styles.css
-             , pageHeader model Element.none
+        [ Element.html FontAwesome.Styles.css
+        , Element.column [ width fill, height fill, Element.scrollbarY ]
+            ([ pageHeader model Element.none
+                |> Element.map toMsg
+             , gamesArePublicHint model
                 |> Element.map toMsg
              ]
                 ++ page.body
@@ -197,3 +212,21 @@ backgroundFocus isFocused =
 
     else
         []
+
+
+gamesArePublicHint : Model -> Element Msg
+gamesArePublicHint model =
+    if List.member HideGamesArePublicHint model.permissions then
+        Element.none
+
+    else
+        Element.row [ width fill, Background.color (Element.rgb255 255 230 230), padding 10 ]
+            [ paragraph [ spacing 10 ]
+                [ Element.text (t model.language I18n.gamesArePublicHint)
+                , Input.button
+                    [ Element.alignRight ]
+                    { onPress = Just UserHidesGamesArePublicHint
+                    , label = Element.text (t model.language I18n.hideGamesArePublicHint)
+                    }
+                ]
+            ]

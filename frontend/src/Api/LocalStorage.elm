@@ -88,6 +88,7 @@ Data without permission:
 -}
 type Permission
     = Username
+    | HideGamesArePublicHint
 
 
 setPermission : Permission -> Bool -> List Permission -> List Permission
@@ -109,6 +110,9 @@ encodePermission p =
         Username ->
             Encode.string "Username"
 
+        HideGamesArePublicHint ->
+            Encode.string "HideGamesArePublicHint"
+
 
 decodePermission : Decoder Permission
 decodePermission =
@@ -118,6 +122,9 @@ decodePermission =
                 case str of
                     "Username" ->
                         Decode.succeed Username
+
+                    "HideGamesArePublicHint" ->
+                        Decode.succeed HideGamesArePublicHint
 
                     otherwise ->
                         Decode.fail ("Not a permission: " ++ otherwise)
