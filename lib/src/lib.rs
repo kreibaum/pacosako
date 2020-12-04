@@ -2630,8 +2630,7 @@ mod tests {
     #[test]
     fn test_rollback_empty() -> Result<(), PacoError> {
         let mut actions = vec![];
-        rollback_trusted_action_stack(&mut actions)?;
-        assert_eq!(actions, vec![]);
+        assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
         Ok(())
     }
 
@@ -2639,8 +2638,7 @@ mod tests {
     fn test_rollback_single_lift() -> Result<(), PacoError> {
         use PacoAction::*;
         let mut actions = vec![Lift(pos("d2"))];
-        rollback_trusted_action_stack(&mut actions)?;
-        assert_eq!(actions, vec![]);
+        assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
         Ok(())
     }
 
@@ -2648,8 +2646,7 @@ mod tests {
     fn test_rollback_settled_changed() -> Result<(), PacoError> {
         use PacoAction::*;
         let mut actions = vec![Lift(pos("e2")), Place(pos("e4"))];
-        rollback_trusted_action_stack(&mut actions)?;
-        assert_eq!(actions, vec![Lift(pos("e2")), Place(pos("e4"))]);
+        assert_eq!(find_last_checkpoint_index(actions.iter())?, 2);
         Ok(())
     }
 
@@ -2665,8 +2662,7 @@ mod tests {
             Lift(pos("b2")), Place(pos("b4")), Lift(pos("d4")), Place(pos("d3")),
             Lift(pos("d3")), Place(pos("b2")), Lift(pos("b2")), Place(pos("b1")),
         ];
-        rollback_trusted_action_stack(&mut actions)?;
-        assert_eq!(actions.len(), 14);
+        assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
         Ok(())
     }
 
@@ -2682,8 +2678,7 @@ mod tests {
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
             Lift(pos("c3")), Place(pos("b1")),
         ];
-        rollback_trusted_action_stack(&mut actions)?;
-        assert_eq!(actions.len(), 14);
+        assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
         Ok(())
     }
 
@@ -2698,8 +2693,7 @@ mod tests {
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
             Lift(pos("c3")), Place(pos("b1")), Promote(PieceType::Queen), Lift(pos("h5")),
         ];
-        rollback_trusted_action_stack(&mut actions)?;
-        assert_eq!(actions.len(), 14);
+        assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
         Ok(())
     }
 
@@ -2717,8 +2711,7 @@ mod tests {
             Lift(pos("f6")), Place(pos("f7")), Lift(pos("a5")), Place(pos("a4")),
             Lift(pos("f7")), Place(pos("e8")),
         ];
-        rollback_trusted_action_stack(&mut actions)?;
-        assert_eq!(actions.len(), 22);
+        assert_eq!(find_last_checkpoint_index(actions.iter())?, 22);
         Ok(())
     }
 

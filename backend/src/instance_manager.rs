@@ -657,7 +657,7 @@ mod test {
 
         m.subscribe(Cow::Owned(key.clone()), s1);
 
-        assert!(r1().contains(&format!("Client is already connected to {}.", key)));
+        assert!(r1().contains(&format!("{}: {}", key, 0)));
         assert_eq!(r1(), "Err(Empty)");
 
         // Check that we are still only connected once.
