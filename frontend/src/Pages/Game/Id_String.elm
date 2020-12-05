@@ -404,6 +404,18 @@ updateActionInputStep action model =
     )
 
 
+{-| Ensure that the update we got actually belongs to the game we are interested
+in.
+-}
+updatePlayCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Cmd Msg )
+updatePlayCurrentMatchStateIfKeyCorrect data model =
+    if data.key == model.currentState.key then
+        updatePlayCurrentMatchState data model
+
+    else
+        ( model, Cmd.none )
+
+
 updatePlayCurrentMatchState : CurrentMatchState -> Model -> ( Model, Cmd Msg )
 updatePlayCurrentMatchState data model =
     let
@@ -515,7 +527,7 @@ updateWebsocket serverMessage model =
             ( model, Cmd.none )
 
         Api.Websocket.NewMatchState data ->
-            updatePlayCurrentMatchState data model
+            updatePlayCurrentMatchStateIfKeyCorrect data model
 
         Api.Websocket.MatchConnectionSuccess data ->
             updatePlayMatchConnectionSuccess data model
