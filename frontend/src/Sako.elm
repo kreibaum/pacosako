@@ -12,6 +12,7 @@ module Sako exposing
     , decodePosition
     , decodeVictoryState
     , doAction
+    , doActionsList
     , emptyPosition
     , encodeAction
     , encodePosition
@@ -356,6 +357,23 @@ doAction action position =
 
         Promote pieceType ->
             doPromoteAction pieceType position
+
+
+{-| Iterate `Sako.doAction` with the actions provided on the board state.
+-}
+doActionsList : List Action -> Position -> Maybe Position
+doActionsList actions board =
+    case actions of
+        [] ->
+            Just board
+
+        a :: actionTail ->
+            case doAction a board of
+                Just b ->
+                    doActionsList actionTail b
+
+                Nothing ->
+                    Nothing
 
 
 {-| Check that there is nothing lifted right now and then lift the piece at the

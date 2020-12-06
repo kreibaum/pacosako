@@ -1,10 +1,12 @@
 module Api.Backend exposing
     ( Api
+    , Replay
     , describeError
     , getCurrentLogin
     , getLogout
     , getRandomPosition
     , getRecentGameKeys
+    , getReplay
     , postAnalysePosition
     , postLoginPassword
     , postMatchRequest
@@ -17,10 +19,12 @@ the server api.
 
 import Api.Ports as Ports
 import Http exposing (Error)
+import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Sako
 import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
+import Time exposing (Posix)
 import Timer
 
 
@@ -317,3 +321,39 @@ encodePostMatchRequest timer =
                 |> Maybe.withDefault Encode.null
           )
         ]
+
+
+
+--------------------------------------------------------------------------------
+-- Replay Page -----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+getReplay : String -> Api Replay msg
+getReplay key =
+    getJson
+        { url = "/api/game/" ++ key
+        , decoder = decodeReplay
+        }
+
+
+type alias Replay =
+    { actions : List ( Sako.Action, Posix )
+    , timer : Timer.Timer
+    , victoryState : Sako.VictoryState
+    }
+
+
+decodeReplay : Decoder Replay
+decodeReplay =
+    Decode.map3 Replay
+        (Decode.field "actions" (Decode.list decodeStampedAction))
+        (Decode.field "timer" Timer.decodeTimer)
+        (Decode.field "victory_state" Sako.decodeVictoryState)
+
+
+decodeStampedAction : Decoder ( Sako.Action, Posix )
+decodeStampedAction =
+    Decode.map2 (\a b -> ( a, b ))
+        Sako.decodeAction
+        (Decode.field "timestamp" Iso8601.decoder)

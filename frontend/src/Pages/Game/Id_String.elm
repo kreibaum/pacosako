@@ -9,6 +9,7 @@ import Arrow exposing (Arrow)
 import Browser
 import Browser.Events
 import CastingDeco
+import Components
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Element exposing (..)
@@ -422,11 +423,11 @@ updatePlayCurrentMatchState data model =
         newBoard =
             case matchStatesDiff model.currentState data of
                 Just diffActions ->
-                    doActions diffActions model.board
+                    Sako.doActionsList diffActions model.board
                         |> Maybe.withDefault model.board
 
                 Nothing ->
-                    doActions data.actionHistory Sako.initialPosition
+                    Sako.doActionsList data.actionHistory Sako.initialPosition
                         |> Maybe.withDefault Sako.emptyPosition
 
         newState =
@@ -448,23 +449,6 @@ updatePlayMatchConnectionSuccess : { key : String, state : CurrentMatchState } -
 updatePlayMatchConnectionSuccess data model =
     { model | subscription = Just data.key }
         |> updatePlayCurrentMatchState data.state
-
-
-{-| Iterate doAction with the actions provided on the board state.
--}
-doActions : List Sako.Action -> Sako.Position -> Maybe Sako.Position
-doActions actions board =
-    case actions of
-        [] ->
-            Just board
-
-        a :: actionTail ->
-            case Sako.doAction a board of
-                Just b ->
-                    doActions actionTail b
-
-                Nothing ->
-                    Nothing
 
 
 {-| Given an old and a new match state, this returns the actions that need to
@@ -822,23 +806,12 @@ gameCodeLabel subscription =
     case subscription of
         Just id ->
             Element.column [ width fill, spacing 5 ]
-                [ bigRoundedTimerLabel (Element.rgb255 220 220 220) [ Element.text id ]
+                [ Components.gameIdBadgeBig id
                 , Element.text "Share this id with a friend."
                 ]
 
         Nothing ->
             Element.text "Not connected"
-
-
-{-| A label that is implemented via a horizontal row with a big colored background.
-Currently only used for the timer, not sure if it will stay that way.
--}
-bigRoundedTimerLabel : Element.Color -> List (Element msg) -> Element msg
-bigRoundedTimerLabel color content =
-    Element.el [ Background.color color, width fill, height fill, Border.rounded 5 ]
-        (Element.row [ height fill, centerX, padding 15, spacing 10, Font.size 40 ]
-            content
-        )
 
 
 maybePromotionButtons : List Sako.Action -> Element Msg

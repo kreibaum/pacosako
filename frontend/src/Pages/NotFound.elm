@@ -1,4 +1,4 @@
-module Pages.NotFound exposing (Model, Msg, Params, page)
+module Pages.NotFound exposing (Model, Msg, Params, body, page)
 
 import Element exposing (..)
 import Element.Font as Font
@@ -35,7 +35,12 @@ view : Url Params -> Document Msg
 view { params } =
     { title = "404"
     , body =
-        [ Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-            { url = Route.toString Route.Top, label = text "Page not found. Return to start page." }
+        [ body
         ]
     }
+
+
+body : Element msg
+body =
+    Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
+        { url = Route.toString Route.Top, label = text "Page not found. Return to start page." }
