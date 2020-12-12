@@ -321,18 +321,16 @@ fn share(
 
 #[post("/create_game", data = "<game_parameters>")]
 fn create_game(
-    websocket_server: State<WebsocketServer>,
     game_parameters: Json<sync_match::MatchParameters>,
     pool: State<Pool>,
 ) -> Result<String, anyhow::Error> {
     // Create a match on the database and return the id.
-    // The Websocket will then have to hydrate it on its own. While that is
+    // The Websocket will then have to load it on its own. While that is
     // mildly inefficient, it decouples the websocket server from the rocket
     // server a bit.
 
     let key = task::block_on(_create_game(game_parameters.0.clone(), pool.clone()))?;
     Ok(key)
-    // Ok(websocket_server.new_match(game_parameters.0))
 }
 
 async fn _create_game(
@@ -349,20 +347,23 @@ async fn _create_game(
     Ok(format!("{}", game.id))
 }
 
+/// Returns the current state of the given game. This is intended for use by the
+/// replay page.
 #[get("/game/<key>")]
 fn get_game(
     key: String,
-    websocket_server: State<WebsocketServer>,
-) -> Result<Json<sync_match::CurrentMatchState>, Json<ServerError>> {
-    let manager = websocket_server.borrow_match_manager();
-    let state = manager.run(key, |sync_match| sync_match.current_state());
+    pool: State<Pool>,
+) -> Result<Json<sync_match::CurrentMatchState>, anyhow::Error> {
+    Ok(Json(task::block_on(_get_game(key.parse()?, pool.clone()))?))
+}
 
-    match state {
-        None => Err(Json(ServerError::NotFound)),
-        Some(Ok(state)) => Ok(Json(state)),
-        Some(Err(_)) => Err(Json(ServerError::GameError {
-            message: "The game state is corrupted".to_string(),
-        })),
+async fn _get_game(key: i64, pool: Pool) -> Result<sync_match::CurrentMatchState, anyhow::Error> {
+    use db::game::StoreAs;
+    if let Ok(Some(raw)) = db::game::RawGame::select(key, &mut pool.0.acquire().await?).await {
+        let game: SyncronizedMatch = SyncronizedMatch::load(&raw)?;
+        Ok(game.current_state()?)
+    } else {
+        Err(anyhow::anyhow!("Game with id {} not found.", key))
     }
 }
 

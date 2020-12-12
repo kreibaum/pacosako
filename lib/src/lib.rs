@@ -21,31 +21,31 @@ extern crate quickcheck;
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(thiserror::Error, Clone, Debug, Serialize)]
 pub enum PacoError {
-    /// You can not "Lift" when the hand is full.
+    #[error("You can not 'Lift' when the hand is full.")]
     LiftFullHand,
-    /// You can not "Lift" from an empty position.
+    #[error("You can not 'Lift' from an empty position.")]
     LiftEmptyPosition,
-    /// You can not "Place" when the hand is empty.
+    #[error("You can not 'Place' when the hand is empty.")]
     PlaceEmptyHand,
-    /// You can not "Place" a pair when the target is occupied.
+    #[error("You can not 'Place' a pair when the target is occupied.")]
     PlacePairFullPosition,
-    /// You can not "Promote" when no piece is sceduled to promote.
+    #[error("You can not 'Promote' when no piece is sceduled to promote.")]
     PromoteWithoutCanditate,
-    /// You can not "Promote" a pawn to a pawn.
+    #[error("You can not 'Promote' a pawn to a pawn.")]
     PromoteToPawn,
-    /// You can not "Promote" a pawn to a king.
+    #[error("You can not 'Promote' a pawn to a king.")]
     PromoteToKing,
-    /// You need to have some free space to castle or to move the king.
+    #[error("You need to have some free space to castle or to move the king.")]
     NoSpaceToMoveTheKing,
-    /// The input JSON is malformed.
+    #[error("The input JSON is malformed.")]
     InputJsonMalformed,
-    /// You are trying to execut an illegal action.
+    #[error("You are trying to execut an illegal action.")]
     ActionNotLegal,
-    /// You are trying to execute an action sequence with zero actions.
+    #[error("You are trying to execute an action sequence with zero actions.")]
     MissingInput,
-    /// You are trying to execute an action when it is not your turn.
+    #[error("You are trying to execute an action when it is not your turn.")]
     NotYourTurn,
 }
 
@@ -2629,7 +2629,7 @@ mod tests {
     /// But also, I expect nothing to crash.
     #[test]
     fn test_rollback_empty() -> Result<(), PacoError> {
-        let mut actions = vec![];
+        let actions = vec![];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
         Ok(())
     }
@@ -2637,7 +2637,7 @@ mod tests {
     #[test]
     fn test_rollback_single_lift() -> Result<(), PacoError> {
         use PacoAction::*;
-        let mut actions = vec![Lift(pos("d2"))];
+        let actions = vec![Lift(pos("d2"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
         Ok(())
     }
@@ -2645,7 +2645,7 @@ mod tests {
     #[test]
     fn test_rollback_settled_changed() -> Result<(), PacoError> {
         use PacoAction::*;
-        let mut actions = vec![Lift(pos("e2")), Place(pos("e4"))];
+        let actions = vec![Lift(pos("e2")), Place(pos("e4"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 2);
         Ok(())
     }
@@ -2656,7 +2656,7 @@ mod tests {
     fn test_rollback_promotion() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let mut actions = vec![
+        let actions = vec![
             Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("d5")), Place(pos("d4")),
             Lift(pos("b2")), Place(pos("b4")), Lift(pos("d4")), Place(pos("d3")),
@@ -2672,7 +2672,7 @@ mod tests {
     fn test_rollback_promotion_opponent() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let mut actions = vec![
+        let actions = vec![
             Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
@@ -2687,7 +2687,7 @@ mod tests {
     fn test_rollback_promotion_start_turn() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let mut actions = vec![
+        let actions = vec![
             Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
@@ -2703,7 +2703,7 @@ mod tests {
     fn test_rollback_promotion_king_union() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let mut actions = vec![
+        let actions = vec![
             Lift(pos("f2")), Place(pos("f4")), Lift(pos("f7")), Place(pos("f5")),
             Lift(pos("g2")), Place(pos("g4")), Lift(pos("f5")), Place(pos("g4")),
             Lift(pos("f4")), Place(pos("f5")), Lift(pos("a7")), Place(pos("a6")),
