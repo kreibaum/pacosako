@@ -756,6 +756,7 @@ sidebar model =
             |> Element.el [ width fill ]
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
+        , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
         , CastingDeco.configView castingDecoMessagesPlay model.inputMode model.castingDeco
         , Element.el [ padding 10 ] Element.none
@@ -881,11 +882,31 @@ maybeVictoryStateInfo victoryState =
                 ]
 
 
+{-| Links to the replay, but only after the game is finished.
+-}
+maybeReplayLink : Model -> Element msg
+maybeReplayLink model =
+    case model.currentState.gameState of
+        Sako.Running ->
+            Element.none
+
+        _ ->
+            model.subscription
+                |> Maybe.map
+                    (\key ->
+                        Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
+                            { url = Route.toString (Route.Replay__Id_String { id = key })
+                            , label = Element.text "Watch Replay"
+                            }
+                    )
+                |> Maybe.withDefault Element.none
+
+
 {-| Label that is used for the Victory status.
 -}
 bigRoundedVictoryStateLabel : Element.Color -> List (Element msg) -> Element msg
 bigRoundedVictoryStateLabel color content =
-    Element.el [ Background.color color, width fill, Border.rounded 5, Element.alignTop ]
+    Element.el [ Background.color color, width fill, Border.rounded 5 ]
         (Element.column [ height fill, centerX, padding 15, spacing 5 ]
             content
         )
