@@ -10,6 +10,7 @@ import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Element exposing (Element, alignTop, centerX, fill, fillPortion, height, padding, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Input as Input
+import FontAwesome.Solid as Solid
 import Http
 import List.Extra as List
 import Pages.NotFound
@@ -83,6 +84,10 @@ type Msg
     | MouseDown CastingDeco.InputMode BoardMousePosition
     | MouseUp CastingDeco.InputMode BoardMousePosition
     | MouseMove CastingDeco.InputMode BoardMousePosition
+    | NextAction
+    | PreviousAction
+    | NextMove
+    | PreviousMove
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -128,6 +133,92 @@ update msg model =
         MouseMove mode pos ->
             ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Cmd.none )
 
+        NextAction ->
+            ( nextAction model, Cmd.none )
+
+        PreviousAction ->
+            ( previousAction model, Cmd.none )
+
+        NextMove ->
+            ( nextMove model, Cmd.none )
+
+        PreviousMove ->
+            ( previousMove model, Cmd.none )
+
+
+{-| Just increases the actionCount by one and makes sure not to go above the
+limit.
+-}
+nextAction : Model -> Model
+nextAction model =
+    let
+        maxActionCount =
+            model.sidebarData
+                |> List.map (.actions >> List.length)
+                |> List.sum
+    in
+    { model | actionCount = min (model.actionCount + 1) maxActionCount }
+
+
+{-| Just decreases the actionCount by one and makes sure it does not go below
+zero.
+-}
+previousAction : Model -> Model
+previousAction model =
+    { model | actionCount = max (model.actionCount - 1) 0 }
+
+
+{-| Finds the first move that is not already completely shown by the current
+actionCount and then goes to the last action of this move.
+-}
+nextMove : Model -> Model
+nextMove model =
+    let
+        actionCount =
+            model.sidebarData
+                |> List.find (\move -> lastActionCountOf move > model.actionCount)
+                |> Maybe.map lastActionCountOf
+                |> Maybe.withDefault model.actionCount
+    in
+    { model | actionCount = actionCount }
+
+
+{-| Given a move, returns the action count of the last action in in. If the
+move is invalid (i.e. has no actions) then -42 is returned instead.
+-}
+lastActionCountOf : SidebarMoveData -> Int
+lastActionCountOf data =
+    List.last data.actions
+        |> Maybe.map (\( i, _ ) -> i)
+        |> Maybe.withDefault -42
+
+
+{-| Given a move, returns the action count of the first action in in. If the
+move is invalid (i.e. has no actions) then -42 is returned instead.
+-}
+firstActionCountOf : SidebarMoveData -> Int
+firstActionCountOf data =
+    List.head data.actions
+        |> Maybe.map (\( i, _ ) -> i)
+        |> Maybe.withDefault -42
+
+
+{-| Finds the first move that is not already partially shown by the current
+actionCount and then goes to the last action of this move.
+If the first move is already partially shown, then this goes back to the start
+which is actionCount 0.
+-}
+previousMove : Model -> Model
+previousMove model =
+    let
+        actionCount =
+            model.sidebarData
+                |> List.find (\move -> lastActionCountOf move >= model.actionCount)
+                |> Maybe.map (\move -> firstActionCountOf move - 1)
+                |> Maybe.withDefault 0
+    in
+    { model | actionCount = actionCount }
+
 
 save : Model -> Shared.Model -> Shared.Model
 save model shared =
@@ -153,6 +244,10 @@ keybindings =
     , forKey "3" |> fireMsg (SetInputMode (Just CastingDeco.InputArrows))
     , forKey " " |> fireMsg ClearDecoComplete
     , forKey "0" |> fireMsg ClearDecoComplete
+    , forKey "ArrowDown" |> fireMsg NextAction
+    , forKey "ArrowUp" |> fireMsg PreviousAction
+    , forKey "ArrowRight" |> fireMsg NextMove
+    , forKey "ArrowLeft" |> fireMsg PreviousMove
     ]
 
 
@@ -283,7 +378,7 @@ sidebar model replay =
     Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
         [ Components.gameIdBadgeBig model.key
         , Element.text "[timer info]"
-        , Element.text "[|<<] [<] [>] [>>|]"
+        , arrowButtons
         , actionList model replay
         , CastingDeco.configView
             { setInputMode = SetInputMode
@@ -292,6 +387,17 @@ sidebar model replay =
             }
             model.inputMode
             model.castingDeco
+        ]
+
+
+arrowButtons : Element Msg
+arrowButtons =
+    Element.row [ spacing 10 ]
+        [ Components.iconButton "Previous move." Solid.arrowLeft (Just PreviousMove)
+        , Components.iconButton "Previous action." Solid.chevronLeft (Just PreviousAction)
+        , Components.iconButton "Next action." Solid.chevronRight (Just NextAction)
+        , Components.iconButton "Next move." Solid.arrowRight (Just NextMove)
+        , Element.text "(or use arrow keys)"
         ]
 
 
