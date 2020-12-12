@@ -167,10 +167,10 @@ successBody model replay =
 -}
 boardView : Model -> Replay -> Element Msg
 boardView model replay =
-    Element.el [ width fill, height fill ]
+    Element.el [ width (fillPortion 3), height fill ]
         (case currentBoard model replay of
-            ReplayOk position ->
-                boardViewOk position
+            ReplayOk actions position ->
+                boardViewOk actions position
 
             ReplayToShort ->
                 Element.text "Replay is corrupted, too short :-("
@@ -181,7 +181,7 @@ boardView model replay =
 
 
 type BoardReplayState
-    = ReplayOk Sako.Position
+    = ReplayOk (List Sako.Action) Sako.Position
     | ReplayToShort
     | ReplayError
 
@@ -195,20 +195,20 @@ currentBoard model replay =
     in
     if List.length actions == model.actionCount then
         Sako.doActionsList actions Sako.initialPosition
-            |> Maybe.map ReplayOk
+            |> Maybe.map (ReplayOk actions)
             |> Maybe.withDefault ReplayError
 
     else
         ReplayToShort
 
 
-boardViewOk : Sako.Position -> Element msg
-boardViewOk position =
+boardViewOk : List Sako.Action -> Sako.Position -> Element msg
+boardViewOk actions position =
     PositionView.renderStatic Svg.WhiteBottom position
         |> PositionView.viewStatic
             { colorScheme = Pieces.defaultColorScheme
             , nodeId = Nothing
-            , decoration = []
+            , decoration = decoration actions position
             , dragPieceData = []
             , mouseDown = Nothing
             , mouseUp = Nothing
@@ -216,6 +216,14 @@ boardViewOk position =
             , additionalSvg = Nothing
             , replaceViewport = Nothing
             }
+
+
+decoration : List Sako.Action -> Sako.Position -> List PositionView.BoardDecoration
+decoration actions position =
+    --playViewHighlight play
+    --  ++ CastingDeco.toDecoration castingDecoMappers play.castingDeco
+    PositionView.pastMovementIndicatorList position actions
+        |> List.map PositionView.PastMovementIndicator
 
 
 
@@ -226,7 +234,7 @@ boardViewOk position =
 
 sidebar : Model -> Replay -> Element Msg
 sidebar model replay =
-    Element.column [ spacing 10, padding 10, alignTop, height fill ]
+    Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
         [ Components.gameIdBadgeBig model.key
         , Element.text "[timer info]"
         , Element.text "[|<<] [<] [>] [>>|]"

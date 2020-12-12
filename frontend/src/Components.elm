@@ -15,7 +15,7 @@ Currently only used for the timer, not sure if it will stay that way.
 -}
 gameIdBadgeBig : String -> Element msg
 gameIdBadgeBig gameId =
-    Element.el [ Background.color (Element.rgb255 220 220 220), width fill, height fill, Border.rounded 5 ]
+    Element.el [ Background.color (Element.rgb255 220 220 220), width fill, Border.rounded 5 ]
         (Element.el [ height fill, centerX, padding 15, spacing 10, Font.size 40 ]
             (Element.text gameId)
         )
