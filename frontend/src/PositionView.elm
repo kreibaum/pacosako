@@ -7,6 +7,7 @@ module PositionView exposing
     , InternalModel
     , OpaqueRenderData
     , ViewConfig
+    , castingDecoMappers
     , nextHighlight
     , pastMovementIndicatorList
     , render
@@ -463,6 +464,16 @@ type BoardDecoration
     | CastingHighlight Tile
     | CastingArrow Arrow
     | PastMovementIndicator Tile
+
+
+{-| This record is used to teach the Decorator module about Board Decorations
+without introducing full dependency.
+-}
+castingDecoMappers : { tile : Tile -> BoardDecoration, arrow : Arrow -> BoardDecoration }
+castingDecoMappers =
+    { tile = CastingHighlight
+    , arrow = CastingArrow
+    }
 
 
 type Highlight

@@ -946,13 +946,6 @@ editorViewConfig editor =
 --------------------------------------------------------------------------------
 
 
-castingDecoMappers : { tile : Tile -> BoardDecoration, arrow : Arrow -> BoardDecoration }
-castingDecoMappers =
-    { tile = CastingHighlight
-    , arrow = CastingArrow
-    }
-
-
 toolDecoration : Model -> List BoardDecoration
 toolDecoration model =
     let
@@ -972,7 +965,7 @@ toolDecoration model =
      ]
         |> List.filterMap identity
     )
-        ++ CastingDeco.toDecoration castingDecoMappers model.castingDeco
+        ++ CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
 
 
 dragPieceData : Model -> List DragPieceData

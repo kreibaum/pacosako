@@ -4,7 +4,9 @@ module Pages.Replay.Id_String exposing (Model, Msg, Params, page)
 -}
 
 import Api.Backend exposing (Replay)
+import CastingDeco
 import Components
+import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Element exposing (Element, alignTop, centerX, fill, fillPortion, height, padding, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Input as Input
@@ -47,6 +49,8 @@ type alias Model =
     , sidebarData : SidebarData
     , key : String
     , actionCount : Int
+    , castingDeco : CastingDeco.Model
+    , inputMode : Maybe CastingDeco.InputMode
     }
 
 
@@ -56,6 +60,8 @@ init shared { params } =
       , sidebarData = []
       , key = params.id
       , actionCount = 0
+      , castingDeco = CastingDeco.initModel
+      , inputMode = Nothing
       }
     , Api.Backend.getReplay params.id HttpErrorReplay GotReplay
     )
@@ -70,6 +76,13 @@ type Msg
     | HttpErrorReplay Http.Error
     | TriggerReplayReload
     | GoToActionCount Int
+    | SetInputMode (Maybe CastingDeco.InputMode)
+    | ClearDecoTiles
+    | ClearDecoArrows
+    | ClearDecoComplete
+    | MouseDown CastingDeco.InputMode BoardMousePosition
+    | MouseUp CastingDeco.InputMode BoardMousePosition
+    | MouseMove CastingDeco.InputMode BoardMousePosition
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -94,6 +107,27 @@ update msg model =
         GoToActionCount actionCount ->
             ( { model | actionCount = actionCount }, Cmd.none )
 
+        SetInputMode inputMode ->
+            ( { model | inputMode = inputMode }, Cmd.none )
+
+        ClearDecoTiles ->
+            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
+
+        ClearDecoArrows ->
+            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
+
+        ClearDecoComplete ->
+            ( { model | castingDeco = CastingDeco.initModel }, Cmd.none )
+
+        MouseDown mode pos ->
+            ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Cmd.none )
+
+        MouseUp mode pos ->
+            ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Cmd.none )
+
+        MouseMove mode pos ->
+            ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Cmd.none )
+
 
 save : Model -> Shared.Model -> Shared.Model
 save model shared =
@@ -107,7 +141,19 @@ load shared model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    Custom.Events.onKeyUp keybindings
+
+
+{-| The central pace to register all page wide shortcuts.
+-}
+keybindings : List (KeyBinding Msg)
+keybindings =
+    [ forKey "1" |> fireMsg (SetInputMode Nothing)
+    , forKey "2" |> fireMsg (SetInputMode (Just CastingDeco.InputTiles))
+    , forKey "3" |> fireMsg (SetInputMode (Just CastingDeco.InputArrows))
+    , forKey " " |> fireMsg ClearDecoComplete
+    , forKey "0" |> fireMsg ClearDecoComplete
+    ]
 
 
 
@@ -170,7 +216,7 @@ boardView model replay =
     Element.el [ width (fillPortion 3), height fill ]
         (case currentBoard model replay of
             ReplayOk actions position ->
-                boardViewOk actions position
+                boardViewOk model actions position
 
             ReplayToShort ->
                 Element.text "Replay is corrupted, too short :-("
@@ -202,28 +248,28 @@ currentBoard model replay =
         ReplayToShort
 
 
-boardViewOk : List Sako.Action -> Sako.Position -> Element msg
-boardViewOk actions position =
+boardViewOk : Model -> List Sako.Action -> Sako.Position -> Element Msg
+boardViewOk model actions position =
     PositionView.renderStatic Svg.WhiteBottom position
         |> PositionView.viewStatic
             { colorScheme = Pieces.defaultColorScheme
             , nodeId = Nothing
-            , decoration = decoration actions position
+            , decoration = decoration model actions position
             , dragPieceData = []
-            , mouseDown = Nothing
-            , mouseUp = Nothing
-            , mouseMove = Nothing
+            , mouseDown = Maybe.map MouseDown model.inputMode
+            , mouseUp = Maybe.map MouseUp model.inputMode
+            , mouseMove = Maybe.map MouseMove model.inputMode
             , additionalSvg = Nothing
             , replaceViewport = Nothing
             }
 
 
-decoration : List Sako.Action -> Sako.Position -> List PositionView.BoardDecoration
-decoration actions position =
-    --playViewHighlight play
-    --  ++ CastingDeco.toDecoration castingDecoMappers play.castingDeco
-    PositionView.pastMovementIndicatorList position actions
-        |> List.map PositionView.PastMovementIndicator
+decoration : Model -> List Sako.Action -> Sako.Position -> List PositionView.BoardDecoration
+decoration model actions position =
+    CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
+        ++ (PositionView.pastMovementIndicatorList position actions
+                |> List.map PositionView.PastMovementIndicator
+           )
 
 
 
@@ -239,7 +285,13 @@ sidebar model replay =
         , Element.text "[timer info]"
         , Element.text "[|<<] [<] [>] [>>|]"
         , actionList model replay
-        , Element.text "[Result]"
+        , CastingDeco.configView
+            { setInputMode = SetInputMode
+            , clearTiles = ClearDecoTiles
+            , clearArrows = ClearDecoArrows
+            }
+            model.inputMode
+            model.castingDeco
         ]
 
 

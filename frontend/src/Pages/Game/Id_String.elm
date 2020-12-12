@@ -181,14 +181,7 @@ update msg model =
             ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
 
         ClearDecoComplete ->
-            ( { model
-                | castingDeco =
-                    model.castingDeco
-                        |> CastingDeco.clearTiles
-                        |> CastingDeco.clearArrows
-              }
-            , Cmd.none
-            )
+            ( { model | castingDeco = CastingDeco.initModel }, Cmd.none )
 
         MoveFromAi action ->
             updateActionInputStep action model
@@ -618,17 +611,10 @@ playDecoration play =
         |> List.filterMap actionDecoration
     )
         ++ playViewHighlight play
-        ++ CastingDeco.toDecoration castingDecoMappers play.castingDeco
+        ++ CastingDeco.toDecoration PositionView.castingDecoMappers play.castingDeco
         ++ (PositionView.pastMovementIndicatorList play.board play.currentState.actionHistory
                 |> List.map PositionView.PastMovementIndicator
            )
-
-
-castingDecoMappers : { tile : Tile -> BoardDecoration, arrow : Arrow -> BoardDecoration }
-castingDecoMappers =
-    { tile = CastingHighlight
-    , arrow = CastingArrow
-    }
 
 
 actionDecoration : Sako.Action -> Maybe PositionView.BoardDecoration
