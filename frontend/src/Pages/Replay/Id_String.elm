@@ -3,6 +3,7 @@ module Pages.Replay.Id_String exposing (Model, Msg, Params, page)
 {-| Watch replays of games that were played in /game/{id}
 -}
 
+import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import CastingDeco
 import Components
@@ -15,14 +16,15 @@ import Http
 import List.Extra as List
 import Pages.NotFound
 import Pieces
-import PositionView
+import PositionView exposing (OpaqueRenderData)
 import RemoteData exposing (WebData)
 import Sako exposing (Action, Color(..))
 import Shared
 import Spa.Document exposing (Document)
 import Spa.Page as Page exposing (Page)
 import Spa.Url as Url exposing (Url)
-import Svg.Custom as Svg
+import Svg.Custom as Svg exposing (BoardRotation(..))
+import Time exposing (Posix)
 
 
 page : Page Params Model Msg
@@ -50,6 +52,8 @@ type alias Model =
     , sidebarData : SidebarData
     , key : String
     , actionCount : Int
+    , timeline : Timeline OpaqueRenderData
+    , now : Posix
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
     }
@@ -61,6 +65,8 @@ init shared { params } =
       , sidebarData = []
       , key = params.id
       , actionCount = 0
+      , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
+      , now = Time.millisToPosix 0
       , castingDeco = CastingDeco.initModel
       , inputMode = Nothing
       }
@@ -88,6 +94,7 @@ type Msg
     | PreviousAction
     | NextMove
     | PreviousMove
+    | AnimationTick Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -110,7 +117,7 @@ update msg model =
             )
 
         GoToActionCount actionCount ->
-            ( { model | actionCount = actionCount }, Cmd.none )
+            ( setAndAnimateActionCount actionCount model, Cmd.none )
 
         SetInputMode inputMode ->
             ( { model | inputMode = inputMode }, Cmd.none )
@@ -134,22 +141,71 @@ update msg model =
             ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Cmd.none )
 
         NextAction ->
-            ( nextAction model, Cmd.none )
+            ( setAndAnimateActionCount (nextAction model) model, Cmd.none )
 
         PreviousAction ->
-            ( previousAction model, Cmd.none )
+            ( setAndAnimateActionCount (previousAction model) model, Cmd.none )
 
         NextMove ->
-            ( nextMove model, Cmd.none )
+            ( setAndAnimateActionCount (nextMove model) model, Cmd.none )
 
         PreviousMove ->
-            ( previousMove model, Cmd.none )
+            ( setAndAnimateActionCount (previousMove model) model, Cmd.none )
+
+        AnimationTick now ->
+            ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
+
+
+{-| Sets the action count to the given value and decides how to animate this.
+Here are the rules:
+
+  - If the new count is higher and all new actions are within the same move,
+    then this is animated action by action.
+  - Otherwise, the animation goes strait to the target state.
+
+-}
+setAndAnimateActionCount : Int -> Model -> Model
+setAndAnimateActionCount actionCount model =
+    let
+        firstNewActionCount =
+            model.sidebarData
+                -- find Move
+                |> List.find (\move -> lastActionCountOf move >= actionCount)
+                -- find first action of move
+                |> Maybe.map .actions
+                |> Maybe.andThen List.head
+                -- extract corresponding action count
+                |> Maybe.map (\( i, _ ) -> i)
+                |> Maybe.withDefault actionCount
+    in
+    if actionCount > model.actionCount && model.actionCount + 1 == firstNewActionCount then
+        -- Skip the "Lift" action that is at the start of moves.
+        animateStepByStep actionCount { model | actionCount = model.actionCount + 1 }
+
+    else if actionCount > model.actionCount && model.actionCount + 1 >= firstNewActionCount then
+        animateStepByStep actionCount model
+
+    else
+        animateDirect { model | actionCount = actionCount }
+
+
+{-| Tail recursive animation function that steps the timeline forward step by step.
+-}
+animateStepByStep : Int -> Model -> Model
+animateStepByStep actionCount model =
+    if model.actionCount >= actionCount then
+        model
+
+    else
+        animateDirect { model | actionCount = model.actionCount + 1 }
+            |> (\m -> { m | timeline = Animation.pause chainPauseTime m.timeline })
+            |> animateStepByStep actionCount
 
 
 {-| Just increases the actionCount by one and makes sure not to go above the
 limit.
 -}
-nextAction : Model -> Model
+nextAction : Model -> Int
 nextAction model =
     let
         maxActionCount =
@@ -157,21 +213,21 @@ nextAction model =
                 |> List.map (.actions >> List.length)
                 |> List.sum
     in
-    { model | actionCount = min (model.actionCount + 1) maxActionCount }
+    min (model.actionCount + 1) maxActionCount
 
 
 {-| Just decreases the actionCount by one and makes sure it does not go below
 zero.
 -}
-previousAction : Model -> Model
+previousAction : Model -> Int
 previousAction model =
-    { model | actionCount = max (model.actionCount - 1) 0 }
+    max (model.actionCount - 1) 0
 
 
 {-| Finds the first move that is not already completely shown by the current
 actionCount and then goes to the last action of this move.
 -}
-nextMove : Model -> Model
+nextMove : Model -> Int
 nextMove model =
     let
         actionCount =
@@ -180,7 +236,7 @@ nextMove model =
                 |> Maybe.map lastActionCountOf
                 |> Maybe.withDefault model.actionCount
     in
-    { model | actionCount = actionCount }
+    actionCount
 
 
 {-| Given a move, returns the action count of the last action in in. If the
@@ -208,7 +264,7 @@ actionCount and then goes to the last action of this move.
 If the first move is already partially shown, then this goes back to the start
 which is actionCount 0.
 -}
-previousMove : Model -> Model
+previousMove : Model -> Int
 previousMove model =
     let
         actionCount =
@@ -217,7 +273,7 @@ previousMove model =
                 |> Maybe.map (\move -> firstActionCountOf move - 1)
                 |> Maybe.withDefault 0
     in
-    { model | actionCount = actionCount }
+    actionCount
 
 
 save : Model -> Shared.Model -> Shared.Model
@@ -232,7 +288,10 @@ load shared model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Custom.Events.onKeyUp keybindings
+    Sub.batch
+        [ Custom.Events.onKeyUp keybindings
+        , Animation.subscription model.timeline AnimationTick
+        ]
 
 
 {-| The central pace to register all page wide shortcuts.
@@ -304,6 +363,20 @@ successBody model replay =
 --------------------------------------------------------------------------------
 
 
+{-| Time to move from one board state to the next.
+-}
+motionTime : Animation.Duration
+motionTime =
+    Animation.milliseconds 200
+
+
+{-| Pause between two actions in a chain.
+-}
+chainPauseTime : Animation.Duration
+chainPauseTime =
+    Animation.milliseconds 150
+
+
 {-| Show the game state at `model.actionCount`.
 -}
 boardView : Model -> Replay -> Element Msg
@@ -319,6 +392,39 @@ boardView model replay =
             ReplayError ->
                 Element.text "Replay is corrupted, rule violation :-("
         )
+
+
+{-| Given a model where the timeline does not match the actionCount, this adds
+an animation to the timeline which transitions to the correct actionCount view.
+
+While this is technically an update function, it is closely related to the board
+view so I am putting it in this section.
+
+-}
+animateDirect : Model -> Model
+animateDirect model =
+    model.replay
+        |> RemoteData.toMaybe
+        |> Maybe.andThen (animateDirectR model)
+        |> Maybe.map (\renderData -> { model | timeline = Animation.queue ( motionTime, renderData ) model.timeline })
+        |> Maybe.withDefault model
+
+
+animateDirectR : Model -> Replay -> Maybe OpaqueRenderData
+animateDirectR model replay =
+    let
+        board =
+            currentBoard model replay
+    in
+    case board of
+        ReplayOk _ boardOk ->
+            Just (PositionView.renderStatic Svg.WhiteBottom boardOk)
+
+        ReplayToShort ->
+            Nothing
+
+        ReplayError ->
+            Nothing
 
 
 type BoardReplayState
@@ -345,18 +451,18 @@ currentBoard model replay =
 
 boardViewOk : Model -> List Sako.Action -> Sako.Position -> Element Msg
 boardViewOk model actions position =
-    PositionView.renderStatic Svg.WhiteBottom position
-        |> PositionView.viewStatic
-            { colorScheme = Pieces.defaultColorScheme
-            , nodeId = Nothing
-            , decoration = decoration model actions position
-            , dragPieceData = []
-            , mouseDown = Maybe.map MouseDown model.inputMode
-            , mouseUp = Maybe.map MouseUp model.inputMode
-            , mouseMove = Maybe.map MouseMove model.inputMode
-            , additionalSvg = Nothing
-            , replaceViewport = Nothing
-            }
+    PositionView.viewTimeline
+        { colorScheme = Pieces.defaultColorScheme
+        , nodeId = Nothing
+        , decoration = decoration model actions position
+        , dragPieceData = []
+        , mouseDown = Maybe.map MouseDown model.inputMode
+        , mouseUp = Maybe.map MouseUp model.inputMode
+        , mouseMove = Maybe.map MouseMove model.inputMode
+        , additionalSvg = Nothing
+        , replaceViewport = Nothing
+        }
+        model.timeline
 
 
 decoration : Model -> List Sako.Action -> Sako.Position -> List PositionView.BoardDecoration

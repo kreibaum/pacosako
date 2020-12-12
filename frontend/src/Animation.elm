@@ -7,7 +7,9 @@ module Animation exposing
     , animateProperty
     , init
     , interrupt
+    , map
     , milliseconds
+    , pause
     , queue
     , subscription
     , tick
@@ -18,6 +20,8 @@ own version to have direct access to internals.
 -}
 
 import Browser.Events
+import Html exposing (time)
+import List.Extra as List
 import Time exposing (Posix)
 
 
@@ -71,6 +75,24 @@ init initial =
     }
 
 
+{-| Map over a timeline. This is important if you have some function that takes
+a `Timeline b` for rendering but are storing a `Timeline a` yourself.
+-}
+map : (a -> b) -> Timeline a -> Timeline b
+map f timeline =
+    { now = timeline.now
+    , old = mapSecond f timeline.old
+    , new = Maybe.map (mapSecond f) timeline.new
+    , queued = List.map (mapSecond f) timeline.queued
+    , running = timeline.running
+    }
+
+
+mapSecond : (a -> b) -> ( t, a ) -> ( t, b )
+mapSecond f ( t, x ) =
+    ( t, f x )
+
+
 {-| Tells the animation to transition to a new event over a given duration.
 If the animation is currently running, this will be added at the end of the
 animation queue.
@@ -94,6 +116,32 @@ interrupt event timeline =
         , queued = []
         , running = True
     }
+
+
+{-| Copies the last queued event of the timeline and queues it. This effectively
+pauses the animation for that duration.
+-}
+pause : Duration -> Timeline event -> Timeline event
+pause duration timeline =
+    queue ( duration, lastEvent timeline ) timeline
+
+
+{-| Returns the newest event that is sheduled, animated to or old.
+-}
+lastEvent : Timeline event -> event
+lastEvent timeline =
+    let
+        snd ( _, e ) =
+            e
+
+        fallback =
+            timeline.new
+                |> Maybe.withDefault timeline.old
+                |> snd
+    in
+    List.last timeline.queued
+        |> Maybe.map snd
+        |> Maybe.withDefault fallback
 
 
 {-| Use this subscription to drive the animation with request animaton frame.
@@ -132,13 +180,8 @@ schedule timeline =
                 }
                     |> scheduleNext
 
-        --|> schedule
         Nothing ->
             scheduleNothingPlanned timeline
-
-
-
---|> schedule
 
 
 {-| Version of schedule that gets called, when we know that .new is Nothing.
