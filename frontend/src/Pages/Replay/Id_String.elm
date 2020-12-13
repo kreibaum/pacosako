@@ -10,6 +10,7 @@ import Components
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Element exposing (Element, alignTop, centerX, fill, fillPortion, height, padding, scrollbarY, spacing, width)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Input as Input
 import FontAwesome.Solid as Solid
 import Http
@@ -538,7 +539,7 @@ sidebarMove : Model -> SidebarMoveData -> Element Msg
 sidebarMove model moveData =
     Element.row [ width fill, moveBackground moveData.color ]
         [ sidebarMoveComlete moveData
-        , Element.column [ width (fillPortion 4) ] (List.map (sidebarAction model) moveData.actions)
+        , Element.wrappedRow [ width (fillPortion 4) ] (List.map (sidebarAction model) moveData.actions)
         ]
 
 
@@ -578,8 +579,10 @@ sidebarAction : Model -> ( Int, Sako.Action ) -> Element Msg
 sidebarAction model ( count, action ) =
     let
         attrs =
-            [ Just (padding 5)
-            , Just (width fill)
+            [ Just (padding 3)
+            , Just (Border.rounded 4)
+            , Just (Border.color (Element.rgb 0 0 0))
+            , Just (Border.width 1)
             , if model.actionCount == count then
                 Just (Background.color (Element.rgb255 220 255 220))
 
@@ -588,10 +591,12 @@ sidebarAction model ( count, action ) =
             ]
                 |> List.filterMap (\e -> e)
     in
-    Input.button attrs
-        { onPress = Just (GoToActionCount count)
-        , label = Element.text (actionText action)
-        }
+    Element.el [ padding 2 ]
+        (Input.button attrs
+            { onPress = Just (GoToActionCount count)
+            , label = Element.text (actionText action)
+            }
+        )
 
 
 {-| Human readable form of the action for display.
