@@ -515,7 +515,7 @@ i18nCreateMatch : I18nToken String
 i18nCreateMatch =
     I18nToken
         { english = "Create Match"
-        , dutch = "Match maken"
+        , dutch = "Partij maken"
         , esperanto = "Krei Matĉon"
         }
 

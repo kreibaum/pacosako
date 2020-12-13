@@ -286,7 +286,7 @@ i18nDesignPuzzles : I18nToken String
 i18nDesignPuzzles =
     I18nToken
         { english = "Design Puzzles"
-        , dutch = "Teken puzzels"
+        , dutch = "Ontwerp puzzel"
         , esperanto = "Desegni Puzloj"
         }
 
