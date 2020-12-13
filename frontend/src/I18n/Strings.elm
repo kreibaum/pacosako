@@ -1,10 +1,16 @@
 module I18n.Strings exposing
     ( I18nToken(..)
     , Language(..)
+    , bishop
     , decodeLanguage
     , encodeLanguage
     , gamesArePublicHint
     , hideGamesArePublicHint
+    , king
+    , knight
+    , pawn
+    , queen
+    , rook
     , t
     , tutorialCombosLoopsChains
     , tutorialCreativePlayingStyle
@@ -109,6 +115,66 @@ t lang (I18nToken token) =
 
         Esperanto ->
             token.esperanto
+
+
+
+--------------------------------------------------------------------------------
+-- General Paco Ŝako terms -----------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+pawn : I18nToken String
+pawn =
+    I18nToken
+        { english = "Pawn"
+        , dutch = "Pion"
+        , esperanto = "Peono"
+        }
+
+
+rook : I18nToken String
+rook =
+    I18nToken
+        { english = "Rook"
+        , dutch = "Toren"
+        , esperanto = "Turo"
+        }
+
+
+knight : I18nToken String
+knight =
+    I18nToken
+        { english = "Knight"
+        , dutch = "Paard"
+        , esperanto = "Ĉevalo"
+        }
+
+
+bishop : I18nToken String
+bishop =
+    I18nToken
+        { english = "Bishop"
+        , dutch = "Loper"
+        , esperanto = "Kuriero"
+        }
+
+
+queen : I18nToken String
+queen =
+    I18nToken
+        { english = "Queen"
+        , dutch = "Dame"
+        , esperanto = "Damo"
+        }
+
+
+king : I18nToken String
+king =
+    I18nToken
+        { english = "King"
+        , dutch = "Koning"
+        , esperanto = "Reĝo"
+        }
 
 
 

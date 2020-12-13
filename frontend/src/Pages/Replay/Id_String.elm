@@ -14,6 +14,7 @@ import Element.Border as Border
 import Element.Input as Input
 import FontAwesome.Solid as Solid
 import Http
+import I18n.Strings exposing (Language)
 import List.Extra as List
 import Pages.NotFound
 import Pieces
@@ -57,6 +58,7 @@ type alias Model =
     , now : Posix
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
+    , lang : Language
     }
 
 
@@ -70,6 +72,7 @@ init shared { params } =
       , now = Time.millisToPosix 0
       , castingDeco = CastingDeco.initModel
       , inputMode = Nothing
+      , lang = shared.language
       }
     , Api.Backend.getReplay params.id HttpErrorReplay GotReplay
     )
@@ -284,7 +287,7 @@ save model shared =
 
 load : Shared.Model -> Model -> ( Model, Cmd Msg )
 load shared model =
-    ( model, Cmd.none )
+    ( { model | lang = shared.language }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -488,6 +491,7 @@ sidebar model replay =
         , arrowButtons
         , actionList model replay
         , CastingDeco.configView
+            model.lang
             { setInputMode = SetInputMode
             , clearTiles = ClearDecoTiles
             , clearArrows = ClearDecoArrows

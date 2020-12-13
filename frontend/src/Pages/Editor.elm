@@ -17,6 +17,7 @@ import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Http
+import I18n.Strings exposing (Language)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Pieces
@@ -69,6 +70,7 @@ type alias Model =
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
     , colorScheme : Pieces.ColorScheme
+    , lang : Language
     }
 
 
@@ -96,17 +98,17 @@ encodeDownloadRequest record =
 
 init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
 init shared { params } =
-    ( initialEditor shared.windowSize, Cmd.none )
+    ( initialEditor shared, Cmd.none )
 
 
-initialEditor : ( Int, Int ) -> Model
-initialEditor windowSize =
+initialEditor : Shared.Model -> Model
+initialEditor shared =
     { saveState = SaveNotRequired
     , game = P.singleton Sako.initialPosition
     , preview = Nothing
     , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
     , drag = Nothing
-    , windowSize = windowSize
+    , windowSize = shared.windowSize
     , userPaste = ""
     , pasteParsed = NoInput
     , analysis = Nothing
@@ -115,6 +117,7 @@ initialEditor windowSize =
     , castingDeco = CastingDeco.initModel
     , inputMode = Nothing
     , colorScheme = Pieces.defaultColorScheme
+    , lang = shared.language
     }
 
 
@@ -1096,7 +1099,7 @@ sidebar model =
          , addPieceButtons Sako.White "White:" model.smartTool
          , addPieceButtons Sako.Black "Black:" model.smartTool
          , colorSchemeConfig model
-         , CastingDeco.configView castingDecoMessagesEditor model.inputMode model.castingDeco
+         , CastingDeco.configView model.lang castingDecoMessagesEditor model.inputMode model.castingDeco
          , analysisResult model
          ]
             ++ exportOptions

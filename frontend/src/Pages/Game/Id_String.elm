@@ -23,7 +23,7 @@ import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Html exposing (Html)
 import Http
-import I18n.Strings as I18n exposing (Language(..), t)
+import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
@@ -81,6 +81,7 @@ type alias Model =
     , inputMode : Maybe CastingDeco.InputMode
     , rotation : BoardRotation
     , now : Posix
+    , lang : Language
     }
 
 
@@ -104,8 +105,9 @@ init shared { params } =
       , inputMode = Nothing
       , rotation = WhiteBottom
       , now = Time.millisToPosix 0
+      , lang = shared.language
       }
-    , Api.Websocket.send (Api.Websocket.SubscribeToMatch (Debug.log "game-id" params.id))
+    , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
     )
 
 
@@ -517,7 +519,7 @@ save model shared =
 
 load : Shared.Model -> Model -> ( Model, Cmd Msg )
 load shared model =
-    ( model, Cmd.none )
+    ( { model | lang = shared.language }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -549,7 +551,7 @@ keybindings =
 
 view : Model -> Document Msg
 view model =
-    { title = "Play Paco Ŝako - pacoplay.com"
+    { title = t model.lang i18nTitle
     , body = [ playUi model ]
     }
 
@@ -749,19 +751,19 @@ playTimerReplaceViewport play =
 sidebar : Model -> Element Msg
 sidebar model =
     Element.column [ spacing 5, padding 20, height fill ]
-        [ gameCodeLabel model.subscription
+        [ gameCodeLabel model model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
             (Just PlayRollback)
-            [ Element.text "Restart Move" ]
+            [ Element.text (t model.lang i18nRestartMove) ]
             |> Element.el [ width fill ]
-        , maybePromotionButtons model.currentState.legalActions
-        , maybeVictoryStateInfo model.currentState.gameState
+        , maybePromotionButtons model model.currentState.legalActions
+        , maybeVictoryStateInfo model model.currentState.gameState
         , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
-        , CastingDeco.configView castingDecoMessagesPlay model.inputMode model.castingDeco
+        , CastingDeco.configView model.lang castingDecoMessagesPlay model.inputMode model.castingDeco
         , Element.el [ padding 10 ] Element.none
-        , Element.text "Play as:"
-        , rotationButtons model.rotation
+        , Element.text (t model.lang i18nPlayAs)
+        , rotationButtons model model.rotation
 
         -- , Input.button []
         --     { onPress = Just (PlayMsgWrapper RequestAiMove)
@@ -788,21 +790,21 @@ castingDecoMessagesPlay =
     }
 
 
-gameCodeLabel : Maybe String -> Element msg
-gameCodeLabel subscription =
+gameCodeLabel : Model -> Maybe String -> Element msg
+gameCodeLabel model subscription =
     case subscription of
         Just id ->
             Element.column [ width fill, spacing 5 ]
                 [ Components.gameIdBadgeBig id
-                , Element.text "Share this id with a friend."
+                , Element.text (t model.lang i18nShareThisId)
                 ]
 
         Nothing ->
-            Element.text "Not connected"
+            Element.text (t model.lang i18nNotConnected)
 
 
-maybePromotionButtons : List Sako.Action -> Element Msg
-maybePromotionButtons actions =
+maybePromotionButtons : Model -> List Sako.Action -> Element Msg
+maybePromotionButtons model actions =
     let
         canPromote =
             actions
@@ -817,68 +819,68 @@ maybePromotionButtons actions =
                     )
     in
     if canPromote then
-        promotionButtons
+        promotionButtons model
 
     else
         Element.none
 
 
-promotionButtons : Element Msg
-promotionButtons =
+promotionButtons : Model -> Element Msg
+promotionButtons model =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (PlayActionInputStep (Sako.Promote Sako.Queen)))
                 [ icon [ centerX ] Solid.chessQueen
-                , Element.el [ centerX ] (Element.text "Queen")
+                , Element.el [ centerX ] (Element.text (t model.lang I18n.queen))
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (PlayActionInputStep (Sako.Promote Sako.Knight)))
                 [ icon [ centerX ] Solid.chessKnight
-                , Element.el [ centerX ] (Element.text "Knight")
+                , Element.el [ centerX ] (Element.text (t model.lang I18n.knight))
                 ]
             ]
         , Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (PlayActionInputStep (Sako.Promote Sako.Rook)))
                 [ icon [ centerX ] Solid.chessRook
-                , Element.el [ centerX ] (Element.text "Rook")
+                , Element.el [ centerX ] (Element.text (t model.lang I18n.rook))
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (PlayActionInputStep (Sako.Promote Sako.Bishop)))
                 [ icon [ centerX ] Solid.chessBishop
-                , Element.el [ centerX ] (Element.text "Bishop")
+                , Element.el [ centerX ] (Element.text (t model.lang I18n.bishop))
                 ]
             ]
         ]
 
 
-maybeVictoryStateInfo : Sako.VictoryState -> Element msg
-maybeVictoryStateInfo victoryState =
+maybeVictoryStateInfo : Model -> Sako.VictoryState -> Element msg
+maybeVictoryStateInfo model victoryState =
     case victoryState of
         Sako.Running ->
             Element.none
 
         Sako.PacoVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoWhite))
                 ]
 
         Sako.PacoVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoBlack))
                 ]
 
         Sako.TimeoutVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco White")
-                , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoWhite))
+                , Element.el [ Font.size 20, centerX ] (Element.text (t model.lang i18nTimeout))
                 ]
 
         Sako.TimeoutVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text "Paco Black")
-                , Element.el [ Font.size 20, centerX ] (Element.text "(Timeout)")
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoBlack))
+                , Element.el [ Font.size 20, centerX ] (Element.text (t model.lang i18nTimeout))
                 ]
 
 
@@ -896,7 +898,7 @@ maybeReplayLink model =
                     (\key ->
                         Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
                             { url = Route.toString (Route.Replay__Id_String { id = key })
-                            , label = Element.text "Watch Replay"
+                            , label = Element.text (t model.lang i18nWatchReplay)
                             }
                     )
                 |> Maybe.withDefault Element.none
@@ -930,11 +932,11 @@ distributeSeconds seconds =
     { seconds = seconds |> modBy 60, minutes = seconds // 60 }
 
 
-rotationButtons : BoardRotation -> Element Msg
-rotationButtons rotation =
+rotationButtons : Model -> BoardRotation -> Element Msg
+rotationButtons model rotation =
     Element.row [ spacing 10 ]
-        [ rotationButton WhiteBottom rotation "White"
-        , rotationButton BlackBottom rotation "Black"
+        [ rotationButton WhiteBottom rotation (t model.lang i18nWhite)
+        , rotationButton BlackBottom rotation (t model.lang i18nBlack)
         ]
 
 
@@ -949,3 +951,108 @@ rotationButton rotation currentRotation label =
         Input.button
             [ padding 3 ]
             { onPress = Just (SetRotation rotation), label = Element.text label }
+
+
+
+--------------------------------------------------------------------------------
+-- I18n Strings ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+i18nTitle : I18nToken String
+i18nTitle =
+    I18nToken
+        { english = "Play Paco Ŝako - pacoplay.com"
+        , dutch = "Speel Paco Ŝako - pacoplay.com"
+        , esperanto = "Ludi Paco Ŝako - pacoplay.com"
+        }
+
+
+i18nRestartMove : I18nToken String
+i18nRestartMove =
+    I18nToken
+        { english = "Restart move"
+        , dutch = "Herstart verplaatsen"
+        , esperanto = "Rekomenci movon"
+        }
+
+
+i18nPlayAs : I18nToken String
+i18nPlayAs =
+    I18nToken
+        { english = "Play as:"
+        , dutch = "Speel als:"
+        , esperanto = "Ludi kiel:"
+        }
+
+
+i18nShareThisId : I18nToken String
+i18nShareThisId =
+    I18nToken
+        { english = "Share this id with a friend."
+        , dutch = "Deel deze id met een vriend."
+        , esperanto = "Kunhavigu ĉi tiun identigilon kun amiko."
+        }
+
+
+i18nNotConnected : I18nToken String
+i18nNotConnected =
+    I18nToken
+        { english = "Not connected"
+        , dutch = "Niet verbonden"
+        , esperanto = "Ne konektita"
+        }
+
+
+i18nPacoWhite : I18nToken String
+i18nPacoWhite =
+    I18nToken
+        { english = "Paco White"
+        , dutch = "Paco Wit"
+        , esperanto = "Paco Blanko"
+        }
+
+
+i18nPacoBlack : I18nToken String
+i18nPacoBlack =
+    I18nToken
+        { english = "Paco Black"
+        , dutch = "Paco Zwart"
+        , esperanto = "Paco Nigro"
+        }
+
+
+i18nTimeout : I18nToken String
+i18nTimeout =
+    I18nToken
+        { english = "(Timeout)"
+        , dutch = "(Time-out)"
+        , esperanto = "(Tempolimo)"
+        }
+
+
+i18nWatchReplay : I18nToken String
+i18nWatchReplay =
+    I18nToken
+        { english = "Watch Replay"
+        , dutch = "Bekijk Replay"
+        , esperanto = "Spektu Ripeton"
+        }
+
+
+i18nWhite : I18nToken String
+i18nWhite =
+    I18nToken
+        { english = "White"
+        , dutch = "Wit"
+        , esperanto = "Blanko"
+        }
+
+
+i18nBlack : I18nToken String
+i18nBlack =
+    I18nToken
+        { english = "Black"
+        , dutch = "Zwart"
+        , esperanto = "Nigro"
+        }

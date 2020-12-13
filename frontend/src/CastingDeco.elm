@@ -18,6 +18,7 @@ import Element exposing (Element, padding, spacing)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
+import I18n.Strings exposing (I18nToken(..), Language, t)
 import List.Extra as List
 import Sako exposing (Tile)
 
@@ -174,86 +175,137 @@ type alias Messages msg =
 
 {-| Input element where you can manage the casting deco.
 -}
-configView : Messages msg -> Maybe InputMode -> Model -> Element msg
-configView messages mode model =
+configView : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
+configView lang messages mode model =
     Element.column [ spacing 10 ]
-        [ normalInputModeButton messages mode
-        , tileInputMode messages mode model
-        , arrowInputMode messages mode model
+        [ normalInputModeButton lang messages mode
+        , tileInputMode lang messages mode model
+        , arrowInputMode lang messages mode model
         ]
 
 
-normalInputModeButton : Messages msg -> Maybe InputMode -> Element msg
-normalInputModeButton messages mode =
+normalInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
+normalInputModeButton lang messages mode =
     if mode == Nothing then
         Input.button
             [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Nothing, label = Element.text "Normal Mode" }
+            { onPress = Nothing, label = Element.text (t lang i18nNormalMode) }
 
     else
         Input.button [ padding 3 ]
-            { onPress = Just (messages.setInputMode Nothing), label = Element.text "Normal Mode" }
+            { onPress = Just (messages.setInputMode Nothing), label = Element.text (t lang i18nNormalMode) }
 
 
-tileInputMode : Messages msg -> Maybe InputMode -> Model -> Element msg
-tileInputMode messages mode model =
+tileInputMode : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
+tileInputMode lang messages mode model =
     Element.row [ spacing 5 ]
-        [ tileInputModeButton messages mode
-        , tileInputClearButton messages model
+        [ tileInputModeButton lang messages mode
+        , tileInputClearButton lang messages model
         ]
 
 
-tileInputModeButton : Messages msg -> Maybe InputMode -> Element msg
-tileInputModeButton messages mode =
+tileInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
+tileInputModeButton lang messages mode =
     if mode == Just InputTiles then
         Input.button
             [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (messages.setInputMode Nothing), label = Element.text "Highlight" }
+            { onPress = Just (messages.setInputMode Nothing), label = Element.text (t lang i18nHighlight) }
 
     else
         Input.button [ padding 3 ]
-            { onPress = Just (messages.setInputMode (Just InputTiles)), label = Element.text "Highlight" }
+            { onPress = Just (messages.setInputMode (Just InputTiles)), label = Element.text (t lang i18nHighlight) }
 
 
-tileInputClearButton : Messages msg -> Model -> Element msg
-tileInputClearButton messages model =
+tileInputClearButton : Language -> Messages msg -> Model -> Element msg
+tileInputClearButton lang messages model =
     if List.isEmpty model.tiles then
         Input.button
             [ Font.color (Element.rgb255 128 128 128) ]
-            { onPress = Nothing, label = Element.text "Clear Highlight" }
+            { onPress = Nothing, label = Element.text (t lang i18nClearHighlight) }
 
     else
         Input.button []
-            { onPress = Just messages.clearTiles, label = Element.text "Clear Highlight" }
+            { onPress = Just messages.clearTiles, label = Element.text (t lang i18nClearHighlight) }
 
 
-arrowInputMode : Messages msg -> Maybe InputMode -> Model -> Element msg
-arrowInputMode messages mode model =
+arrowInputMode : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
+arrowInputMode lang messages mode model =
     Element.row [ spacing 5 ]
-        [ arrowInputModeButton messages mode
-        , arrowInputClearButton messages model
+        [ arrowInputModeButton lang messages mode
+        , arrowInputClearButton lang messages model
         ]
 
 
-arrowInputModeButton : Messages msg -> Maybe InputMode -> Element msg
-arrowInputModeButton messages mode =
+arrowInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
+arrowInputModeButton lang messages mode =
     if mode == Just InputArrows then
         Input.button
             [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (messages.setInputMode Nothing), label = Element.text "Arrows" }
+            { onPress = Just (messages.setInputMode Nothing), label = Element.text (t lang i18nArrows) }
 
     else
         Input.button [ padding 3 ]
-            { onPress = Just (messages.setInputMode (Just InputArrows)), label = Element.text "Arrows" }
+            { onPress = Just (messages.setInputMode (Just InputArrows)), label = Element.text (t lang i18nArrows) }
 
 
-arrowInputClearButton : Messages msg -> Model -> Element msg
-arrowInputClearButton messages model =
+arrowInputClearButton : Language -> Messages msg -> Model -> Element msg
+arrowInputClearButton lang messages model =
     if List.isEmpty model.arrows then
         Input.button
             [ Font.color (Element.rgb255 128 128 128) ]
-            { onPress = Nothing, label = Element.text "Clear Arrows" }
+            { onPress = Nothing, label = Element.text (t lang i18nClearArrows) }
 
     else
         Input.button []
-            { onPress = Just messages.clearArrows, label = Element.text "Clear Arrows" }
+            { onPress = Just messages.clearArrows, label = Element.text (t lang i18nClearArrows) }
+
+
+
+--------------------------------------------------------------------------------
+-- I18n Strings ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+i18nNormalMode : I18nToken String
+i18nNormalMode =
+    I18nToken
+        { english = "Normal Mode"
+        , dutch = "Normale modus"
+        , esperanto = "Normala reĝimo"
+        }
+
+
+i18nHighlight : I18nToken String
+i18nHighlight =
+    I18nToken
+        { english = "Highlight"
+        , dutch = "Markeer"
+        , esperanto = "Markilo"
+        }
+
+
+i18nClearHighlight : I18nToken String
+i18nClearHighlight =
+    I18nToken
+        { english = "Clear Highlight"
+        , dutch = "Clear Markeer"
+        , esperanto = "Forigi Markiloj"
+        }
+
+
+i18nArrows : I18nToken String
+i18nArrows =
+    I18nToken
+        { english = "Arrows"
+        , dutch = "Pijlen"
+        , esperanto = "Sagoj"
+        }
+
+
+i18nClearArrows : I18nToken String
+i18nClearArrows =
+    I18nToken
+        { english = "Clear Arrows"
+        , dutch = "Clear Pijlen"
+        , esperanto = "Forigi Sagoj"
+        }
