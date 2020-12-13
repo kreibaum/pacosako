@@ -22,11 +22,12 @@ import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Http
-import I18n.Strings as I18n exposing (Language, t)
+import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode exposing (Decoder, Value, bool)
 import Json.Encode as Encode exposing (Value)
 import Spa.Document exposing (Document)
 import Spa.Generated.Route as Route exposing (Route)
+import Svg.Custom
 import Url exposing (Url)
 
 
@@ -94,6 +95,7 @@ type Msg
     | LoginSuccess User
     | LogoutSuccess
     | UserHidesGamesArePublicHint
+    | SetLanguage Language
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -113,6 +115,18 @@ update msg model =
 
         UserHidesGamesArePublicHint ->
             userHidesGamesArePublicHint model
+
+        SetLanguage lang ->
+            setLanguage lang model
+
+
+setLanguage : Language -> Model -> ( Model, Cmd Msg )
+setLanguage lang model =
+    let
+        newModel =
+            { model | language = lang }
+    in
+    ( newModel, triggerSaveLocalStorage newModel )
 
 
 userHidesGamesArePublicHint : Model -> ( Model, Cmd Msg )
@@ -166,11 +180,12 @@ view { page, toMsg } model =
 pageHeader : Model -> Element Msg -> Element Msg
 pageHeader model additionalHeader =
     Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton Route.Top "Play Paco Ŝako"
-        , pageHeaderButton Route.Editor "Design Puzzles"
-        , pageHeaderButton Route.Tutorial "Tutorial"
+        [ pageHeaderButton Route.Top (t model.language i18nPlayPacoSako)
+        , pageHeaderButton Route.Editor (t model.language i18nDesignPuzzles)
+        , pageHeaderButton Route.Tutorial (t model.language i18nTutorial)
         , additionalHeader
-        , loginHeaderInfo model.user
+        , languageChoice
+        , loginHeaderInfo model model.user
         ]
 
 
@@ -188,8 +203,8 @@ type alias User =
     }
 
 
-loginHeaderInfo : Maybe User -> Element Msg
-loginHeaderInfo login =
+loginHeaderInfo : Model -> Maybe User -> Element Msg
+loginHeaderInfo model login =
     let
         loginCaption =
             case login of
@@ -197,7 +212,7 @@ loginHeaderInfo login =
                     Element.row [ padding 10, spacing 10 ] [ icon [] Solid.user, Element.text user.username ]
 
                 Nothing ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text "Login" ]
+                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text (t model.language i18nLogin) ]
     in
     Element.link [ Element.alignRight ]
         { url = Route.toString Route.Login
@@ -230,3 +245,65 @@ gamesArePublicHint model =
                     }
                 ]
             ]
+
+
+{-| Allows the user to choose the ui language.
+-}
+languageChoice : Element Msg
+languageChoice =
+    Element.row [ Element.alignRight ]
+        [ Input.button [ padding 2 ]
+            { onPress = Just (SetLanguage English)
+            , label = Svg.Custom.flagEn |> Element.html
+            }
+        , Input.button [ padding 2 ]
+            { onPress = Just (SetLanguage Dutch)
+            , label = Svg.Custom.flagNl |> Element.html
+            }
+        , Input.button [ padding 2 ]
+            { onPress = Just (SetLanguage Esperanto)
+            , label = Svg.Custom.flagEo |> Element.html
+            }
+        ]
+
+
+
+--------------------------------------------------------------------------------
+-- I18n Strings ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+i18nPlayPacoSako : I18nToken String
+i18nPlayPacoSako =
+    I18nToken
+        { english = "Play Paco Ŝako"
+        , dutch = "Speel Paco Ŝako"
+        , esperanto = "Ludi Paco Ŝako"
+        }
+
+
+i18nDesignPuzzles : I18nToken String
+i18nDesignPuzzles =
+    I18nToken
+        { english = "Design Puzzles"
+        , dutch = "Teken puzzels"
+        , esperanto = "Desegni Puzloj"
+        }
+
+
+i18nTutorial : I18nToken String
+i18nTutorial =
+    I18nToken
+        { english = "Tutorial"
+        , dutch = "Tutorial"
+        , esperanto = "Lernilo"
+        }
+
+
+i18nLogin : I18nToken String
+i18nLogin =
+    I18nToken
+        { english = "Login"
+        , dutch = "Log in"
+        , esperanto = "Ensaluti"
+        }

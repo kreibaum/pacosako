@@ -104,7 +104,6 @@ tutorialPageInner lang langMsg =
             |> el [ Font.size 40, centerX ]
         , paragraph []
             [ t lang I18n.tutorialSummary |> text ]
-        , languageToggle lang langMsg
         , oneVideo lang I18n.tutorialSetup
         , oneVideo lang I18n.tutorialMovement
         , oneVideo lang I18n.tutorialFourPacoSakoRules
@@ -116,22 +115,6 @@ tutorialPageInner lang langMsg =
         , oneVideo lang I18n.tutorialCreativePlayingStyle
         , oneVideo lang I18n.tutorialFunAndBeauty
         ]
-
-
-languageToggle : Language -> (Language -> msg) -> Element msg
-languageToggle lang langMsg =
-    case lang of
-        English ->
-            Input.button [ Font.color (Element.rgb 0 0 1), Font.underline ]
-                { onPress = Just (langMsg I18n.Dutch)
-                , label = Element.text "Switch to Dutch."
-                }
-
-        Dutch ->
-            Input.button [ Font.color (Element.rgb 0 0 1), Font.underline ]
-                { onPress = Just (langMsg I18n.English)
-                , label = Element.text "Switch to English."
-                }
 
 
 oneVideo : Language -> I18nToken ( String, Maybe String ) -> Element msg

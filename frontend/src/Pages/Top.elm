@@ -23,7 +23,7 @@ import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Html exposing (Html)
 import Http
-import I18n.Strings as I18n exposing (Language(..), t)
+import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
@@ -65,7 +65,7 @@ page =
 
 view : Model -> Document Msg
 view model =
-    { title = "Paco Ŝako"
+    { title = "Paco Ŝako - pacoplay.com"
     , body = [ matchSetupUi model ]
     }
 
@@ -224,7 +224,7 @@ createMatch model =
 matchSetupUi : Model -> Element Msg
 matchSetupUi model =
     Element.column [ width fill, height fill, scrollbarY ]
-        [ Element.el [ padding 40, centerX, Font.size 40 ] (Element.text "Play Paco Ŝako")
+        [ Element.el [ padding 40, centerX, Font.size 40 ] (Element.text (t model.language i18nPlayPacoSako))
         , matchSetupUiInner model
         ]
 
@@ -236,7 +236,7 @@ matchSetupUiInner model =
             [ joinOnlineMatchUi model
             , setupOnlineMatchUi model
             ]
-        , recentGamesList model.recentGames
+        , recentGamesList model model.recentGames
         ]
 
 
@@ -251,17 +251,17 @@ box color content =
 setupOnlineMatchUi : Model -> Element Msg
 setupOnlineMatchUi model =
     box (Element.rgb255 220 230 220)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text "Create a new Game")
+        [ Element.el [ centerX, Font.size 30 ] (Element.text (t model.language i18nCreateNewGame))
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.spaceShuttle
-                , caption = "Lightspeed"
+                , caption = t model.language i18nLightspeed
                 , event = SetTimeLimit 180
                 , selected = model.timeLimit == 180
                 }
             , speedButton
                 { buttonIcon = Solid.bolt
-                , caption = "Blitz"
+                , caption = t model.language i18nBlitz
                 , event = SetTimeLimit 300
                 , selected = model.timeLimit == 300
                 }
@@ -269,13 +269,13 @@ setupOnlineMatchUi model =
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.frog
-                , caption = "Rapid"
+                , caption = t model.language i18nRapid
                 , event = SetTimeLimit 600
                 , selected = model.timeLimit == 600
                 }
             , speedButton
                 { buttonIcon = Solid.couch
-                , caption = "Relaxed"
+                , caption = t model.language i18nRelaxed
                 , event = SetTimeLimit 1200
                 , selected = model.timeLimit == 1200
                 }
@@ -283,13 +283,13 @@ setupOnlineMatchUi model =
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.wrench
-                , caption = "Custom"
+                , caption = t model.language i18nCustom
                 , event = SetTimeLimit model.timeLimit
                 , selected = List.notMember model.timeLimit [ 0, 180, 300, 600, 1200 ]
                 }
             , speedButton
                 { buttonIcon = Solid.dove
-                , caption = "No Timer"
+                , caption = t model.language i18nNoTimer
                 , event = SetTimeLimit 0
                 , selected = model.timeLimit == 0
                 }
@@ -298,12 +298,12 @@ setupOnlineMatchUi model =
             { onChange = SetRawTimeLimit
             , text = model.rawTimeLimit
             , placeholder = Nothing
-            , label = Input.labelLeft [ centerY ] (Element.text "Time in seconds")
+            , label = Input.labelLeft [ centerY ] (Element.text (t model.language i18nTimeInSeconds))
             }
-        , timeLimitLabel model.timeLimit
+        , timeLimitLabel model model.timeLimit
         , bigRoundedButton (Element.rgb255 200 210 200)
             (Just CreateMatch)
-            [ Element.text "Create Match" ]
+            [ Element.text (t model.language i18nCreateMatch) ]
         ]
 
 
@@ -328,37 +328,33 @@ speedButtonColor selected =
 {-| A label that translates the amount of seconds into minutes and seconds that
 are better readable.
 -}
-timeLimitLabel : Int -> Element msg
-timeLimitLabel seconds =
+timeLimitLabel : Model -> Int -> Element msg
+timeLimitLabel model seconds =
     let
         data =
             distributeSeconds seconds
     in
     if seconds > 0 then
-        Element.text
-            (String.fromInt data.minutes
-                ++ " Minutes and "
-                ++ String.fromInt data.seconds
-                ++ " Seconds for each player"
-            )
+        t model.language i18nMinutesAndSeconds data
+            |> Element.text
 
     else
-        Element.text "Play without time limit"
+        Element.text (t model.language i18nPlayWithoutTimeLimit)
 
 
 joinOnlineMatchUi : Model -> Element Msg
 joinOnlineMatchUi model =
     box (Element.rgb255 220 220 230)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text "I got an Invite")
+        [ Element.el [ centerX, Font.size 30 ] (Element.text (t model.language i18nIGotAnInvite))
         , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
             { onChange = SetRawMatchId
             , text = model.rawMatchId
-            , placeholder = Just (Input.placeholder [] (Element.text "Enter Match Id"))
-            , label = Input.labelLeft [ centerY ] (Element.text "Match Id")
+            , placeholder = Just (Input.placeholder [] (Element.text (t model.language i18nEnterMatchId)))
+            , label = Input.labelLeft [ centerY ] (Element.text (t model.language i18nMatchId))
             }
         , bigRoundedButton (Element.rgb255 200 200 210)
             (Just JoinMatch)
-            [ Element.text "Join Game" ]
+            [ Element.text (t model.language i18nJoinGame) ]
         ]
 
 
@@ -372,35 +368,35 @@ bigRoundedButton color event content =
         }
 
 
-recentGamesList : WebData (List String) -> Element Msg
-recentGamesList data =
+recentGamesList : Model -> WebData (List String) -> Element Msg
+recentGamesList model data =
     case data of
         RemoteData.NotAsked ->
             Input.button [ padding 10 ]
                 { onPress = Just RefreshRecentGames
-                , label = Element.text "Search for recent games"
+                , label = Element.text (t model.language i18nRecentSearchNotAsked)
                 }
 
         RemoteData.Loading ->
             Element.el [ padding 10 ]
-                (Element.text "Searching for recent games...")
+                (Element.text (t model.language i18nRecentSearchLoading))
 
         RemoteData.Failure _ ->
             Input.button [ padding 10 ]
                 { onPress = Just RefreshRecentGames
-                , label = Element.text "Error while searching for games! Try again?"
+                , label = Element.text (t model.language i18nRecentSearchError)
                 }
 
         RemoteData.Success games ->
-            recentGamesListSuccess games
+            recentGamesListSuccess model games
 
 
-recentGamesListSuccess : List String -> Element Msg
-recentGamesListSuccess games =
+recentGamesListSuccess : Model -> List String -> Element Msg
+recentGamesListSuccess model games =
     if List.isEmpty games then
         Input.button [ padding 10 ]
             { onPress = Just RefreshRecentGames
-            , label = Element.text "There were no games recently started. Check again?"
+            , label = Element.text (t model.language i18nRecentSearchNoGames)
             }
 
     else
@@ -411,7 +407,7 @@ recentGamesListSuccess games =
                         , Background.color (Element.rgb 0.9 0.9 0.9)
                         ]
                         { onPress = Just RefreshRecentGames
-                        , label = Element.text "Refresh"
+                        , label = Element.text (t model.language i18nRecentSearchRefresh)
                         }
                    ]
             )
@@ -425,4 +421,214 @@ recentGamesListSuccessOne game =
         ]
         { onPress = Just (SetRawMatchId game)
         , label = Element.text game
+        }
+
+
+
+--------------------------------------------------------------------------------
+-- I18n Strings ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+i18nPlayPacoSako : I18nToken String
+i18nPlayPacoSako =
+    I18nToken
+        { english = "Play Paco Ŝako"
+        , dutch = "Speel Paco Ŝako"
+        , esperanto = "Ludi Paco Ŝakon"
+        }
+
+
+i18nCreateNewGame : I18nToken String
+i18nCreateNewGame =
+    I18nToken
+        { english = "Create a new Game"
+        , dutch = "Maak een nieuw spel"
+        , esperanto = "Kreu novan ludon"
+        }
+
+
+i18nLightspeed : I18nToken String
+i18nLightspeed =
+    I18nToken
+        { english = "Lightspeed"
+        , dutch = "Lichtsnelheid"
+        , esperanto = "Lumrapideco"
+        }
+
+
+i18nBlitz : I18nToken String
+i18nBlitz =
+    I18nToken
+        { english = "Blitz"
+        , dutch = "Blitz"
+        , esperanto = "Fulmo"
+        }
+
+
+i18nRapid : I18nToken String
+i18nRapid =
+    I18nToken
+        { english = "Rapid"
+        , dutch = "Snel"
+        , esperanto = "Rapida"
+        }
+
+
+i18nRelaxed : I18nToken String
+i18nRelaxed =
+    I18nToken
+        { english = "Relaxed"
+        , dutch = "Ontspannen"
+        , esperanto = "Malstreĉita"
+        }
+
+
+i18nCustom : I18nToken String
+i18nCustom =
+    I18nToken
+        { english = "Custom"
+        , dutch = "Op maat"
+        , esperanto = "Propra"
+        }
+
+
+i18nNoTimer : I18nToken String
+i18nNoTimer =
+    I18nToken
+        { english = "No Timer"
+        , dutch = "Geen timer"
+        , esperanto = "Sen Tempigilo"
+        }
+
+
+i18nTimeInSeconds : I18nToken String
+i18nTimeInSeconds =
+    I18nToken
+        { english = "Time in seconds"
+        , dutch = "Tijd in seconden"
+        , esperanto = "Tempo en sekundoj"
+        }
+
+
+i18nCreateMatch : I18nToken String
+i18nCreateMatch =
+    I18nToken
+        { english = "Create Match"
+        , dutch = "Match maken"
+        , esperanto = "Krei Matĉon"
+        }
+
+
+i18nMinutesAndSeconds : I18nToken ({ seconds : Int, minutes : Int } -> String)
+i18nMinutesAndSeconds =
+    I18nToken
+        { english =
+            \data ->
+                String.fromInt data.minutes
+                    ++ " Minutes and "
+                    ++ String.fromInt data.seconds
+                    ++ " Seconds for each player"
+        , dutch =
+            \data ->
+                String.fromInt data.minutes
+                    ++ " minuten en "
+                    ++ String.fromInt data.seconds
+                    ++ " seconden voor elke speler"
+        , esperanto =
+            \data ->
+                String.fromInt data.minutes
+                    ++ " Minutoj kaj "
+                    ++ String.fromInt data.seconds
+                    ++ " Sekundoj por ĉiu ludanto"
+        }
+
+
+i18nPlayWithoutTimeLimit : I18nToken String
+i18nPlayWithoutTimeLimit =
+    I18nToken
+        { english = "Play without time limit"
+        , dutch = "Speel zonder tijdslimiet"
+        , esperanto = "Ludi sen tempolimo"
+        }
+
+
+i18nIGotAnInvite : I18nToken String
+i18nIGotAnInvite =
+    I18nToken
+        { english = "I got an invite"
+        , dutch = "Ik heb een uitnodiging"
+        , esperanto = "Mi ricevis inviton"
+        }
+
+
+i18nEnterMatchId : I18nToken String
+i18nEnterMatchId =
+    I18nToken
+        { english = "Enter Match Id"
+        , dutch = "Geef overeenkomst-ID op"
+        , esperanto = "Enigu Matĉan Identigilon"
+        }
+
+
+i18nMatchId : I18nToken String
+i18nMatchId =
+    I18nToken
+        { english = "Match Id"
+        , dutch = "Overeenkomst-ID"
+        , esperanto = "Matĉa identigilo"
+        }
+
+
+i18nJoinGame : I18nToken String
+i18nJoinGame =
+    I18nToken
+        { english = "Join Game"
+        , dutch = "Speel mee"
+        , esperanto = "Aliĝi al Ludo"
+        }
+
+
+i18nRecentSearchNotAsked : I18nToken String
+i18nRecentSearchNotAsked =
+    I18nToken
+        { english = "Search for recent games"
+        , dutch = "Zoeken naar recente games"
+        , esperanto = "Serĉi lastatempajn ludojn"
+        }
+
+
+i18nRecentSearchLoading : I18nToken String
+i18nRecentSearchLoading =
+    I18nToken
+        { english = "Searching for recent games..."
+        , dutch = "Zoeken naar recente games ..."
+        , esperanto = "Serĉante lastatempajn ludojn ..."
+        }
+
+
+i18nRecentSearchError : I18nToken String
+i18nRecentSearchError =
+    I18nToken
+        { english = "Error while searching for games! Try again?"
+        , dutch = "Fout bij het zoeken naar games! Opnieuw proberen?"
+        , esperanto = "Eraro dum serĉado de ludoj! Ĉu provi denove?"
+        }
+
+
+i18nRecentSearchNoGames : I18nToken String
+i18nRecentSearchNoGames =
+    I18nToken
+        { english = "There were no games recently started. Check again?"
+        , dutch = "Er zijn onlangs geen games gestart. Nogmaals controleren?"
+        , esperanto = "Lastatempe neniuj ludoj komenciĝis. Ĉu denove kontroli?"
+        }
+
+
+i18nRecentSearchRefresh : I18nToken String
+i18nRecentSearchRefresh =
+    I18nToken
+        { english = "Refresh"
+        , dutch = "Vernieuwen"
+        , esperanto = "Refreŝigi"
         }
