@@ -82,6 +82,8 @@ type alias Model =
     , rotation : BoardRotation
     , now : Posix
     , lang : Language
+    , whiteName : String
+    , blackName : String
     }
 
 
@@ -106,6 +108,8 @@ init shared { params } =
       , rotation = WhiteBottom
       , now = Time.millisToPosix 0
       , lang = shared.language
+      , whiteName = ""
+      , blackName = ""
       }
     , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
     )
@@ -133,6 +137,8 @@ type Msg
     | UpdateNow Posix
     | WebsocketMsg Api.Websocket.ServerMessage
     | WebsocketErrorMsg Decode.Error
+    | SetWhiteName String
+    | SetBlackName String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -205,6 +211,12 @@ update msg model =
 
         WebsocketErrorMsg error ->
             ( model, Ports.logToConsole (Decode.errorToString error) )
+
+        SetWhiteName name ->
+            ( { model | whiteName = name }, Cmd.none )
+
+        SetBlackName name ->
+            ( { model | blackName = name }, Cmd.none )
 
 
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
@@ -595,7 +607,7 @@ playPositionView play =
             , mouseDown = Just PlayMouseDown
             , mouseUp = Just PlayMouseUp
             , mouseMove = Just PlayMouseMove
-            , additionalSvg = playTimerSvg play.now play
+            , additionalSvg = additionalSvg play
             , replaceViewport = playTimerReplaceViewport play
             }
             play.timeline
@@ -643,6 +655,26 @@ playViewHighlight model =
     in
     Maybe.map2 (\t _ -> [ HighlightTile ( t, HighlightBoth ) ]) tile dropAction
         |> Maybe.withDefault []
+
+
+additionalSvg : Model -> Maybe (Svg a)
+additionalSvg model =
+    let
+        ( whiteY, blackY ) =
+            case model.rotation of
+                WhiteBottom ->
+                    ( -40, 850 )
+
+                BlackBottom ->
+                    ( 850, -40 )
+    in
+    [ playTimerSvg model.now model
+    , playerLabelSvg model.whiteName whiteY
+    , playerLabelSvg model.blackName blackY
+    ]
+        |> List.filterMap identity
+        |> Svg.g []
+        |> Just
 
 
 playTimerSvg : Posix -> Model -> Maybe (Svg a)
@@ -726,6 +758,23 @@ timerTextSvg fill caption =
         [ Svg.text caption ]
 
 
+playerLabelSvg : String -> Int -> Maybe (Svg a)
+playerLabelSvg name yPos =
+    if String.isEmpty name then
+        Nothing
+
+    else
+        Just
+            (Svg.text_
+                [ SvgA.style "text-anchor:left;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
+                , SvgA.x "250"
+                , SvgA.y (String.fromInt yPos)
+                , SvgA.fill "#595"
+                ]
+                [ Svg.text name ]
+            )
+
+
 playTimerReplaceViewport :
     Model
     ->
@@ -764,6 +813,8 @@ sidebar model =
         , Element.el [ padding 10 ] Element.none
         , Element.text (t model.lang i18nPlayAs)
         , rotationButtons model model.rotation
+        , Element.el [ padding 10 ] Element.none
+        , playerNamesInput model
 
         -- , Input.button []
         --     { onPress = Just (PlayMsgWrapper RequestAiMove)
@@ -953,6 +1004,32 @@ rotationButton rotation currentRotation label =
             { onPress = Just (SetRotation rotation), label = Element.text label }
 
 
+playerNamesInput : Model -> Element Msg
+playerNamesInput model =
+    let
+        whitePlayerName =
+            Element.text (t model.lang i18nWhitePlayerName)
+
+        blackPlayerName =
+            Element.text (t model.lang i18nBlackPlayerName)
+    in
+    Element.column [ spacing 5 ]
+        [ Element.text (t model.lang i18nPlayerNamesForStreaming)
+        , Input.text []
+            { onChange = SetWhiteName
+            , text = model.whiteName
+            , placeholder = Just (Input.placeholder [] whitePlayerName)
+            , label = Input.labelAbove [] whitePlayerName
+            }
+        , Input.text []
+            { onChange = SetBlackName
+            , text = model.blackName
+            , placeholder = Just (Input.placeholder [] blackPlayerName)
+            , label = Input.labelAbove [] blackPlayerName
+            }
+        ]
+
+
 
 --------------------------------------------------------------------------------
 -- I18n Strings ----------------------------------------------------------------
@@ -1055,4 +1132,31 @@ i18nBlack =
         { english = "Black"
         , dutch = "Zwart"
         , esperanto = "Nigro"
+        }
+
+
+i18nPlayerNamesForStreaming : I18nToken String
+i18nPlayerNamesForStreaming =
+    I18nToken
+        { english = "Player names for streaming"
+        , dutch = "Spelersnamen voor streaming"
+        , esperanto = "Ludantnomoj por elsendfluo"
+        }
+
+
+i18nWhitePlayerName : I18nToken String
+i18nWhitePlayerName =
+    I18nToken
+        { english = "Name of the White player"
+        , dutch = "Naam van de blanke speler"
+        , esperanto = "Nomo de la Blanka ludanto"
+        }
+
+
+i18nBlackPlayerName : I18nToken String
+i18nBlackPlayerName =
+    I18nToken
+        { english = "Name of the Black player"
+        , dutch = "Naam van de zwarte speler"
+        , esperanto = "Nomo de la Nigra ludanto"
         }
