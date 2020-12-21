@@ -663,10 +663,10 @@ additionalSvg model =
         ( whiteY, blackY ) =
             case model.rotation of
                 WhiteBottom ->
-                    ( -40, 850 )
+                    ( 850, -40 )
 
                 BlackBottom ->
-                    ( 850, -40 )
+                    ( -40, 850 )
     in
     [ playTimerSvg model.now model
     , playerLabelSvg model.whiteName whiteY
