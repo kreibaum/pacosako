@@ -1,4 +1,4 @@
-module Components exposing (gameIdBadgeBig, iconButton)
+module Components exposing (gameIdBadgeBig, header1, header2, header3, iconButton, paragraph)
 
 {-| Module to collect small reusable ui components. Everything in this root module
 should not have their own message type or their own complicated data.
@@ -34,3 +34,23 @@ iconButton altText iconType msg =
         { onPress = msg
         , label = icon [ description altText ] iconType
         }
+
+
+header1 : String -> Element msg
+header1 caption =
+    Element.el [ padding 40, centerX, Font.size 40 ] (Element.text caption)
+
+
+header2 : String -> Element msg
+header2 caption =
+    Element.el [ Font.size 30 ] (Element.text caption)
+
+
+header3 : String -> Element msg
+header3 caption =
+    Element.el [ Font.bold ] (Element.text caption)
+
+
+paragraph : String -> Element msg
+paragraph content =
+    Element.paragraph [] [ Element.text content ]

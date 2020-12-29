@@ -10,6 +10,7 @@ import Browser
 import Browser.Events
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
+import Components
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, fireMsg, forKey, onKeyUpAttr)
 import Element exposing (..)
@@ -104,17 +105,6 @@ init shared =
       }
     , refreshRecentGames
     )
-
-
-
---------------------------------------------------------------------------------
--- View code -------------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-distributeSeconds : Int -> { seconds : Int, minutes : Int }
-distributeSeconds seconds =
-    { seconds = seconds |> modBy 60, minutes = seconds // 60 }
 
 
 type Msg
@@ -221,10 +211,16 @@ createMatch model =
     ( model, Api.Backend.postMatchRequest timerConfig HttpError MatchCreatedOnServer )
 
 
+
+--------------------------------------------------------------------------------
+-- View code -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
 matchSetupUi : Model -> Element Msg
 matchSetupUi model =
     Element.column [ width fill, height fill, scrollbarY ]
-        [ Element.el [ padding 40, centerX, Font.size 40 ] (Element.text (t model.language i18nPlayPacoSako))
+        [ Components.header1 (t model.language i18nPlayPacoSako)
         , matchSetupUiInner model
         ]
 
@@ -340,6 +336,11 @@ timeLimitLabel model seconds =
 
     else
         Element.text (t model.language i18nPlayWithoutTimeLimit)
+
+
+distributeSeconds : Int -> { seconds : Int, minutes : Int }
+distributeSeconds seconds =
+    { seconds = seconds |> modBy 60, minutes = seconds // 60 }
 
 
 joinOnlineMatchUi : Model -> Element Msg
