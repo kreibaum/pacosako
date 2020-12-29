@@ -288,7 +288,7 @@ getRecentGameKeys =
     getJson
         { url = "/api/game/recent"
         , decoder =
-            Decode.list Decode.string
+            Decode.list (Decode.field "key" Decode.string)
                 |> Decode.map List.reverse
         }
 

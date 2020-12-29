@@ -368,13 +368,13 @@ async fn _get_game(key: i64, pool: Pool) -> Result<sync_match::CurrentMatchState
 }
 
 #[get("/game/recent")]
-fn recently_created_games(pool: State<Pool>) -> Json<Vec<String>> {
+fn recently_created_games(
+    pool: State<Pool>,
+) -> Result<Json<Vec<sync_match::CurrentMatchState>>, anyhow::Error> {
     let recent = task::block_on(_recently_created_games(pool.clone()));
-
-    match recent {
-        Ok(recent) => Json(recent.iter().map(|m| m.key.to_string()).collect()),
-        Err(_) => Json(vec![]),
-    }
+    let recent: Result<Vec<sync_match::CurrentMatchState>, _> =
+        recent?.iter().map(|m| m.current_state()).collect();
+    Ok(Json(recent?))
 }
 
 async fn _recently_created_games(pool: Pool) -> Result<Vec<SyncronizedMatch>, anyhow::Error> {
