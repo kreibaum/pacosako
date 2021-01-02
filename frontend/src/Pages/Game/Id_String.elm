@@ -1148,7 +1148,7 @@ i18nWhitePlayerName : I18nToken String
 i18nWhitePlayerName =
     I18nToken
         { english = "Name of the White player"
-        , dutch = "Naam van de blanke speler"
+        , dutch = "Naam speler wit"
         , esperanto = "Nomo de la Blanka ludanto"
         }
 
@@ -1157,6 +1157,6 @@ i18nBlackPlayerName : I18nToken String
 i18nBlackPlayerName =
     I18nToken
         { english = "Name of the Black player"
-        , dutch = "Naam van de zwarte speler"
+        , dutch = "Naam speler zwart"
         , esperanto = "Nomo de la Nigra ludanto"
         }
