@@ -3,8 +3,9 @@ module Pages.Top exposing (Model, Msg, Params, page)
 import Animation exposing (Timeline)
 import Api.Ai
 import Api.Backend
+import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
-import Api.Websocket as Websocket exposing (CurrentMatchState)
+import Api.Websocket as Websocket
 import Arrow exposing (Arrow)
 import Browser
 import Browser.Events
@@ -18,6 +19,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Element.Lazy exposing (lazy, lazy2)
 import File.Download
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
@@ -115,7 +117,7 @@ type Msg
     | SetTimeLimit Int
     | SetRawTimeLimit String
     | RefreshRecentGames
-    | GotRecentGames (List String)
+    | GotRecentGames (List CurrentMatchState)
     | ErrorRecentGames Http.Error
     | HttpError Http.Error
 
@@ -125,7 +127,7 @@ type alias Model =
     , matchConnectionStatus : MatchConnectionStatus
     , timeLimit : Int
     , rawTimeLimit : String
-    , recentGames : WebData (List String)
+    , recentGames : WebData (List CurrentMatchState)
     , key : Browser.Navigation.Key
     , language : Language
     , login : Maybe User
@@ -159,7 +161,7 @@ update msg model =
             ( { model | rawTimeLimit = newRawLimit } |> tryParseRawLimit, Cmd.none )
 
         GotRecentGames games ->
-            ( { model | recentGames = RemoteData.Success games }, Cmd.none )
+            ( { model | recentGames = RemoteData.Success (List.reverse games) }, Cmd.none )
 
         ErrorRecentGames error ->
             ( { model | recentGames = RemoteData.Failure error }, Cmd.none )
@@ -369,7 +371,7 @@ bigRoundedButton color event content =
         }
 
 
-recentGamesList : Model -> WebData (List String) -> Element Msg
+recentGamesList : Model -> WebData (List CurrentMatchState) -> Element Msg
 recentGamesList model data =
     case data of
         RemoteData.NotAsked ->
@@ -392,7 +394,7 @@ recentGamesList model data =
             recentGamesListSuccess model games
 
 
-recentGamesListSuccess : Model -> List String -> Element Msg
+recentGamesListSuccess : Model -> List CurrentMatchState -> Element Msg
 recentGamesListSuccess model games =
     if List.isEmpty games then
         Input.button [ padding 10 ]
@@ -401,27 +403,49 @@ recentGamesListSuccess model games =
             }
 
     else
-        Element.row [ width fill, spacing 5 ]
-            (List.map recentGamesListSuccessOne games
-                ++ [ Input.button
-                        [ padding 10
-                        , Background.color (Element.rgb 0.9 0.9 0.9)
-                        ]
-                        { onPress = Just RefreshRecentGames
-                        , label = Element.text (t model.language i18nRecentSearchRefresh)
-                        }
-                   ]
+        Element.wrappedRow [ width fill, spacing 5 ]
+            (List.map (lazy2 recentGamesListSuccessOne model.language) games
+                ++ [ refreshButton (t model.language i18nRecentSearchRefresh) ]
             )
 
 
-recentGamesListSuccessOne : String -> Element Msg
-recentGamesListSuccessOne game =
+refreshButton : String -> Element Msg
+refreshButton caption =
     Input.button
         [ padding 10
         , Background.color (Element.rgb 0.9 0.9 0.9)
         ]
-        { onPress = Just (SetRawMatchId game)
-        , label = Element.text game
+        { onPress = Just RefreshRecentGames
+        , label =
+            column [ spacing 10 ]
+                [ icon [] Solid.redo
+                    |> Element.el [ centerX, centerY ]
+                    |> Element.el [ width (px 150), height (px 150) ]
+                , Element.text caption |> Element.el [ centerX ]
+                ]
+        }
+
+
+recentGamesListSuccessOne : Language -> CurrentMatchState -> Element msg
+recentGamesListSuccessOne lang matchState =
+    let
+        position =
+            Sako.initialPosition
+                |> Sako.doActionsList matchState.actionHistory
+                |> Maybe.map (PositionView.renderStatic WhiteBottom)
+                |> Maybe.map (PositionView.viewStatic PositionView.staticViewConfig)
+                |> Maybe.withDefault (Element.text matchState.key)
+                |> Element.el [ width (px 150), height (px 150) ]
+
+        gameKeyLabel =
+            Element.el [ centerX ] (Element.text (t lang i18nMatch ++ " " ++ matchState.key))
+    in
+    Element.link
+        [ padding 10
+        , Background.color (Element.rgb 0.9 0.9 0.9)
+        ]
+        { url = Route.toString (Route.Game__Id_String { id = matchState.key })
+        , label = column [ spacing 10 ] [ position, gameKeyLabel ]
         }
 
 
@@ -632,4 +656,13 @@ i18nRecentSearchRefresh =
         { english = "Refresh"
         , dutch = "Vernieuwen"
         , esperanto = "Refreŝigi"
+        }
+
+
+i18nMatch : I18nToken String
+i18nMatch =
+    I18nToken
+        { english = "Match"
+        , dutch = "Partij"
+        , esperanto = "Matĉo"
         }

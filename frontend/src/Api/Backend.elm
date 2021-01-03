@@ -17,6 +17,7 @@ module Api.Backend exposing
 the server api.
 -}
 
+import Api.Decoders exposing (CurrentMatchState, decodeMatchState)
 import Api.Ports as Ports
 import Http exposing (Error)
 import Iso8601
@@ -283,12 +284,12 @@ postAnalysePosition position =
 
 {-| GET a list of all recently creates games.
 -}
-getRecentGameKeys : Api (List String) msg
+getRecentGameKeys : Api (List CurrentMatchState) msg
 getRecentGameKeys =
     getJson
         { url = "/api/game/recent"
         , decoder =
-            Decode.list (Decode.field "key" Decode.string)
+            Decode.list decodeMatchState
                 |> Decode.map List.reverse
         }
 

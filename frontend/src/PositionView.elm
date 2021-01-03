@@ -12,6 +12,7 @@ module PositionView exposing
     , pastMovementIndicatorList
     , render
     , renderStatic
+    , staticViewConfig
     , viewStatic
     , viewTimeline
     )
@@ -101,7 +102,7 @@ renderStatic rotation position =
     }
 
 
-viewStatic : ViewConfig a -> OpaqueRenderData -> Element a
+viewStatic : ViewConfig msg -> OpaqueRenderData -> Element msg
 viewStatic config renderData =
     let
         idAttribute =
@@ -176,16 +177,30 @@ type alias VisualPacoPiece =
     }
 
 
-type alias ViewConfig a =
+type alias ViewConfig msg =
     { colorScheme : Pieces.ColorScheme
     , nodeId : Maybe String
     , decoration : List BoardDecoration
     , dragPieceData : List DragPieceData
-    , mouseDown : Maybe (BoardMousePosition -> a)
-    , mouseUp : Maybe (BoardMousePosition -> a)
-    , mouseMove : Maybe (BoardMousePosition -> a)
-    , additionalSvg : Maybe (Svg a)
+    , mouseDown : Maybe (BoardMousePosition -> msg)
+    , mouseUp : Maybe (BoardMousePosition -> msg)
+    , mouseMove : Maybe (BoardMousePosition -> msg)
+    , additionalSvg : Maybe (Svg msg)
     , replaceViewport : Maybe Svg.Rect
+    }
+
+
+staticViewConfig : ViewConfig msg
+staticViewConfig =
+    { colorScheme = Pieces.defaultColorScheme
+    , nodeId = Nothing
+    , decoration = []
+    , dragPieceData = []
+    , mouseDown = Nothing
+    , mouseUp = Nothing
+    , mouseMove = Nothing
+    , additionalSvg = Nothing
+    , replaceViewport = Nothing
     }
 
 
