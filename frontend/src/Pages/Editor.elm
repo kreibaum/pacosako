@@ -150,6 +150,7 @@ type Msg
     | SetInputModeEditor (Maybe CastingDeco.InputMode)
     | ClearDecoTilesEditor
     | ClearDecoArrowsEditor
+    | ClearDecoComplete
     | AnimationTick Posix
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
@@ -183,6 +184,13 @@ keybindings =
     , forKey "y" |> withCtrl |> fireMsg Redo
     , forKey "Delete" |> fireMsg DeleteSelectedPiece
     , forKey "Backspace" |> fireMsg DeleteSelectedPiece
+    , forKey "1" |> fireMsg (SetInputModeEditor Nothing)
+    , forKey "2" |> fireMsg (SetInputModeEditor (Just CastingDeco.InputTiles))
+    , forKey "3" |> fireMsg (SetInputModeEditor (Just CastingDeco.InputArrows))
+    , forKey " " |> fireMsg ClearDecoComplete
+    , forKey "0" |> fireMsg ClearDecoComplete
+    , forKey "ArrowRight" |> fireMsg Redo
+    , forKey "ArrowLeft" |> fireMsg Undo
     ]
 
 
@@ -345,6 +353,9 @@ update msg model =
 
         ClearDecoArrowsEditor ->
             ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
+
+        ClearDecoComplete ->
+            ( { model | castingDeco = model.castingDeco |> CastingDeco.clearArrows |> CastingDeco.clearTiles }, Cmd.none )
 
         WhiteSideColor newSideColor ->
             ( { model | colorScheme = Pieces.setWhite newSideColor model.colorScheme }
