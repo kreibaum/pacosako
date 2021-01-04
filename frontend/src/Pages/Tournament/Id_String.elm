@@ -107,11 +107,11 @@ group1Table : Element msg
 group1Table =
     Element.table []
         { data =
-            [ { name = "McGoohan", games = [ -1, 0, 0, 78, 0 ] }
-            , { name = "Elsemiek Kemkes", games = [ 0, -1, 0, 93, 0 ] }
-            , { name = "Derk Dekker", games = [ 0, 0, -1, 0, 0 ] }
-            , { name = "Rolf Kreibaum", games = [ 77, 94, 0, -1, 69 ] }
-            , { name = "Ralph Schuler", games = [ 0, 0, 0, 66, -1 ] }
+            [ { name = "McGoohan", games = [ -1, 0, 154, 78, 64 ] }
+            , { name = "Elsemiek Kemkes", games = [ 0, -1, 134, 93, 125 ] }
+            , { name = "Derk Dekker", games = [ 155, 135, -1, 34, 138 ] }
+            , { name = "Rolf Kreibaum", games = [ 77, 94, 36, -1, 69 ] }
+            , { name = "Ralph Schuler", games = [ 31, 123, 136, 66, -1 ] }
             ]
         , columns =
             [ nameColumn
@@ -128,12 +128,12 @@ group2Table : Element msg
 group2Table =
     Element.table []
         { data =
-            [ { name = "Nico Bibo", games = [ -1, 0, 0, 0, 0, 0 ] }
-            , { name = "Dieter Kreibaum", games = [ 0, -1, 0, 0, 0, 0 ] }
-            , { name = "Raimond Flujit", games = [ 0, 0, -1, 0, 0, 0 ] }
-            , { name = "Alon Nir", games = [ 0, 0, 0, -1, 0, 0 ] }
-            , { name = "Sipho Kemkes", games = [ 0, 0, 0, 0, -1, 0 ] }
-            , { name = "Mozart", games = [ 0, 0, 0, 0, 0, -1 ] }
+            [ { name = "Nico Bibo", games = [ -1, 114, 83, 107, 0, 0 ] }
+            , { name = "Dieter Kreibaum", games = [ 113, -1, 80, 82, 0, 0 ] }
+            , { name = "Raimond Flujit", games = [ 86, 79, -1, 37, 110, 127 ] }
+            , { name = "Alon Nir", games = [ 108, 85, 38, -1, 96, 76 ] }
+            , { name = "Sipho Kemkes", games = [ 0, 0, 111, 95, -1, 0 ] }
+            , { name = "Mozart", games = [ 0, 0, 124, 73, 0, -1 ] }
             ]
         , columns =
             [ nameColumn
@@ -195,8 +195,8 @@ semifinal1Table =
     Element.table []
         { data =
             [ { white = "Rolf", black = "Raimond", key = 166 }
-            , { white = "Raimond", black = "Rolf", key = 0 }
-            , { white = "Rolf", black = "Raimond", key = 0 }
+            , { white = "Raimond", black = "Rolf", key = 167 }
+            , { white = "Rolf", black = "Raimond", key = 169 }
             ]
         , columns = [ whiteColumn, blackColumn, gameLinkColumn ]
         }
@@ -206,9 +206,9 @@ semifinal2Table : Element msg
 semifinal2Table =
     Element.table []
         { data =
-            [ { white = "Alon", black = "Derk", key = 0 }
-            , { white = "Derk", black = "Alon", key = 0 }
-            , { white = "Alon", black = "Derk", key = 0 }
+            [ { white = "Alon", black = "Derk", key = 161 }
+            , { white = "Derk", black = "Alon", key = 162 }
+            , { white = "Alon", black = "Derk", key = 163 }
             ]
         , columns = [ whiteColumn, blackColumn, gameLinkColumn ]
         }
@@ -218,13 +218,13 @@ finalTable : Element msg
 finalTable =
     Element.table []
         { data =
-            [ { white = "Alon", black = "Raimond", key = 0 }
-            , { white = "Raimond", black = "Alon", key = 0 }
-            , { white = "Alon", black = "Raimond", key = 0 }
-            , { white = "Raimond", black = "Alon", key = 0 }
-            , { white = "Alon", black = "Raimond", key = 0 }
-            , { white = "Raimond", black = "Alon", key = 0 }
-            , { white = "Alon", black = "Raimond", key = 0 }
+            [ { white = "Alon", black = "Raimond", key = 170 }
+            , { white = "Raimond", black = "Alon", key = 171 }
+            , { white = "Alon", black = "Raimond", key = 172 }
+            , { white = "Raimond", black = "Alon", key = 173 }
+            , { white = "Alon", black = "Raimond", key = 174 }
+            , { white = "Raimond", black = "Alon", key = 175 }
+            , { white = "Alon", black = "Raimond", key = 176 }
             ]
         , columns = [ whiteColumn, blackColumn, gameLinkColumn ]
         }
