@@ -502,22 +502,6 @@ updateWebsocket serverMessage model =
         Api.Websocket.TechnicalError errorMessage ->
             ( model, Ports.logToConsole errorMessage )
 
-        Api.Websocket.FullState syncronizedBoard ->
-            -- let
-            --     ( newEditor, cmd ) =
-            --         updateEditorWebsocketFullState syncronizedBoard model.editor
-            -- in
-            -- ( { model | editor = newEditor }, cmd )
-            ( model, Cmd.none )
-
-        Api.Websocket.ServerNextStep { index, step } ->
-            -- let
-            --     ( newEditor, cmd ) =
-            --         updateWebsocketNextStep index step model.editor
-            -- in
-            -- ( { model | editor = newEditor }, cmd )
-            ( model, Cmd.none )
-
         Api.Websocket.NewMatchState data ->
             updateCurrentMatchStateIfKeyCorrect data model
 

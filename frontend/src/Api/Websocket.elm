@@ -40,9 +40,7 @@ All allowed messages that may be send by the client to the server.
 
 -}
 type ClientMessage
-    = Subscribe String
-    | ClientNextStep { index : Int, step : Value }
-    | SubscribeToMatch String
+    = SubscribeToMatch String
     | DoAction { key : String, action : Sako.Action }
     | Rollback String
     | SetTimer { key : String, timer : Timer.TimerConfig }
@@ -52,24 +50,6 @@ type ClientMessage
 encodeClientMessage : ClientMessage -> Value
 encodeClientMessage clientMessage =
     case clientMessage of
-        Subscribe gameKey ->
-            Encode.object
-                [ ( "Subscribe"
-                  , Encode.object
-                        [ ( "game_key", Encode.string gameKey ) ]
-                  )
-                ]
-
-        ClientNextStep data ->
-            Encode.object
-                [ ( "NextStep"
-                  , Encode.object
-                        [ ( "index", Encode.int data.index )
-                        , ( "step", data.step )
-                        ]
-                  )
-                ]
-
         SubscribeToMatch key ->
             Encode.object
                 [ ( "SubscribeToMatch"
@@ -125,8 +105,6 @@ All allowed messages that may be send by the server to the client.
 -}
 type ServerMessage
     = TechnicalError String
-    | FullState SyncronizedBoard
-    | ServerNextStep { index : Int, step : Value }
     | NewMatchState CurrentMatchState
     | MatchConnectionSuccess { key : String, state : CurrentMatchState }
 
@@ -149,11 +127,6 @@ decodeServerMessage =
     Decode.oneOf
         [ Decode.map TechnicalError
             (Decode.at [ "TechnicalError", "error_message" ] Decode.string)
-        , Decode.map FullState
-            (Decode.at [ "FullState", "board" ] decodeSyncronizedBoard)
-        , Decode.map2 (\index step -> ServerNextStep { index = index, step = step })
-            (Decode.at [ "NextStep", "index" ] Decode.int)
-            (Decode.at [ "NextStep", "step" ] Decode.value)
         , Decode.map NewMatchState
             (Decode.field "CurrentMatchState" decodeMatchState)
         , Decode.map2 (\key matchState -> MatchConnectionSuccess { key = key, state = matchState })
