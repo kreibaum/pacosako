@@ -121,15 +121,15 @@ init shared { params } =
 
 
 type Msg
-    = PlayActionInputStep Sako.Action
-    | PlayRollback
-    | PlayMsgAnimationTick Posix
-    | PlayMouseDown BoardMousePosition
-    | PlayMouseUp BoardMousePosition
-    | PlayMouseMove BoardMousePosition
-    | SetInputModePlay (Maybe CastingDeco.InputMode)
-    | ClearDecoTilesPlay
-    | ClearDecoArrowsPlay
+    = ActionInputStep Sako.Action
+    | Rollback
+    | AnimationTick Posix
+    | MouseDown BoardMousePosition
+    | MouseUp BoardMousePosition
+    | MouseMove BoardMousePosition
+    | SetInputMode (Maybe CastingDeco.InputMode)
+    | ClearDecoTiles
+    | ClearDecoArrows
     | ClearDecoComplete
     | MoveFromAi Sako.Action
     | RequestAiMove
@@ -145,18 +145,18 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        PlayActionInputStep action ->
+        ActionInputStep action ->
             updateActionInputStep action model
 
-        PlayMsgAnimationTick now ->
+        AnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
 
-        PlayRollback ->
+        Rollback ->
             ( model
             , Api.Websocket.send (Api.Websocket.Rollback (Maybe.withDefault "" model.subscription))
             )
 
-        PlayMouseDown pos ->
+        MouseDown pos ->
             case model.inputMode of
                 Nothing ->
                     updateMouseDown pos model
@@ -164,7 +164,7 @@ update msg model =
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Cmd.none )
 
-        PlayMouseUp pos ->
+        MouseUp pos ->
             case model.inputMode of
                 Nothing ->
                     updateMouseUp pos model
@@ -172,7 +172,7 @@ update msg model =
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Cmd.none )
 
-        PlayMouseMove pos ->
+        MouseMove pos ->
             case model.inputMode of
                 Nothing ->
                     updateMouseMove pos model
@@ -180,13 +180,13 @@ update msg model =
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Cmd.none )
 
-        SetInputModePlay inputMode ->
+        SetInputMode inputMode ->
             ( { model | inputMode = inputMode }, Cmd.none )
 
-        ClearDecoTilesPlay ->
+        ClearDecoTiles ->
             ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
 
-        ClearDecoArrowsPlay ->
+        ClearDecoArrows ->
             ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
 
         ClearDecoComplete ->
@@ -416,17 +416,17 @@ updateActionInputStep action model =
 {-| Ensure that the update we got actually belongs to the game we are interested
 in.
 -}
-updatePlayCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Cmd Msg )
-updatePlayCurrentMatchStateIfKeyCorrect data model =
+updateCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Cmd Msg )
+updateCurrentMatchStateIfKeyCorrect data model =
     if data.key == model.currentState.key then
-        updatePlayCurrentMatchState data model
+        updateCurrentMatchState data model
 
     else
         ( model, Cmd.none )
 
 
-updatePlayCurrentMatchState : CurrentMatchState -> Model -> ( Model, Cmd Msg )
-updatePlayCurrentMatchState data model =
+updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Cmd Msg )
+updateCurrentMatchState data model =
     let
         newBoard =
             case matchStatesDiff model.currentState data of
@@ -453,10 +453,10 @@ updatePlayCurrentMatchState data model =
     )
 
 
-updatePlayMatchConnectionSuccess : { key : String, state : CurrentMatchState } -> Model -> ( Model, Cmd Msg )
-updatePlayMatchConnectionSuccess data model =
+updateMatchConnectionSuccess : { key : String, state : CurrentMatchState } -> Model -> ( Model, Cmd Msg )
+updateMatchConnectionSuccess data model =
     { model | subscription = Just data.key }
-        |> updatePlayCurrentMatchState data.state
+        |> updateCurrentMatchState data.state
 
 
 {-| Given an old and a new match state, this returns the actions that need to
@@ -519,10 +519,10 @@ updateWebsocket serverMessage model =
             ( model, Cmd.none )
 
         Api.Websocket.NewMatchState data ->
-            updatePlayCurrentMatchStateIfKeyCorrect data model
+            updateCurrentMatchStateIfKeyCorrect data model
 
         Api.Websocket.MatchConnectionSuccess data ->
-            updatePlayMatchConnectionSuccess data model
+            updateMatchConnectionSuccess data model
 
 
 save : Model -> Shared.Model -> Shared.Model
@@ -539,7 +539,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Time.every 1000 UpdateNow
-        , Animation.subscription model.timeline PlayMsgAnimationTick
+        , Animation.subscription model.timeline AnimationTick
         , Api.Websocket.listen WebsocketMsg WebsocketErrorMsg
         , Api.Ai.subscribeMoveFromAi AiCrashed MoveFromAi
         , Custom.Events.onKeyUp keybindings
@@ -550,9 +550,9 @@ subscriptions model =
 -}
 keybindings : List (KeyBinding Msg)
 keybindings =
-    [ forKey "1" |> fireMsg (SetInputModePlay Nothing)
-    , forKey "2" |> fireMsg (SetInputModePlay (Just CastingDeco.InputTiles))
-    , forKey "3" |> fireMsg (SetInputModePlay (Just CastingDeco.InputArrows))
+    [ forKey "1" |> fireMsg (SetInputMode Nothing)
+    , forKey "2" |> fireMsg (SetInputMode (Just CastingDeco.InputTiles))
+    , forKey "3" |> fireMsg (SetInputMode (Just CastingDeco.InputArrows))
     , forKey " " |> fireMsg ClearDecoComplete
     , forKey "0" |> fireMsg ClearDecoComplete
     ]
@@ -605,9 +605,9 @@ playPositionView play =
             , nodeId = Just sakoEditorId
             , decoration = playDecoration play
             , dragPieceData = []
-            , mouseDown = Just PlayMouseDown
-            , mouseUp = Just PlayMouseUp
-            , mouseMove = Just PlayMouseMove
+            , mouseDown = Just MouseDown
+            , mouseUp = Just MouseUp
+            , mouseMove = Just MouseMove
             , additionalSvg = additionalSvg play
             , replaceViewport = playTimerReplaceViewport play
             }
@@ -785,8 +785,8 @@ playTimerReplaceViewport :
             , width : Float
             , height : Float
             }
-playTimerReplaceViewport play =
-    if Maybe.isNothing play.currentState.timer then
+playTimerReplaceViewport model =
+    if Maybe.isNothing model.currentState.timer then
         Nothing
 
     else
@@ -803,14 +803,14 @@ sidebar model =
     Element.column [ spacing 5, padding 20, height fill ]
         [ gameCodeLabel model model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
-            (Just PlayRollback)
+            (Just Rollback)
             [ Element.text (t model.lang i18nRestartMove) ]
             |> Element.el [ width fill ]
         , maybePromotionButtons model model.currentState.legalActions
         , maybeVictoryStateInfo model model.currentState.gameState
         , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
-        , CastingDeco.configView model.lang castingDecoMessagesPlay model.inputMode model.castingDeco
+        , CastingDeco.configView model.lang castingDecoMessages model.inputMode model.castingDeco
         , Element.el [ padding 10 ] Element.none
         , Element.text (t model.lang i18nPlayAs)
         , rotationButtons model model.rotation
@@ -834,11 +834,11 @@ bigRoundedButton color event content =
         }
 
 
-castingDecoMessagesPlay : CastingDeco.Messages Msg
-castingDecoMessagesPlay =
-    { setInputMode = SetInputModePlay
-    , clearTiles = ClearDecoTilesPlay
-    , clearArrows = ClearDecoArrowsPlay
+castingDecoMessages : CastingDeco.Messages Msg
+castingDecoMessages =
+    { setInputMode = SetInputMode
+    , clearTiles = ClearDecoTiles
+    , clearArrows = ClearDecoArrows
     }
 
 
@@ -882,24 +882,24 @@ promotionButtons model =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (PlayActionInputStep (Sako.Promote Sako.Queen)))
+                (Just (ActionInputStep (Sako.Promote Sako.Queen)))
                 [ icon [ centerX ] Solid.chessQueen
                 , Element.el [ centerX ] (Element.text (t model.lang I18n.queen))
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (PlayActionInputStep (Sako.Promote Sako.Knight)))
+                (Just (ActionInputStep (Sako.Promote Sako.Knight)))
                 [ icon [ centerX ] Solid.chessKnight
                 , Element.el [ centerX ] (Element.text (t model.lang I18n.knight))
                 ]
             ]
         , Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (PlayActionInputStep (Sako.Promote Sako.Rook)))
+                (Just (ActionInputStep (Sako.Promote Sako.Rook)))
                 [ icon [ centerX ] Solid.chessRook
                 , Element.el [ centerX ] (Element.text (t model.lang I18n.rook))
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (PlayActionInputStep (Sako.Promote Sako.Bishop)))
+                (Just (ActionInputStep (Sako.Promote Sako.Bishop)))
                 [ icon [ centerX ] Solid.chessBishop
                 , Element.el [ centerX ] (Element.text (t model.lang I18n.bishop))
                 ]

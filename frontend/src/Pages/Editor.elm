@@ -147,9 +147,9 @@ type Msg
     | GotAnalysePosition AnalysisReport
     | ToolAddPiece Sako.Color Sako.Type
     | SetExportOptionsVisible Bool
-    | SetInputModeEditor (Maybe CastingDeco.InputMode)
-    | ClearDecoTilesEditor
-    | ClearDecoArrowsEditor
+    | SetInputMode (Maybe CastingDeco.InputMode)
+    | ClearDecoTiles
+    | ClearDecoArrows
     | ClearDecoComplete
     | AnimationTick Posix
     | WhiteSideColor Pieces.SideColor
@@ -184,9 +184,9 @@ keybindings =
     , forKey "y" |> withCtrl |> fireMsg Redo
     , forKey "Delete" |> fireMsg DeleteSelectedPiece
     , forKey "Backspace" |> fireMsg DeleteSelectedPiece
-    , forKey "1" |> fireMsg (SetInputModeEditor Nothing)
-    , forKey "2" |> fireMsg (SetInputModeEditor (Just CastingDeco.InputTiles))
-    , forKey "3" |> fireMsg (SetInputModeEditor (Just CastingDeco.InputArrows))
+    , forKey "1" |> fireMsg (SetInputMode Nothing)
+    , forKey "2" |> fireMsg (SetInputMode (Just CastingDeco.InputTiles))
+    , forKey "3" |> fireMsg (SetInputMode (Just CastingDeco.InputArrows))
     , forKey " " |> fireMsg ClearDecoComplete
     , forKey "0" |> fireMsg ClearDecoComplete
     , forKey "ArrowRight" |> fireMsg Redo
@@ -345,13 +345,13 @@ update msg model =
         SetExportOptionsVisible isVisible ->
             ( { model | showExportOptions = isVisible }, Cmd.none )
 
-        SetInputModeEditor newMode ->
+        SetInputMode newMode ->
             ( { model | inputMode = newMode }, Cmd.none )
 
-        ClearDecoTilesEditor ->
+        ClearDecoTiles ->
             ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
 
-        ClearDecoArrowsEditor ->
+        ClearDecoArrows ->
             ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
 
         ClearDecoComplete ->
@@ -377,9 +377,9 @@ update msg model =
 {-| Updates the save state and discards the analysis report.
 -}
 editorStateModify : Model -> Model
-editorStateModify editorModel =
-    { editorModel
-        | saveState = saveStateModify editorModel.saveState
+editorStateModify model =
+    { model
+        | saveState = saveStateModify model.saveState
         , analysis = Nothing
     }
 
@@ -472,13 +472,13 @@ liftToolUpdate model toolUpdate =
 
 
 animateToCurrentPosition : Model -> Model
-animateToCurrentPosition editor =
-    { editor
+animateToCurrentPosition model =
+    { model
         | timeline =
-            editor.timeline
+            model.timeline
                 |> Animation.queue
                     ( animationSpeed
-                    , currentRenderData editor
+                    , currentRenderData model
                     )
     }
 
@@ -487,10 +487,10 @@ animateToCurrentPosition editor =
 interactivity that is currently running.
 -}
 currentRenderData : Model -> OpaqueRenderData
-currentRenderData editor =
-    editor.preview
-        |> Maybe.withDefault (P.getC editor.game)
-        |> PositionView.render (reduceSmartToolModel editor.smartTool)
+currentRenderData model =
+    model.preview
+        |> Maybe.withDefault (P.getC model.game)
+        |> PositionView.render (reduceSmartToolModel model.smartTool)
 
 
 handleToolOutputMsg : ToolOutputMsg -> Model -> Model
@@ -914,38 +914,38 @@ editorUi model =
 
 
 positionView : Model -> Element Msg
-positionView editor =
+positionView model =
     Element.el
         [ width fill
         , height fill
         , Element.scrollbarY
         , centerX
         ]
-        (positionViewInner editor)
+        (positionViewInner model)
 
 
 positionViewInner : Model -> Element Msg
-positionViewInner editor =
+positionViewInner model =
     let
         config =
-            editorViewConfig editor
+            boardViewConfig model
     in
-    case editor.preview of
+    case model.preview of
         Nothing ->
-            editor.timeline
+            model.timeline
                 |> PositionView.viewTimeline config
 
         Just position ->
-            PositionView.render (reduceSmartToolModel editor.smartTool) position
+            PositionView.render (reduceSmartToolModel model.smartTool) position
                 |> PositionView.viewStatic config
 
 
-editorViewConfig : Model -> PositionView.ViewConfig Msg
-editorViewConfig editor =
-    { colorScheme = editor.colorScheme
+boardViewConfig : Model -> PositionView.ViewConfig Msg
+boardViewConfig model =
+    { colorScheme = model.colorScheme
     , nodeId = Just sakoEditorId
-    , decoration = toolDecoration editor
-    , dragPieceData = dragPieceData editor
+    , decoration = toolDecoration model
+    , dragPieceData = dragPieceData model
     , mouseDown = Just MouseDown
     , mouseUp = Just MouseUp
     , mouseMove = Just MouseMove
@@ -1110,18 +1110,18 @@ sidebar model =
          , addPieceButtons Sako.White "White:" model.smartTool
          , addPieceButtons Sako.Black "Black:" model.smartTool
          , colorSchemeConfig model
-         , CastingDeco.configView model.lang castingDecoMessagesEditor model.inputMode model.castingDeco
+         , CastingDeco.configView model.lang castingDecoMessages model.inputMode model.castingDeco
          , analysisResult model
          ]
             ++ exportOptions
         )
 
 
-castingDecoMessagesEditor : CastingDeco.Messages Msg
-castingDecoMessagesEditor =
-    { setInputMode = SetInputModeEditor
-    , clearTiles = ClearDecoTilesEditor
-    , clearArrows = ClearDecoArrowsEditor
+castingDecoMessages : CastingDeco.Messages Msg
+castingDecoMessages =
+    { setInputMode = SetInputMode
+    , clearTiles = ClearDecoTiles
+    , clearArrows = ClearDecoArrows
     }
 
 
@@ -1363,8 +1363,8 @@ parsedMarkdownPaste model =
 
 
 analysisResult : Model -> Element msg
-analysisResult editorModel =
-    case editorModel.analysis of
+analysisResult model =
+    case model.analysis of
         Just analysis ->
             Element.paragraph []
                 [ Element.text analysis.text_summary
