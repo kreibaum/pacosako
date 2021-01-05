@@ -278,9 +278,7 @@ updateTryRegrabLiftedPiece : BoardMousePosition -> Model -> ( Model, Cmd Msg )
 updateTryRegrabLiftedPiece pos model =
     let
         liftedPieces =
-            model.board.liftedPieces
-                |> List.head
-                |> Maybe.map (\p -> p.position)
+            Sako.liftedAtTile model.board
     in
     if liftedPieces == pos.tile && pos.tile /= Nothing then
         ( { model
@@ -312,8 +310,28 @@ updateMouseUp pos model =
                         ( Animation.milliseconds 200, PositionView.renderStatic model.rotation model.board )
                         model.timeline
               }
-            , Cmd.none
+            , if isQuickRollbackSituation pos model then
+                sendRollback model
+
+              else
+                Cmd.none
             )
+
+
+sendRollback : Model -> Cmd msg
+sendRollback model =
+    Api.Websocket.send (Api.Websocket.Rollback (Maybe.withDefault "" model.subscription))
+
+
+{-| Determines if the current board state allows a quick rollback. This happens
+in all situations where the player would not loose much process. (Chains mostly.)
+-}
+isQuickRollbackSituation : BoardMousePosition -> Model -> Bool
+isQuickRollbackSituation pos model =
+    not (Sako.isChaining model.board)
+        && not (Sako.isPromoting model.board)
+        && pos.tile
+        /= Sako.liftedAtTile model.board
 
 
 updateMouseMove : BoardMousePosition -> Model -> ( Model, Cmd Msg )

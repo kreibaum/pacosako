@@ -21,7 +21,10 @@ module Sako exposing
     , importExchangeNotationList
     , initialPosition
     , isAt
+    , isChaining
     , isColor
+    , isPromoting
+    , liftedAtTile
     , tileToIdentifier
     , toStringType
     )
@@ -339,6 +342,44 @@ decodeVictoryState =
         , Decode.map PacoVictory
             (Decode.field "PacoVictory" decodeColor)
         ]
+
+
+{-| If there is currently a lifted piece (or two), then this returns the tile.
+-}
+liftedAtTile : Position -> Maybe Tile
+liftedAtTile position =
+    position.liftedPieces
+        |> List.head
+        |> Maybe.map .position
+
+
+{-| Check if there currently is an active chain.
+-}
+isChaining : Position -> Bool
+isChaining position =
+    case position.liftedPieces of
+        [ lifted ] ->
+            List.any (isAt lifted.position) position.pieces
+
+        _ ->
+            False
+
+
+{-| Check if there currently is a promotion happening.
+-}
+isPromoting : Position -> Bool
+isPromoting position =
+    isWhitePromoting position || isBlackPromoting position
+
+
+isWhitePromoting : Position -> Bool
+isWhitePromoting position =
+    List.any (\p -> p.pieceType == Pawn && p.color == White && getY p.position == 7) position.pieces
+
+
+isBlackPromoting : Position -> Bool
+isBlackPromoting position =
+    List.any (\p -> p.pieceType == Pawn && p.color == Black && getY p.position == 0) position.pieces
 
 
 {-| Validates and executes an action. This does not validate that the position
