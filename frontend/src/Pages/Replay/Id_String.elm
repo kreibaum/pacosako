@@ -11,10 +11,11 @@ import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Element exposing (Element, alignTop, centerX, fill, fillPortion, height, padding, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Font as Font
 import Element.Input as Input
 import FontAwesome.Solid as Solid
 import Http
-import I18n.Strings exposing (Language)
+import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import List.Extra as List
 import Pages.NotFound
 import Pieces
@@ -23,6 +24,7 @@ import RemoteData exposing (WebData)
 import Sako exposing (Action, Color(..))
 import Shared
 import Spa.Document exposing (Document)
+import Spa.Generated.Route as Route
 import Spa.Page as Page exposing (Page)
 import Spa.Url as Url exposing (Url)
 import Svg.Custom as Svg exposing (BoardRotation(..))
@@ -487,8 +489,8 @@ sidebar : Model -> Replay -> Element Msg
 sidebar model replay =
     Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
         [ Components.gameIdBadgeBig model.key
-        , Element.text "[timer info]"
         , arrowButtons
+        , editorLink model
         , actionList model replay
         , CastingDeco.configView
             model.lang
@@ -510,6 +512,14 @@ arrowButtons =
         , Components.iconButton "Next move." Solid.arrowRight (Just NextMove)
         , Element.text "(or use arrow keys)"
         ]
+
+
+editorLink : Model -> Element Msg
+editorLink model =
+    Element.link [ Font.underline, Font.color (Element.rgb 0 0 1) ]
+        { url = Route.toString Route.Editor ++ "?game=" ++ model.key ++ "&action=" ++ String.fromInt model.actionCount
+        , label = Element.text (t model.lang i18nShowInEditor)
+        }
 
 
 {-| The interactive list of all action that happened in the game. You can click
@@ -695,3 +705,18 @@ isLift action =
 
         _ ->
             False
+
+
+
+--------------------------------------------------------------------------------
+-- I18n Strings ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+i18nShowInEditor : I18nToken String
+i18nShowInEditor =
+    I18nToken
+        { english = "Show in editor"
+        , dutch = "Weergeven in editor"
+        , esperanto = "Montru en desegnilo"
+        }

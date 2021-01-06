@@ -1,13 +1,14 @@
 module Pages.Editor exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
-import Api.Backend
+import Api.Backend exposing (Replay)
 import Api.Ports
 import Arrow exposing (Arrow)
 import Browser.Events
 import CastingDeco
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
+import Dict exposing (Dict)
 import Element exposing (Element, centerX, fill, height, padding, spacing, width)
 import Element.Background as Background
 import Element.Font as Font
@@ -16,8 +17,9 @@ import File.Download
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
+import Spa.Generated.Route as Route
 import Http
-import I18n.Strings exposing (Language)
+import I18n.Strings as I18n exposing (I18nToken(..), Language, t)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Pieces
@@ -56,7 +58,8 @@ type alias Params =
 
 
 type alias Model =
-    { saveState : SaveState
+    { query : QueryParameter
+    , saveState : SaveState
     , game : Pivot Sako.Position
     , preview : Maybe Sako.Position
     , timeline : Timeline OpaqueRenderData
@@ -96,14 +99,36 @@ encodeDownloadRequest record =
         ]
 
 
+{-| This type hold possible query parameter that the editor page can use.
+-}
+type QueryParameter
+    = QueryEmpty
+    | QueryError
+    | QueryReplay { gameKey : String, actionCount : Int }
+
+
+decodeQueryParameter : Dict String String -> QueryParameter
+decodeQueryParameter dict =
+    if Dict.isEmpty dict then
+        QueryEmpty
+
+    else
+        Maybe.map2 (\g a -> QueryReplay { gameKey = g, actionCount = a })
+            (Dict.get "game" dict)
+            (Dict.get "action" dict |> Maybe.andThen String.toInt)
+            |> Maybe.withDefault QueryError
+
+
 init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { params } =
-    ( initialEditor shared, Cmd.none )
+init shared { query } =
+    initialEditor shared (decodeQueryParameter query)
+        |> loadInitialData
 
 
-initialEditor : Shared.Model -> Model
-initialEditor shared =
-    { saveState = SaveNotRequired
+initialEditor : Shared.Model -> QueryParameter -> Model
+initialEditor shared query =
+    { query = query
+    , saveState = SaveNotRequired
     , game = P.singleton Sako.initialPosition
     , preview = Nothing
     , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
@@ -119,6 +144,24 @@ initialEditor shared =
     , colorScheme = Pieces.defaultColorScheme
     , lang = shared.language
     }
+
+
+{-| Given the initial state of the model, this function may trigger side effects
+and modify the model.
+
+This is used to conditionally load data from the server.
+
+-}
+loadInitialData : Model -> ( Model, Cmd Msg )
+loadInitialData model =
+    ( model
+    , case model.query of
+        QueryReplay { gameKey, actionCount } ->
+            Api.Backend.getReplay gameKey ReplayLoadingError (ReplayLoaded actionCount)
+
+        _ ->
+            Cmd.none
+    )
 
 
 
@@ -155,6 +198,8 @@ type Msg
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
     | HttpError Http.Error
+    | ReplayLoadingError Http.Error
+    | ReplayLoaded Int Replay
 
 
 save : Model -> Shared.Model -> Shared.Model
@@ -164,7 +209,7 @@ save model shared =
 
 load : Shared.Model -> Model -> ( Model, Cmd Msg )
 load shared model =
-    ( model, Cmd.none )
+    ( { model | lang = shared.language }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -372,6 +417,40 @@ update msg model =
 
         HttpError error ->
             ( model, Api.Ports.logToConsole (Api.Backend.describeError error) )
+
+        ReplayLoadingError error ->
+            ( { model | query = QueryError }, Api.Ports.logToConsole (Api.Backend.describeError error) )
+
+        ReplayLoaded actionCount replay ->
+            replayLoaded actionCount replay model
+
+
+{-| When a replay is loaded, play it until the given action count and than show
+the resulting board in the editor.
+-}
+replayLoaded : Int -> Replay -> Model -> ( Model, Cmd Msg )
+replayLoaded actionCount replay model =
+    let
+        actions =
+            List.take actionCount replay.actions |> List.map (\( a, _ ) -> a)
+
+        maybeBoard =
+            Sako.doActionsList actions Sako.initialPosition
+    in
+    case maybeBoard of
+        Just board ->
+            ( { model
+                | game = P.singleton board
+                , timeline =
+                    Animation.queue
+                        ( animationSpeed, PositionView.renderStatic WhiteBottom board )
+                        model.timeline
+              }
+            , Cmd.none
+            )
+
+        Nothing ->
+            ( { model | query = QueryError }, Cmd.none )
 
 
 {-| Updates the save state and discards the analysis report.
@@ -899,9 +978,23 @@ view : Model -> Document Msg
 view model =
     { title = "Design Puzzles - pacoplay.com"
     , body =
-        [ editorUi model
+        [ maybeEditorUi model
         ]
     }
+
+{-| Check if the query parameter are actually an a good state, otherwise show
+error page.
+
+-}
+maybeEditorUi : Model -> Element Msg
+maybeEditorUi model =
+    case model.query of
+        QueryError ->
+            Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
+                { url = Route.toString Route.Editor, label = Element.text (t model.lang i18nPageNotFound) }
+
+        _ ->
+            editorUi model
 
 
 editorUi : Model -> Element Msg
@@ -1390,3 +1483,16 @@ type alias AnalysisReport =
 
     -- TODO: search_result: SakoSearchResult,
     }
+
+--------------------------------------------------------------------------------
+-- I18n Strings ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+i18nPageNotFound : I18nToken String
+i18nPageNotFound =
+    I18nToken
+        { english = "Page not found. Open empty editor."
+        , dutch = "Pagina niet gevonden. Open lege editor."
+        , esperanto = "Paĝo ne trovita. Malfermu malplenan desegnilon."
+        }
