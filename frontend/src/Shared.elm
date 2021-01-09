@@ -185,7 +185,9 @@ pageHeader model additionalHeader =
         , pageHeaderButton Route.Tutorial (t model.language i18nTutorial)
         , additionalHeader
         , languageChoice
-        , loginHeaderInfo model model.user
+
+        -- login header is disabled, until we get proper registration (oauth)
+        --, loginHeaderInfo model model.user
         ]
 
 
