@@ -340,7 +340,7 @@ getReplay key =
 
 type alias Replay =
     { actions : List ( Sako.Action, Posix )
-    , timer : Timer.Timer
+    , timer : Maybe Timer.Timer
     , victoryState : Sako.VictoryState
     }
 
@@ -349,7 +349,7 @@ decodeReplay : Decoder Replay
 decodeReplay =
     Decode.map3 Replay
         (Decode.field "actions" (Decode.list decodeStampedAction))
-        (Decode.field "timer" Timer.decodeTimer)
+        (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
         (Decode.field "victory_state" Sako.decodeVictoryState)
 
 
