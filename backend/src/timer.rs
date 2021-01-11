@@ -19,6 +19,12 @@ pub struct TimerConfig {
         deserialize_with = "deserialize_seconds"
     )]
     pub time_budget_black: Duration,
+    #[serde(default)]
+    #[serde(
+        serialize_with = "serialize_seconds_optional",
+        deserialize_with = "deserialize_seconds_optional"
+    )]
+    pub increment: Option<Duration>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -45,12 +51,35 @@ fn serialize_seconds<S: serde::Serializer>(duration: &Duration, s: S) -> Result<
     s.serialize_f32(duration.num_milliseconds() as f32 / 1000f32)
 }
 
+/// Like serialize_seconds, but optional
+fn serialize_seconds_optional<S: serde::Serializer>(
+    duration: &Option<Duration>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    match duration {
+        Some(duration) => s.serialize_f32(duration.num_milliseconds() as f32 / 1000f32),
+        None => s.serialize_none(),
+    }
+}
+
 /// There is no default implementation for serde::Serialize for Duration, so we
 /// have to provide it ourself. This also gives us the flexibility to decide
 /// how much precision we expose to the client.
 fn deserialize_seconds<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Duration, D::Error> {
     let seconds: f32 = serde::de::Deserialize::deserialize(d)?;
     Ok(Duration::milliseconds((1000.0 * seconds) as i64))
+}
+
+/// Like deserialize_seconds, but optional
+fn deserialize_seconds_optional<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<Duration>, D::Error> {
+    let seconds: Result<f32, D::Error> = serde::de::Deserialize::deserialize(d);
+    if let Ok(seconds) = seconds {
+        Ok(Some(Duration::milliseconds((1000.0 * seconds) as i64)))
+    } else {
+        Ok(None)
+    }
 }
 
 impl Timer {
@@ -93,6 +122,23 @@ impl Timer {
     /// Stops the timer
     pub fn stop(&mut self) {
         self.timer_state = TimerState::Stopped
+    }
+
+    /// Increases the given players budget by the increment configured in the
+    /// timer. This can not be directly included in the use time, because a
+    /// player may use time multiple timer in a single turn. (Each action calls
+    /// use time.)
+    pub fn increment(&mut self, player: PlayerColor) {
+        if let Some(increment) = self.config.increment {
+            match player {
+                PlayerColor::White => {
+                    self.time_left_white = self.time_left_white + increment;
+                }
+                PlayerColor::Black => {
+                    self.time_left_black = self.time_left_black + increment;
+                }
+            }
+        }
     }
 
     pub fn get_state(&self) -> TimerState {
@@ -147,6 +193,7 @@ mod test {
         TimerConfig {
             time_budget_white: Duration::seconds(5 * 60),
             time_budget_black: Duration::seconds(4 * 60),
+            increment: None,
         }
     }
 
@@ -219,5 +266,29 @@ mod test {
         assert_eq!(timer.time_left_white, Duration::seconds(277));
         assert_eq!(timer.time_left_black, Duration::seconds(-267));
         assert_eq!(timer.get_state(), TimerState::Timeout(Black));
+    }
+
+    #[test]
+    fn test_use_increment() {
+        use PlayerColor::*;
+        let config = TimerConfig {
+            time_budget_white: Duration::seconds(5 * 60),
+            time_budget_black: Duration::seconds(5 * 60),
+            increment: Some(Duration::seconds(5)),
+        };
+
+        let mut timer: Timer = config.into();
+
+        let now = Utc::now();
+        timer.start(now);
+
+        // Use 15 seconds from the white player, and check that there is a 5
+        // 5 second increment we get back.
+        let now = now + Duration::seconds(15);
+        timer.use_time(White, now);
+        timer.increment(White);
+        assert_eq!(timer.time_left_white, Duration::seconds(290));
+        assert_eq!(timer.time_left_black, Duration::seconds(300));
+        assert_eq!(timer.get_state(), TimerState::Running);
     }
 }

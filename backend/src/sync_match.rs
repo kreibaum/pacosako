@@ -480,12 +480,14 @@ mod test {
         game.set_timer(TimerConfig {
             time_budget_white: Duration::seconds(100),
             time_budget_black: Duration::seconds(100),
+            increment: None,
         })?;
 
         // This should be allowed. (Assert via ?)
         game.set_timer(TimerConfig {
             time_budget_white: Duration::seconds(200),
             time_budget_black: Duration::seconds(150),
+            increment: None,
         })?;
 
         // Start the game, then changing should no longer be allowed.
@@ -493,6 +495,7 @@ mod test {
         let match_state = game.set_timer(TimerConfig {
             time_budget_white: Duration::seconds(100),
             time_budget_black: Duration::seconds(100),
+            increment: None,
         });
         assert!(match_state.is_err());
 
