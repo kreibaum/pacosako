@@ -337,6 +337,14 @@ impl SyncronizedMatch {
             timestamp: Utc::now(),
         });
 
+        // Check if controll changed. That would indicate that we need to add a
+        // timer increment for the player that just finished their turn.
+        if board.controlling_player() != controlling_player {
+            if let Some(ref mut timer) = &mut self.timer {
+                timer.increment(controlling_player);
+            }
+        }
+
         if board.victory_state().is_over() {
             if let Some(timer) = &mut self.timer {
                 timer.stop()
