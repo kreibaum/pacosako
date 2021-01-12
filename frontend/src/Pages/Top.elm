@@ -205,7 +205,13 @@ createMatch model =
     let
         timerConfig =
             if model.timeLimit > 0 then
-                Just (Timer.secondsConfig { white = model.timeLimit, black = model.timeLimit })
+                Just
+                    (Timer.secondsConfig
+                        { white = model.timeLimit
+                        , black = model.timeLimit
+                        , increment = Nothing
+                        }
+                    )
 
             else
                 Nothing

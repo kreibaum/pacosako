@@ -13,6 +13,7 @@ import CastingDeco
 import Components
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
+import Duration
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -691,17 +692,22 @@ justPlayTimerSvg now model timer =
     let
         viewData =
             Timer.render model.currentState.controllingPlayer now timer
+
+        increment =
+            Maybe.map (Duration.inSeconds >> round) timer.config.increment
     in
     Svg.g []
         [ timerTagSvg
             { caption = timeLabel viewData.secondsLeftWhite
             , player = Sako.White
             , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.White)
+            , increment = increment
             }
         , timerTagSvg
             { caption = timeLabel viewData.secondsLeftBlack
             , player = Sako.Black
             , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.Black)
+            , increment = increment
             }
         ]
 
@@ -732,6 +738,7 @@ timerTagSvg :
     { caption : String
     , player : Sako.Color
     , at : Svg.Coord
+    , increment : Maybe Int
     }
     -> Svg msg
 timerTagSvg data =
@@ -743,10 +750,18 @@ timerTagSvg data =
 
                 Sako.Black ->
                     ( "#333", "#eee" )
+
+        fullCaption =
+            case data.increment of
+                Just seconds ->
+                    data.caption ++ " +" ++ String.fromInt seconds
+
+                Nothing ->
+                    data.caption
     in
     Svg.g [ Svg.translate data.at ]
-        [ Svg.rect [ SvgA.width "200", SvgA.height "50", SvgA.fill backgroundColor ] []
-        , timerTextSvg (SvgA.fill textColor) data.caption
+        [ Svg.rect [ SvgA.width "250", SvgA.height "50", SvgA.fill backgroundColor ] []
+        , timerTextSvg (SvgA.fill textColor) fullCaption
         ]
 
 
@@ -754,7 +769,7 @@ timerTextSvg : Svg.Attribute msg -> String -> Svg msg
 timerTextSvg fill caption =
     Svg.text_
         [ SvgA.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
-        , SvgA.x "100"
+        , SvgA.x "125"
         , SvgA.y "30"
         , fill
         ]
@@ -770,7 +785,7 @@ playerLabelSvg name yPos =
         Just
             (Svg.text_
                 [ SvgA.style "text-anchor:left;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
-                , SvgA.x "250"
+                , SvgA.x "300"
                 , SvgA.y (String.fromInt yPos)
                 , SvgA.fill "#595"
                 ]

@@ -53,24 +53,27 @@ encodeSeconds duration =
 type alias TimerConfig =
     { timeBudgetWhite : Duration
     , timeBudgetBlack : Duration
+    , increment : Maybe Duration
     }
 
 
 {-| A simple way to build a timer configuration object without having to deal
 with the Duration units.
 -}
-secondsConfig : { white : Int, black : Int } -> TimerConfig
+secondsConfig : { white : Int, black : Int, increment : Maybe Int } -> TimerConfig
 secondsConfig data =
     { timeBudgetWhite = Duration.seconds (toFloat data.white)
     , timeBudgetBlack = Duration.seconds (toFloat data.black)
+    , increment = Maybe.map (Duration.seconds << toFloat) data.increment
     }
 
 
 decodeConfig : Decoder TimerConfig
 decodeConfig =
-    Decode.map2 TimerConfig
+    Decode.map3 TimerConfig
         (Decode.field "time_budget_white" decodeSeconds)
         (Decode.field "time_budget_black" decodeSeconds)
+        (Decode.field "increment" (Decode.maybe decodeSeconds))
 
 
 encodeConfig : TimerConfig -> Value
@@ -78,6 +81,10 @@ encodeConfig config =
     Encode.object
         [ ( "time_budget_white", encodeSeconds config.timeBudgetWhite )
         , ( "time_budget_black", encodeSeconds config.timeBudgetBlack )
+        , ( "increment"
+          , Maybe.map encodeSeconds config.increment
+                |> Maybe.withDefault Encode.null
+          )
         ]
 
 
