@@ -98,8 +98,10 @@ init : Shared.Model -> ( Model, Cmd Msg )
 init shared =
     ( { rawMatchId = ""
       , matchConnectionStatus = NoMatchConnection
-      , timeLimit = 300
-      , rawTimeLimit = "300"
+      , speedSetting = Blitz
+      , rawMinutes = ""
+      , rawSeconds = ""
+      , rawIncrement = ""
       , recentGames = RemoteData.Loading
       , key = shared.key
       , login = shared.user
@@ -114,8 +116,10 @@ type Msg
     | JoinMatch
     | CreateMatch
     | MatchCreatedOnServer String
-    | SetTimeLimit Int
-    | SetRawTimeLimit String
+    | SetSpeedSetting SpeedSetting
+    | SetRawMinutes String
+    | SetRawSeconds String
+    | SetRawIncrement String
     | RefreshRecentGames
     | GotRecentGames (List CurrentMatchState)
     | ErrorRecentGames Http.Error
@@ -125,13 +129,94 @@ type Msg
 type alias Model =
     { rawMatchId : String
     , matchConnectionStatus : MatchConnectionStatus
-    , timeLimit : Int
-    , rawTimeLimit : String
+    , speedSetting : SpeedSetting
+    , rawMinutes : String
+    , rawSeconds : String
+    , rawIncrement : String
     , recentGames : WebData (List CurrentMatchState)
     , key : Browser.Navigation.Key
     , language : Language
     , login : Maybe User
     }
+
+
+{-| Enum that encapsulates all speed presets as well as the custom speed setting.
+-}
+type SpeedSetting
+    = Lightspeed
+    | Blitz
+    | Rapid
+    | Relaxed
+    | Custom { minutes : Int, seconds : Int, increment : Int }
+    | NoTimer
+
+
+type alias CustomSpeedSetting =
+    { minutes : Int, seconds : Int, increment : Int }
+
+
+defaultCustom : CustomSpeedSetting
+defaultCustom =
+    { minutes = 4, seconds = 0, increment = 5 }
+
+
+isCustom : SpeedSetting -> Bool
+isCustom selection =
+    case selection of
+        Custom _ ->
+            True
+
+        _ ->
+            False
+
+
+{-| When switching over to "Custom", we need to transform the current selection
+into values. We also need this to show the player what they have selected.
+-}
+intoCustomSpeedSetting : SpeedSetting -> Maybe CustomSpeedSetting
+intoCustomSpeedSetting selection =
+    case selection of
+        Lightspeed ->
+            Just <| CustomSpeedSetting 1 0 5
+
+        Blitz ->
+            Just <| CustomSpeedSetting 4 0 5
+
+        Rapid ->
+            Just <| CustomSpeedSetting 10 0 10
+
+        Relaxed ->
+            Just <| CustomSpeedSetting 20 0 10
+
+        Custom { minutes, seconds, increment } ->
+            Just <| CustomSpeedSetting minutes seconds increment
+
+        NoTimer ->
+            Nothing
+
+
+buildTimerConfig : SpeedSetting -> Maybe Timer.TimerConfig
+buildTimerConfig selection =
+    let
+        minSecSum min sec =
+            60 * min + sec
+    in
+    case intoCustomSpeedSetting selection of
+        Just { minutes, seconds, increment } ->
+            Just <|
+                Timer.secondsConfig
+                    { white = minSecSum minutes seconds
+                    , black = minSecSum minutes seconds
+                    , increment =
+                        if increment > 0 then
+                            Just increment
+
+                        else
+                            Maybe.Nothing
+                    }
+
+        Nothing ->
+            Nothing
 
 
 type MatchConnectionStatus
@@ -154,11 +239,17 @@ update msg model =
         MatchCreatedOnServer newId ->
             joinMatch { model | rawMatchId = newId }
 
-        SetTimeLimit newLimit ->
-            ( { model | timeLimit = newLimit, rawTimeLimit = String.fromInt newLimit }, Cmd.none )
+        SetSpeedSetting newSetting ->
+            ( { model | speedSetting = newSetting } |> setRawLimit, Cmd.none )
 
-        SetRawTimeLimit newRawLimit ->
-            ( { model | rawTimeLimit = newRawLimit } |> tryParseRawLimit, Cmd.none )
+        SetRawMinutes newRawMinutes ->
+            ( { model | rawMinutes = newRawMinutes } |> tryParseRawLimit, Cmd.none )
+
+        SetRawSeconds newRawSeconds ->
+            ( { model | rawSeconds = newRawSeconds } |> tryParseRawLimit, Cmd.none )
+
+        SetRawIncrement newRawIncrement ->
+            ( { model | rawIncrement = newRawIncrement } |> tryParseRawLimit, Cmd.none )
 
         GotRecentGames games ->
             ( { model | recentGames = RemoteData.Success (List.reverse games) }, Cmd.none )
@@ -183,12 +274,32 @@ parsing is successfull.
 -}
 tryParseRawLimit : Model -> Model
 tryParseRawLimit model =
-    case String.toInt model.rawTimeLimit of
-        Just newLimit ->
-            { model | timeLimit = newLimit }
+    case model.speedSetting of
+        Custom { minutes, seconds, increment } ->
+            { model
+                | speedSetting =
+                    Custom
+                        { minutes = String.toInt model.rawMinutes |> Maybe.withDefault minutes
+                        , seconds = String.toInt model.rawSeconds |> Maybe.withDefault seconds
+                        , increment = String.toInt model.rawIncrement |> Maybe.withDefault increment
+                        }
+            }
 
-        Nothing ->
+        _ ->
             model
+
+
+setRawLimit : Model -> Model
+setRawLimit model =
+    let
+        data =
+            intoCustomSpeedSetting model.speedSetting |> Maybe.withDefault defaultCustom
+    in
+    { model
+        | rawMinutes = String.fromInt data.minutes
+        , rawSeconds = String.fromInt data.seconds
+        , rawIncrement = String.fromInt data.increment
+    }
 
 
 joinMatch : Model -> ( Model, Cmd Msg )
@@ -202,21 +313,7 @@ joinMatch model =
 -}
 createMatch : Model -> ( Model, Cmd Msg )
 createMatch model =
-    let
-        timerConfig =
-            if model.timeLimit > 0 then
-                Just
-                    (Timer.secondsConfig
-                        { white = model.timeLimit
-                        , black = model.timeLimit
-                        , increment = Nothing
-                        }
-                    )
-
-            else
-                Nothing
-    in
-    ( model, Api.Backend.postMatchRequest timerConfig HttpError MatchCreatedOnServer )
+    ( model, Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting) HttpError MatchCreatedOnServer )
 
 
 
@@ -260,51 +357,50 @@ setupOnlineMatchUi model =
             [ speedButton
                 { buttonIcon = Solid.spaceShuttle
                 , caption = t model.language i18nLightspeed
-                , event = SetTimeLimit 180
-                , selected = model.timeLimit == 180
+                , event = SetSpeedSetting Lightspeed
+                , selected = model.speedSetting == Lightspeed
                 }
             , speedButton
                 { buttonIcon = Solid.bolt
                 , caption = t model.language i18nBlitz
-                , event = SetTimeLimit 300
-                , selected = model.timeLimit == 300
+                , event = SetSpeedSetting Blitz
+                , selected = model.speedSetting == Blitz
                 }
             ]
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.frog
                 , caption = t model.language i18nRapid
-                , event = SetTimeLimit 600
-                , selected = model.timeLimit == 600
+                , event = SetSpeedSetting Rapid
+                , selected = model.speedSetting == Rapid
                 }
             , speedButton
                 { buttonIcon = Solid.couch
                 , caption = t model.language i18nRelaxed
-                , event = SetTimeLimit 1200
-                , selected = model.timeLimit == 1200
+                , event = SetSpeedSetting Relaxed
+                , selected = model.speedSetting == Relaxed
                 }
             ]
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.wrench
                 , caption = t model.language i18nCustom
-                , event = SetTimeLimit model.timeLimit
-                , selected = List.notMember model.timeLimit [ 0, 180, 300, 600, 1200 ]
+                , event =
+                    SetSpeedSetting
+                        (intoCustomSpeedSetting model.speedSetting
+                            |> Maybe.withDefault defaultCustom
+                            |> Custom
+                        )
+                , selected = isCustom model.speedSetting
                 }
             , speedButton
                 { buttonIcon = Solid.dove
                 , caption = t model.language i18nNoTimer
-                , event = SetTimeLimit 0
-                , selected = model.timeLimit == 0
+                , event = SetSpeedSetting NoTimer
+                , selected = model.speedSetting == NoTimer
                 }
             ]
-        , Input.text []
-            { onChange = SetRawTimeLimit
-            , text = model.rawTimeLimit
-            , placeholder = Nothing
-            , label = Input.labelLeft [ centerY ] (Element.text (t model.language i18nTimeInSeconds))
-            }
-        , timeLimitLabel model model.timeLimit
+        , timeLimitInputLabel model
         , bigRoundedButton (Element.rgb255 200 210 200)
             (Just CreateMatch)
             [ Element.text (t model.language i18nCreateMatch) ]
@@ -327,6 +423,55 @@ speedButtonColor selected =
 
     else
         Element.rgb255 200 210 200
+
+
+timeLimitInputLabel : Model -> Element Msg
+timeLimitInputLabel model =
+    case model.speedSetting of
+        Custom _ ->
+            timeLimitInputCustom model
+
+        _ ->
+            timeLimitLabelOnly model
+
+
+timeLimitLabelOnly : Model -> Element Msg
+timeLimitLabelOnly model =
+    let
+        ( m, s, i ) =
+            t model.language i18nChoosenTimeLimit
+    in
+    case intoCustomSpeedSetting model.speedSetting of
+        Just { minutes, seconds, increment } ->
+            Element.text <|
+                String.fromInt minutes
+                    ++ m
+                    ++ String.fromInt seconds
+                    ++ s
+                    ++ String.fromInt increment
+                    ++ i
+
+        Nothing ->
+            Element.text (t model.language i18nPlayWithoutTimeLimit)
+
+
+timeLimitInputCustom : Model -> Element Msg
+timeLimitInputCustom model =
+    let
+        ( m, s, i ) =
+            t model.language i18nChoosenTimeLimit
+    in
+    Element.wrappedRow []
+        [ Input.text []
+            { onChange = SetRawMinutes, text = model.rawMinutes, placeholder = Nothing, label = Input.labelHidden "Minutes" }
+        , Element.text m
+        , Input.text []
+            { onChange = SetRawSeconds, text = model.rawSeconds, placeholder = Nothing, label = Input.labelHidden "Seconds" }
+        , Element.text s
+        , Input.text []
+            { onChange = SetRawIncrement, text = model.rawIncrement, placeholder = Nothing, label = Input.labelHidden "Increment" }
+        , Element.text i
+        ]
 
 
 {-| A label that translates the amount of seconds into minutes and seconds that
@@ -671,4 +816,13 @@ i18nMatch =
         { english = "Match"
         , dutch = "Partij"
         , esperanto = "Matĉo"
+        }
+
+
+i18nChoosenTimeLimit : I18nToken ( String, String, String )
+i18nChoosenTimeLimit =
+    I18nToken
+        { english = ( " minutes, ", " seconds with ", " seconds increment." )
+        , dutch = ( " minuten, ", " seconden mit ", " seconden toename." )
+        , esperanto = ( " minutoj, ", " sekundoj kun ", " sekundoj aldonata." )
         }
