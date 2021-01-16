@@ -16,6 +16,7 @@ module Sako exposing
     , emptyPosition
     , encodeAction
     , encodePosition
+    , enumeratePieceIdentity
     , exportExchangeNotation
     , importExchangeNotation
     , importExchangeNotationList
@@ -25,6 +26,7 @@ module Sako exposing
     , isColor
     , isPromoting
     , liftedAtTile
+    , tileFlat
     , tileToIdentifier
     , toStringType
     )
