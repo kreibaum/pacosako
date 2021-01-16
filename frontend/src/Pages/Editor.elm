@@ -13,15 +13,16 @@ import Element exposing (Element, centerX, fill, height, padding, spacing, width
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
+import Fen
 import File.Download
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
-import Spa.Generated.Route as Route
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language, t)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
+import Maybe.Extra as Maybe
 import Pieces
 import Pivot as P exposing (Pivot)
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
@@ -30,6 +31,7 @@ import Sako exposing (Piece, Tile(..))
 import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
 import Shared
 import Spa.Document exposing (Document)
+import Spa.Generated.Route as Route
 import Spa.Page as Page exposing (Page)
 import Spa.Url as Url exposing (Url)
 import Svg.Attributes as SvgA
@@ -105,18 +107,46 @@ type QueryParameter
     = QueryEmpty
     | QueryError
     | QueryReplay { gameKey : String, actionCount : Int }
+    | QueryFen { fen : Sako.Position }
 
 
 decodeQueryParameter : Dict String String -> QueryParameter
 decodeQueryParameter dict =
+    decodeQueryEmpty dict
+        |> Maybe.orElse (decodeQueryReplay dict)
+        |> Maybe.orElse (decodeQueryFen dict)
+        |> Maybe.withDefault QueryError
+
+
+decodeQueryReplay : Dict String String -> Maybe QueryParameter
+decodeQueryReplay dict =
+    Maybe.map2 (\g a -> QueryReplay { gameKey = g, actionCount = a })
+        (Dict.get "game" dict)
+        (Dict.get "action" dict |> Maybe.andThen String.toInt)
+
+
+decodeQueryFen : Dict String String -> Maybe QueryParameter
+decodeQueryFen dict =
+    case Dict.get "fen" dict of
+        Just fen ->
+            case Fen.parseFen fen of
+                Just position ->
+                    Just <| QueryFen { fen = position }
+
+                Nothing ->
+                    Just QueryError
+
+        Nothing ->
+            Nothing
+
+
+decodeQueryEmpty : Dict String String -> Maybe QueryParameter
+decodeQueryEmpty dict =
     if Dict.isEmpty dict then
-        QueryEmpty
+        Just QueryEmpty
 
     else
-        Maybe.map2 (\g a -> QueryReplay { gameKey = g, actionCount = a })
-            (Dict.get "game" dict)
-            (Dict.get "action" dict |> Maybe.andThen String.toInt)
-            |> Maybe.withDefault QueryError
+        Nothing
 
 
 init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
@@ -154,14 +184,17 @@ This is used to conditionally load data from the server.
 -}
 loadInitialData : Model -> ( Model, Cmd Msg )
 loadInitialData model =
-    ( model
-    , case model.query of
+    case model.query of
         QueryReplay { gameKey, actionCount } ->
-            Api.Backend.getReplay gameKey ReplayLoadingError (ReplayLoaded actionCount)
+            ( model
+            , Api.Backend.getReplay gameKey ReplayLoadingError (ReplayLoaded actionCount)
+            )
+
+        QueryFen { fen } ->
+            ( setTimelineToSingleton fen model, Cmd.none )
 
         _ ->
-            Cmd.none
-    )
+            ( model, Cmd.none )
 
 
 
@@ -439,18 +472,24 @@ replayLoaded actionCount replay model =
     in
     case maybeBoard of
         Just board ->
-            ( { model
-                | game = P.singleton board
-                , timeline =
-                    Animation.queue
-                        ( animationSpeed, PositionView.renderStatic WhiteBottom board )
-                        model.timeline
-              }
-            , Cmd.none
-            )
+            ( setTimelineToSingleton board model, Cmd.none )
 
         Nothing ->
             ( { model | query = QueryError }, Cmd.none )
+
+
+{-| Use this method when opening the page to replace the inital state with a
+different state. This will remove all the history that is currently stored.
+-}
+setTimelineToSingleton : Sako.Position -> Model -> Model
+setTimelineToSingleton position model =
+    { model
+        | game = P.singleton position
+        , timeline =
+            Animation.queue
+                ( animationSpeed, PositionView.renderStatic WhiteBottom position )
+                model.timeline
+    }
 
 
 {-| Updates the save state and discards the analysis report.
@@ -982,9 +1021,9 @@ view model =
         ]
     }
 
+
 {-| Check if the query parameter are actually an a good state, otherwise show
 error page.
-
 -}
 maybeEditorUi : Model -> Element Msg
 maybeEditorUi model =
@@ -1483,6 +1522,8 @@ type alias AnalysisReport =
 
     -- TODO: search_result: SakoSearchResult,
     }
+
+
 
 --------------------------------------------------------------------------------
 -- I18n Strings ----------------------------------------------------------------
