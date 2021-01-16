@@ -187,6 +187,7 @@ function download(canvas, filename) {
  * 
  * - Registering to the elm port
  * - Forwarding messages that were send before the websocket could be created
+ * - Trying multiple ways to connect.
  * - Eventually, I'll want some reconnection behaviour in here as well.
  */
 class WebsocketWrapper {
@@ -204,28 +205,76 @@ class WebsocketWrapper {
     }
 
     /**
-     * Establish websocket connection.
+     * Tries to connect to a websocket and returns it after the connection has
+     * been opened. Resolves to undefined otherwise.
+     * @param websocket_url 
      */
-    private async connect() {
-        let address = await this.getWebsocketAddress();
-        console.log("Websocket: Connecting...")
-        this.ws = new WebSocket(address);
-        this.ws.onopen = ev => this.onopen(ev)
-        this.ws.onmessage = ev => this.onmessage(ev)
+    private try_connect(websocket_url: string): Promise<WebSocket | undefined> {
+        console.log(`Attempting connection to: ${websocket_url}.`)
+        return new Promise((resolve, reject) => {
+            let maybe_ws = new WebSocket(websocket_url);
+            maybe_ws.onerror = ev => resolve(undefined)
+            maybe_ws.onopen = ev => resolve(maybe_ws)
+            maybe_ws.onmessage = this.onmessage
+        })
     }
 
-    private async getWebsocketAddress(): Promise<string> {
+    /**
+     * This tries to connect to wss://pacoplay.com/websocket or the http version
+     * of it. This only works if the proxy is set up correctly.
+     */
+    private direct_connection(): Promise<WebSocket | undefined> {
+        let protocol = window.location.protocol === "https:" ? "wss" : "ws"
+        let hostname = window.location.hostname
+        let websocket_url = `${protocol}://${hostname}/websocket`
+        return this.try_connect(websocket_url)
+    }
+
+    /**
+     * Check if we are running on gitpod and then tries to connect there.
+     */
+    private gitpod_connection(): Promise<WebSocket | undefined> {
         // Check if we are running inside gitpod
         let re = new RegExp("8000-([a-z0-9-.]*\.gitpod\.io)");
         let match = re.exec(window.location.hostname);
         if (match !== null) {
-            return `wss://3010-${match[1]}`;
+            return this.try_connect(`wss://3010-${match[1]}`)
+        } else {
+            return Promise.resolve(undefined)
         }
-        console.log("Websocket: Getting port...")
+    }
+
+    /**
+     * This fallback connection connects directly on the websocket port, as
+     * given by the server on /api/websocket/port.
+     * This will only work when connected via unsecure http.
+     */
+    private async fallback_connection(): Promise<WebSocket | undefined> {
         let websocket_port = await fetch("/api/websocket/port").then((r) =>
             r.text()
         );
-        return `ws://${window.location.hostname}:${websocket_port}`;
+        return this.try_connect(`ws://${window.location.hostname}:${websocket_port}`)
+    }
+
+    /**
+     * Establish websocket connection.
+     */
+    private async connect() {
+        console.log("Websocket: Connecting...")
+        let ws = await this.gitpod_connection()
+        if (!ws) {
+            ws = await this.direct_connection()
+        }
+        if (!ws) {
+            console.warn("Using fallback websocket connection!")
+            ws = await this.fallback_connection()
+        }
+        if (!ws) {
+            console.error("No websocket connection established.")
+        }
+        console.log("Websocket: Connection established.")
+        this.ws = ws
+        this.onopen(null)
     }
 
     private onopen(ev: Event) {
