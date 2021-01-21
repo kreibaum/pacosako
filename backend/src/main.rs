@@ -16,9 +16,13 @@ extern crate rocket_contrib;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
+use anyhow::bail;
 use async_std::task;
 use async_std::task::block_on;
-use db::Pool;
+use db::{
+    game::{RawGame, StoreAs},
+    Pool,
+};
 use instance_manager::Instance;
 use pacosako::{DenseBoard, PacoError, SakoSearchResult};
 use rand::{thread_rng, Rng};
@@ -308,7 +312,7 @@ fn analyse_position(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Websocket integration ///////////////////////////////////////////////////////
+// Game management /////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 #[post("/share", data = "<steps>")]
@@ -338,7 +342,6 @@ async fn _create_game(
     pool: Pool,
 ) -> Result<String, anyhow::Error> {
     info!("Creating a new game on client request.");
-    use db::game::StoreAs;
     let mut game = SyncronizedMatch::new_with_key("0", game_parameters).store()?;
     let mut conn = pool.0.acquire().await?;
     game.insert(&mut conn).await?;
@@ -358,7 +361,6 @@ fn get_game(
 }
 
 async fn _get_game(key: i64, pool: Pool) -> Result<sync_match::CurrentMatchState, anyhow::Error> {
-    use db::game::StoreAs;
     if let Ok(Some(raw)) = db::game::RawGame::select(key, &mut pool.0.acquire().await?).await {
         let game: SyncronizedMatch = SyncronizedMatch::load(&raw)?;
         Ok(game.current_state()?)
@@ -378,11 +380,49 @@ fn recently_created_games(
 }
 
 async fn _recently_created_games(pool: Pool) -> Result<Vec<SyncronizedMatch>, anyhow::Error> {
-    use db::game::StoreAs;
     let raw = db::game::RawGame::latest(&mut pool.0.acquire().await?).await?;
     let vec: Result<Vec<SyncronizedMatch>, anyhow::Error> =
         raw.iter().map(|r| SyncronizedMatch::load(r)).collect();
     vec
+}
+
+#[derive(Deserialize, Clone)]
+struct BranchParameters {
+    source_key: String,
+    action_index: usize,
+    timer: Option<timer::TimerConfig>,
+}
+
+/// Create a match from an existing match
+#[post("/branch_game", data = "<game_branch_parameters>")]
+fn branch_game(
+    game_branch_parameters: Json<BranchParameters>,
+    pool: State<Pool>,
+) -> Result<String, anyhow::Error> {
+    let key = task::block_on(_branch_game(game_branch_parameters.0.clone(), pool.clone()))?;
+    Ok(key)
+}
+
+async fn _branch_game(
+    game_parameters: BranchParameters,
+    pool: Pool,
+) -> Result<String, anyhow::Error> {
+    info!("Creating a new game on client request.");
+    let mut conn = pool.0.acquire().await?;
+
+    let raw_game = RawGame::select(game_parameters.source_key.parse()?, &mut conn).await?;
+
+    if let Some(raw_game) = raw_game {
+        let mut game = SyncronizedMatch::load(&raw_game)?;
+        game.actions.truncate(game_parameters.action_index);
+
+        let mut new_raw_game = game.store()?;
+
+        new_raw_game.insert(&mut conn).await?;
+        Ok(format!("{}", new_raw_game.id))
+    } else {
+        bail!("The game you want to branch from does not exist.")
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -494,6 +534,7 @@ fn main() {
                 analyse_position,
                 share,
                 create_game,
+                branch_game,
                 get_game,
                 websocket_port,
                 recently_created_games,
