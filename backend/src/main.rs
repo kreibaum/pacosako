@@ -415,6 +415,7 @@ async fn _branch_game(
     if let Some(raw_game) = raw_game {
         let mut game = SyncronizedMatch::load(&raw_game)?;
         game.actions.truncate(game_parameters.action_index);
+        game.timer = game_parameters.timer.map(|o| o.into());
 
         let mut new_raw_game = game.store()?;
 
