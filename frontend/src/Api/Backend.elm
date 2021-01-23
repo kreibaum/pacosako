@@ -10,6 +10,7 @@ module Api.Backend exposing
     , postAnalysePosition
     , postLoginPassword
     , postMatchRequest
+    , postRematchFromActionIndex
     , postSave
     )
 
@@ -319,6 +320,36 @@ encodePostMatchRequest timer =
     Encode.object
         [ ( "timer"
           , Maybe.map Timer.encodeConfig timer
+                |> Maybe.withDefault Encode.null
+          )
+        ]
+
+
+postRematchFromActionIndex : String -> Int -> Maybe Timer.TimerConfig -> Api String msg
+postRematchFromActionIndex sourceKey actionIndex config errorHandler successHandler =
+    Http.post
+        { url = "/api/branch_game"
+        , body = Http.jsonBody (encodeBranchParameters sourceKey actionIndex config)
+        , expect =
+            Http.expectString
+                (\response ->
+                    case response of
+                        Ok key ->
+                            successHandler key
+
+                        Err e ->
+                            errorHandler e
+                )
+        }
+
+
+encodeBranchParameters : String -> Int -> Maybe Timer.TimerConfig -> Value
+encodeBranchParameters key actionIndex config =
+    Encode.object
+        [ ( "source_key", Encode.string key )
+        , ( "action_index", Encode.int actionIndex )
+        , ( "timer"
+          , Maybe.map Timer.encodeConfig config
                 |> Maybe.withDefault Encode.null
           )
         ]

@@ -5,6 +5,8 @@ module Pages.Replay.Id_String exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
+import Api.Ports
+import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Components
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
@@ -55,6 +57,7 @@ type alias Model =
     { replay : WebData Replay
     , sidebarData : SidebarData
     , key : String
+    , navigationKey : Browser.Navigation.Key
     , actionCount : Int
     , timeline : Timeline OpaqueRenderData
     , now : Posix
@@ -69,6 +72,7 @@ init shared { params } =
     ( { replay = RemoteData.Loading
       , sidebarData = []
       , key = params.id
+      , navigationKey = shared.key
       , actionCount = 0
       , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
       , now = Time.millisToPosix 0
@@ -101,6 +105,9 @@ type Msg
     | NextMove
     | PreviousMove
     | AnimationTick Posix
+    | RematchFromActionIndex String Int
+    | HttpErrorBranch Http.Error
+    | GotBranchKey String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -160,6 +167,16 @@ update msg model =
 
         AnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
+
+        RematchFromActionIndex key actionIndex ->
+            ( model, Api.Backend.postRematchFromActionIndex key actionIndex Nothing HttpErrorBranch GotBranchKey )
+
+        HttpErrorBranch _ ->
+            ( model, Api.Ports.logToConsole "Error branching game." )
+
+        GotBranchKey newKey ->
+            -- TODO: navigate to the game
+            ( model, pushUrl model.navigationKey (Route.toString (Route.Game__Id_String { id = newKey })) )
 
 
 {-| Sets the action count to the given value and decides how to animate this.
@@ -491,6 +508,7 @@ sidebar model replay =
         [ Components.gameIdBadgeBig model.key
         , arrowButtons
         , editorLink model
+        , rematchLink model
         , actionList model replay
         , CastingDeco.configView
             model.lang
@@ -514,11 +532,19 @@ arrowButtons =
         ]
 
 
-editorLink : Model -> Element Msg
+editorLink : Model -> Element msg
 editorLink model =
     Element.link [ Font.underline, Font.color (Element.rgb 0 0 1) ]
         { url = Route.toString Route.Editor ++ "?game=" ++ model.key ++ "&action=" ++ String.fromInt model.actionCount
         , label = Element.text (t model.lang i18nShowInEditor)
+        }
+
+
+rematchLink : Model -> Element Msg
+rematchLink model =
+    Input.button [ Font.underline, Font.color (Element.rgb 0 0 1) ]
+        { onPress = Just <| RematchFromActionIndex model.key model.actionCount
+        , label = Element.text (t model.lang i18nRematchFromHere)
         }
 
 
@@ -719,4 +745,13 @@ i18nShowInEditor =
         { english = "Show in editor"
         , dutch = "Weergeven in editor"
         , esperanto = "Montru en desegnilo"
+        }
+
+
+i18nRematchFromHere : I18nToken String
+i18nRematchFromHere =
+    I18nToken
+        { english = "Rematch from here"
+        , dutch = "Rematch vanaf hier"
+        , esperanto = "Revanĉo de ĉi tiam"
         }
