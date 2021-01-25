@@ -483,7 +483,13 @@ boardViewOk model actions position =
         , mouseUp = Maybe.map MouseUp model.inputMode
         , mouseMove = Maybe.map MouseMove model.inputMode
         , additionalSvg = Nothing
-        , replaceViewport = Nothing
+        , replaceViewport =
+            Just
+                { x = -70
+                , y = -80
+                , width = 900
+                , height = 960
+                }
         }
         model.timeline
 
