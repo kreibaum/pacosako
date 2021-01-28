@@ -1,6 +1,5 @@
 language: rust
-# tarpaulin has only been tested on bionic and trusty other distros may have issues
-dist: bionic
+dist: focal
 addons:
   apt:
     packages:
@@ -11,8 +10,8 @@ addons:
       channel: 15/stable
 cache:
   - cargo
-  - $TRAVIS_BUILD_DIR/backend/target
-  - $TRAVIS_BUILD_DIR/lib/target
+  - "$TRAVIS_BUILD_DIR/backend/target"
+  - "$TRAVIS_BUILD_DIR/lib/target"
 # We don't want coverage to be cached and uploaded again on the next build.
 # So we are removing them just to be sure.
 before_cache:
@@ -29,7 +28,8 @@ before_script: |
   gunzip elm.gz
   chmod +x elm
   cat scripts/known_hosts >> ~/.ssh/known_hosts
-  chmod 400 ./scripts/deployment-key.pem
+  chmod 400 ./scripts/travis_ionos
+  ssh-add ./scripts/travis_ionos
 
 script: |
   # test backend
@@ -66,5 +66,5 @@ after_success: |
   ./scripts/deploy.sh
 
 before_install:
-  - openssl aes-256-cbc -K $encrypted_38b64a02c502_key -iv $encrypted_38b64a02c502_iv
-    -in scripts/deployment-key.pem.enc -out scripts/deployment-key.pem -d
+  - openssl aes-256-cbc -K $encrypted_8097fc376f37_key -iv $encrypted_8097fc376f37_iv
+    -in scripts/travis_ionos.enc -out scripts/travis_ionos -d
