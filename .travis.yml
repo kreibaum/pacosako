@@ -29,6 +29,7 @@ before_script: |
   chmod +x elm
   cat scripts/known_hosts >> ~/.ssh/known_hosts
   chmod 400 ./scripts/travis_ionos
+  eval "$(ssh-agent -s)"
   ssh-add ./scripts/travis_ionos
 
 script: |
