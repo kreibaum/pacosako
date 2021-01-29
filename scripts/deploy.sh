@@ -16,7 +16,6 @@ ssh pacosako@pacoplay.com "rm -Rf ~/deploy; mkdir deploy; mkdir deploy/backend; 
 
 # Backend
 scp -C ./backend/target/release/pacosako-tool-server pacosako@pacoplay.com:~/deploy/backend/pacosako
-scp -C ./backend/Rocket.toml pacosako@pacoplay.com:~/deploy
 
 # Frontend
 cp frontend/static/* target/
