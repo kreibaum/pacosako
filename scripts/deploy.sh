@@ -12,7 +12,7 @@ cd ..
 tsc
 
 # Prepare
-ssh ./scripts/deployment-key.pem pacosako@pacoplay.com "rm -Rf ~/deploy; mkdir deploy; mkdir deploy/backend; mkdir deploy/target"
+ssh pacosako@pacoplay.com "rm -Rf ~/deploy; mkdir deploy; mkdir deploy/backend; mkdir deploy/target"
 
 # Backend
 scp -C ./backend/target/release/pacosako-tool-server pacosako@pacoplay.com:~/deploy/backend/pacosako
