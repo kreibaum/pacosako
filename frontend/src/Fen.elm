@@ -1,4 +1,4 @@
-module Fen exposing (parseFen, writeFen)
+module Fen exposing (parseFen, urlDecode, urlEncode, writeFen)
 
 {-| This module implements an extension of X-Fen that can represent settled Paco
 Ŝako boards (i.e. boards without an active chain) together with most state.
@@ -417,3 +417,35 @@ terminateEmptySequence acc =
             else
                 acc.out
     }
+
+
+{-| Given a string, this method removes spaces and replaces them by %20.
+
+  - space -> %20
+
+This does not do a full encoding, % is not encoded so we can have
+
+    urlEncode >> urlEncode == urlEncode
+
+-}
+urlEncode : String -> String
+urlEncode input =
+    String.replace " " "%20" input
+
+
+{-| Given a string, this turns some sequences like %20 into characters like space.
+
+For this method we want that:
+
+    urlDecode >> urlDecode == urlDecode
+
+    urlEncode >> urlDecode >> urlEncode == urlEncode
+
+    urlDecode >> urlEncode >> urlDecode == urlDecode
+
+Note that we don't have the stronger equations where these are inverses.
+
+-}
+urlDecode : String -> String
+urlDecode input =
+    String.replace "%20" " " input

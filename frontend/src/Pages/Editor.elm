@@ -1084,7 +1084,7 @@ fenUrl model =
         rawUrl =
             model.rawUrl
     in
-    { rawUrl | query = Just ("fen=" ++ (P.getC model.game |> Fen.writeFen)) }
+    { rawUrl | query = Just ("fen=" ++ (P.getC model.game |> Fen.writeFen |> Fen.urlEncode)) }
         |> Url.toString
 
 
