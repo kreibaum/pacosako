@@ -32,7 +32,7 @@ page =
 
 
 view : Url Params -> Document Msg
-view { params } =
+view _ =
     { title = "404"
     , body =
         [ body

@@ -6,7 +6,6 @@ together with a Posix to produce TimerViewData which can then be shown in the
 view.
 -}
 
-import Animation exposing (Duration)
 import Duration exposing (Duration)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)

@@ -2,13 +2,9 @@ module Pages.Game.Id_String exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
 import Api.Ai
-import Api.Backend
 import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
 import Api.Websocket
-import Arrow exposing (Arrow)
-import Browser
-import Browser.Events
 import CastingDeco
 import Components
 import Custom.Element exposing (icon)
@@ -19,29 +15,22 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import File.Download
-import FontAwesome.Icon exposing (Icon)
-import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
-import Html exposing (Html)
-import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
-import Json.Decode as Decode exposing (Decoder)
-import Json.Encode as Encode exposing (Value)
+import Json.Decode as Decode
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Pieces
-import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
+import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
 import Reactive exposing (Device(..))
-import RemoteData exposing (RemoteData, WebData)
 import Result.Extra as Result
-import Sako exposing (Piece, Tile(..))
-import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
+import Sako exposing (Tile(..))
+import SaveState exposing (SaveState(..))
 import Shared
 import Spa.Document exposing (Document)
 import Spa.Generated.Route as Route
 import Spa.Page as Page exposing (Page)
-import Spa.Url as Url exposing (Url)
+import Spa.Url exposing (Url)
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
@@ -529,7 +518,7 @@ updateWebsocket serverMessage model =
 
 
 save : Model -> Shared.Model -> Shared.Model
-save model shared =
+save _ shared =
     shared
 
 

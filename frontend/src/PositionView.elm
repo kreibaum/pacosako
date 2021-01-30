@@ -823,5 +823,5 @@ pastMovementIndicatorListInProcess actions =
         )
         ( [], [] )
         actions
-        |> (\( ls1, ls2 ) -> ls1)
+        |> (\( ls1, _ ) -> ls1)
         |> List.reverse

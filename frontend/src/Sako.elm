@@ -411,12 +411,8 @@ doActionsList actions board =
             Just board
 
         a :: actionTail ->
-            case doAction a board of
-                Just b ->
-                    doActionsList actionTail b
-
-                Nothing ->
-                    Nothing
+            doAction a board
+                |> Maybe.andThen (\b -> doActionsList actionTail b)
 
 
 {-| Check that there is nothing lifted right now and then lift the piece at the

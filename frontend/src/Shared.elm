@@ -12,19 +12,17 @@ module Shared exposing
 import Api.Backend
 import Api.LocalStorage as LocalStorage exposing (Permission(..))
 import Api.Ports
-import Browser.Navigation exposing (Key, pushUrl)
+import Browser.Navigation exposing (Key)
 import Custom.Element exposing (icon)
 import Element exposing (..)
 import Element.Background as Background
-import Element.Font as Font
 import Element.Input as Input
-import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
-import Json.Decode as Decode exposing (Decoder, Value, bool)
-import Json.Encode as Encode exposing (Value)
+import Json.Decode as Decode exposing (Decoder, Value)
+import Json.Encode exposing (Value)
 import Spa.Document exposing (Document)
 import Spa.Generated.Route as Route exposing (Route)
 import Svg.Custom
@@ -147,7 +145,7 @@ triggerSaveLocalStorage model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     LocalStorage.subscribeSave TriggerSaveLocalStorage
 
 
@@ -220,15 +218,6 @@ loginHeaderInfo model login =
         { url = Route.toString Route.Login
         , label = loginCaption
         }
-
-
-backgroundFocus : Bool -> List (Element.Attribute msg)
-backgroundFocus isFocused =
-    if isFocused then
-        [ Background.color (Element.rgb255 200 200 200) ]
-
-    else
-        []
 
 
 gamesArePublicHint : Model -> Element Msg

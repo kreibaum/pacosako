@@ -1,52 +1,37 @@
 module Pages.Top exposing (Model, Msg, Params, page)
 
-import Animation exposing (Timeline)
-import Api.Ai
 import Api.Backend
 import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
-import Api.Websocket as Websocket
-import Arrow exposing (Arrow)
 import Browser
-import Browser.Events
 import Browser.Navigation exposing (pushUrl)
-import CastingDeco
 import Components
 import Custom.Element exposing (icon)
-import Custom.Events exposing (BoardMousePosition, fireMsg, forKey, onKeyUpAttr)
+import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Element.Lazy exposing (lazy, lazy2)
-import File.Download
+import Element.Lazy exposing (lazy2)
 import FontAwesome.Icon exposing (Icon)
-import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
-import Html exposing (Html)
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
-import Json.Decode as Decode exposing (Decoder)
-import Json.Encode as Encode exposing (Value)
 import List.Extra as List
 import Maybe.Extra as Maybe
-import Pieces
-import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
+import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight(..))
 import Reactive exposing (Device(..))
-import RemoteData exposing (RemoteData, WebData)
+import RemoteData exposing (WebData)
 import Result.Extra as Result
-import Sako exposing (Piece, Tile(..))
-import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
+import Sako exposing (Tile(..))
+import SaveState exposing (SaveState(..))
 import Shared
 import Spa.Document exposing (Document)
 import Spa.Generated.Route as Route
 import Spa.Page as Page
-import Spa.Url exposing (Url)
-import Svg exposing (Svg)
-import Svg.Attributes as SvgA
+import Svg
 import Svg.Custom as Svg exposing (BoardRotation(..))
-import Time exposing (Posix)
 import Timer
 
 
@@ -57,7 +42,7 @@ type alias Params =
 page : Page.Page Params Model Msg
 page =
     Page.application
-        { init = \shared params -> init shared
+        { init = \shared _ -> init shared
         , update = update
         , view = view
         , subscriptions = \_ -> Sub.none
@@ -201,9 +186,9 @@ buildTimerConfig selection =
         minSecSum min sec =
             60 * min + sec
     in
-    case intoCustomSpeedSetting selection of
-        Just { minutes, seconds, increment } ->
-            Just <|
+    intoCustomSpeedSetting selection
+        |> Maybe.map
+            (\{ minutes, seconds, increment } ->
                 Timer.secondsConfig
                     { white = minSecSum minutes seconds
                     , black = minSecSum minutes seconds
@@ -214,9 +199,7 @@ buildTimerConfig selection =
                         else
                             Maybe.Nothing
                     }
-
-        Nothing ->
-            Nothing
+            )
 
 
 type MatchConnectionStatus
@@ -474,28 +457,6 @@ timeLimitInputCustom model =
         ]
 
 
-{-| A label that translates the amount of seconds into minutes and seconds that
-are better readable.
--}
-timeLimitLabel : Model -> Int -> Element msg
-timeLimitLabel model seconds =
-    let
-        data =
-            distributeSeconds seconds
-    in
-    if seconds > 0 then
-        t model.language i18nMinutesAndSeconds data
-            |> Element.text
-
-    else
-        Element.text (t model.language i18nPlayWithoutTimeLimit)
-
-
-distributeSeconds : Int -> { seconds : Int, minutes : Int }
-distributeSeconds seconds =
-    { seconds = seconds |> modBy 60, minutes = seconds // 60 }
-
-
 joinOnlineMatchUi : Model -> Element Msg
 joinOnlineMatchUi model =
     box (Element.rgb255 220 220 230)
@@ -678,45 +639,12 @@ i18nNoTimer =
         }
 
 
-i18nTimeInSeconds : I18nToken String
-i18nTimeInSeconds =
-    I18nToken
-        { english = "Time in seconds"
-        , dutch = "Tijd in seconden"
-        , esperanto = "Tempo en sekundoj"
-        }
-
-
 i18nCreateMatch : I18nToken String
 i18nCreateMatch =
     I18nToken
         { english = "Create Match"
         , dutch = "Partij maken"
         , esperanto = "Krei Matĉon"
-        }
-
-
-i18nMinutesAndSeconds : I18nToken ({ seconds : Int, minutes : Int } -> String)
-i18nMinutesAndSeconds =
-    I18nToken
-        { english =
-            \data ->
-                String.fromInt data.minutes
-                    ++ " Minutes and "
-                    ++ String.fromInt data.seconds
-                    ++ " Seconds for each player"
-        , dutch =
-            \data ->
-                String.fromInt data.minutes
-                    ++ " minuten en "
-                    ++ String.fromInt data.seconds
-                    ++ " seconden voor elke speler"
-        , esperanto =
-            \data ->
-                String.fromInt data.minutes
-                    ++ " Minutoj kaj "
-                    ++ String.fromInt data.seconds
-                    ++ " Sekundoj por ĉiu ludanto"
         }
 
 

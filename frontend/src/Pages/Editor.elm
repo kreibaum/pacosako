@@ -3,8 +3,6 @@ module Pages.Editor exposing (Model, Msg, Params, page)
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.Ports
-import Arrow exposing (Arrow)
-import Browser.Events
 import CastingDeco
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
@@ -20,21 +18,19 @@ import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language, t)
-import Json.Decode as Decode exposing (Decoder)
-import Json.Encode as Encode exposing (Value)
+import Json.Encode as Encode
 import Maybe.Extra as Maybe
 import Pieces
 import Pivot as P exposing (Pivot)
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
-import SaveState exposing (SaveState(..), saveStateId, saveStateModify, saveStateStored)
+import SaveState exposing (SaveState(..), saveStateModify, saveStateStored)
 import Shared
 import Spa.Document exposing (Document)
 import Spa.Generated.Route as Route
 import Spa.Page as Page exposing (Page)
-import Spa.Url as Url exposing (Url)
-import Svg.Attributes as SvgA
+import Spa.Url exposing (Url)
 import Svg.Custom as Svg exposing (BoardRotation(..), coordinateOfTile)
 import Time exposing (Posix)
 
@@ -1368,15 +1364,6 @@ singleAddPieceButton hasHighlight color pieceType buttonIcon =
         { onPress = onPress
         , label = Element.row [ padding 7 ] [ icon [] buttonIcon ]
         }
-
-
-backgroundFocus : Bool -> List (Element.Attribute msg)
-backgroundFocus isFocused =
-    if isFocused then
-        [ Background.color (Element.rgb255 200 200 200) ]
-
-    else
-        []
 
 
 colorPicker : (Pieces.SideColor -> msg) -> Pieces.SideColor -> Pieces.SideColor -> Element msg

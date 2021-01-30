@@ -1,18 +1,15 @@
 module Pages.Tutorial exposing (Model, Msg, Params, page)
 
-import Api.LocalStorage exposing (LocalStorage)
-import Browser exposing (element)
 import Element exposing (Element, centerX, el, fill, height, maximum, padding, paragraph, scrollbarY, spacing, text, width)
 import Element.Background as Background
 import Element.Font as Font
-import Element.Input as Input
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
 import I18n.Strings as I18n exposing (I18nToken, Language(..), t)
 import Shared
 import Spa.Document exposing (Document)
 import Spa.Page as Page exposing (Page)
-import Spa.Url as Url exposing (Url)
+import Spa.Url exposing (Url)
 
 
 page : Page Params Model Msg
@@ -40,7 +37,7 @@ type alias Model =
 
 
 init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { params } =
+init shared _ =
     ( shared.language, Cmd.none )
 
 
@@ -48,15 +45,13 @@ init shared { params } =
 -- UPDATE
 
 
-type Msg
-    = SetLanguage Language
+type alias Msg =
+    Never
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        SetLanguage lang ->
-            ( lang, Api.LocalStorage.triggerSave )
+update msg _ =
+    never msg
 
 
 save : Model -> Shared.Model -> Shared.Model
@@ -65,12 +60,12 @@ save model shared =
 
 
 load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared model =
+load shared _ =
     ( shared.language, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.none
 
 
@@ -82,7 +77,7 @@ view : Model -> Document Msg
 view lang =
     { title = t lang I18n.tutorialPageTitle
     , body =
-        [ tutorialPage lang SetLanguage
+        [ tutorialPage lang
         ]
     }
 
@@ -90,14 +85,14 @@ view lang =
 {-| The tutorial needs only a language and this is stored outside. It contains
 the language toggle for now, so it needs to be taught to send language messages.
 -}
-tutorialPage : Language -> (Language -> msg) -> Element msg
-tutorialPage lang langMsg =
+tutorialPage : Language -> Element msg
+tutorialPage lang =
     Element.el [ width fill, height fill, scrollbarY ]
-        (tutorialPageInner lang langMsg)
+        (tutorialPageInner lang)
 
 
-tutorialPageInner : Language -> (Language -> msg) -> Element msg
-tutorialPageInner lang langMsg =
+tutorialPageInner : Language -> Element msg
+tutorialPageInner lang =
     Element.column [ width (fill |> maximum 1000), centerX, padding 30, spacing 10 ]
         [ t lang I18n.tutorialHeader
             |> text

@@ -20,7 +20,6 @@ own version to have direct access to internals.
 -}
 
 import Browser.Events
-import Html exposing (time)
 import List.Extra as List
 import Time exposing (Posix)
 
