@@ -182,6 +182,30 @@ function download(canvas, filename) {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Clipboard Api ///////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+
+if (app.ports.copy) {
+    app.ports.copy.subscribe(text => {
+        console.log(`Copying ${text} to clipboard.`);
+        var dummy = document.createElement("input");
+        dummy.style.display = 'block';
+        document.body.appendChild(dummy);
+
+        dummy.setAttribute("id", "dummy_id");
+        (document.getElementById("dummy_id") as HTMLInputElement).value = text;
+        dummy.select();
+        document.execCommand("copy");
+        document.body.removeChild(dummy);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Websocket ///////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
 /**
  * Wrapper for the websocket that takes care of several additional aspects:
  * 

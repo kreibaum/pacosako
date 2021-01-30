@@ -1,5 +1,6 @@
 port module Api.Ports exposing
     ( aiState
+    , copy
     , logToConsole
     , playSound
     , requestMoveFromAi
@@ -62,6 +63,11 @@ port websocketReceive : (Value -> msg) -> Sub msg
 {-| Playing the "piece placed on chess board" sound file.
 -}
 port playSound : () -> Cmd msg
+
+
+{-| Copy a text to the clipboard
+-}
+port copy : String -> Cmd msg
 
 
 

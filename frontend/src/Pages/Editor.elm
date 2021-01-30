@@ -7,12 +7,14 @@ import CastingDeco
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
 import Dict exposing (Dict)
-import Element exposing (Element, centerX, fill, height, padding, spacing, width)
+import Element exposing (Element, centerX, column, el, fill, height, padding, row, shrink, spacing, width)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Fen
 import File.Download
+import FontAwesome.Attributes
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
@@ -33,6 +35,7 @@ import Spa.Page as Page exposing (Page)
 import Spa.Url exposing (Url)
 import Svg.Custom as Svg exposing (BoardRotation(..), coordinateOfTile)
 import Time exposing (Posix)
+import Url
 
 
 page : Page Params Model Msg
@@ -57,6 +60,7 @@ type alias Params =
 
 type alias Model =
     { query : QueryParameter
+    , rawUrl : Url.Url
     , saveState : SaveState
     , game : Pivot Sako.Position
     , preview : Maybe Sako.Position
@@ -146,14 +150,15 @@ decodeQueryEmpty dict =
 
 
 init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { query } =
-    initialEditor shared (decodeQueryParameter query)
+init shared { query, rawUrl } =
+    initialEditor rawUrl shared (decodeQueryParameter query)
         |> loadInitialData
 
 
-initialEditor : Shared.Model -> QueryParameter -> Model
-initialEditor shared query =
+initialEditor : Url.Url -> Shared.Model -> QueryParameter -> Model
+initialEditor rawUrl shared query =
     { query = query
+    , rawUrl = rawUrl
     , saveState = SaveNotRequired
     , game = P.singleton Sako.initialPosition
     , preview = Nothing
@@ -206,6 +211,7 @@ type Msg
     | Redo
     | DeleteSelectedPiece
     | Reset Sako.Position
+    | Copy String
     | DownloadSvg
     | DownloadPng
     | SvgReadyForDownload String
@@ -340,6 +346,9 @@ update msg model =
 
         DeleteSelectedPiece ->
             ( deleteSelectedPiece model, Cmd.none )
+
+        Copy text ->
+            ( model, Api.Ports.copy text )
 
         DownloadSvg ->
             ( model, Api.Ports.requestSvgNodeContent sakoEditorId )
@@ -1034,11 +1043,77 @@ maybeEditorUi model =
 
 editorUi : Model -> Element Msg
 editorUi model =
-    Element.row
+    row
         [ width fill, height fill, Element.scrollbarY ]
-        [ positionView model
+        [ column [ width fill, height fill, padding 10, spacing 10 ]
+            [ sharingHeader model
+            , positionView model
+            ]
         , sidebar model
         ]
+
+
+{-| This header holds a link to the current position (using fen) which allows
+easy sharing. It also has a button that will open the "more" export options
+dialog.
+-}
+sharingHeader : Model -> Element Msg
+sharingHeader model =
+    let
+        urlString =
+            fenUrl model
+    in
+    [ Element.text urlString
+        |> el [ Element.clip, width fill ]
+    , buttonWithIcon (Just <| Copy urlString) Regular.clipboard "Copy"
+
+    --, buttonWithIcon Nothing Solid.fileImport "Export"
+    ]
+        |> row
+            [ width (shrink |> Element.maximum 600)
+            , centerX
+            , Element.clip
+            , spacing 10
+            ]
+        |> el [ width fill ]
+
+
+fenUrl : Model -> String
+fenUrl model =
+    let
+        rawUrl =
+            model.rawUrl
+    in
+    { rawUrl | query = Just ("fen=" ++ (P.getC model.game |> Fen.writeFen)) }
+        |> Url.toString
+
+
+buttonWithIcon : Maybe Msg -> Icon -> String -> Element Msg
+buttonWithIcon msg iconType caption =
+    Input.button []
+        { onPress = msg
+        , label =
+            [ smallIcon iconType
+            , Element.text caption
+            ]
+                |> row [ Element.alignRight, spacing 3 ]
+                |> grayBackgroundWithHighlight
+        }
+
+
+grayBackgroundWithHighlight : Element Msg -> Element Msg
+grayBackgroundWithHighlight =
+    el
+        [ padding 5
+        , Background.color (Element.rgb255 240 240 240)
+        , Border.rounded 5
+        , Element.mouseOver [ Background.color (Element.rgb255 220 220 220) ]
+        ]
+
+
+smallIcon : Icon -> Element Msg
+smallIcon iconType =
+    Element.el [ Element.moveUp 3 ] (Element.html (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.xs ] iconType))
 
 
 positionView : Model -> Element Msg
@@ -1078,7 +1153,13 @@ boardViewConfig model =
     , mouseUp = Just MouseUp
     , mouseMove = Just MouseMove
     , additionalSvg = Nothing
-    , replaceViewport = Nothing
+    , replaceViewport =
+        Just
+            { x = -10
+            , y = -10
+            , width = 820
+            , height = 820
+            }
     }
 
 
@@ -1232,7 +1313,7 @@ sidebar model =
             else
                 [ showExportOptions ]
     in
-    Element.column [ width (fill |> Element.maximum 400), height fill, spacing 10, padding 10, Element.alignRight ]
+    column [ width (fill |> Element.maximum 400), height fill, spacing 10, padding 10, Element.alignRight ]
         ([ sidebarActionButtons model.game
          , Element.text "Add piece:"
          , addPieceButtons Sako.White "White:" model.smartTool
@@ -1265,7 +1346,7 @@ showExportOptions =
 
 sidebarActionButtons : Pivot Sako.Position -> Element Msg
 sidebarActionButtons p =
-    Element.row [ width fill ]
+    row [ width fill ]
         [ undo p
         , redo p
         , resetStartingBoard p
@@ -1362,7 +1443,7 @@ singleAddPieceButton hasHighlight color pieceType buttonIcon =
     in
     Input.button []
         { onPress = onPress
-        , label = Element.row [ padding 7 ] [ icon [] buttonIcon ]
+        , label = row [ padding 7 ] [ icon [] buttonIcon ]
         }
 
 
@@ -1389,7 +1470,7 @@ colorPicker msg currentColor newColor =
 
 colorSchemeConfig : Model -> Element Msg
 colorSchemeConfig taco =
-    Element.column [ width fill, spacing 5 ]
+    column [ width fill, spacing 5 ]
         [ Element.text "Piece colors"
         , colorSchemeConfigWhite taco
         , colorSchemeConfigBlack taco
@@ -1398,7 +1479,7 @@ colorSchemeConfig taco =
 
 colorSchemeConfigWhite : Model -> Element Msg
 colorSchemeConfigWhite taco =
-    Element.row [ width fill ]
+    row [ width fill ]
         [ colorPicker WhiteSideColor taco.colorScheme.white Pieces.whitePieceColor
         , colorPicker WhiteSideColor taco.colorScheme.white Pieces.redPieceColor
         , colorPicker WhiteSideColor taco.colorScheme.white Pieces.orangePieceColor
@@ -1428,7 +1509,7 @@ colorSchemeConfigBlack taco =
 
 markdownCopyPaste : Model -> Element Msg
 markdownCopyPaste model =
-    Element.column [ spacing 5 ]
+    column [ spacing 5 ]
         [ Element.text "Text notation you can store"
         , Input.multiline [ Font.family [ Font.monospace ] ]
             { onChange = \_ -> EditorMsgNoOp
@@ -1462,7 +1543,7 @@ parsedMarkdownPaste model =
             Input.button []
                 { onPress = Just (UseUserPaste pacoPosition)
                 , label =
-                    Element.row [ spacing 5 ]
+                    row [ spacing 5 ]
                         [ PositionView.renderStatic WhiteBottom pacoPosition
                             |> PositionView.viewStatic
                                 { colorScheme = model.colorScheme
