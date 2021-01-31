@@ -269,6 +269,8 @@ keybindings =
     , forKey "3" |> fireMsg (SetInputMode (Just CastingDeco.InputArrows))
     , forKey " " |> fireMsg ClearDecoComplete
     , forKey "0" |> fireMsg ClearDecoComplete
+    , forKey "x" |> fireMsg ClearDecoComplete
+    , forKey "q" |> fireMsg ClearDecoComplete
     , forKey "ArrowRight" |> fireMsg Redo
     , forKey "ArrowLeft" |> fireMsg Undo
     ]
