@@ -108,7 +108,7 @@ mouseUpArrows model =
         Just ghostArrow ->
             { model
                 | ghostArrow = Nothing
-                , arrows = flipEntry ghostArrow model.arrows
+                , arrows = ghostArrow :: model.arrows
             }
 
         Nothing ->
@@ -160,7 +160,7 @@ allArrows : Model -> List Arrow
 allArrows model =
     case model.ghostArrow of
         Just arrow ->
-            flipEntry arrow model.arrows
+            arrow :: model.arrows
 
         Nothing ->
             model.arrows
