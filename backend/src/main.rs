@@ -26,12 +26,15 @@ use db::{
 use instance_manager::Instance;
 use pacosako::{DenseBoard, PacoError, SakoSearchResult};
 use rand::{thread_rng, Rng};
-use rocket::http::{Cookie, Cookies};
 use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::NamedFile;
 use rocket::response::{Flash, Redirect};
 use rocket::State;
+use rocket::{
+    config::Environment,
+    http::{Cookie, Cookies},
+};
 use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -58,14 +61,27 @@ fn favicon() -> NamedFile {
     NamedFile::open("../target/favicon.svg").unwrap()
 }
 
-#[get("/elm.js")]
+/// If the server is running in development mode, we are returning the regular
+/// elm.js file. In staging and production we are returning the minified
+/// version of it.
+#[get("/elm.min.js")]
 fn elm() -> NamedFile {
-    NamedFile::open("../target/elm.js").unwrap()
+    match Environment::active().unwrap_or(Environment::Development) {
+        Environment::Development => NamedFile::open("../target/elm.js").unwrap(),
+        _ => NamedFile::open("../target/elm.min.js").unwrap(),
+    }
 }
 
-#[get("/main.js")]
+/// If the server is running in development mode, we are returning the regular
+/// main.js file. In staging and production we are returning the minified
+/// version of it.
+#[get("/main.min.js")]
 fn main_js() -> NamedFile {
-    NamedFile::open("../target/main.js").unwrap()
+    info!("{:?}", Environment::active());
+    match Environment::active().unwrap_or(Environment::Development) {
+        Environment::Development => NamedFile::open("../target/main.js").unwrap(),
+        _ => NamedFile::open("../target/main.min.js").unwrap(),
+    }
 }
 
 #[get("/ai_worker.js")]

@@ -8,8 +8,12 @@ cd backend
 cargo build --release
 cd ..
 
-# Build typescript from the frondend. Elm was already build previously.
+# Build typescript from the frontend. Elm was already build previously.
 tsc
+
+# minimize javascript
+uglifyjs ./target/elm.js -o ./target/elm.min.js --mangle --compress
+uglifyjs ./target/main.js -o ./target/main.min.js --mangle --compress
 
 # Prepare
 ssh pacosako@pacoplay.com "rm -Rf ~/deploy; mkdir deploy; mkdir deploy/backend; mkdir deploy/target"
