@@ -24,7 +24,7 @@ before_script: |
   bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
   cargo install --version=0.2.0 sqlx-cli
   curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
-  sudo npm install -g elm-spa@latest typescript
+  sudo npm install -g elm-spa@latest typescript uglify-js
   gunzip elm.gz
   chmod +x elm
   cat scripts/known_hosts >> ~/.ssh/known_hosts
