@@ -4,6 +4,7 @@ import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.Ports
 import CastingDeco
+import Components exposing (btn, viewButton, withMsg, withSmallIcon, withStyle)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
 import Dict exposing (Dict)
@@ -1067,7 +1068,7 @@ sharingHeader model =
     in
     [ Element.text urlString
         |> el [ Element.clip, width fill ]
-    , buttonWithIcon (Just <| Copy urlString) Regular.clipboard "Copy"
+    , btn "Copy" |> withSmallIcon Regular.clipboard |> withMsg (Copy urlString) |> viewButton
 
     --, buttonWithIcon Nothing Solid.fileImport "Export"
     ]
@@ -1088,34 +1089,6 @@ fenUrl model =
     in
     { rawUrl | query = Just ("fen=" ++ (P.getC model.game |> Fen.writeFen |> Fen.urlEncode)) }
         |> Url.toString
-
-
-buttonWithIcon : Maybe Msg -> Icon -> String -> Element Msg
-buttonWithIcon msg iconType caption =
-    Input.button []
-        { onPress = msg
-        , label =
-            [ smallIcon iconType
-            , Element.text caption
-            ]
-                |> row [ Element.alignRight, spacing 3 ]
-                |> grayBackgroundWithHighlight
-        }
-
-
-grayBackgroundWithHighlight : Element Msg -> Element Msg
-grayBackgroundWithHighlight =
-    el
-        [ padding 5
-        , Background.color (Element.rgb255 240 240 240)
-        , Border.rounded 5
-        , Element.mouseOver [ Background.color (Element.rgb255 220 220 220) ]
-        ]
-
-
-smallIcon : Icon -> Element Msg
-smallIcon iconType =
-    Element.el [ Element.moveUp 3 ] (Element.html (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.xs ] iconType))
 
 
 positionView : Model -> Element Msg

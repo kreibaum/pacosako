@@ -13,6 +13,7 @@ module CastingDeco exposing
     )
 
 import Arrow exposing (Arrow)
+import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf)
 import Custom.Events exposing (BoardMousePosition)
 import Element exposing (Element, padding, spacing)
 import Element.Background as Background
@@ -177,7 +178,7 @@ type alias Messages msg =
 -}
 configView : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
 configView lang messages mode model =
-    Element.column [ spacing 10 ]
+    Element.column [ spacing 5 ]
         [ normalInputModeButton lang messages mode
         , tileInputMode lang messages mode model
         , arrowInputMode lang messages mode model
@@ -186,14 +187,10 @@ configView lang messages mode model =
 
 normalInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
 normalInputModeButton lang messages mode =
-    if mode == Nothing then
-        Input.button
-            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Nothing, label = Element.text (t lang i18nNormalMode) }
-
-    else
-        Input.button [ padding 3 ]
-            { onPress = Just (messages.setInputMode Nothing), label = Element.text (t lang i18nNormalMode) }
+    btn (t lang i18nNormalMode)
+        |> withMsg (messages.setInputMode Nothing)
+        |> isSelectedIf (mode == Nothing)
+        |> viewButton
 
 
 tileInputMode : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
@@ -206,26 +203,19 @@ tileInputMode lang messages mode model =
 
 tileInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
 tileInputModeButton lang messages mode =
-    if mode == Just InputTiles then
-        Input.button
-            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (messages.setInputMode Nothing), label = Element.text (t lang i18nHighlight) }
-
-    else
-        Input.button [ padding 3 ]
-            { onPress = Just (messages.setInputMode (Just InputTiles)), label = Element.text (t lang i18nHighlight) }
+    btn (t lang i18nHighlight)
+        |> withMsg (messages.setInputMode (Just InputTiles))
+        |> withMsgIf (mode == Just InputTiles) (messages.setInputMode Nothing)
+        |> isSelectedIf (mode == Just InputTiles)
+        |> viewButton
 
 
 tileInputClearButton : Language -> Messages msg -> Model -> Element msg
 tileInputClearButton lang messages model =
-    if List.isEmpty model.tiles then
-        Input.button
-            [ Font.color (Element.rgb255 128 128 128) ]
-            { onPress = Nothing, label = Element.text (t lang i18nClearHighlight) }
-
-    else
-        Input.button []
-            { onPress = Just messages.clearTiles, label = Element.text (t lang i18nClearHighlight) }
+    btn (t lang i18nClearHighlight)
+        |> withMsgIf (not <| List.isEmpty model.tiles) messages.clearTiles
+        |> isEnabledIf (not <| List.isEmpty model.tiles)
+        |> viewButton
 
 
 arrowInputMode : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
@@ -238,26 +228,19 @@ arrowInputMode lang messages mode model =
 
 arrowInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
 arrowInputModeButton lang messages mode =
-    if mode == Just InputArrows then
-        Input.button
-            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Just (messages.setInputMode Nothing), label = Element.text (t lang i18nArrows) }
-
-    else
-        Input.button [ padding 3 ]
-            { onPress = Just (messages.setInputMode (Just InputArrows)), label = Element.text (t lang i18nArrows) }
+    btn (t lang i18nArrows)
+        |> withMsg (messages.setInputMode (Just InputArrows))
+        |> withMsgIf (mode == Just InputArrows) (messages.setInputMode Nothing)
+        |> isSelectedIf (mode == Just InputArrows)
+        |> viewButton
 
 
 arrowInputClearButton : Language -> Messages msg -> Model -> Element msg
 arrowInputClearButton lang messages model =
-    if List.isEmpty model.arrows then
-        Input.button
-            [ Font.color (Element.rgb255 128 128 128) ]
-            { onPress = Nothing, label = Element.text (t lang i18nClearArrows) }
-
-    else
-        Input.button []
-            { onPress = Just messages.clearArrows, label = Element.text (t lang i18nClearArrows) }
+    btn (t lang i18nClearArrows)
+        |> withMsgIf (not <| List.isEmpty model.arrows) messages.clearArrows
+        |> isEnabledIf (not <| List.isEmpty model.arrows)
+        |> viewButton
 
 
 

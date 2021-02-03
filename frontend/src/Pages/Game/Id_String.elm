@@ -6,7 +6,7 @@ import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
 import Api.Websocket
 import CastingDeco
-import Components
+import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Duration
@@ -992,7 +992,7 @@ distributeSeconds seconds =
 
 rotationButtons : Model -> BoardRotation -> Element Msg
 rotationButtons model rotation =
-    Element.row [ spacing 10 ]
+    Element.row [ spacing 5 ]
         [ rotationButton WhiteBottom rotation (t model.lang i18nWhite)
         , rotationButton BlackBottom rotation (t model.lang i18nBlack)
         ]
@@ -1000,15 +1000,10 @@ rotationButtons model rotation =
 
 rotationButton : BoardRotation -> BoardRotation -> String -> Element Msg
 rotationButton rotation currentRotation label =
-    if rotation == currentRotation then
-        Input.button
-            [ Background.color (Element.rgb255 200 200 200), padding 3 ]
-            { onPress = Nothing, label = Element.text label }
-
-    else
-        Input.button
-            [ padding 3 ]
-            { onPress = Just (SetRotation rotation), label = Element.text label }
+    btn label
+        |> withMsgIf (rotation /= currentRotation) (SetRotation rotation)
+        |> isSelectedIf (rotation == currentRotation)
+        |> viewButton
 
 
 playerNamesInput : Model -> Element Msg
