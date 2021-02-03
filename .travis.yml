@@ -1,4 +1,4 @@
-language: rust-2021-01-30
+language: rust
 dist: focal
 addons:
   apt:
@@ -18,7 +18,7 @@ before_cache:
   - rm -f $TRAVIS_BUILD_DIR/backend/target/tarpaulin
   - rm -f $TRAVIS_BUILD_DIR/lib/target/tarpaulin
 rust:
-  - nightly
+  - nightly-2021-01-30
 
 before_script: |
   bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
