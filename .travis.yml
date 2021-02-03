@@ -1,4 +1,4 @@
-language: rust
+language: rust-2021-01-30
 dist: focal
 addons:
   apt:
