@@ -862,7 +862,9 @@ gameCodeLabel model subscription =
                 Element.row [ width fill, height fill ] 
                 [
                     Element.text (t model.lang i18nShareThisId),
-                    bigRoundedButton (Element.rgb255 220 220 220) (Just (CopyToClipboard "lala")) [ Element.text (t model.lang i18nCopyToClipboard) ]
+                    bigRoundedButton (Element.rgb255 220 220 220) 
+                      (Just (CopyToClipboard ("https://pacoplay.com/game/" ++ id))) 
+                      [ Element.text (t model.lang i18nCopyToClipboard) ]
                 ]
             ] 
 
