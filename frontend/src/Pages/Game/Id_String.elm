@@ -848,14 +848,19 @@ castingDecoMessages =
     }
 
 
-gameCodeLabel : Model -> Maybe String -> Element msg
+gameCodeLabel : Model -> Maybe String -> Element Msg
 gameCodeLabel model subscription =
     case subscription of
         Just id ->
             Element.column [ width fill, spacing 5 ]
-                [ Components.gameIdBadgeBig id
-                , Element.text (t model.lang i18nShareThisId)
+            [ 
+                Components.gameIdBadgeBig id,
+                Element.row [ width fill, height fill ] 
+                [
+                    Element.text (t model.lang i18nShareThisId),
+                    bigRoundedButton (Element.rgb255 220 220 220) (Just Rollback) [ Element.text (t model.lang i18nCopyToClipboard) ]
                 ]
+            ] 
 
         Nothing ->
             Element.text (t model.lang i18nNotConnected)
@@ -1044,6 +1049,14 @@ i18nTitle =
         { english = "Play Paco Ŝako - pacoplay.com"
         , dutch = "Speel Paco Ŝako - pacoplay.com"
         , esperanto = "Ludi Paco Ŝako - pacoplay.com"
+        }
+
+i18nCopyToClipboard : I18nToken String
+i18nCopyToClipboard =
+    I18nToken
+        { english = "Copy to clipboard"
+        , dutch = "Kopieer naar klembord"
+        , esperanto = "Kopii al tondujo"
         }
 
 
