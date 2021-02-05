@@ -36,6 +36,7 @@ import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Timer
+import Url
 
 
 page : Page Params Model Msg
@@ -75,6 +76,7 @@ type alias Model =
     , lang : Language
     , whiteName : String
     , blackName : String
+    , gameUrl : Url.Url
     }
 
 
@@ -101,6 +103,7 @@ init shared { params } =
       , lang = shared.language
       , whiteName = ""
       , blackName = ""
+      , gameUrl = shared.url
       }
     , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
     )
@@ -863,7 +866,7 @@ gameCodeLabel model subscription =
                 [
                     Element.text (t model.lang i18nShareThisId),
                     bigRoundedButton (Element.rgb255 220 220 220) 
-                      (Just (CopyToClipboard ("https://pacoplay.com/game/" ++ id))) 
+                      (Just (CopyToClipboard (model.gameUrl |> Url.toString))) 
                       [ Element.text (t model.lang i18nCopyToClipboard) ]
                 ]
             ] 
