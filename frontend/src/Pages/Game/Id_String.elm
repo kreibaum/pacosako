@@ -130,6 +130,7 @@ type Msg
     | WebsocketErrorMsg Decode.Error
     | SetWhiteName String
     | SetBlackName String
+    | CopyToClipboard String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -208,6 +209,9 @@ update msg model =
 
         SetBlackName name ->
             ( { model | blackName = name }, Cmd.none )
+
+        CopyToClipboard text ->
+            ( model, Ports.copy text )
 
 
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
@@ -858,7 +862,7 @@ gameCodeLabel model subscription =
                 Element.row [ width fill, height fill ] 
                 [
                     Element.text (t model.lang i18nShareThisId),
-                    bigRoundedButton (Element.rgb255 220 220 220) (Just Rollback) [ Element.text (t model.lang i18nCopyToClipboard) ]
+                    bigRoundedButton (Element.rgb255 220 220 220) (Just (CopyToClipboard "lala")) [ Element.text (t model.lang i18nCopyToClipboard) ]
                 ]
             ] 
 
