@@ -6,7 +6,7 @@ import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
 import Api.Websocket
 import CastingDeco
-import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
+import Components exposing (btn, isSelectedIf, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Duration
@@ -15,6 +15,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode
@@ -36,6 +37,7 @@ import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Timer
+import Url
 
 
 page : Page Params Model Msg
@@ -75,6 +77,7 @@ type alias Model =
     , lang : Language
     , whiteName : String
     , blackName : String
+    , gameUrl : Url.Url
     }
 
 
@@ -101,6 +104,7 @@ init shared { params } =
       , lang = shared.language
       , whiteName = ""
       , blackName = ""
+      , gameUrl = shared.url
       }
     , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
     )
@@ -130,6 +134,7 @@ type Msg
     | WebsocketErrorMsg Decode.Error
     | SetWhiteName String
     | SetBlackName String
+    | CopyToClipboard String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -208,6 +213,9 @@ update msg model =
 
         SetBlackName name ->
             ( { model | blackName = name }, Cmd.none )
+
+        CopyToClipboard text ->
+            ( model, Ports.copy text )
 
 
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
@@ -848,13 +856,19 @@ castingDecoMessages =
     }
 
 
-gameCodeLabel : Model -> Maybe String -> Element msg
+gameCodeLabel : Model -> Maybe String -> Element Msg
 gameCodeLabel model subscription =
     case subscription of
         Just id ->
             Element.column [ width fill, spacing 5 ]
                 [ Components.gameIdBadgeBig id
-                , Element.text (t model.lang i18nShareThisId)
+                , Element.row [ width fill, height fill ]
+                    [ btn (t model.lang i18nCopyToClipboard)
+                        |> withSmallIcon Regular.clipboard
+                        |> withMsg (CopyToClipboard (Url.toString model.gameUrl))
+                        |> withStyle (width fill)
+                        |> viewButton
+                    ]
                 ]
 
         Nothing ->
@@ -1044,6 +1058,15 @@ i18nTitle =
         { english = "Play Paco Ŝako - pacoplay.com"
         , dutch = "Speel Paco Ŝako - pacoplay.com"
         , esperanto = "Ludi Paco Ŝako - pacoplay.com"
+        }
+
+
+i18nCopyToClipboard : I18nToken String
+i18nCopyToClipboard =
+    I18nToken
+        { english = "Copy url for a friend"
+        , dutch = "Kopieer de url voor een vriend"
+        , esperanto = "Kopiu url por amikon"
         }
 
 

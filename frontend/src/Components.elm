@@ -8,7 +8,7 @@ import Custom.Element exposing (icon)
 import Element exposing (Element, centerX, el, fill, height, padding, row, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
-import Element.Font as Font
+import Element.Font as Font exposing (center)
 import Element.Input exposing (button)
 import Element.Region exposing (description)
 import FontAwesome.Attributes
@@ -185,5 +185,5 @@ viewButton (SB data) =
                 ++ [ Element.text data.caption
                    ]
             )
-                |> row [ spacing 3 ]
+                |> row [ spacing 3, centerX ]
         }
