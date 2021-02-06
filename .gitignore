@@ -22,3 +22,6 @@ lib/Cargo.lock
 
 # Development Database
 /backend/data
+
+# Other generated files we don't want to commit.
+lib/libpacosako.h
