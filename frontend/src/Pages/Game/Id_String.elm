@@ -6,7 +6,7 @@ import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
 import Api.Websocket
 import CastingDeco
-import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
+import Components exposing (btn, isSelectedIf, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Duration
@@ -15,6 +15,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode
@@ -860,16 +861,15 @@ gameCodeLabel model subscription =
     case subscription of
         Just id ->
             Element.column [ width fill, spacing 5 ]
-            [ 
-                Components.gameIdBadgeBig id,
-                Element.row [ width fill, height fill ] 
-                [
-                    Element.text (t model.lang i18nShareThisId),
-                    bigRoundedButton (Element.rgb255 220 220 220) 
-                      (Just (CopyToClipboard (model.gameUrl |> Url.toString))) 
-                      [ Element.text (t model.lang i18nCopyToClipboard) ]
+                [ Components.gameIdBadgeBig id
+                , Element.row [ width fill, height fill ]
+                    [ btn (t model.lang i18nCopyToClipboard)
+                        |> withSmallIcon Regular.clipboard
+                        |> withMsg (CopyToClipboard (Url.toString model.gameUrl))
+                        |> withStyle (width fill)
+                        |> viewButton
+                    ]
                 ]
-            ] 
 
         Nothing ->
             Element.text (t model.lang i18nNotConnected)
@@ -1060,12 +1060,13 @@ i18nTitle =
         , esperanto = "Ludi Paco Ŝako - pacoplay.com"
         }
 
+
 i18nCopyToClipboard : I18nToken String
 i18nCopyToClipboard =
     I18nToken
-        { english = "Copy to clipboard"
-        , dutch = "Kopieer naar klembord"
-        , esperanto = "Kopii al tondujo"
+        { english = "Copy url for a friend"
+        , dutch = "Kopieer de url voor een vriend"
+        , esperanto = "Kopiu url por amikon"
         }
 
 
