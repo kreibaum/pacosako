@@ -135,6 +135,7 @@ type Msg
     | SetWhiteName String
     | SetBlackName String
     | CopyToClipboard String
+    | WebsocketStatusChange Api.Websocket.WebsocketStaus
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -216,6 +217,17 @@ update msg model =
 
         CopyToClipboard text ->
             ( model, Ports.copy text )
+
+        WebsocketStatusChange status ->
+            ( model
+            , case status of
+                Api.Websocket.WSConnected ->
+                    Api.Websocket.send (Api.Websocket.SubscribeToMatch (Maybe.withDefault "" model.subscription))
+                        |> Debug.log "Reconnected!"
+
+                _ ->
+                    Cmd.none
+            )
 
 
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
@@ -541,6 +553,7 @@ subscriptions model =
         [ Time.every 1000 UpdateNow
         , Animation.subscription model.timeline AnimationTick
         , Api.Websocket.listen WebsocketMsg WebsocketErrorMsg
+        , Api.Websocket.listenToStatus WebsocketStatusChange
         , Api.Ai.subscribeMoveFromAi AiCrashed MoveFromAi
         , Custom.Events.onKeyUp keybindings
         ]
@@ -1085,15 +1098,6 @@ i18nPlayAs =
         { english = "Play as:"
         , dutch = "Speel als:"
         , esperanto = "Ludi kiel:"
-        }
-
-
-i18nShareThisId : I18nToken String
-i18nShareThisId =
-    I18nToken
-        { english = "Share this id with a friend."
-        , dutch = "Deel deze id met een vriend."
-        , esperanto = "Kunhavigu ĉi tiun identigilon kun amiko."
         }
 
 

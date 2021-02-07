@@ -2,9 +2,10 @@ module Api.Websocket exposing
     ( ClientMessage(..)
     , ServerMessage(..)
     , ShareStatus(..)
-    , SyncronizedBoard
+    , WebsocketStaus(..)
     , getGameKey
     , listen
+    , listenToStatus
     , send
     , share
     )
@@ -109,19 +110,6 @@ type ServerMessage
     | MatchConnectionSuccess { key : String, state : CurrentMatchState }
 
 
-type alias SyncronizedBoard =
-    { key : String
-    , steps : List Value
-    }
-
-
-decodeSyncronizedBoard : Decoder SyncronizedBoard
-decodeSyncronizedBoard =
-    Decode.map2 SyncronizedBoard
-        (Decode.field "key" Decode.string)
-        (Decode.field "steps" (Decode.list Decode.value))
-
-
 decodeServerMessage : Decoder ServerMessage
 decodeServerMessage =
     Decode.oneOf
@@ -151,6 +139,30 @@ listen onSuccess onError =
                 Err error ->
                     onError error
         )
+
+
+type WebsocketStaus
+    = WSConnected
+    | WSDisconnected
+    | WSOther
+
+
+decodeWebsocketStatus : String -> WebsocketStaus
+decodeWebsocketStatus code =
+    case code of
+        "Connected" ->
+            WSConnected
+
+        "Disconnected" ->
+            WSDisconnected
+
+        _ ->
+            WSOther
+
+
+listenToStatus : (WebsocketStaus -> msg) -> Sub msg
+listenToStatus msg =
+    Ports.websocketStatus (decodeWebsocketStatus >> msg)
 
 
 {-| REST method which starts sharing a board state.

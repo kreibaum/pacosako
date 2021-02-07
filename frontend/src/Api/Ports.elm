@@ -10,6 +10,7 @@ port module Api.Ports exposing
     , triggerPngDownload
     , websocketReceive
     , websocketSend
+    , websocketStatus
     )
 
 {-| Ports allow communication between Elm and JavaScript.
@@ -58,6 +59,11 @@ Do no use this port directly, it is wrapped by the Websocket.elm module.
 
 -}
 port websocketReceive : (Value -> msg) -> Sub msg
+
+
+{-| Port to get information about the websocket status.
+-}
+port websocketStatus : (String -> msg) -> Sub msg
 
 
 {-| Playing the "piece placed on chess board" sound file.

@@ -251,7 +251,11 @@ class WebsocketWrapper {
         let protocol = window.location.protocol === "https:" ? "wss" : "ws"
         let hostname = window.location.hostname
         let websocket_url = `${protocol}://${hostname}/websocket`
-        return this.try_connect(websocket_url)
+        if (!hostname.includes("localhost")) {
+            return this.try_connect(websocket_url)
+        } else {
+            return Promise.resolve(undefined)
+        }
     }
 
     /**
@@ -299,6 +303,7 @@ class WebsocketWrapper {
         console.log("Websocket: Connection established.")
         this.ws = ws
         this.onopen(null)
+        this.ws.onclose = ev => this.connection_closed()
     }
 
     private onopen(ev: Event) {
@@ -325,6 +330,45 @@ class WebsocketWrapper {
             this.ws.send(JSON.stringify(msg));
         } else {
             this.queue.push(msg);
+        }
+    }
+
+    private static readonly INITIAL_RECONNECT_DELAY: number = 200;
+    private static readonly BACKOFF_FACTOR: number = 1.2;
+    private reconnect_delay_ms: number = 200;
+
+    /**
+     * Notifies the elm app of the socket problem and tries to reconnect using
+     * an exponential backoff strategy.
+     */
+    private connection_closed() {
+        this.sendStatusToElm("Disconnected")
+
+        console.log("Websocket connection was closed. Trying to reconnect.")
+        this.reconnect_delay_ms = WebsocketWrapper.INITIAL_RECONNECT_DELAY;
+
+        setTimeout(() => this.try_reconnect(), this.reconnect_delay_ms)
+    }
+
+    private async try_reconnect() {
+        try {
+            await this.connect();
+        } catch (error) {
+            this.reconnect_delay_ms *= WebsocketWrapper.BACKOFF_FACTOR;
+            console.log(`reconnect failed, will retry in: ${Math.round(this.reconnect_delay_ms)}ms.`)
+            setTimeout(() => this.try_reconnect(), this.reconnect_delay_ms)
+            return;
+        }
+        this.sendStatusToElm("Connected")
+    }
+
+    /**
+     * Informs the elm app about the current status of the websocket.
+     * @param status a string code for the status.
+     */
+    private sendStatusToElm(status: "Connected" | "Disconnected") {
+        if (app.ports.websocketStatus) {
+            app.ports.websocketStatus.send(status);
         }
     }
 }
