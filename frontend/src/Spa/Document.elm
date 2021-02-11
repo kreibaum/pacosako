@@ -6,6 +6,7 @@ module Spa.Document exposing
 
 import Browser
 import Element exposing (..)
+import Element.Font as Font
 import Html
 import Html.Attributes
 
@@ -28,7 +29,14 @@ toBrowserDocument doc =
     { title = doc.title
     , body =
         [ Html.canvas [ Html.Attributes.id "offscreen-canvas" ] [ Html.text "Canvas not supported" ]
-        , Element.layout [ width fill, height fill ]
+        , Element.layout
+            [ width fill
+            , height fill
+            , Font.family
+                [ Font.typeface "Roboto"
+                , Font.sansSerif
+                ]
+            ]
             (column [ width fill, height fill ] doc.body)
         ]
     }
