@@ -256,7 +256,7 @@ tutorialFourPacoSakoRules : I18nToken ( String, Maybe String )
 tutorialFourPacoSakoRules =
     I18nToken
         { english = ( "Four Paco Ŝako rules", Nothing )
-        , dutch = ( "4 Paco Ŝako Regles", Nothing )
+        , dutch = ( "4 Paco Ŝako Regles", Just "zEq1fqBoL9M" )
         , esperanto = ( "---", Nothing )
         }
 
