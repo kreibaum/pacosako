@@ -12,6 +12,8 @@ module Shared exposing
 import Api.Backend
 import Api.LocalStorage as LocalStorage exposing (Permission(..))
 import Api.Ports
+import Browser.Dom
+import Browser.Events
 import Browser.Navigation exposing (Key)
 import Custom.Element exposing (icon)
 import Element exposing (..)
@@ -78,9 +80,11 @@ parseWindowSize value =
 
 sizeDecoder : Decoder ( Int, Int )
 sizeDecoder =
-    Decode.map2 (\x y -> ( x, y ))
-        (Decode.field "width" Decode.int)
-        (Decode.field "height" Decode.int)
+    Decode.field "windowSize"
+        (Decode.map2 (\x y -> ( x, y ))
+            (Decode.field "width" Decode.int)
+            (Decode.field "height" Decode.int)
+        )
 
 
 
@@ -94,6 +98,7 @@ type Msg
     | LogoutSuccess
     | UserHidesGamesArePublicHint
     | SetLanguage Language
+    | WindowResize Int Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -116,6 +121,9 @@ update msg model =
 
         SetLanguage lang ->
             setLanguage lang model
+
+        WindowResize width height ->
+            ( { model | windowSize = ( width, height ) }, Cmd.none )
 
 
 setLanguage : Language -> Model -> ( Model, Cmd Msg )
@@ -146,7 +154,10 @@ triggerSaveLocalStorage model =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    LocalStorage.subscribeSave TriggerSaveLocalStorage
+    Sub.batch
+        [ LocalStorage.subscribeSave TriggerSaveLocalStorage
+        , Browser.Events.onResize WindowResize
+        ]
 
 
 

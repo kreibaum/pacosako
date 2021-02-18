@@ -73,7 +73,7 @@ observer.observe(document.body, { childList: true, subtree: true });
 let localStorageData = JSON.parse(localStorage.getItem('localStorage'));
 
 // Pass the window size to elm on init. This way we already know it on startup.
-let windowSize = { width: window.innerWidth, height: window.innerHeight };
+let windowSize = { "width": window.innerWidth, "height": window.innerHeight };
 var app = Elm.Main.init({
     node: document.getElementById("elm"),
     flags: {

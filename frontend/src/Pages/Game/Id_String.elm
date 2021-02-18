@@ -544,7 +544,12 @@ save _ shared =
 
 load : Shared.Model -> Model -> ( Model, Cmd Msg )
 load shared model =
-    ( { model | lang = shared.language }, Cmd.none )
+    ( { model
+        | lang = shared.language
+        , windowSize = shared.windowSize
+      }
+    , Cmd.none
+    )
 
 
 subscriptions : Model -> Sub Msg
