@@ -251,7 +251,9 @@ class WebsocketWrapper {
         let protocol = window.location.protocol === "https:" ? "wss" : "ws"
         let hostname = window.location.hostname
         let websocket_url = `${protocol}://${hostname}/websocket`
-        if (!hostname.includes("localhost")) {
+        if (!hostname.includes("localhost")
+            && !hostname.includes("127.0.0.1")
+            && !hostname.includes("0.0.0.0")) {
             return this.try_connect(websocket_url)
         } else {
             return Promise.resolve(undefined)

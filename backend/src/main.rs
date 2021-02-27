@@ -1,5 +1,3 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-
 mod db;
 mod editor;
 mod instance_manager;
@@ -18,7 +16,6 @@ extern crate log;
 extern crate simplelog;
 use anyhow::bail;
 use async_std::task;
-use async_std::task::block_on;
 use db::{
     game::{RawGame, StoreAs},
     Pool,
@@ -26,49 +23,63 @@ use db::{
 use instance_manager::Instance;
 use pacosako::{DenseBoard, PacoError, SakoSearchResult};
 use rand::{thread_rng, Rng};
-use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::NamedFile;
 use rocket::response::{Flash, Redirect};
 use rocket::State;
-use rocket::{
-    config::Environment,
-    http::{Cookie, Cookies},
-};
+use rocket::{http::Cookie, http::CookieJar};
 use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use sync_match::{MatchParameters, SyncronizedMatch};
+use sync_match::SyncronizedMatch;
 use websocket::WebsocketServer;
 use ws2::WS2;
+
+/// Anyhow integration into Rocket 0.5+
+#[derive(rocket::response::Responder)]
+pub enum ErrorResponse {
+    Debug(rocket::response::Debug<anyhow::Error>),
+}
+
+impl From<anyhow::Error> for ErrorResponse {
+    fn from(e: anyhow::Error) -> Self {
+        ErrorResponse::Debug(rocket::response::Debug(e))
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Static Files ////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 #[get("/")]
-fn index() -> NamedFile {
-    NamedFile::open("../target/index.html").unwrap()
+async fn index() -> NamedFile {
+    NamedFile::open("../target/index.html").await.unwrap()
 }
 
 #[get("/<_path..>", rank = 2)]
-fn index_fallback(_path: std::path::PathBuf) -> NamedFile {
-    index()
+async fn index_fallback(_path: std::path::PathBuf) -> NamedFile {
+    index().await
 }
 
 #[get("/favicon.svg")]
-fn favicon() -> NamedFile {
-    NamedFile::open("../target/favicon.svg").unwrap()
+async fn favicon() -> NamedFile {
+    NamedFile::open("../target/favicon.svg").await.unwrap()
+}
+
+#[derive(Deserialize)]
+struct UseMinJs {
+    use_min_js: bool,
 }
 
 /// If the server is running in development mode, we are returning the regular
 /// elm.js file. In staging and production we are returning the minified
 /// version of it.
 #[get("/elm.min.js")]
-fn elm() -> NamedFile {
-    match Environment::active().unwrap_or(Environment::Development) {
-        Environment::Development => NamedFile::open("../target/elm.js").unwrap(),
-        _ => NamedFile::open("../target/elm.min.js").unwrap(),
+async fn elm(config: State<'_, UseMinJs>) -> NamedFile {
+    if config.use_min_js {
+        NamedFile::open("../target/elm.min.js").await.unwrap()
+    } else {
+        NamedFile::open("../target/elm.js").await.unwrap()
     }
 }
 
@@ -76,27 +87,27 @@ fn elm() -> NamedFile {
 /// main.js file. In staging and production we are returning the minified
 /// version of it.
 #[get("/main.min.js")]
-fn main_js() -> NamedFile {
-    info!("{:?}", Environment::active());
-    match Environment::active().unwrap_or(Environment::Development) {
-        Environment::Development => NamedFile::open("../target/main.js").unwrap(),
-        _ => NamedFile::open("../target/main.min.js").unwrap(),
+async fn main_js(config: State<'_, UseMinJs>) -> NamedFile {
+    if config.use_min_js {
+        NamedFile::open("../target/main.min.js").await.unwrap()
+    } else {
+        NamedFile::open("../target/main.js").await.unwrap()
     }
 }
 
 #[get("/ai_worker.js")]
-fn ai_worker() -> NamedFile {
-    NamedFile::open("../target/ai_worker.js").unwrap()
+async fn ai_worker() -> NamedFile {
+    NamedFile::open("../target/ai_worker.js").await.unwrap()
 }
 
 #[get("/static/examples.txt")]
-fn examples() -> NamedFile {
-    NamedFile::open("../target/examples.txt").unwrap()
+async fn examples() -> NamedFile {
+    NamedFile::open("../target/examples.txt").await.unwrap()
 }
 
 #[get("/static/place_piece.mp3")]
-fn place_piece() -> NamedFile {
-    NamedFile::open("../target/place_piece.mp3").unwrap()
+async fn place_piece() -> NamedFile {
+    NamedFile::open("../target/place_piece.mp3").await.unwrap()
 }
 
 /// This enum holds all errors that can be returned by the API. The errors are
@@ -145,30 +156,34 @@ struct SavePositionResponse {
 }
 
 #[post("/position", data = "<create_request>")]
-fn position_create(
+async fn position_create(
     create_request: Json<SavePositionRequest>,
     user: User,
-    pool: State<Pool>,
+    pool: State<'_, Pool>,
 ) -> Result<Json<SavePositionResponse>, String> {
-    match task::block_on(pool.position_create(create_request.0, user)) {
+    match pool.position_create(create_request.0, user).await {
         Ok(v) => Ok(Json(v)),
         Err(e) => Err(e.to_string()),
     }
 }
 
 #[post("/position/<id>", data = "<update_request>")]
-fn position_update(
+async fn position_update(
     id: i64,
     update_request: Json<SavePositionRequest>,
     user: User,
-    pool: State<Pool>,
+    pool: State<'_, Pool>,
 ) -> Result<Json<SavePositionResponse>, Json<ServerError>> {
     // You can only update a position that you own.
-    if task::block_on(pool.position_get(id))?.owner != user.user_id {
+    if pool.position_get(id).await?.owner != user.user_id {
         return Err(Json(ServerError::NotAllowed));
     }
 
-    json_result(task::block_on(pool.position_update(id, update_request.0)).map_err(|e| e.into()))
+    json_result(
+        pool.position_update(id, update_request.0)
+            .await
+            .map_err(|e| e.into()),
+    )
 }
 
 #[derive(Serialize)]
@@ -179,12 +194,12 @@ struct Position {
 }
 
 #[get("/position/<id>")]
-fn position_get(
+async fn position_get(
     id: i64,
     user: User,
-    conn: State<Pool>,
+    conn: State<'_, Pool>,
 ) -> Result<Json<Position>, Json<ServerError>> {
-    let position = block_on(conn.position_get(id)).and_then(|position| {
+    let position = conn.position_get(id).await.and_then(|position| {
         if position.owner == user.user_id {
             Ok(position)
         } else {
@@ -203,11 +218,11 @@ fn json_result<T, U>(result: Result<T, U>) -> Result<Json<T>, Json<U>> {
 
 /// List all positions owned by the currently logged in user.
 #[get("/position")]
-fn position_get_list(
+async fn position_get_list(
     user: User,
-    conn: State<Pool>,
+    conn: State<'_, Pool>,
 ) -> Result<Json<Vec<Position>>, Json<ServerError>> {
-    json_result(block_on(conn.position_get_list(user.user_id)))
+    json_result(conn.position_get_list(user.user_id).await)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,32 +243,38 @@ struct User {
     username: String,
 }
 
+#[rocket::async_trait]
 impl<'a, 'r> FromRequest<'a, 'r> for User {
     type Error = ();
 
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<User, ()> {
-        let pool: State<Pool> = request.guard()?;
+    async fn from_request(request: &'a Request<'r>) -> request::Outcome<User, ()> {
+        let pool: State<'_, db::Pool> = try_outcome!(request.guard::<State<'_, db::Pool>>().await);
 
-        request
-            .cookies()
-            .get_private("user_id")
-            .map(|cookie| cookie.value().to_owned())
-            .and_then(|username| block_on(pool.get_user(username.to_owned())).ok())
-            .or_forward(())
+        let cookies = request.cookies();
+        let user_id = cookies.get_private("user_id");
+
+        if let Some(user_id) = user_id {
+            let username = user_id.value().to_owned();
+            if let Ok(user) = pool.get_user(username.clone()).await {
+                return request::Outcome::Success(user);
+            }
+        }
+
+        request::Outcome::Forward(())
     }
 }
 
 /// Log in with username and password
 #[post("/login/password", data = "<login>")]
-fn login(
+async fn login(
     login: Json<LoginRequest>,
-    mut cookies: Cookies,
-    conn: State<Pool>,
+    jar: &CookieJar<'_>,
+    conn: State<'_, Pool>,
 ) -> Result<Json<User>, Json<ServerError>> {
-    match block_on(conn.check_password(&login.0)) {
+    match conn.check_password(&login.0).await {
         Ok(true) => {
-            cookies.add_private(Cookie::new("user_id", login.username.clone()));
-            let user = block_on(conn.get_user(login.username.clone())).unwrap();
+            jar.add_private(Cookie::new("user_id", login.username.clone()));
+            let user = conn.get_user(login.username.clone()).await.unwrap();
             Ok(Json(user))
         }
         Ok(false) => Err(Json(ServerError::NotFound)),
@@ -269,8 +290,8 @@ fn user_id(user: Option<User>) -> Json<Option<User>> {
 
 /// Remove the `user_id` cookie.
 #[get("/logout")]
-fn logout(mut cookies: Cookies) -> Flash<Redirect> {
-    cookies.remove_private(Cookie::named("user_id"));
+fn logout(jar: &CookieJar<'_>) -> Flash<Redirect> {
+    jar.remove_private(Cookie::named("user_id"));
     Flash::success(Redirect::to("/"), "Successfully logged out.")
 }
 
@@ -340,22 +361,22 @@ fn share(
 }
 
 #[post("/create_game", data = "<game_parameters>")]
-fn create_game(
+async fn create_game(
     game_parameters: Json<sync_match::MatchParameters>,
-    pool: State<Pool>,
-) -> Result<String, anyhow::Error> {
+    pool: State<'_, Pool>,
+) -> Result<String, ErrorResponse> {
     // Create a match on the database and return the id.
     // The Websocket will then have to load it on its own. While that is
     // mildly inefficient, it decouples the websocket server from the rocket
     // server a bit.
 
-    let key = task::block_on(_create_game(game_parameters.0.clone(), pool.clone()))?;
+    let key = _create_game(game_parameters.0.clone(), pool).await?;
     Ok(key)
 }
 
 async fn _create_game(
     game_parameters: sync_match::MatchParameters,
-    pool: Pool,
+    pool: State<'_, Pool>,
 ) -> Result<String, anyhow::Error> {
     info!("Creating a new game on client request.");
     let mut game = SyncronizedMatch::new_with_key("0", game_parameters).store()?;
@@ -369,14 +390,19 @@ async fn _create_game(
 /// Returns the current state of the given game. This is intended for use by the
 /// replay page.
 #[get("/game/<key>")]
-fn get_game(
+async fn get_game(
     key: String,
-    pool: State<Pool>,
-) -> Result<Json<sync_match::CurrentMatchState>, anyhow::Error> {
-    Ok(Json(task::block_on(_get_game(key.parse()?, pool.clone()))?))
+    pool: State<'_, Pool>,
+) -> Result<Json<sync_match::CurrentMatchState>, ErrorResponse> {
+    Ok(Json(_get_game(key, pool).await?))
 }
 
-async fn _get_game(key: i64, pool: Pool) -> Result<sync_match::CurrentMatchState, anyhow::Error> {
+async fn _get_game(
+    key: String,
+    pool: State<'_, Pool>,
+) -> Result<sync_match::CurrentMatchState, anyhow::Error> {
+    let key: i64 = key.parse()?;
+
     if let Ok(Some(raw)) = db::game::RawGame::select(key, &mut pool.0.acquire().await?).await {
         let game: SyncronizedMatch = SyncronizedMatch::load(&raw)?;
         Ok(game.current_state()?)
@@ -386,20 +412,23 @@ async fn _get_game(key: i64, pool: Pool) -> Result<sync_match::CurrentMatchState
 }
 
 #[get("/game/recent")]
-fn recently_created_games(
-    pool: State<Pool>,
-) -> Result<Json<Vec<sync_match::CurrentMatchState>>, anyhow::Error> {
-    let recent = task::block_on(_recently_created_games(pool.clone()));
-    let recent: Result<Vec<sync_match::CurrentMatchState>, _> =
-        recent?.iter().map(|m| m.current_state()).collect();
-    Ok(Json(recent?))
+async fn recently_created_games(
+    pool: State<'_, Pool>,
+) -> Result<Json<Vec<sync_match::CurrentMatchState>>, ErrorResponse> {
+    Ok(Json((_recently_created_games(pool).await)?))
 }
 
-async fn _recently_created_games(pool: Pool) -> Result<Vec<SyncronizedMatch>, anyhow::Error> {
+async fn _recently_created_games(
+    pool: State<'_, Pool>,
+) -> Result<Vec<sync_match::CurrentMatchState>, anyhow::Error> {
     let raw = db::game::RawGame::latest(&mut pool.0.acquire().await?).await?;
     let vec: Result<Vec<SyncronizedMatch>, anyhow::Error> =
         raw.iter().map(|r| SyncronizedMatch::load(r)).collect();
-    vec
+
+    let vec: Result<Vec<sync_match::CurrentMatchState>, _> =
+        vec?.iter().map(|m| m.current_state()).collect();
+
+    Ok(vec?)
 }
 
 #[derive(Deserialize, Clone)]
@@ -411,17 +440,17 @@ struct BranchParameters {
 
 /// Create a match from an existing match
 #[post("/branch_game", data = "<game_branch_parameters>")]
-fn branch_game(
+async fn branch_game(
     game_branch_parameters: Json<BranchParameters>,
-    pool: State<Pool>,
-) -> Result<String, anyhow::Error> {
-    let key = task::block_on(_branch_game(game_branch_parameters.0.clone(), pool.clone()))?;
+    pool: State<'_, Pool>,
+) -> Result<String, ErrorResponse> {
+    let key = _branch_game(game_branch_parameters.0.clone(), pool).await?;
     Ok(key)
 }
 
 async fn _branch_game(
     game_parameters: BranchParameters,
-    pool: Pool,
+    pool: State<'_, Pool>,
 ) -> Result<String, anyhow::Error> {
     info!("Creating a new game on client request.");
     let mut conn = pool.0.acquire().await?;
@@ -480,8 +509,12 @@ fn init_database_pool(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::
     info!("Creating database pool");
     // If there is no database specified, the server is allowed to just
     // crash. This is why we can "safely" unwrap.
-    let database_path: String = rocket.config().get_string("database_path").unwrap();
-    let pool = task::block_on(db::Pool::new(&database_path)).unwrap();
+    let config: CustomConfig = rocket
+        .figment()
+        .extract()
+        .expect("Config could not be parsed");
+
+    let pool = task::block_on(db::Pool::new(&config.database_path)).unwrap();
 
     Ok(rocket.manage(pool))
 }
@@ -491,7 +524,11 @@ fn init_database_pool(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::
 /// At the moment I need that for creating games, but I may be able to avoid this in the future.
 fn init_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
     let websocket_server = websocket::prepare_websocket();
-    let websocket_port: u16 = rocket.config().get_int("websocket_port").unwrap_or(1111) as u16;
+
+    let config: CustomConfig = rocket
+        .figment()
+        .extract()
+        .expect("Config could not be parsed");
 
     if let Some(pool) = rocket.state::<Pool>() {
         websocket_server
@@ -499,14 +536,21 @@ fn init_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocke
             .with_pool(pool.clone());
     }
 
-    websocket::init_websocket(websocket_server.clone(), websocket_port);
+    websocket::init_websocket(websocket_server.clone(), config.websocket_port);
 
     Ok(rocket
         .manage(websocket_server)
-        .manage(WebsocketPort(websocket_port)))
+        .manage(WebsocketPort(config.websocket_port)))
 }
 
-fn main() {
+#[derive(Deserialize)]
+struct CustomConfig {
+    websocket_port: u16,
+    database_path: String,
+}
+
+#[launch]
+fn rocket() -> rocket::Rocket {
     use rocket::fairing::AdHoc;
 
     init_logger();
@@ -517,14 +561,13 @@ fn main() {
     // gives them access to the rocket configuration and I can properly separate
     // the different stages like that.
     rocket::ignite()
-        .attach(AdHoc::on_attach("Database Pool", init_database_pool))
-        .attach(AdHoc::on_attach("Websocket Config", init_websocket_server))
-        .attach(AdHoc::on_request("Request Logger", |req, _| {
-            info!("Request started for: {}", req.uri());
+        .attach(AdHoc::on_attach("Database Pool", |rocket| {
+            Box::pin(async move { init_database_pool(rocket) })
         }))
-        .attach(AdHoc::on_response("Response Logger", |res, _| {
-            info!("Request ended for: {}", res.uri());
+        .attach(AdHoc::on_attach("Websocket Config", |rocket| {
+            Box::pin(async move { init_websocket_server(rocket) })
         }))
+        .attach(AdHoc::config::<UseMinJs>())
         .mount(
             "/",
             routes![
@@ -558,5 +601,4 @@ fn main() {
             ],
         )
         .mount("/", routes![index_fallback])
-        .launch();
 }

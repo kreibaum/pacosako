@@ -1,5 +1,7 @@
+[default]
+use_min_js = false
 
-[development]
+[debug]
 # This secret key is published on github. Don't use it for a production instance.
 secret_key = "DZjhqgZ1fDFCnNqxCC+T6K0Y+bKvZGlvg5hc9+oj4yY="
 port = 8000
@@ -12,8 +14,10 @@ database_path = "data/database.sqlite"
 port = 8001
 websocket_port = 3011
 database_path = "../../db/stage.sqlite"
+use_min_js = true
 
-[production]
+[release]
 port = 8000
 websocket_port = 3012
 database_path = "../../db/prod.sqlite"
+use_min_js = true
