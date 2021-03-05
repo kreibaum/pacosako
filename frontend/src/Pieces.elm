@@ -27,6 +27,7 @@ also provides the colors which can be picked.
 
 -}
 
+import Colors exposing (ColorOptions)
 import Element
 import Sako
 import Svg exposing (Attribute, Svg)
@@ -39,7 +40,7 @@ This returns either a path node or a group node containing multiple path nodes.
 More complicated figures (e.g. the knight) layer multiple paths and need a group.
 
 -}
-figure : ColorScheme -> Sako.Type -> Sako.Color -> Svg msg
+figure : ColorOptions -> Sako.Type -> Sako.Color -> Svg msg
 figure scheme piece color =
     let
         attributes =
@@ -142,27 +143,22 @@ blackTransform =
     Svg.Attributes.transform "translate(100, 0) scale(-1, 1)"
 
 
-colorString : ( Int, Int, Int ) -> String
-colorString ( r, g, b ) =
-    String.join "" [ "rgb(", String.fromInt r, ",", String.fromInt g, ",", String.fromInt b, ")" ]
-
-
 colorUi : ( Int, Int, Int ) -> Element.Color
 colorUi ( r, g, b ) =
     Element.rgb255 r g b
 
 
-colorAttributes : ColorScheme -> Sako.Color -> List (Svg.Attribute msg)
+colorAttributes : ColorOptions -> Sako.Color -> List (Svg.Attribute msg)
 colorAttributes scheme color =
     case color of
         Sako.White ->
-            [ Svg.Attributes.fill (colorString scheme.white.fill)
-            , Svg.Attributes.stroke (colorString scheme.white.stroke)
+            [ Svg.Attributes.fill scheme.whitePieceFill
+            , Svg.Attributes.stroke scheme.whitePieceStroke
             ]
 
         Sako.Black ->
-            [ Svg.Attributes.fill (colorString scheme.black.fill)
-            , Svg.Attributes.stroke (colorString scheme.black.stroke)
+            [ Svg.Attributes.fill scheme.blackPieceFill
+            , Svg.Attributes.stroke scheme.blackPieceStroke
             , blackTransform
             ]
 

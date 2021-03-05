@@ -4,6 +4,7 @@ import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.Ports
 import CastingDeco
+import Colors
 import Components exposing (btn, viewButton, withMsg, withSmallIcon, withStyle)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
@@ -1120,7 +1121,9 @@ positionViewInner model =
 
 boardViewConfig : Model -> PositionView.ViewConfig Msg
 boardViewConfig model =
-    { colorScheme = model.colorScheme
+    { colorScheme =
+        Colors.configToOptions Colors.defaultBoardColors
+            |> Colors.withPieceColorScheme model.colorScheme
     , nodeId = Just sakoEditorId
     , decoration = toolDecoration model
     , dragPieceData = dragPieceData model
@@ -1521,7 +1524,9 @@ parsedMarkdownPaste model =
                     row [ spacing 5 ]
                         [ PositionView.renderStatic WhiteBottom pacoPosition
                             |> PositionView.viewStatic
-                                { colorScheme = model.colorScheme
+                                { colorScheme =
+                                    Colors.configToOptions Colors.defaultBoardColors
+                                        |> Colors.withPieceColorScheme model.colorScheme
                                 , nodeId = Nothing
                                 , decoration = []
                                 , dragPieceData = []

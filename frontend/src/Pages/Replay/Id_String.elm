@@ -8,6 +8,7 @@ import Api.Backend exposing (Replay)
 import Api.Ports
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
+import Colors
 import Components
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Element exposing (Element, alignTop, centerX, fill, fillPortion, height, padding, scrollbarY, spacing, width)
@@ -475,7 +476,8 @@ currentBoard model replay =
 boardViewOk : Model -> List Sako.Action -> Sako.Position -> Element Msg
 boardViewOk model actions position =
     PositionView.viewTimeline
-        { colorScheme = Pieces.defaultColorScheme
+        { colorScheme =
+            Colors.configToOptions Colors.defaultBoardColors
         , nodeId = Nothing
         , decoration = decoration model actions position
         , dragPieceData = []

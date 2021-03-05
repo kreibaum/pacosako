@@ -6,9 +6,11 @@ import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
 import Api.Websocket
 import CastingDeco
+import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
+import Dict exposing (Dict)
 import Duration
 import Element exposing (..)
 import Element.Background as Background
@@ -21,7 +23,6 @@ import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode
 import List.Extra as List
 import Maybe.Extra as Maybe
-import Pieces
 import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
 import Reactive exposing (Device(..))
 import Result.Extra as Result
@@ -38,6 +39,7 @@ import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Timer
 import Url
+import Url.Parser exposing (query)
 
 
 page : Page Params Model Msg
@@ -65,8 +67,6 @@ type alias Model =
     , subscription : Maybe String
     , currentState : CurrentMatchState
     , windowSize : ( Int, Int )
-
-    -- later: , preview : Maybe Sako.Position
     , timeline : Timeline OpaqueRenderData
     , focus : Maybe Tile
     , dragState : DragState
@@ -78,11 +78,12 @@ type alias Model =
     , whiteName : String
     , blackName : String
     , gameUrl : Url.Url
+    , colorSettings : Colors.ColorOptions
     }
 
 
 init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { params } =
+init shared { params, query } =
     ( { board = Sako.initialPosition
       , windowSize = shared.windowSize
       , subscription = Just params.id
@@ -105,9 +106,17 @@ init shared { params } =
       , whiteName = ""
       , blackName = ""
       , gameUrl = shared.url
+      , colorSettings = determineColorSettingsFromQuery query
       }
     , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
     )
+
+
+determineColorSettingsFromQuery : Dict String String -> Colors.ColorOptions
+determineColorSettingsFromQuery dict =
+    Dict.get "colors" dict
+        |> Maybe.map Colors.getOptionsByName
+        |> Maybe.withDefault (Colors.configToOptions Colors.defaultBoardColors)
 
 
 
@@ -616,20 +625,20 @@ playUiPortrait model =
 
 
 playPositionView : Model -> Element Msg
-playPositionView play =
+playPositionView model =
     Element.el [ width fill, height fill ]
         (PositionView.viewTimeline
-            { colorScheme = Pieces.defaultColorScheme
+            { colorScheme = model.colorSettings
             , nodeId = Just sakoEditorId
-            , decoration = playDecoration play
+            , decoration = playDecoration model
             , dragPieceData = []
             , mouseDown = Just MouseDown
             , mouseUp = Just MouseUp
             , mouseMove = Just MouseMove
-            , additionalSvg = additionalSvg play
-            , replaceViewport = playTimerReplaceViewport play
+            , additionalSvg = additionalSvg model
+            , replaceViewport = playTimerReplaceViewport model
             }
-            play.timeline
+            model.timeline
         )
 
 

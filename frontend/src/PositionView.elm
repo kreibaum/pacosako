@@ -41,6 +41,7 @@ decorations some more.
 
 import Animation exposing (Timeline)
 import Arrow exposing (Arrow)
+import Colors exposing (ColorOptions)
 import Custom.Events as Events exposing (BoardMousePosition)
 import Dict
 import Element exposing (Element)
@@ -130,7 +131,7 @@ viewStatic config renderData =
                 ++ idAttribute
     in
     Svg.svg attributes
-        [ board renderData.rotation
+        [ board renderData.rotation config.colorScheme
         , pastMovementIndicatorLayer renderData.rotation config.decoration
         , castingHighlightLayer renderData.rotation config.decoration
         , highlightLayer renderData.rotation config.decoration
@@ -178,7 +179,7 @@ type alias VisualPacoPiece =
 
 
 type alias ViewConfig msg =
-    { colorScheme : Pieces.ColorScheme
+    { colorScheme : ColorOptions
     , nodeId : Maybe String
     , decoration : List BoardDecoration
     , dragPieceData : List DragPieceData
@@ -192,7 +193,7 @@ type alias ViewConfig msg =
 
 staticViewConfig : ViewConfig msg
 staticViewConfig =
-    { colorScheme = Pieces.defaultColorScheme
+    { colorScheme = Colors.configToOptions Colors.defaultBoardColors
     , nodeId = Nothing
     , decoration = []
     , dragPieceData = []
@@ -348,7 +349,7 @@ dropTargetSvg rotation tile =
         []
 
 
-piecesSvg : Pieces.ColorScheme -> List VisualPacoPiece -> Svg msg
+piecesSvg : ColorOptions -> List VisualPacoPiece -> Svg msg
 piecesSvg colorScheme pieces =
     pieces
         |> List.sortBy .zOrder
@@ -366,7 +367,7 @@ handCoordinateOffset color =
             Svg.Coord 25 -50
 
 
-pieceSvg : Pieces.ColorScheme -> VisualPacoPiece -> Svg msg
+pieceSvg : ColorOptions -> VisualPacoPiece -> Svg msg
 pieceSvg colorScheme piece =
     Svg.g [ Svg.translate piece.position, opacity piece.opacity ]
         [ Pieces.figure colorScheme piece.pieceType piece.color ]
@@ -377,15 +378,15 @@ opacity o =
     SvgA.opacity <| String.fromFloat o
 
 
-board : BoardRotation -> Svg msg
-board rotation =
+board : BoardRotation -> ColorOptions -> Svg msg
+board rotation colors =
     Svg.g []
         ([ Svg.rect
             [ SvgA.x "-10"
             , SvgA.y "-10"
             , SvgA.width "820"
             , SvgA.height "820"
-            , SvgA.fill "#242"
+            , SvgA.fill colors.borderColor
             ]
             []
          , Svg.rect
@@ -393,58 +394,58 @@ board rotation =
             , SvgA.y "0"
             , SvgA.width "800"
             , SvgA.height "800"
-            , SvgA.fill "#595"
+            , SvgA.fill colors.blackTileColor
             ]
             []
          , Svg.path
             [ SvgA.d "M 0,0 H 800 V 100 H 0 Z M 0,200 H 800 V 300 H 0 Z M 0,400 H 800 V 500 H 0 Z M 0,600 H 800 V 700 H 0 Z M 100,0 V 800 H 200 V 0 Z M 300,0 V 800 H 400 V 0 Z M 500,0 V 800 H 600 V 0 Z M 700,0 V 800 H 800 V 0 Z"
-            , SvgA.fill "#9F9"
+            , SvgA.fill colors.whiteTileColor
             ]
             []
          ]
-            ++ boardNumbers rotation
+            ++ boardNumbers rotation colors
         )
 
 
-boardNumbers : BoardRotation -> List (Svg a)
-boardNumbers rotation =
+boardNumbers : BoardRotation -> ColorOptions -> List (Svg a)
+boardNumbers rotation colors =
     case rotation of
         Svg.WhiteBottom ->
-            [ columnTag "a" "85" "#9F9"
-            , columnTag "b" "185" "#595"
-            , columnTag "c" "285" "#9F9"
-            , columnTag "d" "385" "#595"
-            , columnTag "e" "485" "#9F9"
-            , columnTag "f" "585" "#595"
-            , columnTag "g" "685" "#9F9"
-            , columnTag "h" "785" "#595"
-            , rowTag "1" "730" "#9F9"
-            , rowTag "2" "630" "#595"
-            , rowTag "3" "530" "#9F9"
-            , rowTag "4" "430" "#595"
-            , rowTag "5" "330" "#9F9"
-            , rowTag "6" "230" "#595"
-            , rowTag "7" "130" "#9F9"
-            , rowTag "8" "30" "#595"
+            [ columnTag "a" "85" colors.whiteTileColor
+            , columnTag "b" "185" colors.blackTileColor
+            , columnTag "c" "285" colors.whiteTileColor
+            , columnTag "d" "385" colors.blackTileColor
+            , columnTag "e" "485" colors.whiteTileColor
+            , columnTag "f" "585" colors.blackTileColor
+            , columnTag "g" "685" colors.whiteTileColor
+            , columnTag "h" "785" colors.blackTileColor
+            , rowTag "1" "730" colors.whiteTileColor
+            , rowTag "2" "630" colors.blackTileColor
+            , rowTag "3" "530" colors.whiteTileColor
+            , rowTag "4" "430" colors.blackTileColor
+            , rowTag "5" "330" colors.whiteTileColor
+            , rowTag "6" "230" colors.blackTileColor
+            , rowTag "7" "130" colors.whiteTileColor
+            , rowTag "8" "30" colors.blackTileColor
             ]
 
         Svg.BlackBottom ->
-            [ columnTag "h" "14" "#9F9"
-            , columnTag "g" "114" "#595"
-            , columnTag "f" "214" "#9F9"
-            , columnTag "e" "314" "#595"
-            , columnTag "d" "414" "#9F9"
-            , columnTag "c" "514" "#595"
-            , columnTag "b" "614" "#9F9"
-            , columnTag "a" "714" "#595"
-            , rowTag "8" "730" "#9F9"
-            , rowTag "7" "630" "#595"
-            , rowTag "6" "530" "#9F9"
-            , rowTag "5" "430" "#595"
-            , rowTag "4" "330" "#9F9"
-            , rowTag "3" "230" "#595"
-            , rowTag "2" "130" "#9F9"
-            , rowTag "1" "30" "#595"
+            [ columnTag "h" "14" colors.whiteTileColor
+            , columnTag "g" "114" colors.blackTileColor
+            , columnTag "f" "214" colors.whiteTileColor
+            , columnTag "e" "314" colors.blackTileColor
+            , columnTag "d" "414" colors.whiteTileColor
+            , columnTag "c" "514" colors.blackTileColor
+            , columnTag "b" "614" colors.whiteTileColor
+            , columnTag "a" "714" colors.blackTileColor
+            , rowTag "8" "730" colors.whiteTileColor
+            , rowTag "7" "630" colors.blackTileColor
+            , rowTag "6" "530" colors.whiteTileColor
+            , rowTag "5" "430" colors.blackTileColor
+            , rowTag "4" "330" colors.whiteTileColor
+            , rowTag "3" "230" colors.blackTileColor
+            , rowTag "2" "130" colors.whiteTileColor
+            , rowTag "1" "30" colors.blackTileColor
             ]
 
 
