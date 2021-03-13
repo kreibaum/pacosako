@@ -14,12 +14,8 @@ extern crate rocket_contrib;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
-use anyhow::bail;
 use async_std::task;
-use db::{
-    game::{RawGame, StoreAs},
-    Pool,
-};
+use db::Pool;
 use instance_manager::Instance;
 use pacosako::{DenseBoard, SakoSearchResult};
 use rand::{thread_rng, Rng};
@@ -34,18 +30,6 @@ use std::fs::File;
 use sync_match::SyncronizedMatch;
 use websocket::WebsocketServer;
 use ws2::WS2;
-
-/// Anyhow integration into Rocket 0.5+
-#[derive(rocket::response::Responder)]
-pub enum ErrorResponse {
-    Debug(rocket::response::Debug<anyhow::Error>),
-}
-
-impl From<anyhow::Error> for ErrorResponse {
-    fn from(e: anyhow::Error) -> Self {
-        ErrorResponse::Debug(rocket::response::Debug(e))
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Static Files ////////////////////////////////////////////////////////////////
@@ -123,12 +107,16 @@ pub enum ServerError {
     DeserializationFailed,
     #[error("Error from the game logic.")]
     GameError(#[from] pacosako::PacoError),
+    #[error("(De-)Serialization failed")]
+    SerdeJsonError(#[from] serde_json::Error),
     #[error("Not allowed")]
     NotAllowed,
     #[error("Not found")]
     NotFound,
     #[error("IO-error")]
     IoError(#[from] std::io::Error),
+    #[error("Error parsing Integer")]
+    ParseIntError(#[from] std::num::ParseIntError),
 }
 
 impl<'r> rocket::response::Responder<'r, 'static> for ServerError {
@@ -354,27 +342,19 @@ fn share(
 async fn create_game(
     game_parameters: Json<sync_match::MatchParameters>,
     pool: State<'_, Pool>,
-) -> Result<String, ErrorResponse> {
+) -> Result<String, ServerError> {
     // Create a match on the database and return the id.
     // The Websocket will then have to load it on its own. While that is
     // mildly inefficient, it decouples the websocket server from the rocket
     // server a bit.
 
-    let key = _create_game(game_parameters.0.clone(), pool).await?;
-    Ok(key)
-}
-
-async fn _create_game(
-    game_parameters: sync_match::MatchParameters,
-    pool: State<'_, Pool>,
-) -> Result<String, anyhow::Error> {
     info!("Creating a new game on client request.");
-    let mut game = SyncronizedMatch::new_with_key("0", game_parameters).store()?;
-    let mut conn = pool.0.acquire().await?;
-    game.insert(&mut conn).await?;
+    let mut conn = pool.conn().await?;
+    let mut game = SyncronizedMatch::new_with_key("0", game_parameters.0);
+    db::game::insert(&mut game, &mut conn).await?;
 
-    info!("Creating game created with id {}.", game.id);
-    Ok(format!("{}", game.id))
+    info!("Game created with id {}.", game.key);
+    Ok(format!("{}", game.key))
 }
 
 /// Returns the current state of the given game. This is intended for use by the
@@ -383,42 +363,27 @@ async fn _create_game(
 async fn get_game(
     key: String,
     pool: State<'_, Pool>,
-) -> Result<Json<sync_match::CurrentMatchState>, ErrorResponse> {
-    Ok(Json(_get_game(key, pool).await?))
-}
-
-async fn _get_game(
-    key: String,
-    pool: State<'_, Pool>,
-) -> Result<sync_match::CurrentMatchState, anyhow::Error> {
+) -> Result<Json<sync_match::CurrentMatchState>, ServerError> {
     let key: i64 = key.parse()?;
+    let mut conn = pool.conn().await?;
 
-    if let Ok(Some(raw)) = db::game::RawGame::select(key, &mut pool.0.acquire().await?).await {
-        let game: SyncronizedMatch = SyncronizedMatch::load(&raw)?;
-        Ok(game.current_state()?)
+    if let Some(game) = db::game::select(key, &mut conn).await? {
+        Ok(Json(game.current_state()?))
     } else {
-        Err(anyhow::anyhow!("Game with id {} not found.", key))
+        Err(ServerError::NotFound)
     }
 }
 
 #[get("/game/recent")]
 async fn recently_created_games(
     pool: State<'_, Pool>,
-) -> Result<Json<Vec<sync_match::CurrentMatchState>>, ErrorResponse> {
-    Ok(Json((_recently_created_games(pool).await)?))
-}
-
-async fn _recently_created_games(
-    pool: State<'_, Pool>,
-) -> Result<Vec<sync_match::CurrentMatchState>, anyhow::Error> {
-    let raw = db::game::RawGame::latest(&mut pool.0.acquire().await?).await?;
-    let vec: Result<Vec<SyncronizedMatch>, anyhow::Error> =
-        raw.iter().map(|r| SyncronizedMatch::load(r)).collect();
+) -> Result<Json<Vec<sync_match::CurrentMatchState>>, ServerError> {
+    let games = db::game::latest(&mut pool.conn().await?).await?;
 
     let vec: Result<Vec<sync_match::CurrentMatchState>, _> =
-        vec?.iter().map(|m| m.current_state()).collect();
+        games.iter().map(|m| m.current_state()).collect();
 
-    Ok(vec?)
+    Ok(Json(vec?))
 }
 
 #[derive(Deserialize, Clone)]
@@ -433,31 +398,22 @@ struct BranchParameters {
 async fn branch_game(
     game_branch_parameters: Json<BranchParameters>,
     pool: State<'_, Pool>,
-) -> Result<String, ErrorResponse> {
-    let key = _branch_game(game_branch_parameters.0.clone(), pool).await?;
-    Ok(key)
-}
-
-async fn _branch_game(
-    game_parameters: BranchParameters,
-    pool: State<'_, Pool>,
-) -> Result<String, anyhow::Error> {
+) -> Result<String, ServerError> {
     info!("Creating a new game on client request.");
-    let mut conn = pool.0.acquire().await?;
+    let mut conn = pool.conn().await?;
 
-    let raw_game = RawGame::select(game_parameters.source_key.parse()?, &mut conn).await?;
+    let game = db::game::select(game_branch_parameters.source_key.parse()?, &mut conn).await?;
 
-    if let Some(raw_game) = raw_game {
-        let mut game = SyncronizedMatch::load(&raw_game)?;
-        game.actions.truncate(game_parameters.action_index);
-        game.timer = game_parameters.timer.map(|o| o.into());
+    if let Some(mut game) = game {
+        game.actions.truncate(game_branch_parameters.action_index);
 
-        let mut new_raw_game = game.store()?;
+        game.timer = game_branch_parameters.timer.clone().map(|o| o.into());
 
-        new_raw_game.insert(&mut conn).await?;
-        Ok(format!("{}", new_raw_game.id))
+        db::game::insert(&mut game, &mut conn).await?;
+
+        Ok(game.key)
     } else {
-        bail!("The game you want to branch from does not exist.")
+        Err(ServerError::NotFound)
     }
 }
 

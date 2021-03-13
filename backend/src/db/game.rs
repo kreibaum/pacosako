@@ -1,8 +1,80 @@
+use crate::db::Connection;
+use crate::{sync_match::SyncronizedMatch, ServerError};
 use sqlx::{pool::PoolConnection, Sqlite};
 
-use crate::{sync_match::SyncronizedMatch, timer::Timer};
-
 pub type Conn = PoolConnection<Sqlite>;
+
+/// Stores the game in the database as a new entry and updates the id
+pub async fn insert(game: &mut SyncronizedMatch, conn: &mut Connection) -> Result<(), ServerError> {
+    let action_history = serde_json::to_string(&game.actions)?;
+
+    let timer = if let Some(ref timer) = game.timer {
+        Some(serde_json::to_string(timer)?)
+    } else {
+        None
+    };
+
+    let id = sqlx::query!(
+        "insert into game (action_history, timer) values (?, ?)",
+        action_history,
+        timer
+    )
+    .execute(conn)
+    .await?
+    .last_insert_rowid();
+
+    game.key = format!("{}", id);
+
+    Ok(())
+}
+
+pub async fn select(id: i64, conn: &mut Conn) -> Result<Option<SyncronizedMatch>, ServerError> {
+    let raw_game = sqlx::query_as!(
+        RawGame,
+        "select id, action_history, timer from game where id = ?",
+        id
+    )
+    .fetch_optional(conn)
+    .await?;
+
+    if let Some(raw_game) = raw_game {
+        Ok(Some(raw_game_to_match(raw_game)?))
+    } else {
+        Ok(None)
+    }
+}
+
+fn raw_game_to_match(raw_game: RawGame) -> Result<SyncronizedMatch, ServerError> {
+    let timer = if let Some(ref timer) = raw_game.timer {
+        Some(serde_json::from_str(timer)?)
+    } else {
+        None
+    };
+
+    Ok(SyncronizedMatch {
+        key: format!("{}", raw_game.id),
+        actions: serde_json::from_str(&raw_game.action_history)?,
+        timer,
+    })
+}
+
+pub async fn latest(conn: &mut Conn) -> Result<Vec<SyncronizedMatch>, ServerError> {
+    let raw_games = sqlx::query_as!(
+        RawGame,
+        r"select id, action_history, timer from game
+        order by created desc
+        limit 5"
+    )
+    .fetch_all(conn)
+    .await?;
+
+    let mut result = Vec::with_capacity(raw_games.len());
+    for raw_game in raw_games {
+        result.push(raw_game_to_match(raw_game)?);
+    }
+
+    Ok(result)
+}
 
 // Database representation of a sync_match::SyncronizedMatch
 // We don't fully normalize the data, instead we just dump JSON into the db.
@@ -62,20 +134,6 @@ impl RawGame {
         .await
     }
 
-    /// Writes a RawGame to the database into a new record and overrides the id.
-    pub async fn insert(&mut self, conn: &mut Conn) -> Result<&mut Self, sqlx::Error> {
-        self.id = sqlx::query!(
-            "insert into game (action_history, timer) values (?, ?)",
-            self.action_history,
-            self.timer
-        )
-        .execute(conn)
-        .await?
-        .last_insert_rowid();
-
-        Ok(self)
-    }
-
     pub async fn update(&self, conn: &mut Conn) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r"update game 
@@ -89,16 +147,5 @@ impl RawGame {
         .await?;
 
         Ok(())
-    }
-
-    pub async fn latest(conn: &mut Conn) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as!(
-            RawGame,
-            r"select id, action_history, timer from game 
-            order by created desc 
-            limit 5"
-        )
-        .fetch_all(conn)
-        .await
     }
 }

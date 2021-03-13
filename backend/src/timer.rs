@@ -174,13 +174,25 @@ pub enum TimerState {
 }
 
 impl From<TimerConfig> for Timer {
-    fn from(config: TimerConfig) -> Self {
+    fn from(config: TimerConfig) -> Timer {
         Timer {
             last_timestamp: Utc::now(),
             time_left_white: config.time_budget_white.clone(),
             time_left_black: config.time_budget_black.clone(),
             timer_state: TimerState::NotStarted,
             config,
+        }
+    }
+}
+
+impl From<&TimerConfig> for Timer {
+    fn from(config: &TimerConfig) -> Timer {
+        Timer {
+            last_timestamp: Utc::now(),
+            time_left_white: config.time_budget_white.clone(),
+            time_left_black: config.time_budget_black.clone(),
+            timer_state: TimerState::NotStarted,
+            config: config.clone(),
         }
     }
 }
