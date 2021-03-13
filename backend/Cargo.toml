@@ -25,6 +25,7 @@ sqlx = { version = "0.4.0-beta.1", features = ["sqlite", "runtime-async-std-rust
 async-tungstenite = { version = "0.10.0", features = ["async-std-runtime"] }
 futures = "0.3.8"
 anyhow = "1.0"
+thiserror = "1.0"
 indexmap = "1.5.2"
 subtle = "2.4"
 

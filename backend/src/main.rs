@@ -21,7 +21,7 @@ use db::{
     Pool,
 };
 use instance_manager::Instance;
-use pacosako::{DenseBoard, PacoError, SakoSearchResult};
+use pacosako::{DenseBoard, SakoSearchResult};
 use rand::{thread_rng, Rng};
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::NamedFile;
@@ -51,19 +51,23 @@ impl From<anyhow::Error> for ErrorResponse {
 // Static Files ////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
+async fn static_file(path: &'static str) -> Result<NamedFile, ServerError> {
+    Ok(NamedFile::open(path).await?)
+}
+
 #[get("/")]
-async fn index() -> NamedFile {
-    NamedFile::open("../target/index.html").await.unwrap()
+async fn index() -> Result<NamedFile, ServerError> {
+    static_file("../target/index.html").await
 }
 
 #[get("/<_path..>", rank = 2)]
-async fn index_fallback(_path: std::path::PathBuf) -> NamedFile {
+async fn index_fallback(_path: std::path::PathBuf) -> Result<NamedFile, ServerError> {
     index().await
 }
 
 #[get("/favicon.svg")]
-async fn favicon() -> NamedFile {
-    NamedFile::open("../target/favicon.svg").await.unwrap()
+async fn favicon() -> Result<NamedFile, ServerError> {
+    static_file("../target/favicon.html").await
 }
 
 #[derive(Deserialize)]
@@ -75,11 +79,11 @@ struct UseMinJs {
 /// elm.js file. In staging and production we are returning the minified
 /// version of it.
 #[get("/elm.min.js")]
-async fn elm(config: State<'_, UseMinJs>) -> NamedFile {
+async fn elm(config: State<'_, UseMinJs>) -> Result<NamedFile, ServerError> {
     if config.use_min_js {
-        NamedFile::open("../target/elm.min.js").await.unwrap()
+        static_file("../target/elm.min.js").await
     } else {
-        NamedFile::open("../target/elm.js").await.unwrap()
+        static_file("../target/elm.js").await
     }
 }
 
@@ -87,51 +91,51 @@ async fn elm(config: State<'_, UseMinJs>) -> NamedFile {
 /// main.js file. In staging and production we are returning the minified
 /// version of it.
 #[get("/main.min.js")]
-async fn main_js(config: State<'_, UseMinJs>) -> NamedFile {
+async fn main_js(config: State<'_, UseMinJs>) -> Result<NamedFile, ServerError> {
     if config.use_min_js {
-        NamedFile::open("../target/main.min.js").await.unwrap()
+        static_file("../target/main.min.js").await
     } else {
-        NamedFile::open("../target/main.js").await.unwrap()
+        static_file("../target/main.js").await
     }
 }
 
 #[get("/ai_worker.js")]
-async fn ai_worker() -> NamedFile {
-    NamedFile::open("../target/ai_worker.js").await.unwrap()
+async fn ai_worker() -> Result<NamedFile, ServerError> {
+    static_file("../target/ai_worker.js").await
 }
 
 #[get("/static/examples.txt")]
-async fn examples() -> NamedFile {
-    NamedFile::open("../target/examples.txt").await.unwrap()
+async fn examples() -> Result<NamedFile, ServerError> {
+    static_file("../target/examples.js").await
 }
 
 #[get("/static/place_piece.mp3")]
-async fn place_piece() -> NamedFile {
-    NamedFile::open("../target/place_piece.mp3").await.unwrap()
+async fn place_piece() -> Result<NamedFile, ServerError> {
+    static_file("../target/place_piece.js").await
 }
 
 /// This enum holds all errors that can be returned by the API. The errors are
 /// returned as a JSON and may be displayed in the user interface.
-#[derive(Serialize, Debug)]
-enum ServerError {
-    DatabaseError { message: String },
+#[derive(Debug, thiserror::Error)]
+pub enum ServerError {
+    #[error("Database error")]
+    DatabaseError(#[from] sqlx::Error),
+    #[error("Could not deserialize data.")]
     DeserializationFailed,
-    GameError { message: String },
+    #[error("Error from the game logic.")]
+    GameError(#[from] pacosako::PacoError),
+    #[error("Not allowed")]
     NotAllowed,
+    #[error("Not found")]
     NotFound,
+    #[error("IO-error")]
+    IoError(#[from] std::io::Error),
 }
 
-impl From<ServerError> for Json<ServerError> {
-    fn from(error: ServerError) -> Self {
-        Json(error)
-    }
-}
-
-impl From<pacosako::PacoError> for ServerError {
-    fn from(error: PacoError) -> Self {
-        ServerError::GameError {
-            message: format!("{:?}", error),
-        }
+impl<'r> rocket::response::Responder<'r, 'static> for ServerError {
+    fn respond_to(self, _: &'r Request<'_>) -> rocket::response::Result<'static> {
+        error!("Server Error: {:?}", self);
+        return Err(rocket::http::Status::InternalServerError);
     }
 }
 
@@ -173,17 +177,13 @@ async fn position_update(
     update_request: Json<SavePositionRequest>,
     user: User,
     pool: State<'_, Pool>,
-) -> Result<Json<SavePositionResponse>, Json<ServerError>> {
+) -> Result<Json<SavePositionResponse>, ServerError> {
     // You can only update a position that you own.
     if pool.position_get(id).await?.owner != user.user_id {
-        return Err(Json(ServerError::NotAllowed));
+        return Err(ServerError::NotAllowed);
     }
 
-    json_result(
-        pool.position_update(id, update_request.0)
-            .await
-            .map_err(|e| e.into()),
-    )
+    Ok(Json(pool.position_update(id, update_request.0).await?))
 }
 
 #[derive(Serialize)]
@@ -198,22 +198,14 @@ async fn position_get(
     id: i64,
     user: User,
     conn: State<'_, Pool>,
-) -> Result<Json<Position>, Json<ServerError>> {
-    let position = conn.position_get(id).await.and_then(|position| {
+) -> Result<Json<Position>, ServerError> {
+    conn.position_get(id).await.and_then(|position| {
         if position.owner == user.user_id {
-            Ok(position)
+            Ok(Json(position))
         } else {
             Err(ServerError::NotAllowed)
         }
-    });
-    json_result(position)
-}
-
-fn json_result<T, U>(result: Result<T, U>) -> Result<Json<T>, Json<U>> {
-    match result {
-        Ok(val) => Ok(Json(val)),
-        Err(e) => Err(Json(e)),
-    }
+    })
 }
 
 /// List all positions owned by the currently logged in user.
@@ -221,8 +213,8 @@ fn json_result<T, U>(result: Result<T, U>) -> Result<Json<T>, Json<U>> {
 async fn position_get_list(
     user: User,
     conn: State<'_, Pool>,
-) -> Result<Json<Vec<Position>>, Json<ServerError>> {
-    json_result(conn.position_get_list(user.user_id).await)
+) -> Result<Json<Vec<Position>>, ServerError> {
+    Ok(Json(conn.position_get_list(user.user_id).await?))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,7 +222,7 @@ async fn position_get_list(
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Deserialize)]
-struct LoginRequest {
+pub struct LoginRequest {
     username: String,
     password: String,
 }
@@ -238,7 +230,7 @@ struct LoginRequest {
 /// Request guard that makes it easy to define routes that are only available
 /// to logged in members of the website.
 #[derive(Serialize)]
-struct User {
+pub struct User {
     user_id: i64,
     username: String,
 }
@@ -270,15 +262,17 @@ async fn login(
     login: Json<LoginRequest>,
     jar: &CookieJar<'_>,
     conn: State<'_, Pool>,
-) -> Result<Json<User>, Json<ServerError>> {
-    match conn.check_password(&login.0).await {
-        Ok(true) => {
-            jar.add_private(Cookie::new("user_id", login.username.clone()));
-            let user = conn.get_user(login.username.clone()).await.unwrap();
-            Ok(Json(user))
-        }
-        Ok(false) => Err(Json(ServerError::NotFound)),
-        Err(db_error) => Err(Json(db_error)),
+) -> Result<Json<User>, ServerError> {
+    let mut conn = conn.conn().await?;
+
+    if db::user::check_password(&mut conn, &login.0).await? {
+        jar.add_private(Cookie::new("user_id", login.username.clone()));
+        let user = db::user::get_user(&mut conn, login.username.clone())
+            .await
+            .unwrap();
+        Ok(Json(user))
+    } else {
+        Err(ServerError::NotAllowed)
     }
 }
 
@@ -325,7 +319,7 @@ struct AnalysisReport {
 #[post("/analyse", data = "<position>")]
 fn analyse_position(
     position: Json<SavePositionRequest>,
-) -> Result<Json<AnalysisReport>, Json<ServerError>> {
+) -> Result<Json<AnalysisReport>, ServerError> {
     use std::convert::TryInto;
 
     // Get data out of request.
@@ -335,16 +329,13 @@ fn analyse_position(
     let board: Result<DenseBoard, ()> =
         (&pacosako::ExchangeNotation(position_data.notation)).try_into();
     if let Ok(board) = board {
-        let sequences = pacosako::find_sako_sequences(&((&board).into()));
-        match sequences {
-            Ok(sequences) => Ok(Json(AnalysisReport {
-                text_summary: format!("{:?}", sequences),
-                search_result: sequences,
-            })),
-            Err(error) => Err(Json(error.into())),
-        }
+        let sequences = pacosako::find_sako_sequences(&((&board).into()))?;
+        Ok(Json(AnalysisReport {
+            text_summary: format!("{:?}", sequences),
+            search_result: sequences,
+        }))
     } else {
-        Err(Json(ServerError::DeserializationFailed))
+        Err(ServerError::DeserializationFailed)
     }
 }
 

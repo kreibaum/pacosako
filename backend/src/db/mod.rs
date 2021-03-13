@@ -1,13 +1,17 @@
 /// Everything related to the play page.
-pub(crate) mod game;
+pub mod game;
+pub mod user;
 
 use super::{LoginRequest, Position, SavePositionRequest, SavePositionResponse, ServerError, User};
+use sqlx::pool::PoolConnection;
 /// All database logic for the pacosako game server lives in this project.
 /// We are using sqlx to talk to an sqlite database.
-use sqlx::sqlite::SqlitePool;
+use sqlx::sqlite::{Sqlite, SqlitePool};
 
 #[derive(Clone)]
-pub struct Pool(pub SqlitePool);
+pub struct Pool(pub sqlx::pool::Pool<Sqlite>);
+
+pub type Connection = PoolConnection<Sqlite>;
 
 struct PositionRaw {
     id: i64,
@@ -15,19 +19,16 @@ struct PositionRaw {
     data: Option<String>,
 }
 
-impl From<sqlx::Error> for ServerError {
-    fn from(db_error: sqlx::Error) -> Self {
-        ServerError::DatabaseError {
-            message: db_error.to_string(),
-        }
-    }
-}
-
 impl Pool {
     pub async fn new(database_path: &str) -> Result<Self, sqlx::Error> {
         let pool = SqlitePool::connect(database_path).await?;
 
         Ok(Pool(pool))
+    }
+
+    /// Get a connection from the database pool.
+    pub async fn conn(&self) -> Result<Connection, sqlx::Error> {
+        self.0.acquire().await
     }
 
     pub(crate) async fn position_create(
@@ -110,24 +111,6 @@ impl Pool {
         )
         .fetch_one(&self.0)
         .await?)
-    }
-
-    pub(crate) async fn check_password(&self, login: &LoginRequest) -> Result<bool, ServerError> {
-        use pbkdf2::pbkdf2_check;
-
-        let rec = sqlx::query!(
-            "SELECT password FROM user WHERE username = ?1",
-            login.username,
-        )
-        .fetch_one(&self.0)
-        .await?;
-
-        if let Some(hash) = rec.password {
-            Ok(pbkdf2_check(&login.password, &hash).is_ok())
-        } else {
-            // If the user has no password, they can't log in ever.
-            Ok(false)
-        }
     }
 }
 

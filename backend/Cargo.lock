@@ -1403,6 +1403,7 @@ dependencies = [
  "simplelog",
  "sqlx",
  "subtle",
+ "thiserror",
  "time 0.1.43",
  "uuid",
  "ws",
