@@ -25,6 +25,8 @@ jobs:
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
         
     - name: Run library tests
       run: | 
