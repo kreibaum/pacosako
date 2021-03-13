@@ -114,8 +114,7 @@ async fn place_piece() -> Result<NamedFile, ServerError> {
     static_file("../target/place_piece.js").await
 }
 
-/// This enum holds all errors that can be returned by the API. The errors are
-/// returned as a JSON and may be displayed in the user interface.
+/// This enum holds all errors that can be returned by the API.
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
     #[error("Database error")]
