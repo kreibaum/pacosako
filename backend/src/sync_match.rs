@@ -1,10 +1,7 @@
+use crate::timer::{Timer, TimerConfig, TimerState};
 use crate::{
     db,
     instance_manager::{ClientMessage, Instance, ProvidesKey, ServerMessage},
-};
-use crate::{
-    db::game::StoreAs,
-    timer::{Timer, TimerConfig, TimerState},
 };
 use async_std::task;
 use chrono::{DateTime, Utc};
@@ -221,23 +218,23 @@ impl Instance for SyncronizedMatch {
         }
     }
 
-    fn load_from_db(key: &str, conn: crate::db::game::Conn) -> Result<Self, anyhow::Error> {
+    fn load_from_db(key: &str, conn: db::Connection) -> Result<Self, anyhow::Error> {
         // So now I can't be in an async function because I am in a trait
         // But I need to be in an async function to properly work with sqlx :-/
         task::block_on(_load_from_db(key, conn))
     }
 
-    fn store_to_db(&self, conn: db::game::Conn) -> Result<(), anyhow::Error> {
+    fn store_to_db(&self, conn: db::Connection) -> Result<(), anyhow::Error> {
         task::block_on(_store_to_db(self, conn))
     }
 }
 
 async fn _load_from_db(
     key: &str,
-    mut conn: crate::db::game::Conn,
+    mut conn: db::Connection,
 ) -> Result<SyncronizedMatch, anyhow::Error> {
-    if let Some(game) = db::game::RawGame::select(key.parse()?, &mut conn).await? {
-        Ok(SyncronizedMatch::load(&game)?)
+    if let Some(game) = db::game::select(key.parse()?, &mut conn).await? {
+        Ok(game)
     } else {
         Err(anyhow::anyhow!("Game with key {} not found.", key))
     }
@@ -245,10 +242,10 @@ async fn _load_from_db(
 
 async fn _store_to_db(
     game: &SyncronizedMatch,
-    mut conn: db::game::Conn,
+    mut conn: db::Connection,
 ) -> Result<(), anyhow::Error> {
-    let game = game.store()?;
-    game.update(&mut conn).await?;
+    db::game::update(game, &mut conn).await?;
+
     Ok(())
 }
 

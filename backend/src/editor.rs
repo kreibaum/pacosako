@@ -2,6 +2,7 @@
 //! This is quite a simple definition, as any change will just be verifid and
 //! then broadcasted to all connected clients.
 
+use crate::db;
 use crate::instance_manager::{self, Context, Instance, ProvidesKey};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -60,11 +61,11 @@ impl Instance for SyncronizedBoard {
         // We are not using timeouts.
     }
 
-    fn load_from_db(key: &str, conn: crate::db::game::Conn) -> Result<Self, anyhow::Error> {
+    fn load_from_db(key: &str, conn: db::Connection) -> Result<Self, anyhow::Error> {
         Err(anyhow::anyhow!("Loading from db not imlemented."))
     }
 
-    fn store_to_db(&self, conn: crate::db::game::Conn) -> Result<(), anyhow::Error> {
+    fn store_to_db(&self, conn: db::Connection) -> Result<(), anyhow::Error> {
         Err(anyhow::anyhow!("Storing to db not imlemented."))
     }
 }

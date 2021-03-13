@@ -3,7 +3,7 @@ use std::ops::DerefMut;
 use super::{LoginRequest, ServerError, User};
 use crate::db::Connection;
 
-pub async fn get_user(conn: &mut Connection, username: String) -> Result<User, ServerError> {
+pub async fn get_user(username: String, conn: &mut Connection) -> Result<User, ServerError> {
     Ok(sqlx::query_as!(
         User,
         "SELECT id as user_id, username FROM user WHERE username = ?1",
@@ -14,8 +14,8 @@ pub async fn get_user(conn: &mut Connection, username: String) -> Result<User, S
 }
 
 pub async fn check_password(
-    conn: &mut Connection,
     login: &LoginRequest,
+    conn: &mut Connection,
 ) -> Result<bool, ServerError> {
     use pbkdf2::pbkdf2_check;
 

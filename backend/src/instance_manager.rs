@@ -1,7 +1,4 @@
-use crate::{
-    db::{game::Conn, Pool},
-    timeout,
-};
+use crate::{db, db::Pool, timeout};
 use async_std::task;
 use chrono::{DateTime, Duration, Utc};
 use rand::{thread_rng, Rng};
@@ -39,10 +36,10 @@ pub trait Instance: Sized + Send {
     fn handle_timeout(&mut self, now: DateTime<Utc>, ctx: &mut Context<Self>);
     /// Loading games from the database is an optional features for instances
     /// right now.
-    fn load_from_db(key: &str, conn: Conn) -> Result<Self, anyhow::Error>;
+    fn load_from_db(key: &str, conn: db::Connection) -> Result<Self, anyhow::Error>;
     /// storing games to the database is an optional feature for instances
     /// right now.
-    fn store_to_db(&self, conn: Conn) -> Result<(), anyhow::Error>;
+    fn store_to_db(&self, conn: db::Connection) -> Result<(), anyhow::Error>;
 }
 
 pub trait ProvidesKey {
@@ -602,11 +599,11 @@ mod test {
             // No timeouts used in the test.
         }
 
-        fn load_from_db(key: &str, _conn: Conn) -> Result<Self, anyhow::Error> {
+        fn load_from_db(key: &str, _conn: db::Connection) -> Result<Self, anyhow::Error> {
             Err(anyhow::anyhow!("Loading from db not imlemented."))
         }
 
-        fn store_to_db(&self, _conn: Conn) -> Result<(), anyhow::Error> {
+        fn store_to_db(&self, _conn: db::Connection) -> Result<(), anyhow::Error> {
             Err(anyhow::anyhow!("Storing to db not imlemented."))
         }
     }

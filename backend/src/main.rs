@@ -51,7 +51,7 @@ async fn index_fallback(_path: std::path::PathBuf) -> Result<NamedFile, ServerEr
 
 #[get("/favicon.svg")]
 async fn favicon() -> Result<NamedFile, ServerError> {
-    static_file("../target/favicon.html").await
+    static_file("../target/favicon.svg").await
 }
 
 #[derive(Deserialize)]
@@ -95,7 +95,7 @@ async fn examples() -> Result<NamedFile, ServerError> {
 
 #[get("/static/place_piece.mp3")]
 async fn place_piece() -> Result<NamedFile, ServerError> {
-    static_file("../target/place_piece.js").await
+    static_file("../target/place_piece.mp3").await
 }
 
 /// This enum holds all errors that can be returned by the API.
@@ -252,9 +252,9 @@ async fn login(
 ) -> Result<Json<User>, ServerError> {
     let mut conn = conn.conn().await?;
 
-    if db::user::check_password(&mut conn, &login.0).await? {
+    if db::user::check_password(&login.0, &mut conn).await? {
         jar.add_private(Cookie::new("user_id", login.username.clone()));
-        let user = db::user::get_user(&mut conn, login.username.clone())
+        let user = db::user::get_user(login.username.clone(), &mut conn)
             .await
             .unwrap();
         Ok(Json(user))
