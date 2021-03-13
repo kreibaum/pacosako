@@ -9,10 +9,6 @@ USER gitpod
 #
 # More information: https://www.gitpod.io/docs/config-docker/
 
-# Nightly rust is required by the Rocket server in version 0.4. We will switch
-# to stable rust when Rocket 0.5 (async) releases.
-RUN bash -cl "rustup default nightly"
-
 # SQLx command line utility for migration scripts.
 RUN bash -cl "cargo install --version=0.2.0 sqlx-cli"
 

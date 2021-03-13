@@ -18,7 +18,7 @@ before_cache:
   - rm -f $TRAVIS_BUILD_DIR/backend/target/tarpaulin
   - rm -f $TRAVIS_BUILD_DIR/lib/target/tarpaulin
 rust:
-  - nightly-2021-01-30
+  - stable
 
 before_script: |
   bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
