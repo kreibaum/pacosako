@@ -36,6 +36,9 @@ jobs:
           lib/target
         key: test-cache
         
+    - name: Install SQLX-tooling
+      run: cargo install sqlx-cli
+        
     - name: Run library tests
       run: | 
         pwd
@@ -47,6 +50,9 @@ jobs:
       run: | 
         pwd
         cd backend
+        mkdir -p data
+        sqlx database create
+        sqlx migrate run
         cargo test
         cd ..
 
@@ -62,7 +68,10 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-        
+            
+    - name: Install SQLX-tooling
+      run: cargo install sqlx-cli
+    
     - uses: actions/setup-node@v2
     
     - name: Install Elm
@@ -75,6 +84,9 @@ jobs:
     - name: Compile Server in release mode
       run: |
         cd backend
+        mkdir -p data
+        sqlx database create
+        sqlx migrate run
         cargo build --release
         cd ..
     
