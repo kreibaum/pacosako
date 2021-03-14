@@ -15,7 +15,7 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  unit_tests:
+  test:
     name: Run unit tests
     runs-on: ubuntu-20.04
 
@@ -130,3 +130,32 @@ jobs:
       with:
         name: deploy
         path: deploy.tar.gz
+
+  deploy:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-20.04
+    needs: [test, build]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Check out deployment artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: deploy
+
+      - name: Setup SSH Keys and known_hosts
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          mkdir -p ~/.ssh
+          ssh-add - <<< "${{ secrets.DEPLOYMENT_KEY }}"
+          touch ~/.ssh/known_hosts
+          cat scripts/known_hosts >> ~/.ssh/known_hosts
+          
+      - name: Upload to pacoplacy.com host
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          scp -v deploy.tar.gz pacosako@pacoplay.com:~
