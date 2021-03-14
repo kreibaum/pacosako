@@ -20,7 +20,7 @@ jobs:
       - name: Setup SSH Keys and known_hosts
         run: |
           eval "$(ssh-agent -s)"
-          ssh-add - <<< "${{ secrets.SSH_PRIVATE_KEY }}"
+          ssh-add - <<< "${{ secrets.DEPLOYMENT_KEY }}"
           cat scripts/known_hosts >> ~/.ssh/known_hosts
           
       - name: Create file for upload
