@@ -19,6 +19,7 @@ jobs:
       
       - name: Setup SSH Keys and known_hosts
         run: |
+          ssh-agent -s
           ssh-add - <<< "${{ secrets.SSH_PRIVATE_KEY }}"
           cat scripts/known_hosts >> ~/.ssh/known_hosts
           
