@@ -17,7 +17,7 @@ on:
 jobs:
   unit_tests:
     name: Run unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
     - name: Checkout
@@ -27,6 +27,14 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+
+    - name: Cache multiple paths
+      uses: actions/cache@v2
+      with:
+        path: |
+          backend/target
+          lib/target
+        key: test-cache
         
     - name: Run library tests
       run: | 
@@ -44,7 +52,7 @@ jobs:
 
   build:
     name: Build artifact
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     
     steps:
     - name: Checkout
@@ -60,7 +68,7 @@ jobs:
     - name: Install Elm
       run: |
         curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
-        npm install -g elm-spa@latest typescript uglify-js
+        sudo npm install -g elm-spa@latest typescript uglify-js
         gunzip elm.gz
         chmod +x elm
         
