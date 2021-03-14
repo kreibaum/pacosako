@@ -18,10 +18,12 @@ jobs:
       - uses: actions/checkout@v2
       
       - name: Setup SSH Keys and known_hosts
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         run: |
-          eval "$(ssh-agent -s)"
-          ssh-add - <<< "${{ secrets.DEPLOYMENT_KEY }}"
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
           mkdir -p ~/.ssh
+          ssh-add - <<< "${{ secrets.DEPLOYMENT_KEY }}"
           touch ~/.ssh/known_hosts
           cat scripts/known_hosts >> ~/.ssh/known_hosts
           
@@ -29,5 +31,7 @@ jobs:
         run: echo "Lorem Ipsum" > test-data
 
       - name: Upload to pacoplacy.com host
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         run: |
           scp -v test-data pacosako@pacoplay.com:~
