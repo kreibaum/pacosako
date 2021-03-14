@@ -123,7 +123,7 @@ jobs:
         mkdir -p deploy/backend
         cp ./backend/target/release/pacosako-tool-server ./deploy/backend/pacosako
         cp ./frontend/static/* ./deploy/target
-        cp ./backend/target/* ./deploy/target
+        cp -p ./backend/target/* ./deploy/target
         tar -zcf deploy.tar.gz deploy
 
     - name: Publish artifact
