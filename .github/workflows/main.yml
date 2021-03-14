@@ -38,7 +38,11 @@ jobs:
         key: unittest
         
     - name: Install SQLX-tooling
-      run: cargo install sqlx-cli --no-default-features --features sqlite
+      uses: actions-rs/install@v0.1
+      with:
+        crate: sqlx-cli
+        version: latest
+        use-tool-cache: true
         
     - name: Run library tests
       run: | 
@@ -93,9 +97,16 @@ jobs:
         cd ..
         # Typescript
         tsc
+        # Minimize Javascript
+        uglifyjs ./target/elm.js -o ./target/elm.min.js --mangle --compress
+        uglifyjs ./target/main.js -o ./target/main.min.js --mangle --compress
             
     - name: Install SQLX-tooling
-      run: cargo install sqlx-cli --no-default-features --features sqlite
+      uses: actions-rs/install@v0.1
+      with:
+        crate: sqlx-cli
+        version: latest
+        use-tool-cache: true
     
     - name: Compile Server in release mode
       run: |
@@ -105,3 +116,16 @@ jobs:
         sqlx migrate run
         cargo build --release
         cd ..
+        
+    - name: Create artifact for Website
+      run: |
+        mkdir deploy
+        cp ./backend/target/release/pacosako-tool-server ./deploy/pacosako
+        cp ./frontend/static/* ./deploy/target
+        tar -zcf deploy.tar.gz deploy
+
+    - name: Publish artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: deploy
+        path: deploy.tar.gz
