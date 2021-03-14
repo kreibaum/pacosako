@@ -119,10 +119,11 @@ jobs:
         
     - name: Create artifact for Website
       run: |
-        mkdir deploy
-        mkdir deploy/target
+        mkdir -p deploy/target
+        mkdir -p deploy/backend
         cp ./backend/target/release/pacosako-tool-server ./deploy/backend/pacosako
         cp ./frontend/static/* ./deploy/target
+        cp ./backend/target/* ./deploy/target
         tar -zcf deploy.tar.gz deploy
 
     - name: Publish artifact
