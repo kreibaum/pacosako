@@ -33,3 +33,50 @@ jobs:
         pwd
         cd lib
         cargo test
+        cd ..
+        
+    - name: Run backend tests
+      run: | 
+        pwd
+        cd backend
+        cargo test
+        cd ..
+
+  build:
+    name: Build artifact
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        
+    - uses: actions/setup-node@v2
+    
+    - name: Install Elm
+      run: |
+        curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
+        npm install -g elm-spa@latest typescript uglify-js
+        gunzip elm.gz
+        chmod +x elm
+        
+    - name: Compile Server in release mode
+      run: |
+        cd backend
+        cargo build --release
+        cd ..
+    
+    - name: Compile Frontend
+      run: |
+        mkdir -p target
+        cp frontend/static/* target/
+        cd frontend
+        elm-spa build
+        elm make src/Main.elm --output=../target/elm.js
+        cd ..
+        # Typescript
+        tsc
