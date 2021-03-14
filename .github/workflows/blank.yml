@@ -30,4 +30,4 @@ jobs:
 
       - name: Upload to pacoplacy.com host
         run: |
-          scp test-data pacosako@pacoplay.com:~
+          scp -v test-data pacosako@pacoplay.com:~
