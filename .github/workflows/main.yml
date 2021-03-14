@@ -34,10 +34,11 @@ jobs:
         path: |
           backend/target
           lib/target
+          ~/.cargo
         key: test-cache
         
     - name: Install SQLX-tooling
-      run: cargo install sqlx-cli
+      run: cargo install sqlx-cli --no-default-features --features sqlite
         
     - name: Run library tests
       run: | 
@@ -68,18 +69,22 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+
+    - name: Cache multiple paths
+      uses: actions/cache@v2
+      with:
+        path: |
+          backend/target
+          ~/.cargo
+        key: test-cache
             
     - name: Install SQLX-tooling
-      run: cargo install sqlx-cli
+      run: cargo install sqlx-cli --no-default-features --features sqlite
     
     - uses: actions/setup-node@v2
     
     - name: Install Elm
-      run: |
-        curl -L -o elm.gz https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz
-        sudo npm install -g elm-spa@latest typescript uglify-js
-        gunzip elm.gz
-        chmod +x elm
+      run: sudo npm install -g elm elm-spa@latest typescript uglify-js
         
     - name: Compile Server in release mode
       run: |
