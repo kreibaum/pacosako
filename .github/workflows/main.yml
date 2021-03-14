@@ -35,7 +35,7 @@ jobs:
           backend/target
           lib/target
           ~/.cargo
-        key: test-cache
+        key: unittest
         
     - name: Install SQLX-tooling
       run: cargo install sqlx-cli --no-default-features --features sqlite
@@ -76,24 +76,12 @@ jobs:
         path: |
           backend/target
           ~/.cargo
-        key: test-cache
-            
-    - name: Install SQLX-tooling
-      run: cargo install sqlx-cli --no-default-features --features sqlite
-    
+        key: build
+        
     - uses: actions/setup-node@v2
     
     - name: Install Elm
-      run: sudo npm install -g elm elm-spa@latest typescript uglify-js
-        
-    - name: Compile Server in release mode
-      run: |
-        cd backend
-        mkdir -p data
-        sqlx database create
-        sqlx migrate run
-        cargo build --release
-        cd ..
+      run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
     
     - name: Compile Frontend
       run: |
@@ -105,3 +93,15 @@ jobs:
         cd ..
         # Typescript
         tsc
+            
+    - name: Install SQLX-tooling
+      run: cargo install sqlx-cli --no-default-features --features sqlite
+    
+    - name: Compile Server in release mode
+      run: |
+        cd backend
+        mkdir -p data
+        sqlx database create
+        sqlx migrate run
+        cargo build --release
+        cd ..
