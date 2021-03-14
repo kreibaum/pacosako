@@ -21,6 +21,7 @@ jobs:
         run: |
           eval "$(ssh-agent -s)"
           ssh-add - <<< "${{ secrets.DEPLOYMENT_KEY }}"
+          touch ~/.ssh/known_hosts
           cat scripts/known_hosts >> ~/.ssh/known_hosts
           
       - name: Create file for upload
