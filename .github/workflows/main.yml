@@ -121,7 +121,7 @@ jobs:
       run: |
         mkdir deploy
         mkdir deploy/target
-        cp ./backend/target/release/pacosako-tool-server ./deploy/pacosako
+        cp ./backend/target/release/pacosako-tool-server ./deploy/backend/pacosako
         cp ./frontend/static/* ./deploy/target
         tar -zcf deploy.tar.gz deploy
 
@@ -134,6 +134,7 @@ jobs:
   deploy:
     # The type of runner that the job will run on
     runs-on: ubuntu-20.04
+    if: github.ref == 'refs/heads/master'
     needs: [test, build]
 
     steps:
