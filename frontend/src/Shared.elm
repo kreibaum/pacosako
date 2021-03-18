@@ -28,6 +28,7 @@ import Json.Encode exposing (Value)
 import Spa.Document exposing (Document)
 import Spa.Generated.Route as Route exposing (Route)
 import Svg.Custom
+import Time exposing (Posix)
 import Url exposing (Url)
 
 
@@ -50,6 +51,7 @@ type alias Model =
     -- people sharing a game with you.
     , username : String
     , permissions : List LocalStorage.Permission
+    , now : Posix
     }
 
 
@@ -66,6 +68,7 @@ init flags url key =
       , language = ls.data.language
       , username = ls.data.username
       , permissions = ls.permissions
+      , now = parseNow flags
       }
     , Api.Backend.getCurrentLogin HttpError
         (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
@@ -87,6 +90,17 @@ sizeDecoder =
         )
 
 
+parseNow : Value -> Posix
+parseNow value =
+    let
+        nowDecoder =
+            Decode.map Time.millisToPosix
+                (Decode.field "now" Decode.int)
+    in
+    Decode.decodeValue nowDecoder value
+        |> Result.withDefault (Time.millisToPosix 0)
+
+
 
 -- UPDATE
 
@@ -99,6 +113,7 @@ type Msg
     | UserHidesGamesArePublicHint
     | SetLanguage Language
     | WindowResize Int Int
+    | UpdateNow Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -124,6 +139,9 @@ update msg model =
 
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }, Cmd.none )
+
+        UpdateNow now ->
+            ( { model | now = now }, Cmd.none )
 
 
 setLanguage : Language -> Model -> ( Model, Cmd Msg )
@@ -157,6 +175,7 @@ subscriptions _ =
     Sub.batch
         [ LocalStorage.subscribeSave TriggerSaveLocalStorage
         , Browser.Events.onResize WindowResize
+        , Time.every 1000 UpdateNow
         ]
 
 

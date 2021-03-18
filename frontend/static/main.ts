@@ -78,7 +78,8 @@ var app = Elm.Main.init({
     node: document.getElementById("elm"),
     flags: {
         "windowSize": windowSize,
-        "localStorage": localStorageData
+        "localStorage": localStorageData,
+        "now": Date.now()
     },
 });
 

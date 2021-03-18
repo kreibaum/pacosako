@@ -101,7 +101,7 @@ init shared { params, query } =
       , castingDeco = CastingDeco.initModel
       , inputMode = Nothing
       , rotation = WhiteBottom
-      , now = Time.millisToPosix 0
+      , now = shared.now
       , lang = shared.language
       , whiteName = ""
       , blackName = ""
@@ -138,7 +138,6 @@ type Msg
     | RequestAiMove
     | AiCrashed
     | SetRotation BoardRotation
-    | UpdateNow Posix
     | WebsocketMsg Api.Websocket.ServerMessage
     | WebsocketErrorMsg Decode.Error
     | SetWhiteName String
@@ -208,9 +207,6 @@ update msg model =
 
         SetRotation rotation ->
             ( setRotation rotation model, Cmd.none )
-
-        UpdateNow now ->
-            ( { model | now = now }, Cmd.none )
 
         WebsocketMsg serverMessage ->
             updateWebsocket serverMessage model
@@ -556,6 +552,7 @@ load shared model =
     ( { model
         | lang = shared.language
         , windowSize = shared.windowSize
+        , now = shared.now
       }
     , Cmd.none
     )
@@ -564,8 +561,7 @@ load shared model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ Time.every 1000 UpdateNow
-        , Animation.subscription model.timeline AnimationTick
+        [ Animation.subscription model.timeline AnimationTick
         , Api.Websocket.listen WebsocketMsg WebsocketErrorMsg
         , Api.Websocket.listenToStatus WebsocketStatusChange
         , Api.Ai.subscribeMoveFromAi AiCrashed MoveFromAi
