@@ -1,36 +1,39 @@
 /// Handles all the websocket client logic.
 pub mod client_connector;
+pub mod timeout_connector;
 
-use crate::ServerError;
+use crate::{db, ServerError};
 use async_channel::{Receiver, Sender};
 use async_std::task;
-use async_std::{
-    net::{TcpListener, TcpStream},
-    sync::RwLock,
-};
-use async_tungstenite::{
-    accept_async,
-    tungstenite::{Error, Message},
-};
+use async_tungstenite::tungstenite::Message;
+use chrono::{DateTime, Utc};
 use client_connector::{PeerMap, WebsocketOutMsg};
-use futures::future::{select, Either};
-use futures::prelude::*;
 use log::*;
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
-pub fn run_server(port: u16) -> Result<(), ServerError> {
+use self::timeout_connector::TimeoutOutMsg;
+
+pub fn run_server(port: u16, pool: db::Pool) -> Result<(), ServerError> {
     let (to_logic, message_queue) = async_channel::unbounded();
 
-    let all_peers = client_connector::run_websocket_connector(port, to_logic);
+    let all_peers = client_connector::run_websocket_connector(port, to_logic.clone());
+    let to_timeout = timeout_connector::run_timeout_thread(to_logic);
 
-    run_logic_server(all_peers, message_queue);
+    run_logic_server(all_peers, to_timeout, message_queue, pool);
 
     Ok(())
 }
 
 /// A message that is send to the logic where the logic has then to react.
 enum LogicMsg {
-    Websocket { data: Message, source: SocketAddr },
+    Websocket {
+        data: Message,
+        source: SocketAddr,
+    },
+    Timeout {
+        key: String,
+        timestamp: DateTime<Utc>,
+    },
 }
 
 impl WebsocketOutMsg for LogicMsg {
@@ -46,19 +49,56 @@ impl WebsocketOutMsg for LogicMsg {
     }
 }
 
-/// Spawn a thread that handles the server logic.
-fn run_logic_server(all_peers: PeerMap, message_queue: Receiver<LogicMsg>) {
-    std::thread::spawn(move || task::block_on(loop_logic_server(all_peers, message_queue)));
-}
-
-/// Simple loop that reacts to all the messages.
-async fn loop_logic_server(all_peers: PeerMap, message_queue: Receiver<LogicMsg>) {
-    while let Ok(msg) = message_queue.recv().await {
-        handle_message(msg, &all_peers).await;
+impl TimeoutOutMsg<String> for LogicMsg {
+    fn from_ws_message(data: String, timestamp: DateTime<Utc>) -> Option<Self> {
+        Some(LogicMsg::Timeout {
+            key: data,
+            timestamp,
+        })
     }
 }
 
-async fn handle_message(msg: LogicMsg, ws: &PeerMap) {
+/// Spawn a thread that handles the server logic.
+fn run_logic_server(
+    all_peers: PeerMap,
+    to_timeout: Sender<(String, DateTime<Utc>)>,
+    message_queue: Receiver<LogicMsg>,
+    pool: db::Pool,
+) {
+    std::thread::spawn(move || {
+        task::block_on(loop_logic_server(
+            all_peers,
+            to_timeout,
+            message_queue,
+            pool,
+        ))
+    });
+}
+
+/// Simple loop that reacts to all the messages.
+async fn loop_logic_server(
+    all_peers: PeerMap,
+    to_timeout: Sender<(String, DateTime<Utc>)>,
+    message_queue: Receiver<LogicMsg>,
+    pool: db::Pool,
+) -> Result<(), ServerError> {
+    while let Ok(msg) = message_queue.recv().await {
+        let conn = pool.0.acquire().await?;
+        handle_message(msg, to_timeout.clone(), &all_peers, conn).await;
+    }
+    Ok(())
+}
+
+/// This handle message is wired up, so that each message is handled separately.
+/// What we likely actually want is to only run messages sequentially that
+/// concern the same game key. So that is some possible performance improvement
+/// that is still open here.
+async fn handle_message(
+    msg: LogicMsg,
+    to_timeout: Sender<(String, DateTime<Utc>)>,
+    ws: &PeerMap,
+    conn: db::Connection,
+) {
     info!("Handling message!");
 
     match msg {
@@ -68,6 +108,9 @@ async fn handle_message(msg: LogicMsg, ws: &PeerMap) {
             if let Some(target) = ws.get(&source).await {
                 target.send(data).await;
             }
+        }
+        LogicMsg::Timeout { key, timestamp } => {
+            info!("Timeout was called for game {} at {}", key, timestamp);
         }
     }
 }

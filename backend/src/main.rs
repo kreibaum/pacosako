@@ -488,6 +488,22 @@ fn init_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocke
         .manage(WebsocketPort(config.websocket_port)))
 }
 
+/// Initialize the websocket server and provide it with a database connection.
+fn init_new_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
+    let config: CustomConfig = rocket
+        .figment()
+        .extract()
+        .expect("Config could not be parsed");
+
+    if let Some(pool) = rocket.state::<Pool>() {
+        // Not yet
+        ws::run_server(config.websocket_port + 6000, pool.clone())
+            .expect("Error starting websocket server!");
+    }
+
+    Ok(rocket)
+}
+
 #[derive(Deserialize)]
 struct CustomConfig {
     websocket_port: u16,
@@ -500,8 +516,6 @@ fn rocket() -> rocket::Rocket {
 
     init_logger();
 
-    ws::run_server(9001).unwrap();
-
     // All the other components are created inside rocket.attach because this
     // gives them access to the rocket configuration and I can properly separate
     // the different stages like that.
@@ -511,6 +525,9 @@ fn rocket() -> rocket::Rocket {
         }))
         .attach(AdHoc::on_attach("Websocket Config", |rocket| {
             Box::pin(async move { init_websocket_server(rocket) })
+        }))
+        .attach(AdHoc::on_attach("Websocket Server", |rocket| {
+            Box::pin(async move { init_new_websocket_server(rocket) })
         }))
         .attach(AdHoc::config::<UseMinJs>())
         .mount(
