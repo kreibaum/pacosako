@@ -69,7 +69,7 @@ load shared model =
         | login = shared.user
         , language = shared.language
       }
-    , refreshRecentGames
+    , Cmd.none
     )
 
 
