@@ -5,8 +5,7 @@ mod sync_match;
 mod timeout;
 mod timer;
 mod websocket;
-mod ws2;
-mod ws3;
+mod ws;
 
 #[macro_use]
 extern crate rocket;
@@ -30,7 +29,6 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use sync_match::SyncronizedMatch;
 use websocket::WebsocketServer;
-use ws2::WS2;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Static Files ////////////////////////////////////////////////////////////////
@@ -502,9 +500,7 @@ fn rocket() -> rocket::Rocket {
 
     init_logger();
 
-    // WS2::spawn(3020);
-
-    ws3::run_server(9001).unwrap();
+    ws::run_server(9001).unwrap();
 
     // All the other components are created inside rocket.attach because this
     // gives them access to the rocket configuration and I can properly separate

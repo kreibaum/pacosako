@@ -15,12 +15,12 @@ use log::*;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 #[derive(Default, Clone, Debug)]
-pub(crate) struct PeerMap {
+pub struct PeerMap {
     map: Arc<RwLock<HashMap<SocketAddr, Sender<Message>>>>,
 }
 
-pub(crate) trait WebsocketOutMsg: Sized {
-    fn from_ws_message(msg: Message) -> Option<Self>;
+pub trait WebsocketOutMsg: Sized + Send + Sync + 'static {
+    fn from_ws_message(msg: Message, addr: SocketAddr) -> Option<Self>;
 }
 
 impl PeerMap {
@@ -34,7 +34,7 @@ impl PeerMap {
         rx
     }
 
-    async fn get(&self, addr: &SocketAddr) -> Option<Sender<Message>> {
+    pub async fn get(&self, addr: &SocketAddr) -> Option<Sender<Message>> {
         if let Some(tx) = self.map.read().await.get(addr) {
             Some(tx.clone())
         } else {
@@ -50,7 +50,7 @@ impl PeerMap {
 async fn accept_connection(
     peer: SocketAddr,
     stream: TcpStream,
-    to_logic: Sender<LogicMsg>,
+    to_logic: Sender<impl WebsocketOutMsg>,
     peer_reciever: Receiver<Message>,
     all_peers: PeerMap,
 ) {
@@ -68,7 +68,7 @@ async fn accept_connection(
 async fn handle_connection(
     peer: SocketAddr,
     stream: TcpStream,
-    to_logic: Sender<LogicMsg>,
+    to_logic: Sender<impl WebsocketOutMsg>,
     peer_reciever: Receiver<Message>,
 ) -> Result<(), Error> {
     let ws_stream = accept_async(stream).await.expect("Failed to accept");
@@ -85,19 +85,15 @@ async fn handle_connection(
                 match msg {
                     Some(msg) => {
                         let msg = msg?;
-                        if msg.is_text() || msg.is_binary() {
-                            let send_result = to_logic
-                                .send(LogicMsg::Websocket {
-                                    data: msg,
-                                    source: peer.clone(),
-                                })
-                                .await;
+                        if let Some(out_msg) = WebsocketOutMsg::from_ws_message(msg, peer.clone()) {
+                            let send_result = to_logic.send(out_msg).await;
 
                             if send_result.is_err() {
                                 info!("Websocket client connection task terminated because to_logic died.");
                                 break;
                             }
                         }
+
                         logic_fut = logic_fut_continue; // Continue waiting for tick.
                         msg_fut = ws_receiver.next(); // Receive next WebSocket message.
                     }
@@ -118,7 +114,11 @@ async fn handle_connection(
     Ok(())
 }
 
-async fn run(port: u16, to_logic: Sender<LogicMsg>, all_peers: PeerMap) -> Result<(), ServerError> {
+async fn run(
+    port: u16,
+    to_logic: Sender<impl WebsocketOutMsg>,
+    all_peers: PeerMap,
+) -> Result<(), ServerError> {
     let addr = format!("127.0.0.1:{}", port);
     let listener = TcpListener::bind(&addr).await?;
     info!("The websocket server is listening on: {}", addr);
@@ -144,52 +144,11 @@ async fn run(port: u16, to_logic: Sender<LogicMsg>, all_peers: PeerMap) -> Resul
 }
 
 /// Start a thread for the websocket connector and get a sender.
-fn run_websocket_connector(port: u16, to_logic: Sender<LogicMsg>) -> PeerMap {
+pub fn run_websocket_connector(port: u16, to_logic: Sender<impl WebsocketOutMsg>) -> PeerMap {
     let all_peers = PeerMap::default();
     let result = all_peers.clone();
 
     std::thread::spawn(move || task::block_on(run(port, to_logic, all_peers)));
 
     result
-}
-
-pub fn run_server(port: u16) -> Result<(), ServerError> {
-    let (to_logic, message_queue) = async_channel::unbounded();
-
-    let all_peers = run_websocket_connector(port, to_logic);
-
-    run_logic_server(all_peers, message_queue);
-
-    Ok(())
-}
-
-/// A message that is send to the logic where the logic has then to react.
-enum LogicMsg {
-    Websocket { data: Message, source: SocketAddr },
-}
-
-/// Spawn a thread that handles the server logic.
-fn run_logic_server(all_peers: PeerMap, message_queue: Receiver<LogicMsg>) {
-    std::thread::spawn(move || task::block_on(loop_logic_server(all_peers, message_queue)));
-}
-
-/// Simple loop that reacts to all the messages.
-async fn loop_logic_server(all_peers: PeerMap, message_queue: Receiver<LogicMsg>) {
-    while let Ok(msg) = message_queue.recv().await {
-        handle_message(msg, &all_peers).await;
-    }
-}
-
-async fn handle_message(msg: LogicMsg, ws: &PeerMap) {
-    info!("Handling message!");
-
-    match msg {
-        LogicMsg::Websocket { data, source } => {
-            info!("Data is: {:?}", data);
-            // Just echo:
-            if let Some(target) = ws.get(&source).await {
-                target.send(data).await;
-            }
-        }
-    }
 }
