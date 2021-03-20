@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["Rolf Kreibaum <rolf.kreibaum@posteo.de>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 pbkdf2 = "0.6.0"
@@ -28,6 +26,7 @@ anyhow = "1.0"
 thiserror = "1.0"
 indexmap = "1.5.2"
 subtle = "2.4"
+async-channel = "1.6"
 
 [dependencies.rocket]
 git = "https://github.com/SergioBenitez/Rocket"

@@ -1,6 +1,5 @@
 use crate::db::Connection;
 use crate::{sync_match::SyncronizedMatch, ServerError};
-use sqlx::{pool::PoolConnection, Sqlite};
 
 /// Stores the game in the database as a new entry and updates the id
 pub async fn insert(game: &mut SyncronizedMatch, conn: &mut Connection) -> Result<(), ServerError> {
@@ -91,10 +90,10 @@ pub async fn latest(conn: &mut Connection) -> Result<Vec<SyncronizedMatch>, Serv
 
 // Database representation of a sync_match::SyncronizedMatch
 // We don't fully normalize the data, instead we just dump JSON into the db.
-pub struct RawGame {
-    pub id: i64,
-    pub action_history: String,
-    pub timer: Option<String>,
+struct RawGame {
+    id: i64,
+    action_history: String,
+    timer: Option<String>,
 }
 
 impl RawGame {
