@@ -77,16 +77,33 @@ view : Model -> Document Msg
 view lang =
     { title = t lang I18n.tutorialPageTitle
     , body =
-        [ tutorialPage lang
+        [ case lang of
+            English ->
+                textPageWrapper englishTutorial
+
+            Dutch ->
+                dutchTutorial lang
+
+            Esperanto ->
+                textPageWrapper
+                    [ text "Beda\u{00AD}ŭrinde ĉi tiu paĝo ne haveblas en Esperanto :-(" ]
         ]
     }
+
+
+textPageWrapper : List (Element msg) -> Element msg
+textPageWrapper content =
+    Element.el [ width fill, height fill, scrollbarY ]
+        (Element.column [ width (fill |> maximum 1000), centerX, padding 30, spacing 10 ]
+            content
+        )
 
 
 {-| The tutorial needs only a language and this is stored outside. It contains
 the language toggle for now, so it needs to be taught to send language messages.
 -}
-tutorialPage : Language -> Element msg
-tutorialPage lang =
+dutchTutorial : Language -> Element msg
+dutchTutorial lang =
     Element.el [ width fill, height fill, scrollbarY ]
         (tutorialPageInner lang)
 
@@ -118,13 +135,7 @@ oneVideo lang token =
         ( caption, link ) =
             t lang token
     in
-    Element.column
-        [ width fill
-        , height fill
-        , spacing 10
-        , padding 10
-        , Background.color (Element.rgb 0.9 0.9 0.9)
-        ]
+    grayBox
         [ text caption |> el [ Font.size 25 ]
         , case link of
             Just videoKey ->
@@ -141,3 +152,58 @@ oneVideo lang token =
                 paragraph []
                     [ t lang I18n.tutorialNoVideo |> text ]
         ]
+
+
+grayBox : List (Element msg) -> Element msg
+grayBox content =
+    Element.column
+        [ width fill
+        , height fill
+        , spacing 10
+        , padding 10
+        , Background.color (Element.rgb 0.9 0.9 0.9)
+        ]
+        content
+
+
+englishTutorial : List (Element msg)
+englishTutorial =
+    [ grayBox
+        [ text "A short introduction to Paco Ŝako" |> el [ Font.size 25 ]
+        , paragraph [] [ text """Paco Ŝako pieces move just like traditional chess pieces.
+            But instead of removing the opponents pieces you form unions. This video shows you
+            how to create and move a union and how you can then take over existing unions
+            to play with chain reactions.""" ]
+        , Youtube.fromString "yJVcQK2gTdM"
+            |> Youtube.attributes
+                [ YoutubeA.width 640
+                , YoutubeA.height 400
+                ]
+            |> Youtube.toHtml
+            |> Element.html
+            |> Element.el []
+        ]
+    , grayBox
+        [ text "Learn more about Chains from Felix" |> el [ Font.size 25 ]
+        , paragraph [] [ text "Learn more about chains and loop from Felix Albers, the creator Paco Ŝako." ]
+        , Youtube.fromString "tQ2JLsFvfxI"
+            |> Youtube.attributes
+                [ YoutubeA.width 640
+                , YoutubeA.height 400
+                ]
+            |> Youtube.toHtml
+            |> Element.html
+            |> Element.el []
+        ]
+    , grayBox
+        [ paragraph []
+            [ text "Paco Ŝako is a game about Peace created by the Dutch Artist Felix Albers. On the "
+            , Element.newTabLink [ Font.underline, Font.color (Element.rgb 0 0 1) ]
+                { url = "http://pacosako.com/en"
+                , label = Element.text "Paco Ŝako website"
+                }
+            , text """ Felix explains, that the name Paco Ŝako means "Peace Chess"
+                in Esperanto (An international constructed language of peace.)"""
+            ]
+        ]
+    ]
