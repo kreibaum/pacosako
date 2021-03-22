@@ -162,7 +162,7 @@ intoCustomSpeedSetting : SpeedSetting -> Maybe CustomSpeedSetting
 intoCustomSpeedSetting selection =
     case selection of
         Lightspeed ->
-            Just <| CustomSpeedSetting 1 0 5
+            Just <| CustomSpeedSetting 1 0 10
 
         Blitz ->
             Just <| CustomSpeedSetting 4 0 5
