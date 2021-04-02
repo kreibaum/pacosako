@@ -30,4 +30,4 @@ jobs:
         env:
           SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         run: |
-          ssh -t pacosako@pacoplay.com "./deploy-prod.sh"
+          ssh -t pacosako@pacoplay.com "./update-prod.sh"
