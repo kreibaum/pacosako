@@ -1,14 +1,10 @@
+use crate::db;
 use crate::timer::{Timer, TimerConfig, TimerState};
-use crate::{
-    db,
-    instance_manager::{ClientMessage, Instance, ProvidesKey, ServerMessage},
-};
-use async_std::task;
 use chrono::{DateTime, Utc};
 use pacosako::{PacoAction, PacoBoard, PacoError};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
-use std::{borrow::Cow, convert::TryFrom};
+use std::convert::TryFrom;
 /// This module implements match synchonization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
 /// already clear and we only implement the Paco Ŝako specific parts.
@@ -61,174 +57,6 @@ impl TryFrom<&str> for ClientMatchMessage {
     }
 }
 
-impl ClientMessage for ClientMatchMessage {
-    fn subscribe(key: String) -> Self {
-        ClientMatchMessage::Subscribe { key }
-    }
-}
-
-impl ProvidesKey for ClientMatchMessage {
-    fn key(&self) -> Cow<String> {
-        match self {
-            ClientMatchMessage::DoAction { key, .. } => Cow::Borrowed(key),
-            ClientMatchMessage::GetCurrentState { key } => Cow::Borrowed(key),
-            ClientMatchMessage::Subscribe { key } => Cow::Borrowed(key),
-            ClientMatchMessage::Rollback { key } => Cow::Borrowed(key),
-            ClientMatchMessage::SetTimer { key, .. } => Cow::Borrowed(key),
-            ClientMatchMessage::StartTimer { key } => Cow::Borrowed(key),
-        }
-    }
-}
-
-/// Messages that may be send by the server to the client.
-#[derive(Clone, Serialize, Debug)]
-pub enum ServerMatchMessage {
-    CurrentMatchState(CurrentMatchState),
-    MatchConnectionSuccess {
-        key: String,
-        state: CurrentMatchState,
-    },
-    Error(String),
-}
-
-impl ServerMessage for ServerMatchMessage {
-    fn error(message: std::borrow::Cow<String>) -> Self {
-        ServerMatchMessage::Error(message.into_owned())
-    }
-}
-
-impl From<ServerMatchMessage> for String {
-    fn from(msg: ServerMatchMessage) -> Self {
-        use serde_json::ser::to_string;
-
-        match to_string(&msg) {
-            Ok(value) => value,
-            Err(e) => format!(
-                "An error occurred when serializing a websocket server message: {}",
-                e
-            ),
-        }
-    }
-}
-
-/// Instance is the magic trait that makes the instance_manager work.
-impl Instance for SyncronizedMatch {
-    type ClientMessage = ClientMatchMessage;
-    type ServerMessage = ServerMatchMessage;
-    type InstanceParameters = MatchParameters;
-
-    fn key(&self) -> std::borrow::Cow<String> {
-        Cow::Borrowed(&self.key)
-    }
-
-    fn new_with_key(key: &str, params: MatchParameters) -> Self {
-        SyncronizedMatch {
-            key: key.to_owned(),
-            actions: Vec::default(),
-            timer: params.timer.map(|t| t.into()),
-        }
-    }
-
-    fn handle_message(
-        &mut self,
-        message: Self::ClientMessage,
-        ctx: &mut crate::instance_manager::Context<Self>,
-    ) {
-        match message {
-            ClientMatchMessage::DoAction { action, .. } => {
-                match self.do_action(action) {
-                    Ok(state) => {
-                        Self::set_timeout(&state, ctx);
-
-                        // The state was changed, this must be broadcast to
-                        // all subscribed players.
-                        ctx.broadcast(ServerMatchMessage::CurrentMatchState(state))
-                    }
-                    Err(e) => {
-                        // An error occured, this is only reported back to the
-                        // player that caused it.
-                        ctx.reply(ServerMatchMessage::Error(format!(
-                            "Game logic is violated by this action: {:?}",
-                            e
-                        )))
-                    }
-                }
-            }
-
-            ClientMatchMessage::GetCurrentState { .. } => match self.current_state() {
-                Ok(state) => ctx.reply(ServerMatchMessage::CurrentMatchState(state)),
-                Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
-                    "Game logic is violated by this action: {:?}",
-                    e
-                ))),
-            },
-
-            // Subscribe is different from GetCurrentState only in the type of
-            // Response the server is sending back.
-            ClientMatchMessage::Subscribe { key } => match self.current_state() {
-                Ok(state) => ctx.reply(ServerMatchMessage::MatchConnectionSuccess { key, state }),
-                Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
-                    "Game logic is violated by this action: {:?}",
-                    e
-                ))),
-            },
-
-            ClientMatchMessage::Rollback { .. } => match self.rollback() {
-                Ok(state) => ctx.broadcast(ServerMatchMessage::CurrentMatchState(state)),
-                Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
-                    "Game logic is violated by this action: {:?}",
-                    e
-                ))),
-            },
-
-            ClientMatchMessage::SetTimer { timer, .. } => match self.set_timer(timer) {
-                Ok(state) => ctx.broadcast(ServerMatchMessage::CurrentMatchState(state)),
-                Err(e) => ctx.reply(ServerMatchMessage::Error(format!(
-                    "The timer can't be modified: {:?}",
-                    e
-                ))),
-            },
-            ClientMatchMessage::StartTimer { .. } => {
-                self.start_timer();
-
-                match self.current_state() {
-                    Ok(state) => {
-                        Self::set_timeout(&state, ctx);
-
-                        ctx.broadcast(ServerMatchMessage::CurrentMatchState(state))
-                    }
-                    Err(_) => {}
-                }
-            }
-        }
-    }
-
-    fn handle_timeout(
-        &mut self,
-        now: chrono::DateTime<Utc>,
-        ctx: &mut crate::instance_manager::Context<Self>,
-    ) {
-        match self.timer_progress(now, ctx) {
-            Ok(state) => {
-                Self::set_timeout(&state, ctx);
-
-                ctx.broadcast(ServerMatchMessage::CurrentMatchState(state))
-            }
-            Err(_) => {}
-        }
-    }
-
-    fn load_from_db(key: &str, conn: db::Connection) -> Result<Self, anyhow::Error> {
-        // So now I can't be in an async function because I am in a trait
-        // But I need to be in an async function to properly work with sqlx :-/
-        task::block_on(_load_from_db(key, conn))
-    }
-
-    fn store_to_db(&self, conn: db::Connection) -> Result<(), anyhow::Error> {
-        task::block_on(_store_to_db(self, conn))
-    }
-}
-
 async fn _load_from_db(
     key: &str,
     mut conn: db::Connection,
@@ -258,8 +86,8 @@ pub struct CurrentMatchState {
     key: String,
     actions: Vec<StampedAction>,
     legal_actions: Vec<PacoAction>,
-    controlling_player: pacosako::PlayerColor,
-    timer: Option<Timer>,
+    pub controlling_player: pacosako::PlayerColor,
+    pub timer: Option<Timer>,
     victory_state: pacosako::VictoryState,
 }
 
@@ -301,6 +129,14 @@ impl CurrentMatchState {
 
 /// This implementation contains most of the "Business Logic" of the match.
 impl SyncronizedMatch {
+    pub fn new_with_key(key: &str, params: MatchParameters) -> Self {
+        SyncronizedMatch {
+            key: key.to_owned(),
+            actions: Vec::default(),
+            timer: params.timer.map(|t| t.into()),
+        }
+    }
+
     /// Reconstruct the board state
     fn project(&self) -> Result<pacosako::DenseBoard, PacoError> {
         // Here we don't need to validate the move, this was done before they
@@ -313,7 +149,7 @@ impl SyncronizedMatch {
     }
 
     /// Validate and execute an action.
-    fn do_action(&mut self, new_action: PacoAction) -> Result<CurrentMatchState, PacoError> {
+    pub fn do_action(&mut self, new_action: PacoAction) -> Result<CurrentMatchState, PacoError> {
         let mut board = self.project()?;
         let controlling_player = board.controlling_player();
         self.update_timer(controlling_player);
@@ -357,7 +193,7 @@ impl SyncronizedMatch {
     }
 
     /// Rolls back the game state to the start of the turn of the current player.
-    fn rollback(&mut self) -> Result<CurrentMatchState, PacoError> {
+    pub fn rollback(&mut self) -> Result<CurrentMatchState, PacoError> {
         Self::rollback_trusted_action_stack(&mut self.actions)?;
         self.current_state()
     }
@@ -379,39 +215,6 @@ impl SyncronizedMatch {
         Ok(())
     }
 
-    /// Sets the timer configuration of the game. This will return an error if
-    /// the game is already running.
-    fn set_timer(&mut self, timer_config: TimerConfig) -> Result<CurrentMatchState, PacoError> {
-        if self.can_change_timer() {
-            self.timer = Some(timer_config.into());
-        } else {
-            return Err(PacoError::ActionNotLegal);
-        }
-
-        self.current_state()
-    }
-
-    /// Decides if changing the timer is still allowed.
-    fn can_change_timer(&self) -> bool {
-        if !self.actions.is_empty() {
-            false
-        } else if let Some(ref timer) = self.timer {
-            timer.get_state() == TimerState::NotStarted
-        } else {
-            true
-        }
-    }
-
-    /// Starts the timer if it exists and is not Running or Timeout(..) yet.
-    /// This function does nothing otherwise.
-    fn start_timer(&mut self) {
-        if let Some(ref mut timer) = self.timer {
-            if timer.get_state() == TimerState::NotStarted {
-                timer.start(Utc::now())
-            }
-        }
-    }
-
     /// Updates the timer
     fn update_timer(&mut self, player: pacosako::PlayerColor) {
         if let Some(ref mut timer) = self.timer {
@@ -423,21 +226,8 @@ impl SyncronizedMatch {
         }
     }
 
-    /// Set timeout so the timer can run out on its own.
-    fn set_timeout(state: &CurrentMatchState, ctx: &mut crate::instance_manager::Context<Self>) {
-        if let Some(timer) = &state.timer {
-            if timer.get_state() == TimerState::Running {
-                ctx.set_timeout(timer.timeout(state.controlling_player));
-            }
-        }
-    }
-
     /// Is triggered when there may have been significant timer progress.
-    fn timer_progress(
-        &mut self,
-        _now: chrono::DateTime<Utc>,
-        _ctx: &mut crate::instance_manager::Context<Self>,
-    ) -> Result<CurrentMatchState, PacoError> {
+    pub fn timer_progress(&mut self) -> Result<CurrentMatchState, PacoError> {
         let board = self.project()?;
 
         self.update_timer(board.controlling_player());
@@ -449,7 +239,6 @@ impl SyncronizedMatch {
 #[cfg(test)]
 mod test {
     use super::*;
-    use chrono::Duration;
     use pacosako::types::BoardPosition;
 
     /// Does a move and mostly just checks that it does not crash.
@@ -474,36 +263,5 @@ mod test {
         // there are two moves in the state and 16 possible actions.
         assert_eq!(current_state.actions.len(), 2);
         assert_eq!(current_state.legal_actions.len(), 16);
-    }
-
-    /// Tests setting the timer before and after the game starts
-    #[test]
-    fn test_setting_timer() -> Result<(), PacoError> {
-        let mut game = SyncronizedMatch::new_with_key("Game1", MatchParameters { timer: None });
-
-        // This should be allowed. (Assert via ?)
-        game.set_timer(TimerConfig {
-            time_budget_white: Duration::seconds(100),
-            time_budget_black: Duration::seconds(100),
-            increment: None,
-        })?;
-
-        // This should be allowed. (Assert via ?)
-        game.set_timer(TimerConfig {
-            time_budget_white: Duration::seconds(200),
-            time_budget_black: Duration::seconds(150),
-            increment: None,
-        })?;
-
-        // Start the game, then changing should no longer be allowed.
-        game.start_timer();
-        let match_state = game.set_timer(TimerConfig {
-            time_budget_white: Duration::seconds(100),
-            time_budget_black: Duration::seconds(100),
-            increment: None,
-        });
-        assert!(match_state.is_err());
-
-        Ok(())
     }
 }

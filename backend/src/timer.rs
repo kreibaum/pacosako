@@ -173,6 +173,17 @@ pub enum TimerState {
     Stopped,
 }
 
+impl TimerState {
+    pub fn is_finished(self) -> bool {
+        match self {
+            TimerState::NotStarted => false,
+            TimerState::Running => false,
+            TimerState::Timeout(_) => true,
+            TimerState::Stopped => true,
+        }
+    }
+}
+
 impl From<TimerConfig> for Timer {
     fn from(config: TimerConfig) -> Timer {
         Timer {

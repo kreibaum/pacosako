@@ -1,10 +1,6 @@
 mod db;
-mod editor;
-mod instance_manager;
 mod sync_match;
-mod timeout;
 mod timer;
-mod websocket;
 mod ws;
 
 #[macro_use]
@@ -16,7 +12,6 @@ extern crate log;
 extern crate simplelog;
 use async_std::task;
 use db::Pool;
-use instance_manager::Instance;
 use pacosako::{DenseBoard, SakoSearchResult};
 use rand::{thread_rng, Rng};
 use rocket::request::{self, FromRequest, Request};
@@ -28,7 +23,6 @@ use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use sync_match::SyncronizedMatch;
-use websocket::WebsocketServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Static Files ////////////////////////////////////////////////////////////////
@@ -329,14 +323,6 @@ fn analyse_position(
 // Game management /////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-#[post("/share", data = "<steps>")]
-fn share(
-    steps: Json<Vec<serde_json::Value>>,
-    websocket_server: State<WebsocketServer>,
-) -> Result<String, &'static str> {
-    websocket::share(&(*websocket_server), steps.0)
-}
-
 #[post("/create_game", data = "<game_parameters>")]
 async fn create_game(
     game_parameters: Json<sync_match::MatchParameters>,
@@ -464,30 +450,6 @@ fn init_database_pool(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::
     Ok(rocket.manage(pool))
 }
 
-/// Initialize the websocket server and register it as a rocket state.
-/// By registering it as a rocket state it can be used as a service by handlers.
-/// At the moment I need that for creating games, but I may be able to avoid this in the future.
-fn init_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
-    let websocket_server = websocket::prepare_websocket();
-
-    let config: CustomConfig = rocket
-        .figment()
-        .extract()
-        .expect("Config could not be parsed");
-
-    if let Some(pool) = rocket.state::<Pool>() {
-        websocket_server
-            .borrow_match_manager()
-            .with_pool(pool.clone());
-    }
-
-    websocket::init_websocket(websocket_server.clone(), config.websocket_port);
-
-    Ok(rocket
-        .manage(websocket_server)
-        .manage(WebsocketPort(config.websocket_port)))
-}
-
 /// Initialize the websocket server and provide it with a database connection.
 fn init_new_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
     let config: CustomConfig = rocket
@@ -497,11 +459,11 @@ fn init_new_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, r
 
     if let Some(pool) = rocket.state::<Pool>() {
         // Not yet
-        ws::run_server(config.websocket_port + 6000, pool.clone())
+        ws::run_server(config.websocket_port, pool.clone())
             .expect("Error starting websocket server!");
     }
 
-    Ok(rocket)
+    Ok(rocket.manage(WebsocketPort(config.websocket_port)))
 }
 
 #[derive(Deserialize)]
@@ -522,9 +484,6 @@ fn rocket() -> rocket::Rocket {
     rocket::ignite()
         .attach(AdHoc::on_attach("Database Pool", |rocket| {
             Box::pin(async move { init_database_pool(rocket) })
-        }))
-        .attach(AdHoc::on_attach("Websocket Config", |rocket| {
-            Box::pin(async move { init_websocket_server(rocket) })
         }))
         .attach(AdHoc::on_attach("Websocket Server", |rocket| {
             Box::pin(async move { init_new_websocket_server(rocket) })
@@ -554,7 +513,6 @@ fn rocket() -> rocket::Rocket {
                 position_get,
                 random_position,
                 analyse_position,
-                share,
                 create_game,
                 branch_game,
                 get_game,
