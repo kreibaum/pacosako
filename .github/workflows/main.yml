@@ -2,13 +2,13 @@
 
 name: CI
 
-# Controls when the action will run. 
+# Controls when the action will run.
 on:
   # Triggers the workflow on push or pull request events but only for the master branch
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -20,117 +20,117 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v1
+      - name: Checkout
+        uses: actions/checkout@v1
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
-    - name: Cache multiple paths
-      uses: actions/cache@v2
-      with:
-        path: |
-          backend/target
-          lib/target
-          ~/.cargo
-        key: unittest
-        
-    - name: Install SQLX-tooling
-      uses: actions-rs/install@v0.1
-      with:
-        crate: sqlx-cli
-        version: latest
-        use-tool-cache: true
-        
-    - name: Run library tests
-      run: | 
-        pwd
-        cd lib
-        cargo test
-        cd ..
-        
-    - name: Run backend tests
-      run: | 
-        pwd
-        cd backend
-        mkdir -p data
-        sqlx database create
-        sqlx migrate run
-        cargo test
-        cd ..
+      - name: Cache multiple paths
+        uses: actions/cache@v2
+        with:
+          path: |
+            backend/target
+            lib/target
+            ~/.cargo
+          key: unittest
+
+      - name: Install SQLX-tooling
+        uses: actions-rs/install@v0.1
+        with:
+          crate: sqlx-cli
+          version: latest
+          use-tool-cache: true
+
+      - name: Run library tests
+        run: |
+          pwd
+          cd lib
+          cargo test
+          cd ..
+
+      - name: Run backend tests
+        run: |
+          pwd
+          cd backend
+          mkdir -p data
+          sqlx database create
+          sqlx migrate run
+          cargo test
+          cd ..
 
   build:
     name: Build artifact
     runs-on: ubuntu-20.04
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v1
+      - name: Checkout
+        uses: actions/checkout@v1
 
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
-    - name: Cache multiple paths
-      uses: actions/cache@v2
-      with:
-        path: |
-          backend/target
-          ~/.cargo
-        key: build
-        
-    - uses: actions/setup-node@v2
-    
-    - name: Install Elm
-      run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
-    
-    - name: Compile Frontend
-      run: |
-        mkdir -p target
-        cp frontend/static/* target/
-        cd frontend
-        elm-spa build
-        elm make src/Main.elm --output=../target/elm.js
-        cd ..
-        # Typescript
-        tsc
-        # Minimize Javascript
-        uglifyjs ./target/elm.js -o ./target/elm.min.js --mangle --compress
-        uglifyjs ./target/main.js -o ./target/main.min.js --mangle --compress
-            
-    - name: Install SQLX-tooling
-      uses: actions-rs/install@v0.1
-      with:
-        crate: sqlx-cli
-        version: latest
-        use-tool-cache: true
-    
-    - name: Compile Server in release mode
-      run: |
-        cd backend
-        mkdir -p data
-        sqlx database create
-        sqlx migrate run
-        cargo build --release
-        cd ..
-        
-    - name: Create artifact for Website
-      run: |
-        mkdir -p deploy/target
-        mkdir -p deploy/backend
-        cp ./backend/target/release/pacosako-tool-server ./deploy/backend/pacosako
-        cp ./frontend/static/* ./deploy/target/
-        cp ./target/* ./deploy/target/
-        tar -zcf deploy.tar.gz deploy
+      - name: Cache multiple paths
+        uses: actions/cache@v2
+        with:
+          path: |
+            backend/target
+            ~/.cargo
+          key: build
 
-    - name: Publish artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: deploy
-        path: deploy.tar.gz
+      - uses: actions/setup-node@v2
+
+      - name: Install Elm
+        run: sudo npm install -g elm elm-spa@5.0.4 typescript uglify-js --unsafe-perm=true --allow-root
+
+      - name: Compile Frontend
+        run: |
+          mkdir -p target
+          cp frontend/static/* target/
+          cd frontend
+          elm-spa build
+          elm make src/Main.elm --output=../target/elm.js
+          cd ..
+          # Typescript
+          tsc
+          # Minimize Javascript
+          uglifyjs ./target/elm.js -o ./target/elm.min.js --mangle --compress
+          uglifyjs ./target/main.js -o ./target/main.min.js --mangle --compress
+
+      - name: Install SQLX-tooling
+        uses: actions-rs/install@v0.1
+        with:
+          crate: sqlx-cli
+          version: latest
+          use-tool-cache: true
+
+      - name: Compile Server in release mode
+        run: |
+          cd backend
+          mkdir -p data
+          sqlx database create
+          sqlx migrate run
+          cargo build --release
+          cd ..
+
+      - name: Create artifact for Website
+        run: |
+          mkdir -p deploy/target
+          mkdir -p deploy/backend
+          cp ./backend/target/release/pacosako-tool-server ./deploy/backend/pacosako
+          cp ./frontend/static/* ./deploy/target/
+          cp ./target/* ./deploy/target/
+          tar -zcf deploy.tar.gz deploy
+
+      - name: Publish artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: deploy
+          path: deploy.tar.gz
 
   deploy:
     # The type of runner that the job will run on
@@ -141,7 +141,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
-        
+
       - name: Check out deployment artifact
         uses: actions/download-artifact@v2
         with:
@@ -156,7 +156,7 @@ jobs:
           ssh-add - <<< "${{ secrets.DEPLOYMENT_KEY }}"
           touch ~/.ssh/known_hosts
           cat scripts/known_hosts >> ~/.ssh/known_hosts
-          
+
       - name: Upload to pacoplacy.com host
         env:
           SSH_AUTH_SOCK: /tmp/ssh_agent.sock
