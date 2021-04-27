@@ -1,0 +1,133 @@
+# Configuration for the pacoplay.com website
+
+# Production server pacoplay.com
+server {
+    gzip on;
+    gzip_types      text/plain application/xml application/javascript application/json;
+    gzip_proxied    no-cache no-store private expired auth;
+    gzip_min_length 1000;
+
+    server_name pacoplay.com;
+
+    location /websocket {
+        proxy_pass http://localhost:3012;
+    }
+
+    location / {
+        proxy_pass http://localhost:8000;
+    }
+
+    listen [::]:443 ssl; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/dev.pacoplay.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/dev.pacoplay.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+server {
+    gzip on;
+    gzip_types      text/plain application/xml application/javascript application/json;
+    gzip_proxied    no-cache no-store private expired auth;
+    gzip_min_length 1000;
+
+    server_name www.pacoplay.com;
+
+    location /websocket {
+        proxy_pass http://localhost:3012;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+   }
+
+    location / {
+        proxy_pass http://localhost:8000;
+    }
+
+    listen [::]:443 ssl; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/dev.pacoplay.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/dev.pacoplay.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+
+
+# Test server dev.pacoplay.com
+server {
+    gzip on;
+    gzip_types      text/plain application/xml application/javascript application/json;
+    gzip_proxied    no-cache no-store private expired auth;
+    gzip_min_length 1000;
+
+    server_name dev.pacoplay.com;
+
+    location /websocket {
+        proxy_pass http://localhost:3011;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
+
+    location / {
+        proxy_pass http://localhost:8001;
+    }
+
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/dev.pacoplay.com/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/dev.pacoplay.com/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+
+}
+
+server {
+    if ($host = dev.pacoplay.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    listen [::]:80;
+
+    server_name dev.pacoplay.com;
+    return 404; # managed by Certbot
+
+
+}
+
+server {
+    if ($host = pacoplay.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    listen [::]:80;
+
+    server_name pacoplay.com;
+    return 404; # managed by Certbot
+
+
+}
+
+server {
+    if ($host = www.pacoplay.com) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    listen [::]:80;
+
+    server_name www.pacoplay.com;
+    return 404; # managed by Certbot
+
+
+}
