@@ -14,11 +14,14 @@ use async_std::task;
 use db::Pool;
 use pacosako::{DenseBoard, SakoSearchResult};
 use rand::{thread_rng, Rng};
-use rocket::request::{self, FromRequest, Request};
 use rocket::response::NamedFile;
 use rocket::response::{Flash, Redirect};
 use rocket::State;
 use rocket::{http::Cookie, http::CookieJar};
+use rocket::{
+    request::{self, FromRequest, Request},
+    Build,
+};
 use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -216,10 +219,12 @@ pub struct User {
 }
 
 #[rocket::async_trait]
-impl<'a, 'r> FromRequest<'a, 'r> for User {
+impl<'r> FromRequest<'r> for User {
     type Error = ();
 
-    async fn from_request(request: &'a Request<'r>) -> request::Outcome<User, ()> {
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<User, ()> {
+        use rocket::outcome::try_outcome;
+
         let pool: State<'_, db::Pool> = try_outcome!(request.guard::<State<'_, db::Pool>>().await);
 
         let cookies = request.cookies();
@@ -410,7 +415,12 @@ fn init_logger() {
     use simplelog::*;
 
     CombinedLogger::init(vec![
-        TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed),
+        TermLogger::new(
+            LevelFilter::Info,
+            Config::default(),
+            TerminalMode::Mixed,
+            ColorChoice::Auto,
+        ),
         WriteLogger::new(
             LevelFilter::Debug,
             Config::default(),
@@ -436,7 +446,7 @@ fn websocket_port(port: State<WebsocketPort>) -> Json<u16> {
 }
 
 /// Initialize the database Pool and register it as a Rocket state.
-fn init_database_pool(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
+fn init_database_pool(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Build> {
     info!("Creating database pool");
     // If there is no database specified, the server is allowed to just
     // crash. This is why we can "safely" unwrap.
@@ -447,11 +457,11 @@ fn init_database_pool(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::
 
     let pool = task::block_on(db::Pool::new(&config.database_path)).unwrap();
 
-    Ok(rocket.manage(pool))
+    rocket.manage(pool)
 }
 
 /// Initialize the websocket server and provide it with a database connection.
-fn init_new_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, rocket::Rocket> {
+fn init_new_websocket_server(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Build> {
     let config: CustomConfig = rocket
         .figment()
         .extract()
@@ -463,7 +473,7 @@ fn init_new_websocket_server(rocket: rocket::Rocket) -> Result<rocket::Rocket, r
             .expect("Error starting websocket server!");
     }
 
-    Ok(rocket.manage(WebsocketPort(config.websocket_port)))
+    rocket.manage(WebsocketPort(config.websocket_port))
 }
 
 #[derive(Deserialize)]
@@ -473,7 +483,7 @@ struct CustomConfig {
 }
 
 #[launch]
-fn rocket() -> rocket::Rocket {
+fn rocket() -> _ {
     use rocket::fairing::AdHoc;
 
     init_logger();
@@ -481,11 +491,11 @@ fn rocket() -> rocket::Rocket {
     // All the other components are created inside rocket.attach because this
     // gives them access to the rocket configuration and I can properly separate
     // the different stages like that.
-    rocket::ignite()
-        .attach(AdHoc::on_attach("Database Pool", |rocket| {
+    rocket::build()
+        .attach(AdHoc::on_ignite("Database Pool", |rocket| {
             Box::pin(async move { init_database_pool(rocket) })
         }))
-        .attach(AdHoc::on_attach("Websocket Server", |rocket| {
+        .attach(AdHoc::on_ignite("Websocket Server", |rocket| {
             Box::pin(async move { init_new_websocket_server(rocket) })
         }))
         .attach(AdHoc::config::<UseMinJs>())
