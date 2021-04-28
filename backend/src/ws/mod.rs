@@ -7,6 +7,7 @@ use crate::{
     sync_match::{CurrentMatchState, SyncronizedMatch},
     ServerError,
 };
+use anyhow::bail;
 use async_channel::{Receiver, Sender};
 use async_std::task;
 use async_tungstenite::tungstenite::Message;
@@ -24,15 +25,16 @@ use std::{
 
 use self::timeout_connector::TimeoutOutMsg;
 
-pub fn run_server(port: u16, pool: db::Pool) -> Result<(), ServerError> {
+pub fn run_server(port: u16, pool: db::Pool) -> Result<Sender<RocketToWsMsg>, ServerError> {
     let (to_logic, message_queue) = async_channel::unbounded();
 
     let all_peers = client_connector::run_websocket_connector(port, to_logic.clone());
-    let to_timeout = timeout_connector::run_timeout_thread(to_logic);
+    let to_timeout = timeout_connector::run_timeout_thread(to_logic.clone());
+    let for_rocket = run_rocket_ws_msg(to_logic.clone());
 
     run_logic_server(all_peers, to_timeout, message_queue, pool);
 
-    Ok(())
+    Ok(for_rocket)
 }
 
 /// A message that is send to the logic where the logic has then to react.
@@ -45,6 +47,39 @@ enum LogicMsg {
         key: String,
         timestamp: DateTime<Utc>,
     },
+    AiAction {
+        key: String,
+        action: PacoAction,
+    },
+}
+
+pub enum RocketToWsMsg {
+    AiAction { key: String, action: PacoAction },
+}
+
+fn run_rocket_ws_msg(to_logic: Sender<LogicMsg>) -> Sender<RocketToWsMsg> {
+    let (for_rocket, from_rocket) = async_channel::unbounded();
+
+    std::thread::spawn(move || {
+        async_std::task::block_on(forward_rocket_messages(from_rocket, to_logic))
+    });
+
+    return for_rocket;
+}
+
+async fn forward_rocket_messages(
+    from_rocket: Receiver<RocketToWsMsg>,
+    to_logic: Sender<LogicMsg>,
+) -> () {
+    while let Ok(RocketToWsMsg::AiAction { key, action }) = from_rocket.recv().await {
+        if to_logic
+            .send(LogicMsg::AiAction { key, action })
+            .await
+            .is_err()
+        {
+            break;
+        }
+    }
 }
 
 impl WebsocketOutMsg for LogicMsg {
@@ -97,7 +132,7 @@ async fn loop_logic_server(
 
     while let Ok(msg) = message_queue.recv().await {
         let mut conn = pool.0.acquire().await?;
-        handle_message(
+        let res = handle_message(
             msg,
             to_timeout.clone(),
             &all_peers,
@@ -105,6 +140,9 @@ async fn loop_logic_server(
             &mut conn,
         )
         .await;
+        if let Err(e) = res {
+            warn!("Error in the websocket: {:?}", e);
+        }
     }
     Ok(())
 }
@@ -167,7 +205,7 @@ async fn handle_message(
     ws: &PeerMap,
     server_state: &mut ServerState,
     conn: &mut db::Connection,
-) {
+) -> Result<(), anyhow::Error> {
     match msg {
         LogicMsg::Websocket { data, source } => {
             info!("Data is: {:?}", data);
@@ -183,58 +221,77 @@ async fn handle_message(
                             server_state,
                             conn,
                         )
-                        .await;
+                        .await?;
                     }
                 }
                 Message::Binary(payload) => {
                     warn!("Binary message recieved: {:?}", payload);
+                    bail!("Binary message recieved: {:?}", payload);
                 }
-                Message::Ping(payload) => send_raw_msg(ws, &source, Message::Pong(payload)).await,
+                Message::Ping(payload) => send_raw_msg(ws, &source, Message::Pong(payload)).await?,
                 Message::Pong(_) => {}
                 Message::Close(_) => {
                     info!("Close message recieved. This is not implemented here.");
                 }
             };
+            return Ok(());
         }
         LogicMsg::Timeout { key, timestamp } => {
             info!("Timeout was called for game {} at {}", key, timestamp);
 
-            let game = fetch_game(&key, conn).await;
-            let mut game = match game {
-                Some(game) => game,
-                None => {
-                    error!(
-                        "Error when loading the game {} for which a timer expired",
-                        key
-                    );
-                    server_state.destroy_room(&key);
-                    return;
-                }
-            };
+            let mut game = fetch_game(&key, conn).await?;
 
-            match game.timer_progress() {
-                Ok(state) => {
-                    if let Some(ref timer) = state.timer {
-                        if timer.get_state().is_finished() {
-                            if store_game(&game, conn).await.is_some() {
-                                if let Some(room) = server_state.rooms.get_mut(&game.key) {
-                                    broadcast_state(room, &state, ws).await;
-                                }
-                            }
-                        } else {
-                            let next_reminder = timer.timeout(state.controlling_player);
-                            to_timeout
-                                .send((key, next_reminder))
-                                .await
-                                .expect("Timeout connector quit unexpectedly.");
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Error when progressing the timer: {}", e);
-                    return;
+            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+
+            store_game(&game, conn).await?;
+            if let Some(room) = server_state.rooms.get_mut(&game.key) {
+                broadcast_state(room, &state, ws).await;
+            }
+            return Ok(());
+        }
+        LogicMsg::AiAction { key, action } => {
+            let mut game = fetch_game(&key, conn).await?;
+
+            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+
+            if state.victory_state.is_over() {
+                store_game(&game, conn).await?;
+                if let Some(room) = server_state.rooms.get_mut(&key) {
+                    broadcast_state(room, &state, ws).await;
                 }
             }
+
+            let state = game.do_action(action)?;
+            store_game(&game, conn).await?;
+            if let Some(room) = server_state.rooms.get_mut(&key) {
+                broadcast_state(room, &state, ws).await;
+            }
+
+            return Ok(());
+        }
+    }
+}
+
+async fn progress_the_timer(
+    game: &mut SyncronizedMatch,
+    to_timeout: Sender<(String, DateTime<Utc>)>,
+    key: String,
+) -> Result<CurrentMatchState, anyhow::Error> {
+    match game.timer_progress() {
+        Ok(mut state) => {
+            if state.victory_state.is_over() {
+                return Ok(state);
+            } else if let Some(timer) = &mut state.timer {
+                let next_reminder = timer.timeout(state.controlling_player);
+                to_timeout
+                    .send((key, next_reminder))
+                    .await
+                    .expect("Timeout connector quit unexpectedly.");
+            }
+            return Ok(state);
+        }
+        Err(e) => {
+            bail!("Error when progressing the timer: {}", e);
         }
     }
 }
@@ -246,18 +303,12 @@ async fn handle_client_message(
     ws: &PeerMap,
     server_state: &mut ServerState,
     conn: &mut db::Connection,
-) {
+) -> Result<(), anyhow::Error> {
     match msg {
         ClientMessage::SubscribeToMatch { key } => {
-            let room = server_state.room(&key, sender);
-
-            let game = fetch_game(&room.key, conn).await;
-            let game = if let Some(game) = game {
-                game
-            } else {
-                server_state.destroy_room(&key);
-                return send_error(format!("Game {} not found", key), &sender, ws).await;
-            };
+            // This just makes sure the room exists. We don't need the room afterwards.
+            server_state.room(&key, sender);
+            let game = fetch_game(&key, conn).await?;
 
             let state = game.current_state();
             let state = match state {
@@ -269,6 +320,8 @@ async fn handle_client_message(
                 }
             };
 
+            // Todo: This should only be called once when starting the room, not
+            // when a second player joins the room.
             if let Some(ref timer) = state.timer {
                 if !timer.get_state().is_finished() {
                     let next_reminder = timer.timeout(state.controlling_player);
@@ -281,158 +334,115 @@ async fn handle_client_message(
 
             let response = ServerMessage::MatchConnectionSuccess { key, state };
 
-            send_msg(response, &sender, ws).await;
+            send_msg(response, &sender, ws).await?;
         }
         ClientMessage::DoAction { key, action } => {
             let room = server_state.room(&key, sender);
 
             let game = fetch_game(&room.key, conn).await;
-            let mut game = if let Some(game) = game {
+            let mut game = if let Ok(game) = game {
                 game
             } else {
                 server_state.destroy_room(&key);
                 return send_error(format!("Game {} not found", key), &sender, ws).await;
             };
 
-            match game.timer_progress() {
-                Ok(state) => {
-                    if let Some(ref timer) = state.timer {
-                        if timer.get_state().is_finished() {
-                            if store_game(&game, conn).await.is_some() {
-                                broadcast_state(room, &state, ws).await;
-                            }
-                            return;
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Error when progressing the timer: {}", e);
-                    return;
-                }
+            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+
+            if state.victory_state.is_over() {
+                store_game(&game, conn).await?;
+                broadcast_state(room, &state, ws).await;
+                return Ok(());
             }
 
-            match game.do_action(action) {
-                Ok(state) => {
-                    if store_game(&game, conn).await.is_some() {
-                        broadcast_state(room, &state, ws).await;
-                    }
-                }
-                Err(error) => {
-                    return send_error(
-                        format!("Action could not be performed: {:?}", error),
-                        &sender,
-                        ws,
-                    )
-                    .await;
-                }
-            }
+            let state = game.do_action(action)?;
+            store_game(&game, conn).await?;
+            broadcast_state(room, &state, ws).await;
         }
         ClientMessage::Rollback { key } => {
             let room = server_state.room(&key, sender);
 
-            let game = fetch_game(&room.key, conn).await;
-            let mut game = if let Some(game) = game {
-                game
-            } else {
-                server_state.destroy_room(&key);
-                return send_error(format!("Game {} not found", key), &sender, ws).await;
-            };
+            let mut game = fetch_game(&room.key, conn).await?;
 
-            match game.timer_progress() {
-                Ok(state) => {
-                    if let Some(ref timer) = state.timer {
-                        if timer.get_state().is_finished() {
-                            if store_game(&game, conn).await.is_some() {
-                                broadcast_state(room, &state, ws).await;
-                            }
-                            return;
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Error when progressing the timer: {}", e);
-                    return;
-                }
+            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+
+            if state.victory_state.is_over() {
+                store_game(&game, conn).await?;
+                broadcast_state(room, &state, ws).await;
+                return Ok(());
             }
 
-            match game.rollback() {
-                Ok(state) => {
-                    if store_game(&game, conn).await.is_some() {
-                        broadcast_state(room, &state, ws).await;
-                    }
-                }
-                Err(error) => {
-                    return send_error(
-                        format!("Action could not be performed: {:?}", error),
-                        &sender,
-                        ws,
-                    )
-                    .await;
-                }
-            }
+            let state = game.rollback()?;
+            store_game(&game, conn).await?;
+            broadcast_state(room, &state, ws).await;
         }
     }
+    return Ok(());
 }
 
 async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState, ws: &PeerMap) {
+    let mut offenders = vec![];
     for target in room.connected.iter() {
-        send_msg(ServerMessage::CurrentMatchState(state.clone()), target, ws).await;
+        // Propagating the error may blame the wrong connection. Instead we just
+        // remove the offending party from the room.
+        let res = send_msg(ServerMessage::CurrentMatchState(state.clone()), target, ws).await;
+        if res.is_err() {
+            offenders.push(target.clone());
+        }
+    }
+
+    for offender in offenders {
+        room.connected.remove(&offender);
     }
 }
 
-async fn send_msg(message: ServerMessage, target: &SocketAddr, ws: &PeerMap) {
-    match to_string(&message) {
-        Ok(msg) => {
-            let out_msg = Message::Text(msg);
-
-            send_raw_msg(ws, target, out_msg).await;
-        }
-        Err(e) => {
-            error!(
-                "Error converting server message to json string: {:?}, {:?}",
-                &message, e
-            );
-        }
-    }
+async fn send_msg(
+    message: ServerMessage,
+    target: &SocketAddr,
+    ws: &PeerMap,
+) -> Result<(), anyhow::Error> {
+    let msg = to_string(&message)?;
+    send_raw_msg(ws, target, Message::Text(msg)).await
 }
 
-async fn send_raw_msg(ws: &PeerMap, target: &SocketAddr, out_msg: Message) {
+async fn send_raw_msg(
+    ws: &PeerMap,
+    target: &SocketAddr,
+    out_msg: Message,
+) -> Result<(), anyhow::Error> {
     if let Some(target) = ws.get(target).await {
-        match target.send(out_msg).await {
-            Ok(_) => {}
-            Err(e) => {
-                warn!("Error sending a raw msg: {:?}", e)
-            }
-        };
+        Ok(target.send(out_msg).await?)
+    } else {
+        bail!("target does not have a sender.")
     }
 }
 
 /// Helper message to make sending error messages easier.
-async fn send_error(error_message: String, target: &SocketAddr, ws: &PeerMap) {
-    send_msg(ServerMessage::Error(error_message), target, ws).await;
+async fn send_error(
+    error_message: String,
+    target: &SocketAddr,
+    ws: &PeerMap,
+) -> Result<(), anyhow::Error> {
+    send_msg(ServerMessage::Error(error_message), target, ws).await
 }
 
-async fn fetch_game(key: &str, conn: &mut db::Connection) -> Option<SyncronizedMatch> {
-    if let Ok(id) = key.parse() {
-        match db::game::select(id, conn).await {
-            Ok(game) => game,
-            Err(load_error) => {
-                error!("Error loading game {} with error {:?}.", id, load_error);
-                None
-            }
+async fn fetch_game(
+    key: &str,
+    conn: &mut db::Connection,
+) -> Result<SyncronizedMatch, anyhow::Error> {
+    let id = key.parse()?;
+    match db::game::select(id, conn).await? {
+        Some(game) => Ok(game),
+        None => {
+            bail!("There is no game with key {}", key)
         }
-    } else {
-        info!("Trying to open game with key {} with is not a number", key);
-        None
     }
 }
 
-async fn store_game(game: &SyncronizedMatch, conn: &mut db::Connection) -> Option<()> {
-    match db::game::update(game, conn).await {
-        Ok(_) => Some(()),
-        Err(e) => {
-            error!("Error saving game with key {} with error {:?}", game.key, e);
-            None
-        }
-    }
+async fn store_game(
+    game: &SyncronizedMatch,
+    conn: &mut db::Connection,
+) -> Result<(), anyhow::Error> {
+    db::game::update(game, conn).await?;
+    Ok(())
 }

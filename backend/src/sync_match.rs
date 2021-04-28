@@ -88,7 +88,7 @@ pub struct CurrentMatchState {
     legal_actions: Vec<PacoAction>,
     pub controlling_player: pacosako::PlayerColor,
     pub timer: Option<Timer>,
-    victory_state: pacosako::VictoryState,
+    pub victory_state: pacosako::VictoryState,
 }
 
 impl CurrentMatchState {

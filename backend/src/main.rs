@@ -10,6 +10,7 @@ extern crate rocket_contrib;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
+use crate::ws::RocketToWsMsg;
 use async_std::task;
 use db::Pool;
 use pacosako::{DenseBoard, SakoSearchResult};
@@ -364,6 +365,26 @@ async fn get_game(
     }
 }
 
+#[post("/ai/game/<key>", data = "<action>")]
+async fn post_action_to_game(
+    key: String,
+    action: Json<pacosako::PacoAction>,
+    send_to_websocket: State<'_, async_channel::Sender<ws::RocketToWsMsg>>,
+) -> () {
+    match send_to_websocket
+        .send(RocketToWsMsg::AiAction {
+            key,
+            action: action.0,
+        })
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Error sending from rocket to the websocket server: {:?}", e)
+        }
+    }
+}
+
 #[get("/game/recent")]
 async fn recently_created_games(
     pool: State<'_, Pool>,
@@ -467,13 +488,14 @@ fn init_new_websocket_server(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Bu
         .extract()
         .expect("Config could not be parsed");
 
-    if let Some(pool) = rocket.state::<Pool>() {
-        // Not yet
+    let pool = rocket.state::<Pool>().expect("Database pool not in state!");
+    let send_to_websocket: async_channel::Sender<ws::RocketToWsMsg> =
         ws::run_server(config.websocket_port, pool.clone())
             .expect("Error starting websocket server!");
-    }
 
-    rocket.manage(WebsocketPort(config.websocket_port))
+    rocket
+        .manage(WebsocketPort(config.websocket_port))
+        .manage(send_to_websocket)
 }
 
 #[derive(Deserialize)]
@@ -521,6 +543,7 @@ fn rocket() -> _ {
                 position_update,
                 position_get_list,
                 position_get,
+                post_action_to_game,
                 random_position,
                 analyse_position,
                 create_game,
