@@ -2,24 +2,23 @@ module Pages.Settings exposing (Model, Msg, Params, page)
 
 import Color exposing (Color)
 import ColorPicker
+import Effect exposing (Effect)
 import Element exposing (column, el)
 import Element.Input as Input
 import Html
+import Page exposing (Page)
+import Request
 import Shared
-import Spa.Document exposing (Document)
-import Spa.Page as Page exposing (Page)
-import Spa.Url exposing (Url)
+import View exposing (View)
 
 
-page : Page Params Model Msg
-page =
-    Page.application
-        { init = init
+page : Shared.Model -> Request.With Params -> Page.With Model Msg
+page shared _ =
+    Page.advanced
+        { init = init shared
         , update = update
         , subscriptions = subscriptions
         , view = view
-        , save = save
-        , load = load
         }
 
 
@@ -37,10 +36,10 @@ type alias Model =
     }
 
 
-init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { params } =
+init : Shared.Model -> ( Model, Effect Msg )
+init shared =
     ( initModel
-    , Cmd.none
+    , Effect.none
     )
 
 
@@ -60,7 +59,7 @@ type Msg
     | ResetColorScheme
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
         ColorPickerMsg cpMsg ->
@@ -72,21 +71,11 @@ update msg model =
                 | colorPicker = m
                 , oneColor = newColor |> Maybe.withDefault model.oneColor
               }
-            , Cmd.none
+            , Effect.none
             )
 
         ResetColorScheme ->
-            ( initModel, Cmd.none )
-
-
-save : Model -> Shared.Model -> Shared.Model
-save model shared =
-    shared
-
-
-load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared model =
-    ( model, Cmd.none )
+            ( initModel, Effect.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -98,11 +87,11 @@ subscriptions _ =
 -- VIEW
 
 
-view : Model -> Document Msg
+view : Model -> View Msg
 view model =
     { title = "Settings"
-    , body =
-        [ column []
+    , element =
+        column []
             [ Element.text "Customize your colors"
             , Input.button []
                 { onPress = Just ResetColorScheme
@@ -113,5 +102,4 @@ view model =
                     |> Html.map ColorPickerMsg
                 )
             ]
-        ]
     }

@@ -1,4 +1,4 @@
-module Pages.Game.Id_String exposing (Model, Msg, Params, page)
+module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
 import Api.Ai
@@ -12,6 +12,7 @@ import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Dict exposing (Dict)
 import Duration
+import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -19,19 +20,20 @@ import Element.Font as Font
 import Element.Input as Input
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
+import Gen.Route as Route
+import Header
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode
 import List.Extra as List
 import Maybe.Extra as Maybe
+import Page
 import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
 import Reactive exposing (Device(..))
+import Request
 import Result.Extra as Result
 import Sako exposing (Tile(..))
 import SaveState exposing (SaveState(..))
 import Shared
-import Spa.Document exposing (Document)
-import Spa.Generated.Route as Route
-import Spa.Page as Page exposing (Page)
 import Spa.Url exposing (Url)
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
@@ -40,17 +42,16 @@ import Time exposing (Posix)
 import Timer
 import Url
 import Url.Parser exposing (query)
+import View exposing (View)
 
 
-page : Page Params Model Msg
-page =
-    Page.application
-        { init = init
+page : Shared.Model -> Request.With Params -> Page.With Model Msg
+page shared { params, query } =
+    Page.advanced
+        { init = init shared params query
         , update = update
         , subscriptions = subscriptions
-        , view = view
-        , save = save
-        , load = load
+        , view = view shared
         }
 
 
@@ -66,15 +67,12 @@ type alias Model =
     { board : Sako.Position
     , subscription : Maybe String
     , currentState : CurrentMatchState
-    , windowSize : ( Int, Int )
     , timeline : Timeline OpaqueRenderData
     , focus : Maybe Tile
     , dragState : DragState
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
     , rotation : BoardRotation
-    , now : Posix
-    , lang : Language
     , whiteName : String
     , blackName : String
     , gameUrl : Url.Url
@@ -82,10 +80,9 @@ type alias Model =
     }
 
 
-init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { params, query } =
+init : Shared.Model -> Params -> Dict String String -> ( Model, Effect Msg )
+init shared params query =
     ( { board = Sako.initialPosition
-      , windowSize = shared.windowSize
       , subscription = Just params.id
       , currentState =
             { key = ""
@@ -101,14 +98,12 @@ init shared { params, query } =
       , castingDeco = CastingDeco.initModel
       , inputMode = Nothing
       , rotation = WhiteBottom
-      , now = shared.now
-      , lang = shared.language
       , whiteName = ""
       , blackName = ""
       , gameUrl = shared.url
       , colorSettings = determineColorSettingsFromQuery query
       }
-    , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
+    , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id) |> Effect.fromCmd
     )
 
 
@@ -144,20 +139,21 @@ type Msg
     | SetBlackName String
     | CopyToClipboard String
     | WebsocketStatusChange Api.Websocket.WebsocketStaus
+    | ToShared Shared.Msg
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
         ActionInputStep action ->
             updateActionInputStep action model
 
         AnimationTick now ->
-            ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
+            ( { model | timeline = Animation.tick now model.timeline }, Effect.none )
 
         Rollback ->
             ( model
-            , Api.Websocket.send (Api.Websocket.Rollback (Maybe.withDefault "" model.subscription))
+            , Api.Websocket.send (Api.Websocket.Rollback (Maybe.withDefault "" model.subscription)) |> Effect.fromCmd
             )
 
         MouseDown pos ->
@@ -166,7 +162,7 @@ update msg model =
                     updateMouseDown pos model
 
                 Just mode ->
-                    ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Cmd.none )
+                    ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Effect.none )
 
         MouseUp pos ->
             case model.inputMode of
@@ -174,7 +170,7 @@ update msg model =
                     updateMouseUp pos model
 
                 Just mode ->
-                    ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Cmd.none )
+                    ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Effect.none )
 
         MouseMove pos ->
             case model.inputMode of
@@ -182,57 +178,60 @@ update msg model =
                     updateMouseMove pos model
 
                 Just mode ->
-                    ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Cmd.none )
+                    ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Effect.none )
 
         SetInputMode inputMode ->
-            ( { model | inputMode = inputMode }, Cmd.none )
+            ( { model | inputMode = inputMode }, Effect.none )
 
         ClearDecoTiles ->
-            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Effect.none )
 
         ClearDecoArrows ->
-            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Effect.none )
 
         ClearDecoComplete ->
-            ( { model | castingDeco = CastingDeco.initModel }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.initModel }, Effect.none )
 
         MoveFromAi action ->
             updateActionInputStep action model
 
         RequestAiMove ->
-            ( model, Api.Ai.requestMoveFromAi )
+            ( model, Api.Ai.requestMoveFromAi |> Effect.fromCmd )
 
         AiCrashed ->
-            ( model, Ports.logToConsole "Ai Crashed" )
+            ( model, Ports.logToConsole "Ai Crashed" |> Effect.fromCmd )
 
         SetRotation rotation ->
-            ( setRotation rotation model, Cmd.none )
+            ( setRotation rotation model, Effect.none )
 
         WebsocketMsg serverMessage ->
             updateWebsocket serverMessage model
 
         WebsocketErrorMsg error ->
-            ( model, Ports.logToConsole (Decode.errorToString error) )
+            ( model, Ports.logToConsole (Decode.errorToString error) |> Effect.fromCmd )
 
         SetWhiteName name ->
-            ( { model | whiteName = name }, Cmd.none )
+            ( { model | whiteName = name }, Effect.none )
 
         SetBlackName name ->
-            ( { model | blackName = name }, Cmd.none )
+            ( { model | blackName = name }, Effect.none )
 
         CopyToClipboard text ->
-            ( model, Ports.copy text )
+            ( model, Ports.copy text |> Effect.fromCmd )
 
         WebsocketStatusChange status ->
             ( model
             , case status of
                 Api.Websocket.WSConnected ->
                     Api.Websocket.send (Api.Websocket.SubscribeToMatch (Maybe.withDefault "" model.subscription))
-                        |> Debug.log "Reconnected!"
+                        |> Effect.fromCmd
 
                 _ ->
-                    Cmd.none
+                    Effect.none
             )
+
+        ToShared outMsg ->
+            ( model, Effect.fromShared outMsg )
 
 
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
@@ -272,7 +271,7 @@ liftActionAt state tile =
 Only call it, when you have checked, that there is a legal lift action at the
 clicked tile.
 -}
-updateMouseDown : BoardMousePosition -> Model -> ( Model, Cmd Msg )
+updateMouseDown : BoardMousePosition -> Model -> ( Model, Effect Msg )
 updateMouseDown pos model =
     -- Check if there is a piece we can lift at this position.
     case Maybe.andThen (liftActionAt model.currentState) pos.tile of
@@ -289,7 +288,7 @@ updateMouseDown pos model =
 {-| Checks if there is already a lifted piece at the given position and allows
 us to take hold of it again.
 -}
-updateTryRegrabLiftedPiece : BoardMousePosition -> Model -> ( Model, Cmd Msg )
+updateTryRegrabLiftedPiece : BoardMousePosition -> Model -> ( Model, Effect Msg )
 updateTryRegrabLiftedPiece pos model =
     let
         liftedPieces =
@@ -303,14 +302,14 @@ updateTryRegrabLiftedPiece pos model =
                     (renderPlayViewDragging { start = pos, current = pos } model)
                     model.timeline
           }
-        , Cmd.none
+        , Effect.none
         )
 
     else
-        ( model, Cmd.none )
+        ( model, Effect.none )
 
 
-updateMouseUp : BoardMousePosition -> Model -> ( Model, Cmd Msg )
+updateMouseUp : BoardMousePosition -> Model -> ( Model, Effect Msg )
 updateMouseUp pos model =
     case Maybe.andThen (legalActionAt model.currentState) pos.tile of
         -- Check if the position is an allowed action.
@@ -326,10 +325,10 @@ updateMouseUp pos model =
                         model.timeline
               }
             , if isQuickRollbackSituation pos model then
-                sendRollback model
+                sendRollback model |> Effect.fromCmd
 
               else
-                Cmd.none
+                Effect.none
             )
 
 
@@ -349,7 +348,7 @@ isQuickRollbackSituation pos model =
         /= Sako.liftedAtTile model.board
 
 
-updateMouseMove : BoardMousePosition -> Model -> ( Model, Cmd Msg )
+updateMouseMove : BoardMousePosition -> Model -> ( Model, Effect Msg )
 updateMouseMove mousePosition model =
     case model.dragState of
         Just dragState ->
@@ -360,7 +359,7 @@ updateMouseMove mousePosition model =
                 model
 
         Nothing ->
-            ( model, Cmd.none )
+            ( model, Effect.none )
 
 
 updateMouseMoveDragging :
@@ -368,7 +367,7 @@ updateMouseMoveDragging :
     , current : BoardMousePosition
     }
     -> Model
-    -> ( Model, Cmd Msg )
+    -> ( Model, Effect Msg )
 updateMouseMoveDragging dragState model =
     ( { model
         | dragState =
@@ -378,7 +377,7 @@ updateMouseMoveDragging dragState model =
                 (renderPlayViewDragging dragState model)
                 model.timeline
       }
-    , Cmd.none
+    , Effect.none
     )
 
 
@@ -412,7 +411,7 @@ renderPlayViewDragging dragState model =
 {-| Add the given action to the list of all actions taken and sends it to the
 server for confirmation. Will also trigger an animation.
 -}
-updateActionInputStep : Sako.Action -> Model -> ( Model, Cmd Msg )
+updateActionInputStep : Sako.Action -> Model -> ( Model, Effect Msg )
 updateActionInputStep action model =
     let
         newBoard =
@@ -427,21 +426,22 @@ updateActionInputStep action model =
                 ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
                 model.timeline
       }
-    , Cmd.batch
+    , Effect.batch
         [ Api.Websocket.DoAction
             { key = Maybe.withDefault "" model.subscription
             , action = action
             }
             |> Api.Websocket.send
+            |> Effect.fromCmd
         , case action of
             Sako.Place _ ->
-                Ports.playSound ()
+                Ports.playSound () |> Effect.fromCmd
 
             Sako.Lift _ ->
-                Cmd.none
+                Effect.none
 
             Sako.Promote _ ->
-                Cmd.none
+                Effect.none
         ]
     )
 
@@ -449,16 +449,16 @@ updateActionInputStep action model =
 {-| Ensure that the update we got actually belongs to the game we are interested
 in.
 -}
-updateCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Cmd Msg )
+updateCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Effect Msg )
 updateCurrentMatchStateIfKeyCorrect data model =
     if data.key == model.currentState.key then
         updateCurrentMatchState data model
 
     else
-        ( model, Cmd.none )
+        ( model, Effect.none )
 
 
-updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Cmd Msg )
+updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Effect Msg )
 updateCurrentMatchState data model =
     let
         newBoard =
@@ -482,11 +482,11 @@ updateCurrentMatchState data model =
                 ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
                 model.timeline
       }
-    , Cmd.none
+    , Effect.none
     )
 
 
-updateMatchConnectionSuccess : { key : String, state : CurrentMatchState } -> Model -> ( Model, Cmd Msg )
+updateMatchConnectionSuccess : { key : String, state : CurrentMatchState } -> Model -> ( Model, Effect Msg )
 updateMatchConnectionSuccess data model =
     { model | subscription = Just data.key }
         |> updateCurrentMatchState data.state
@@ -529,33 +529,17 @@ setRotation rotation model =
     }
 
 
-updateWebsocket : Api.Websocket.ServerMessage -> Model -> ( Model, Cmd Msg )
+updateWebsocket : Api.Websocket.ServerMessage -> Model -> ( Model, Effect Msg )
 updateWebsocket serverMessage model =
     case serverMessage of
         Api.Websocket.TechnicalError errorMessage ->
-            ( model, Ports.logToConsole errorMessage )
+            ( model, Ports.logToConsole errorMessage |> Effect.fromCmd )
 
         Api.Websocket.NewMatchState data ->
             updateCurrentMatchStateIfKeyCorrect data model
 
         Api.Websocket.MatchConnectionSuccess data ->
             updateMatchConnectionSuccess data model
-
-
-save : Model -> Shared.Model -> Shared.Model
-save _ shared =
-    shared
-
-
-load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared model =
-    ( { model
-        | lang = shared.language
-        , windowSize = shared.windowSize
-        , now = shared.now
-      }
-    , Cmd.none
-    )
 
 
 subscriptions : Model -> Sub Msg
@@ -585,43 +569,43 @@ keybindings =
 -- VIEW
 
 
-view : Model -> Document Msg
-view model =
-    { title = t model.lang i18nTitle
-    , body = [ playUi model ]
+view : Shared.Model -> Model -> View Msg
+view shared model =
+    { title = t shared.language i18nTitle
+    , element = Header.wrapWithHeader shared ToShared (playUi shared model)
     }
 
 
-playUi : Model -> Element Msg
-playUi model =
-    case Reactive.classify model.windowSize of
+playUi : Shared.Model -> Model -> Element Msg
+playUi shared model =
+    case Reactive.classify shared.windowSize of
         LandscapeDevice ->
-            playUiLandscape model
+            playUiLandscape shared model
 
         PortraitDevice ->
-            playUiPortrait model
+            playUiPortrait shared model
 
 
-playUiLandscape : Model -> Element Msg
-playUiLandscape model =
+playUiLandscape : Shared.Model -> Model -> Element Msg
+playUiLandscape shared model =
     Element.row
         [ width fill, height fill, Element.scrollbarY ]
-        [ playPositionView model
-        , sidebar model
+        [ playPositionView shared model
+        , sidebar shared model
         ]
 
 
-playUiPortrait : Model -> Element Msg
-playUiPortrait model =
+playUiPortrait : Shared.Model -> Model -> Element Msg
+playUiPortrait shared model =
     Element.column
         [ width fill, height fill ]
-        [ playPositionView model
-        , sidebar model
+        [ playPositionView shared model
+        , sidebar shared model
         ]
 
 
-playPositionView : Model -> Element Msg
-playPositionView model =
+playPositionView : Shared.Model -> Model -> Element Msg
+playPositionView shared model =
     Element.el [ width fill, height fill ]
         (PositionView.viewTimeline
             { colorScheme = model.colorSettings
@@ -631,7 +615,7 @@ playPositionView model =
             , mouseDown = Just MouseDown
             , mouseUp = Just MouseUp
             , mouseMove = Just MouseMove
-            , additionalSvg = additionalSvg model
+            , additionalSvg = additionalSvg shared model
             , replaceViewport = playTimerReplaceViewport model
             }
             model.timeline
@@ -681,8 +665,8 @@ playViewHighlight model =
         |> Maybe.withDefault []
 
 
-additionalSvg : Model -> Maybe (Svg a)
-additionalSvg model =
+additionalSvg : Shared.Model -> Model -> Maybe (Svg a)
+additionalSvg shared model =
     let
         ( whiteY, blackY ) =
             case model.rotation of
@@ -692,7 +676,7 @@ additionalSvg model =
                 BlackBottom ->
                     ( -40, 850 )
     in
-    [ playTimerSvg model.now model
+    [ playTimerSvg shared.now model
     , playerLabelSvg model.whiteName whiteY
     , playerLabelSvg model.blackName blackY
     ]
@@ -835,24 +819,24 @@ playTimerReplaceViewport model =
             }
 
 
-sidebar : Model -> Element Msg
-sidebar model =
+sidebar : Shared.Model -> Model -> Element Msg
+sidebar shared model =
     Element.column [ spacing 5, padding 20, height fill ]
-        [ gameCodeLabel model model.subscription
+        [ gameCodeLabel shared model model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
             (Just Rollback)
-            [ Element.text (t model.lang i18nRestartMove) ]
+            [ Element.text (t shared.language i18nRestartMove) ]
             |> Element.el [ width fill ]
-        , maybePromotionButtons model model.currentState.legalActions
-        , maybeVictoryStateInfo model model.currentState.gameState
-        , maybeReplayLink model
+        , maybePromotionButtons shared model model.currentState.legalActions
+        , maybeVictoryStateInfo shared model model.currentState.gameState
+        , maybeReplayLink shared model
         , Element.el [ padding 10 ] Element.none
-        , CastingDeco.configView model.lang castingDecoMessages model.inputMode model.castingDeco
+        , CastingDeco.configView shared.language castingDecoMessages model.inputMode model.castingDeco
         , Element.el [ padding 10 ] Element.none
-        , Element.text (t model.lang i18nPlayAs)
-        , rotationButtons model model.rotation
+        , Element.text (t shared.language i18nPlayAs)
+        , rotationButtons shared model model.rotation
         , Element.el [ padding 10 ] Element.none
-        , playerNamesInput model
+        , playerNamesInput shared model
 
         -- , Input.button []
         --     { onPress = Just (PlayMsgWrapper RequestAiMove)
@@ -879,14 +863,14 @@ castingDecoMessages =
     }
 
 
-gameCodeLabel : Model -> Maybe String -> Element Msg
-gameCodeLabel model subscription =
+gameCodeLabel : Shared.Model -> Model -> Maybe String -> Element Msg
+gameCodeLabel shared model subscription =
     case subscription of
         Just id ->
             Element.column [ width fill, spacing 5 ]
                 [ Components.gameIdBadgeBig id
                 , Element.row [ width fill, height fill ]
-                    [ btn (t model.lang i18nCopyToClipboard)
+                    [ btn (t shared.language i18nCopyToClipboard)
                         |> withSmallIcon Regular.clipboard
                         |> withMsg (CopyToClipboard (Url.toString model.gameUrl))
                         |> withStyle (width fill)
@@ -895,11 +879,11 @@ gameCodeLabel model subscription =
                 ]
 
         Nothing ->
-            Element.text (t model.lang i18nNotConnected)
+            Element.text (t shared.language i18nNotConnected)
 
 
-maybePromotionButtons : Model -> List Sako.Action -> Element Msg
-maybePromotionButtons model actions =
+maybePromotionButtons : Shared.Model -> Model -> List Sako.Action -> Element Msg
+maybePromotionButtons shared model actions =
     let
         canPromote =
             actions
@@ -914,75 +898,75 @@ maybePromotionButtons model actions =
                     )
     in
     if canPromote then
-        promotionButtons model
+        promotionButtons shared model
 
     else
         Element.none
 
 
-promotionButtons : Model -> Element Msg
-promotionButtons model =
+promotionButtons : Shared.Model -> Model -> Element Msg
+promotionButtons shared model =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Queen)))
                 [ icon [ centerX ] Solid.chessQueen
-                , Element.el [ centerX ] (Element.text (t model.lang I18n.queen))
+                , Element.el [ centerX ] (Element.text (t shared.language I18n.queen))
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Knight)))
                 [ icon [ centerX ] Solid.chessKnight
-                , Element.el [ centerX ] (Element.text (t model.lang I18n.knight))
+                , Element.el [ centerX ] (Element.text (t shared.language I18n.knight))
                 ]
             ]
         , Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Rook)))
                 [ icon [ centerX ] Solid.chessRook
-                , Element.el [ centerX ] (Element.text (t model.lang I18n.rook))
+                , Element.el [ centerX ] (Element.text (t shared.language I18n.rook))
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Bishop)))
                 [ icon [ centerX ] Solid.chessBishop
-                , Element.el [ centerX ] (Element.text (t model.lang I18n.bishop))
+                , Element.el [ centerX ] (Element.text (t shared.language I18n.bishop))
                 ]
             ]
         ]
 
 
-maybeVictoryStateInfo : Model -> Sako.VictoryState -> Element msg
-maybeVictoryStateInfo model victoryState =
+maybeVictoryStateInfo : Shared.Model -> Model -> Sako.VictoryState -> Element msg
+maybeVictoryStateInfo shared model victoryState =
     case victoryState of
         Sako.Running ->
             Element.none
 
         Sako.PacoVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoWhite))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoWhite))
                 ]
 
         Sako.PacoVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoBlack))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoBlack))
                 ]
 
         Sako.TimeoutVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoWhite))
-                , Element.el [ Font.size 20, centerX ] (Element.text (t model.lang i18nTimeout))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoWhite))
+                , Element.el [ Font.size 20, centerX ] (Element.text (t shared.language i18nTimeout))
                 ]
 
         Sako.TimeoutVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t model.lang i18nPacoBlack))
-                , Element.el [ Font.size 20, centerX ] (Element.text (t model.lang i18nTimeout))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoBlack))
+                , Element.el [ Font.size 20, centerX ] (Element.text (t shared.language i18nTimeout))
                 ]
 
 
 {-| Links to the replay, but only after the game is finished.
 -}
-maybeReplayLink : Model -> Element msg
-maybeReplayLink model =
+maybeReplayLink : Shared.Model -> Model -> Element msg
+maybeReplayLink shared model =
     case model.currentState.gameState of
         Sako.Running ->
             Element.none
@@ -992,8 +976,8 @@ maybeReplayLink model =
                 |> Maybe.map
                     (\key ->
                         Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-                            { url = Route.toString (Route.Replay__Id_String { id = key })
-                            , label = Element.text (t model.lang i18nWatchReplay)
+                            { url = Route.toHref (Route.Replay__Id_ { id = key })
+                            , label = Element.text (t shared.language i18nWatchReplay)
                             }
                     )
                 |> Maybe.withDefault Element.none
@@ -1027,11 +1011,11 @@ distributeSeconds seconds =
     { seconds = seconds |> modBy 60, minutes = seconds // 60 }
 
 
-rotationButtons : Model -> BoardRotation -> Element Msg
-rotationButtons model rotation =
+rotationButtons : Shared.Model -> Model -> BoardRotation -> Element Msg
+rotationButtons shared model rotation =
     Element.row [ spacing 5 ]
-        [ rotationButton WhiteBottom rotation (t model.lang i18nWhite)
-        , rotationButton BlackBottom rotation (t model.lang i18nBlack)
+        [ rotationButton WhiteBottom rotation (t shared.language i18nWhite)
+        , rotationButton BlackBottom rotation (t shared.language i18nBlack)
         ]
 
 
@@ -1043,17 +1027,17 @@ rotationButton rotation currentRotation label =
         |> viewButton
 
 
-playerNamesInput : Model -> Element Msg
-playerNamesInput model =
+playerNamesInput : Shared.Model -> Model -> Element Msg
+playerNamesInput shared model =
     let
         whitePlayerName =
-            Element.text (t model.lang i18nWhitePlayerName)
+            Element.text (t shared.language i18nWhitePlayerName)
 
         blackPlayerName =
-            Element.text (t model.lang i18nBlackPlayerName)
+            Element.text (t shared.language i18nBlackPlayerName)
     in
     Element.column [ spacing 5 ]
-        [ Element.text (t model.lang i18nPlayerNamesForStreaming)
+        [ Element.text (t shared.language i18nPlayerNamesForStreaming)
         , Input.text []
             { onChange = SetWhiteName
             , text = model.whiteName

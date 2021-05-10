@@ -1,4 +1,4 @@
-module Pages.Replay.Id_String exposing (Model, Msg, Params, page)
+module Pages.Replay.Id_ exposing (Model, Msg, Params, page)
 
 {-| Watch replays of games that were played in /game/{id}
 -}
@@ -11,38 +11,39 @@ import CastingDeco
 import Colors
 import Components
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
+import Effect exposing (Effect)
 import Element exposing (Element, alignTop, centerX, fill, fillPortion, height, padding, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import FontAwesome.Solid as Solid
+import Gen.Route as Route
+import Header
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import List.Extra as List
+import Page exposing (Page)
 import Pages.NotFound
 import Pieces
 import PositionView exposing (OpaqueRenderData)
 import RemoteData exposing (WebData)
+import Request
 import Sako exposing (Action, Color(..))
 import Shared
-import Spa.Document exposing (Document)
-import Spa.Generated.Route as Route
-import Spa.Page as Page exposing (Page)
-import Spa.Url as Url exposing (Url)
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
+import Url exposing (Url)
+import View exposing (View)
 
 
-page : Page Params Model Msg
-page =
-    Page.application
-        { init = init
+page : Shared.Model -> Request.With Params -> Page.With Model Msg
+page shared { params } =
+    Page.advanced
+        { init = init shared params
         , update = update
         , subscriptions = subscriptions
-        , view = view
-        , save = save
-        , load = load
+        , view = view shared
         }
 
 
@@ -64,12 +65,11 @@ type alias Model =
     , now : Posix
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
-    , lang : Language
     }
 
 
-init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { params } =
+init : Shared.Model -> Params -> ( Model, Effect Msg )
+init shared params =
     ( { replay = RemoteData.Loading
       , sidebarData = []
       , key = params.id
@@ -79,9 +79,8 @@ init shared { params } =
       , now = Time.millisToPosix 0
       , castingDeco = CastingDeco.initModel
       , inputMode = Nothing
-      , lang = shared.language
       }
-    , Api.Backend.getReplay params.id HttpErrorReplay GotReplay
+    , Api.Backend.getReplay params.id HttpErrorReplay GotReplay |> Effect.fromCmd
     )
 
 
@@ -109,9 +108,10 @@ type Msg
     | RematchFromActionIndex String Int
     | HttpErrorBranch Http.Error
     | GotBranchKey String
+    | ToShared Shared.Msg
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
         GotReplay replay ->
@@ -119,65 +119,67 @@ update msg model =
                 | replay = RemoteData.Success replay
                 , sidebarData = sidebarData replay
               }
-            , Cmd.none
+            , Effect.none
             )
 
         HttpErrorReplay error ->
-            ( { model | replay = RemoteData.Failure error }, Cmd.none )
+            ( { model | replay = RemoteData.Failure error }, Effect.none )
 
         TriggerReplayReload ->
             ( { model | replay = RemoteData.Loading }
-            , Api.Backend.getReplay model.key HttpErrorReplay GotReplay
+            , Api.Backend.getReplay model.key HttpErrorReplay GotReplay |> Effect.fromCmd
             )
 
         GoToActionCount actionCount ->
-            ( setAndAnimateActionCount actionCount model, Cmd.none )
+            ( setAndAnimateActionCount actionCount model, Effect.none )
 
         SetInputMode inputMode ->
-            ( { model | inputMode = inputMode }, Cmd.none )
+            ( { model | inputMode = inputMode }, Effect.none )
 
         ClearDecoTiles ->
-            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Effect.none )
 
         ClearDecoArrows ->
-            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Effect.none )
 
         ClearDecoComplete ->
-            ( { model | castingDeco = CastingDeco.initModel }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.initModel }, Effect.none )
 
         MouseDown mode pos ->
-            ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Effect.none )
 
         MouseUp mode pos ->
-            ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Effect.none )
 
         MouseMove mode pos ->
-            ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Effect.none )
 
         NextAction ->
-            ( setAndAnimateActionCount (nextAction model) model, Cmd.none )
+            ( setAndAnimateActionCount (nextAction model) model, Effect.none )
 
         PreviousAction ->
-            ( setAndAnimateActionCount (previousAction model) model, Cmd.none )
+            ( setAndAnimateActionCount (previousAction model) model, Effect.none )
 
         NextMove ->
-            ( setAndAnimateActionCount (nextMove model) model, Cmd.none )
+            ( setAndAnimateActionCount (nextMove model) model, Effect.none )
 
         PreviousMove ->
-            ( setAndAnimateActionCount (previousMove model) model, Cmd.none )
+            ( setAndAnimateActionCount (previousMove model) model, Effect.none )
 
         AnimationTick now ->
-            ( { model | timeline = Animation.tick now model.timeline }, Cmd.none )
+            ( { model | timeline = Animation.tick now model.timeline }, Effect.none )
 
         RematchFromActionIndex key actionIndex ->
-            ( model, Api.Backend.postRematchFromActionIndex key actionIndex Nothing HttpErrorBranch GotBranchKey )
+            ( model, Api.Backend.postRematchFromActionIndex key actionIndex Nothing HttpErrorBranch GotBranchKey |> Effect.fromCmd )
 
         HttpErrorBranch _ ->
-            ( model, Api.Ports.logToConsole "Error branching game." )
+            ( model, Api.Ports.logToConsole "Error branching game." |> Effect.fromCmd )
 
         GotBranchKey newKey ->
-            -- TODO: navigate to the game
-            ( model, pushUrl model.navigationKey (Route.toString (Route.Game__Id_String { id = newKey })) )
+            ( model, pushUrl model.navigationKey (Route.toHref (Route.Game__Id_ { id = newKey })) |> Effect.fromCmd )
+
+        ToShared outMsg ->
+            ( model, Effect.fromShared outMsg )
 
 
 {-| Sets the action count to the given value and decides how to animate this.
@@ -300,16 +302,6 @@ previousMove model =
     actionCount
 
 
-save : Model -> Shared.Model -> Shared.Model
-save model shared =
-    shared
-
-
-load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared model =
-    ( { model | lang = shared.language }, Cmd.none )
-
-
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
@@ -338,10 +330,11 @@ keybindings =
 -- VIEW
 
 
-view : Model -> Document Msg
-view model =
+view : Shared.Model -> Model -> View Msg
+view shared model =
     { title = "Watch Replay - pacoplay.com"
-    , body = [ body model ]
+    , element =
+        Header.wrapWithHeader shared ToShared (body shared model)
     }
 
 
@@ -356,8 +349,8 @@ bg =
     }
 
 
-body : Model -> Element Msg
-body model =
+body : Shared.Model -> Model -> Element Msg
+body shared model =
     case model.replay of
         RemoteData.NotAsked ->
             Pages.NotFound.body
@@ -365,19 +358,19 @@ body model =
         RemoteData.Loading ->
             Element.text "Loading replay data ..."
 
-        RemoteData.Failure e ->
+        RemoteData.Failure _ ->
             Pages.NotFound.body
 
         RemoteData.Success replay ->
-            successBody model replay
+            successBody shared model replay
 
 
-successBody : Model -> Replay -> Element Msg
-successBody model replay =
+successBody : Shared.Model -> Model -> Replay -> Element Msg
+successBody shared model replay =
     Element.row
         [ width fill, height fill, Element.scrollbarY ]
         [ boardView model replay
-        , sidebar model replay
+        , sidebar shared model replay
         ]
 
 
@@ -510,16 +503,16 @@ decoration model actions position =
 --------------------------------------------------------------------------------
 
 
-sidebar : Model -> Replay -> Element Msg
-sidebar model replay =
+sidebar : Shared.Model -> Model -> Replay -> Element Msg
+sidebar shared model replay =
     Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
         [ Components.gameIdBadgeBig model.key
         , arrowButtons
-        , editorLink model
-        , rematchLink model
+        , editorLink shared model
+        , rematchLink shared model
         , actionList model replay
         , CastingDeco.configView
-            model.lang
+            shared.language
             { setInputMode = SetInputMode
             , clearTiles = ClearDecoTiles
             , clearArrows = ClearDecoArrows
@@ -540,19 +533,19 @@ arrowButtons =
         ]
 
 
-editorLink : Model -> Element msg
-editorLink model =
+editorLink : Shared.Model -> Model -> Element msg
+editorLink shared model =
     Element.link [ Font.underline, Font.color (Element.rgb 0 0 1) ]
-        { url = Route.toString Route.Editor ++ "?game=" ++ model.key ++ "&action=" ++ String.fromInt model.actionCount
-        , label = Element.text (t model.lang i18nShowInEditor)
+        { url = Route.toHref Route.Editor ++ "?game=" ++ model.key ++ "&action=" ++ String.fromInt model.actionCount
+        , label = Element.text (t shared.language i18nShowInEditor)
         }
 
 
-rematchLink : Model -> Element Msg
-rematchLink model =
+rematchLink : Shared.Model -> Model -> Element Msg
+rematchLink shared model =
     Input.button [ Font.underline, Font.color (Element.rgb 0 0 1) ]
         { onPress = Just <| RematchFromActionIndex model.key model.actionCount
-        , label = Element.text (t model.lang i18nRematchFromHere)
+        , label = Element.text (t shared.language i18nRematchFromHere)
         }
 
 

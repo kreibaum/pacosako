@@ -1,27 +1,20 @@
-module Pages.NotFound exposing (Model, Msg, Params, body, page)
+module Pages.NotFound exposing (Params, body, page)
 
 import Element exposing (..)
 import Element.Font as Font
-import Spa.Document exposing (Document)
-import Spa.Generated.Route as Route
-import Spa.Page as Page exposing (Page)
-import Spa.Url exposing (Url)
+import Gen.Route as Route
+import Page exposing (Page)
+import Request
+import Shared
+import View exposing (View)
 
 
 type alias Params =
     ()
 
 
-type alias Model =
-    Url Params
-
-
-type alias Msg =
-    Never
-
-
-page : Page Params Model Msg
-page =
+page : Shared.Model -> Request.With Params -> Page
+page _ _ =
     Page.static
         { view = view
         }
@@ -31,16 +24,15 @@ page =
 -- VIEW
 
 
-view : Url Params -> Document Msg
-view _ =
+view : View msg
+view =
     { title = "404"
-    , body =
-        [ body
-        ]
+    , element =
+        body
     }
 
 
 body : Element msg
 body =
     Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-        { url = Route.toString Route.Top, label = text "Page not found. Return to start page." }
+        { url = Route.toHref Route.Home_, label = text "Page not found. Return to start page." }

@@ -1,28 +1,21 @@
-module Pages.Tournament.Id_String exposing (Model, Msg, Params, page)
+module Pages.Tournament.Id_ exposing (Params, page)
 
 import Components
 import Element exposing (Element, centerX, fill, fillPortion, maximum, padding, spacing, width)
 import Element.Font as Font
+import Gen.Route as Route
 import List.Extra as List
-import Spa.Document exposing (Document)
-import Spa.Generated.Route as Route
-import Spa.Page as Page exposing (Page)
-import Spa.Url as Url exposing (Url)
+import Page exposing (Page)
+import Request
+import Shared
+import View exposing (View)
 
 
-page : Page Params Model Msg
-page =
+page : Shared.Model -> Request.With Params -> Page
+page _ { params } =
     Page.static
-        { view = view
+        { view = view params
         }
-
-
-type alias Model =
-    Url Params
-
-
-type alias Msg =
-    Never
 
 
 
@@ -33,8 +26,8 @@ type alias Params =
     { id : String }
 
 
-view : Url Params -> Document Msg
-view { params } =
+view : Params -> View msg
+view params =
     case String.toLower params.id of
         "dutchopen2020" ->
             dutchOpen2020
@@ -43,57 +36,58 @@ view { params } =
             notFound
 
 
-notFound : Document Msg
+notFound : View msg
 notFound =
     { title = "Tournament not found - pacoplay.com"
-    , body = [ Components.header1 "Tournament not found." ]
+    , element = Components.header1 "Tournament not found."
     }
 
 
-dutchOpen2020 : Document msg
+dutchOpen2020 : View msg
 dutchOpen2020 =
     { title = "Dutch Open 2020 - pacoplay.com"
-    , body =
-        [ Components.header1 "Dutch Open 2020"
-        , Element.column [ width (fill |> maximum 1000), centerX, spacing 20, padding 10 ]
-            [ Components.paragraph
-                """The Dutch Open 2020 was an online tournament held in December
+    , element =
+        Element.column []
+            [ Components.header1 "Dutch Open 2020"
+            , Element.column [ width (fill |> maximum 1000), centerX, spacing 20, padding 10 ]
+                [ Components.paragraph
+                    """The Dutch Open 2020 was an online tournament held in December
                 2020 with 11 participants. This was the first online tournament
                 of Paco Ŝako. On this page all games are listed and you can watch Felix Albers
                 cast the game or analyse the replays yourself."""
-            , Components.paragraph
-                """The best way to get an overview will be a video that is
+                , Components.paragraph
+                    """The best way to get an overview will be a video that is
                 currently being prepared by Felix."""
-            , Components.header2 "Group 1"
-            , Components.paragraph
-                """Group one was player with 5 competitors, each pairing played
+                , Components.header2 "Group 1"
+                , Components.paragraph
+                    """Group one was player with 5 competitors, each pairing played
                 two games. Each row links to the match where they played as white."""
-            , group1Table
-            , Components.header2 "Group 2"
-            , Components.paragraph
-                """Group two was player with 6 competitors, each pairing played
+                , group1Table
+                , Components.header2 "Group 2"
+                , Components.paragraph
+                    """Group two was player with 6 competitors, each pairing played
                 two games. Each row links to the match where they played as white."""
-            , group2Table
-            , Components.header2 "Semifinals"
-            , Components.paragraph
-                """The semifinals were a best of three with 20 minutes time limit.
+                , group2Table
+                , Components.header2 "Semifinals"
+                , Components.paragraph
+                    """The semifinals were a best of three with 20 minutes time limit.
                 The first place of a group would play against the second place of the other group.
                 The first place player got to start with white."""
-            , Components.header3 "Semifinal 1: Rolf Kreibaum vs Raimond Flujit"
-            , semifinal1Table
-            , Components.header3 "Semifinal 2: Alon Nir vs Derk Dekker"
-            , semifinal2Table
-            , Components.header2 "Final: Alon Nir vs Raimond Flujit"
-            , Components.paragraph
-                """The finals were a best of seven with a 15 minutes time limit."""
-            , finalTable
-            , Components.paragraph
-                """Congratulations to Raimond Flujit for winning this tournament.
+                , Components.header3 "Semifinal 1: Rolf Kreibaum vs Raimond Flujit"
+                , semifinal1Table
+                , Components.header3 "Semifinal 2: Alon Nir vs Derk Dekker"
+                , semifinal2Table
+                , Components.header2 "Final: Alon Nir vs Raimond Flujit"
+                , Components.paragraph
+                    """The finals were a best of seven with a 15 minutes time limit."""
+                , finalTable
+                , Components.paragraph
+                    """Congratulations to Raimond Flujit for winning this tournament.
                 It was a very exiting final series, they gave us many great games.
                 Raimond takes over the title of Dutch Paco Ŝako Champion from Derk Dekker
                 who held this title the last two years."""
+                ]
             ]
-        ]
     }
 
 
@@ -178,7 +172,7 @@ gameLink key =
 
     else
         Element.link [ Font.color (Element.rgb255 0 0 255) ]
-            { url = Route.toString (Route.Replay__Id_String { id = String.fromInt key })
+            { url = Route.toHref (Route.Replay__Id_ { id = String.fromInt key })
             , label = Element.text (String.fromInt key)
             }
 

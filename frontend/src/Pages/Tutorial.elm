@@ -1,26 +1,27 @@
 module Pages.Tutorial exposing (Model, Msg, Params, page)
 
+import Effect exposing (Effect)
 import Element exposing (Element, centerX, el, fill, height, maximum, padding, paragraph, scrollbarY, spacing, text, width)
 import Element.Background as Background
 import Element.Font as Font
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
+import Header
 import I18n.Strings as I18n exposing (I18nToken, Language(..), t)
+import Page exposing (Page)
+import Request exposing (Request)
 import Shared
-import Spa.Document exposing (Document)
-import Spa.Page as Page exposing (Page)
 import Spa.Url exposing (Url)
+import View exposing (View)
 
 
-page : Page Params Model Msg
-page =
-    Page.application
-        { init = init
+page : Shared.Model -> Request -> Page.With Model Msg
+page shared request =
+    Page.advanced
+        { init = init shared
         , update = update
         , subscriptions = subscriptions
-        , view = view
-        , save = save
-        , load = load
+        , view = view shared
         }
 
 
@@ -33,35 +34,27 @@ type alias Params =
 
 
 type alias Model =
-    Language
+    ()
 
 
-init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared _ =
-    ( shared.language, Cmd.none )
+init : Shared.Model -> ( Model, Effect Msg )
+init _ =
+    ( (), Effect.none )
 
 
 
 -- UPDATE
 
 
-type alias Msg =
-    Never
+type Msg
+    = ToShared Shared.Msg
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg _ =
-    never msg
-
-
-save : Model -> Shared.Model -> Shared.Model
-save model shared =
-    { shared | language = model }
-
-
-load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared _ =
-    ( shared.language, Cmd.none )
+update : Msg -> Model -> ( Model, Effect Msg )
+update msg model =
+    case msg of
+        ToShared outMsg ->
+            ( model, Effect.fromShared outMsg )
 
 
 subscriptions : Model -> Sub Msg
@@ -73,21 +66,22 @@ subscriptions _ =
 -- VIEW
 
 
-view : Model -> Document Msg
-view lang =
-    { title = t lang I18n.tutorialPageTitle
-    , body =
-        [ case lang of
+view : Shared.Model -> Model -> View Msg
+view shared _ =
+    { title = t shared.language I18n.tutorialPageTitle
+    , element =
+        (case shared.language of
             English ->
                 textPageWrapper englishTutorial
 
             Dutch ->
-                dutchTutorial lang
+                dutchTutorial Dutch
 
             Esperanto ->
                 textPageWrapper
                     [ text "Beda\u{00AD}ŭrinde ĉi tiu paĝo ne haveblas en Esperanto :-(" ]
-        ]
+        )
+            |> Header.wrapWithHeader shared ToShared
     }
 
 

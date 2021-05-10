@@ -11,7 +11,7 @@ lib/Cargo.lock
 
 # Elm excludes
 /frontend/elm-stuff/
-/frontend/src/Spa/Generated
+.elm-spa
 /target/
 
 # Server log

@@ -1,63 +1,57 @@
-module Pages.Editor exposing (Model, Msg, Params, page)
+module Pages.Editor exposing (Model, Msg, page)
 
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.Ports
 import CastingDeco
 import Colors
-import Components exposing (btn, viewButton, withMsg, withSmallIcon, withStyle)
+import Components exposing (btn, viewButton, withMsg, withSmallIcon)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
 import Dict exposing (Dict)
+import Effect exposing (Effect)
 import Element exposing (Element, centerX, column, el, fill, height, padding, row, shrink, spacing, width)
 import Element.Background as Background
-import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Fen
 import File.Download
-import FontAwesome.Attributes
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
+import Gen.Route as Route
+import Header
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language, t)
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
+import Page
 import Pieces
 import Pivot as P exposing (Pivot)
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
+import Request exposing (Request)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
 import SaveState exposing (SaveState(..), saveStateModify, saveStateStored)
 import Shared
-import Spa.Document exposing (Document)
-import Spa.Generated.Route as Route
-import Spa.Page as Page exposing (Page)
-import Spa.Url exposing (Url)
 import Svg.Custom as Svg exposing (BoardRotation(..), coordinateOfTile)
 import Time exposing (Posix)
 import Url
+import View exposing (View)
 
 
-page : Page Params Model Msg
-page =
-    Page.application
-        { init = init
+page : Shared.Model -> Request -> Page.With Model Msg
+page shared request =
+    Page.advanced
+        { init = init shared request
         , update = update
+        , view = view shared
         , subscriptions = subscriptions
-        , view = view
-        , save = save
-        , load = load
         }
 
 
 
 -- INIT
-
-
-type alias Params =
-    ()
 
 
 type alias Model =
@@ -77,7 +71,6 @@ type alias Model =
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
     , colorScheme : Pieces.ColorScheme
-    , lang : Language
     }
 
 
@@ -151,9 +144,9 @@ decodeQueryEmpty dict =
         Nothing
 
 
-init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared { query, rawUrl } =
-    initialEditor rawUrl shared (decodeQueryParameter query)
+init : Shared.Model -> Request -> ( Model, Effect Msg )
+init shared { query, url } =
+    initialEditor url shared (decodeQueryParameter query)
         |> loadInitialData
 
 
@@ -175,7 +168,6 @@ initialEditor rawUrl shared query =
     , castingDeco = CastingDeco.initModel
     , inputMode = Nothing
     , colorScheme = Pieces.defaultColorScheme
-    , lang = shared.language
     }
 
 
@@ -185,19 +177,20 @@ and modify the model.
 This is used to conditionally load data from the server.
 
 -}
-loadInitialData : Model -> ( Model, Cmd Msg )
+loadInitialData : Model -> ( Model, Effect Msg )
 loadInitialData model =
     case model.query of
         QueryReplay { gameKey, actionCount } ->
             ( model
             , Api.Backend.getReplay gameKey ReplayLoadingError (ReplayLoaded actionCount)
+                |> Effect.fromCmd
             )
 
         QueryFen { fen } ->
-            ( setTimelineToSingleton fen model, Cmd.none )
+            ( setTimelineToSingleton fen model, Effect.none )
 
         _ ->
-            ( model, Cmd.none )
+            ( model, Effect.none )
 
 
 
@@ -237,16 +230,7 @@ type Msg
     | HttpError Http.Error
     | ReplayLoadingError Http.Error
     | ReplayLoaded Int Replay
-
-
-save : Model -> Shared.Model -> Shared.Model
-save model shared =
-    shared
-
-
-load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared model =
-    ( { model | lang = shared.language }, Cmd.none )
+    | ToShared Shared.Msg
 
 
 subscriptions : Model -> Sub Msg
@@ -285,11 +269,11 @@ updateTimeline now model =
     { model | timeline = Animation.tick now model.timeline }
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
         EditorMsgNoOp ->
-            ( model, Cmd.none )
+            ( model, Effect.none )
 
         MouseDown mouse ->
             case model.inputMode of
@@ -300,21 +284,21 @@ update msg model =
                     in
                     case mouse.tile of
                         Just tile ->
-                            ( clickStart tile { model | drag = Just dragData }, Cmd.none )
+                            ( clickStart tile { model | drag = Just dragData }, Effect.none )
 
                         Nothing ->
-                            ( model, Cmd.none )
+                            ( model, Effect.none )
 
                 Just mode ->
-                    ( { model | castingDeco = CastingDeco.mouseDown mode mouse model.castingDeco }, Cmd.none )
+                    ( { model | castingDeco = CastingDeco.mouseDown mode mouse model.castingDeco }, Effect.none )
 
         MouseMove mouse ->
             case model.inputMode of
                 Nothing ->
-                    ( handleMouseMove mouse model, Cmd.none )
+                    ( handleMouseMove mouse model, Effect.none )
 
                 Just mode ->
-                    ( { model | castingDeco = CastingDeco.mouseMove mode mouse model.castingDeco }, Cmd.none )
+                    ( { model | castingDeco = CastingDeco.mouseMove mode mouse model.castingDeco }, Effect.none )
 
         MouseUp mouse ->
             case model.inputMode of
@@ -325,19 +309,19 @@ update msg model =
                     in
                     case drag of
                         Nothing ->
-                            ( { model | drag = Nothing }, Cmd.none )
+                            ( { model | drag = Nothing }, Effect.none )
 
                         Just dragData ->
-                            ( clickRelease dragData.start dragData.current { model | drag = Nothing }, Cmd.none )
+                            ( clickRelease dragData.start dragData.current { model | drag = Nothing }, Effect.none )
 
                 Just mode ->
-                    ( { model | castingDeco = CastingDeco.mouseUp mode mouse model.castingDeco }, Cmd.none )
+                    ( { model | castingDeco = CastingDeco.mouseUp mode mouse model.castingDeco }, Effect.none )
 
         Undo ->
-            ( applyUndo model, Cmd.none )
+            ( applyUndo model, Effect.none )
 
         Redo ->
-            ( applyRedo model, Cmd.none )
+            ( applyRedo model, Effect.none )
 
         Reset newPosition ->
             ( { model
@@ -345,17 +329,17 @@ update msg model =
               }
                 |> editorStateModify
                 |> animateToCurrentPosition
-            , Cmd.none
+            , Effect.none
             )
 
         DeleteSelectedPiece ->
-            ( deleteSelectedPiece model, Cmd.none )
+            ( deleteSelectedPiece model, Effect.none )
 
         Copy text ->
-            ( model, Api.Ports.copy text )
+            ( model, Api.Ports.copy text |> Effect.fromCmd )
 
         DownloadSvg ->
-            ( model, Api.Ports.requestSvgNodeContent sakoEditorId )
+            ( model, Api.Ports.requestSvgNodeContent sakoEditorId |> Effect.fromCmd )
 
         DownloadPng ->
             ( model
@@ -366,10 +350,11 @@ update msg model =
                     , outputHeight = 1000
                     }
                 )
+                |> Effect.fromCmd
             )
 
         SvgReadyForDownload fileContent ->
-            ( model, File.Download.string "pacoSako.svg" "image/svg+xml" fileContent )
+            ( model, File.Download.string "pacoSako.svg" "image/svg+xml" fileContent |> Effect.fromCmd )
 
         UpdateUserPaste pasteContent ->
             let
@@ -388,7 +373,7 @@ update msg model =
                     else
                         parseInput ()
               }
-            , Cmd.none
+            , Effect.none
             )
 
         UseUserPaste newPosition ->
@@ -397,80 +382,83 @@ update msg model =
                 , saveState = SaveDoesNotExist
               }
                 |> animateToCurrentPosition
-            , Cmd.none
+            , Effect.none
             )
 
         SavePosition position saveState ->
             ( model
-            , Api.Backend.postSave position saveState HttpError PositionSaveSuccess
+            , Api.Backend.postSave position saveState HttpError PositionSaveSuccess |> Effect.fromCmd
             )
 
         PositionSaveSuccess data ->
-            ( { model | saveState = saveStateStored data.id model.saveState }, Cmd.none )
+            ( { model | saveState = saveStateStored data.id model.saveState }, Effect.none )
 
         RequestRandomPosition ->
-            ( model, Api.Backend.getRandomPosition HttpError GotRandomPosition )
+            ( model, Api.Backend.getRandomPosition HttpError GotRandomPosition |> Effect.fromCmd )
 
         GotRandomPosition newPosition ->
             ( { model | game = addHistoryState newPosition model.game }
                 |> animateToCurrentPosition
-            , Cmd.none
+            , Effect.none
             )
 
         RequestAnalysePosition position ->
-            ( model, Api.Backend.postAnalysePosition position HttpError GotAnalysePosition )
+            ( model, Api.Backend.postAnalysePosition position HttpError GotAnalysePosition |> Effect.fromCmd )
 
         GotAnalysePosition analysis ->
-            ( { model | analysis = Just analysis }, Cmd.none )
+            ( { model | analysis = Just analysis }, Effect.none )
 
         ToolAddPiece color pieceType ->
             ( updateSmartToolAdd (P.getC model.game) color pieceType
                 |> liftToolUpdate model
-            , Cmd.none
+            , Effect.none
             )
 
         SetExportOptionsVisible isVisible ->
-            ( { model | showExportOptions = isVisible }, Cmd.none )
+            ( { model | showExportOptions = isVisible }, Effect.none )
 
         SetInputMode newMode ->
-            ( { model | inputMode = newMode }, Cmd.none )
+            ( { model | inputMode = newMode }, Effect.none )
 
         ClearDecoTiles ->
-            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.clearTiles model.castingDeco }, Effect.none )
 
         ClearDecoArrows ->
-            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Cmd.none )
+            ( { model | castingDeco = CastingDeco.clearArrows model.castingDeco }, Effect.none )
 
         ClearDecoComplete ->
-            ( { model | castingDeco = model.castingDeco |> CastingDeco.clearArrows |> CastingDeco.clearTiles }, Cmd.none )
+            ( { model | castingDeco = model.castingDeco |> CastingDeco.clearArrows |> CastingDeco.clearTiles }, Effect.none )
 
         WhiteSideColor newSideColor ->
             ( { model | colorScheme = Pieces.setWhite newSideColor model.colorScheme }
-            , Cmd.none
+            , Effect.none
             )
 
         BlackSideColor newSideColor ->
             ( { model | colorScheme = Pieces.setBlack newSideColor model.colorScheme }
-            , Cmd.none
+            , Effect.none
             )
 
         AnimationTick now ->
-            ( updateTimeline now model, Cmd.none )
+            ( updateTimeline now model, Effect.none )
 
         HttpError error ->
-            ( model, Api.Ports.logToConsole (Api.Backend.describeError error) )
+            ( model, Api.Ports.logToConsole (Api.Backend.describeError error) |> Effect.fromCmd )
 
         ReplayLoadingError error ->
-            ( { model | query = QueryError }, Api.Ports.logToConsole (Api.Backend.describeError error) )
+            ( { model | query = QueryError }, Api.Ports.logToConsole (Api.Backend.describeError error) |> Effect.fromCmd )
 
         ReplayLoaded actionCount replay ->
             replayLoaded actionCount replay model
+
+        ToShared outMsg ->
+            ( model, Effect.fromShared outMsg )
 
 
 {-| When a replay is loaded, play it until the given action count and than show
 the resulting board in the editor.
 -}
-replayLoaded : Int -> Replay -> Model -> ( Model, Cmd Msg )
+replayLoaded : Int -> Replay -> Model -> ( Model, Effect Msg )
 replayLoaded actionCount replay model =
     let
         actions =
@@ -481,10 +469,10 @@ replayLoaded actionCount replay model =
     in
     case maybeBoard of
         Just board ->
-            ( setTimelineToSingleton board model, Cmd.none )
+            ( setTimelineToSingleton board model, Effect.none )
 
         Nothing ->
-            ( { model | query = QueryError }, Cmd.none )
+            ( { model | query = QueryError }, Effect.none )
 
 
 {-| Use this method when opening the page to replace the inital state with a
@@ -1022,38 +1010,37 @@ addHistoryState newState p =
 --------------------------------------------------------------------------------
 
 
-view : Model -> Document Msg
-view model =
+view : Shared.Model -> Model -> View Msg
+view shared model =
     { title = "Design Puzzles - pacoplay.com"
-    , body =
-        [ maybeEditorUi model
-        ]
+    , element =
+        Header.wrapWithHeader shared ToShared (maybeEditorUi shared model)
     }
 
 
 {-| Check if the query parameter are actually an a good state, otherwise show
 error page.
 -}
-maybeEditorUi : Model -> Element Msg
-maybeEditorUi model =
+maybeEditorUi : Shared.Model -> Model -> Element Msg
+maybeEditorUi shared model =
     case model.query of
         QueryError ->
             Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-                { url = Route.toString Route.Editor, label = Element.text (t model.lang i18nPageNotFound) }
+                { url = Route.toHref Route.Editor, label = Element.text (t shared.language i18nPageNotFound) }
 
         _ ->
-            editorUi model
+            editorUi shared model
 
 
-editorUi : Model -> Element Msg
-editorUi model =
+editorUi : Shared.Model -> Model -> Element Msg
+editorUi shared model =
     row
         [ width fill, height fill, Element.scrollbarY ]
         [ column [ width fill, height fill, padding 10, spacing 10 ]
             [ sharingHeader model
             , positionView model
             ]
-        , sidebar model
+        , sidebar shared model
         ]
 
 
@@ -1277,8 +1264,8 @@ sakoEditorId =
 --------------------------------------------------------------------------------
 
 
-sidebar : Model -> Element Msg
-sidebar model =
+sidebar : Shared.Model -> Model -> Element Msg
+sidebar shared model =
     let
         exportOptions =
             if model.showExportOptions then
@@ -1297,7 +1284,7 @@ sidebar model =
          , addPieceButtons Sako.White "White:" model.smartTool
          , addPieceButtons Sako.Black "Black:" model.smartTool
          , colorSchemeConfig model
-         , CastingDeco.configView model.lang castingDecoMessages model.inputMode model.castingDeco
+         , CastingDeco.configView shared.language castingDecoMessages model.inputMode model.castingDeco
          , analysisResult model
          ]
             ++ exportOptions

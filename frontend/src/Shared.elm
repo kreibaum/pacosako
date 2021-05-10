@@ -1,39 +1,30 @@
 module Shared exposing
     ( Flags
     , Model
-    , Msg
+    , Msg(..)
     , User
     , init
     , subscriptions
     , update
-    , view
     )
 
 import Api.Backend
 import Api.LocalStorage as LocalStorage exposing (Permission(..))
 import Api.Ports
-import Browser.Dom
 import Browser.Events
 import Browser.Navigation exposing (Key)
 import Custom.Element exposing (icon)
 import Element exposing (..)
-import Element.Background as Background
-import Element.Input as Input
-import FontAwesome.Solid as Solid
-import FontAwesome.Styles
+import Html exposing (..)
+import Html.Attributes exposing (class)
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Encode exposing (Value)
-import Spa.Document exposing (Document)
-import Spa.Generated.Route as Route exposing (Route)
-import Svg.Custom
+import Request exposing (Request)
 import Time exposing (Posix)
 import Url exposing (Url)
-
-
-
--- INIT
+import View exposing (View)
 
 
 type alias Flags =
@@ -55,8 +46,25 @@ type alias Model =
     }
 
 
-init : Flags -> Url -> Key -> ( Model, Cmd Msg )
-init flags url key =
+type alias User =
+    { id : Int
+    , username : String
+    }
+
+
+type Msg
+    = TriggerSaveLocalStorage
+    | HttpError Http.Error
+    | LoginSuccess User
+    | LogoutSuccess
+    | UserHidesGamesArePublicHint
+    | SetLanguage Language
+    | WindowResize Int Int
+    | UpdateNow Posix
+
+
+init : Request -> Flags -> ( Model, Cmd Msg )
+init { url, key } flags =
     let
         ls =
             LocalStorage.load flags
@@ -101,23 +109,8 @@ parseNow value =
         |> Result.withDefault (Time.millisToPosix 0)
 
 
-
--- UPDATE
-
-
-type Msg
-    = TriggerSaveLocalStorage
-    | HttpError Http.Error
-    | LoginSuccess User
-    | LogoutSuccess
-    | UserHidesGamesArePublicHint
-    | SetLanguage Language
-    | WindowResize Int Int
-    | UpdateNow Posix
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update : Request -> Msg -> Model -> ( Model, Cmd Msg )
+update _ msg model =
     case msg of
         TriggerSaveLocalStorage ->
             ( model, triggerSaveLocalStorage model )
@@ -170,161 +163,10 @@ triggerSaveLocalStorage model =
         }
 
 
-subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions : Request -> Model -> Sub Msg
+subscriptions _ _ =
     Sub.batch
         [ LocalStorage.subscribeSave TriggerSaveLocalStorage
         , Browser.Events.onResize WindowResize
         , Time.every 1000 UpdateNow
         ]
-
-
-
--- VIEW
-
-
-view :
-    { page : Document msg, toMsg : Msg -> msg }
-    -> Model
-    -> Document msg
-view { page, toMsg } model =
-    { title = page.title
-    , body =
-        [ Element.html FontAwesome.Styles.css
-        , Element.column [ width fill, height fill, Element.scrollbarY ]
-            ([ pageHeader model Element.none
-                |> Element.map toMsg
-             , gamesArePublicHint model
-                |> Element.map toMsg
-             ]
-                ++ page.body
-            )
-        ]
-    }
-
-
-{-| Header that is shared by all pages.
--}
-pageHeader : Model -> Element Msg -> Element Msg
-pageHeader model additionalHeader =
-    Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton Route.Top (t model.language i18nPlayPacoSako)
-        , pageHeaderButton Route.Editor (t model.language i18nDesignPuzzles)
-        , pageHeaderButton Route.Tutorial (t model.language i18nTutorial)
-        , additionalHeader
-        , languageChoice
-
-        -- login header is disabled, until we get proper registration (oauth)
-        --, loginHeaderInfo model model.user
-        ]
-
-
-pageHeaderButton : Route -> String -> Element Msg
-pageHeaderButton route caption =
-    Element.link [ padding 10 ]
-        { url = Route.toString route
-        , label = Element.text caption
-        }
-
-
-type alias User =
-    { id : Int
-    , username : String
-    }
-
-
-loginHeaderInfo : Model -> Maybe User -> Element Msg
-loginHeaderInfo model login =
-    let
-        loginCaption =
-            case login of
-                Just user ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.user, Element.text user.username ]
-
-                Nothing ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text (t model.language i18nLogin) ]
-    in
-    Element.link [ Element.alignRight ]
-        { url = Route.toString Route.Login
-        , label = loginCaption
-        }
-
-
-gamesArePublicHint : Model -> Element Msg
-gamesArePublicHint model =
-    if List.member HideGamesArePublicHint model.permissions then
-        Element.none
-
-    else
-        Element.row [ width fill, Background.color (Element.rgb255 255 230 230), padding 10 ]
-            [ paragraph [ spacing 10 ]
-                [ Element.text (t model.language I18n.gamesArePublicHint)
-                , Input.button
-                    [ Element.alignRight ]
-                    { onPress = Just UserHidesGamesArePublicHint
-                    , label = Element.text (t model.language I18n.hideGamesArePublicHint)
-                    }
-                ]
-            ]
-
-
-{-| Allows the user to choose the ui language.
--}
-languageChoice : Element Msg
-languageChoice =
-    Element.row [ Element.alignRight ]
-        [ Input.button [ padding 2 ]
-            { onPress = Just (SetLanguage English)
-            , label = Svg.Custom.flagEn |> Element.html
-            }
-        , Input.button [ padding 2 ]
-            { onPress = Just (SetLanguage Dutch)
-            , label = Svg.Custom.flagNl |> Element.html
-            }
-        , Input.button [ padding 2 ]
-            { onPress = Just (SetLanguage Esperanto)
-            , label = Svg.Custom.flagEo |> Element.html
-            }
-        ]
-
-
-
---------------------------------------------------------------------------------
--- I18n Strings ----------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-i18nPlayPacoSako : I18nToken String
-i18nPlayPacoSako =
-    I18nToken
-        { english = "Play Paco Ŝako"
-        , dutch = "Speel Paco Ŝako"
-        , esperanto = "Ludi Paco Ŝako"
-        }
-
-
-i18nDesignPuzzles : I18nToken String
-i18nDesignPuzzles =
-    I18nToken
-        { english = "Design Puzzles"
-        , dutch = "Ontwerp puzzel"
-        , esperanto = "Desegni Puzloj"
-        }
-
-
-i18nTutorial : I18nToken String
-i18nTutorial =
-    I18nToken
-        { english = "Tutorial"
-        , dutch = "Tutorial"
-        , esperanto = "Lernilo"
-        }
-
-
-i18nLogin : I18nToken String
-i18nLogin =
-    I18nToken
-        { english = "Login"
-        , dutch = "Log in"
-        , esperanto = "Ensaluti"
-        }

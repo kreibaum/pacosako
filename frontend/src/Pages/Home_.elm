@@ -1,4 +1,4 @@
-module Pages.Top exposing (Model, Msg, Params, page)
+module Pages.Home_ exposing (Model, Msg, Params, page)
 
 import Api.Backend
 import Api.Decoders exposing (CurrentMatchState)
@@ -8,6 +8,7 @@ import Browser.Navigation exposing (pushUrl)
 import Components
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
+import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Background as Background
 import Element.Border as Border
@@ -16,61 +17,47 @@ import Element.Input as Input
 import Element.Lazy exposing (lazy2)
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
+import Gen.Route as Route
+import Header
 import Http
 import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
 import List.Extra as List
 import Maybe.Extra as Maybe
+import Page
 import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight(..))
 import Reactive exposing (Device(..))
 import RemoteData exposing (WebData)
+import Request
 import Result.Extra as Result
 import Sako exposing (Tile(..))
 import SaveState exposing (SaveState(..))
 import Shared
-import Spa.Document exposing (Document)
-import Spa.Generated.Route as Route
-import Spa.Page as Page
 import Svg
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Timer
+import View exposing (View)
 
 
 type alias Params =
     ()
 
 
-page : Page.Page Params Model Msg
-page =
-    Page.application
-        { init = \shared _ -> init shared
+page : Shared.Model -> Request.With Params -> Page.With Model Msg
+page shared _ =
+    Page.advanced
+        { init = init shared
         , update = update
-        , view = view
+        , view = view shared
         , subscriptions = \_ -> Sub.none
-        , save = save
-        , load = load
         }
 
 
-view : Model -> Document Msg
-view model =
+view : Shared.Model -> Model -> View Msg
+view shared model =
     { title = "Paco Ŝako - pacoplay.com"
-    , body = [ matchSetupUi model ]
+    , element =
+        Header.wrapWithHeader shared ToShared (matchSetupUi shared model)
     }
-
-
-save : Model -> Shared.Model -> Shared.Model
-save model shared =
-    { shared | user = model.login }
-
-
-load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared model =
-    ( { model
-        | login = shared.user
-        , language = shared.language
-      }
-    , Cmd.none
-    )
 
 
 type alias User =
@@ -79,7 +66,7 @@ type alias User =
     }
 
 
-init : Shared.Model -> ( Model, Cmd Msg )
+init : Shared.Model -> ( Model, Effect Msg )
 init shared =
     ( { rawMatchId = ""
       , matchConnectionStatus = NoMatchConnection
@@ -90,9 +77,8 @@ init shared =
       , recentGames = RemoteData.Loading
       , key = shared.key
       , login = shared.user
-      , language = shared.language
       }
-    , refreshRecentGames
+    , refreshRecentGames |> Effect.fromCmd
     )
 
 
@@ -109,6 +95,7 @@ type Msg
     | GotRecentGames (List CurrentMatchState)
     | ErrorRecentGames Http.Error
     | HttpError Http.Error
+    | ToShared Shared.Msg
 
 
 type alias Model =
@@ -120,7 +107,6 @@ type alias Model =
     , rawIncrement : String
     , recentGames : WebData (List CurrentMatchState)
     , key : Browser.Navigation.Key
-    , language : Language
     , login : Maybe User
     }
 
@@ -207,11 +193,11 @@ type MatchConnectionStatus
     | MatchConnectionRequested String
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
         SetRawMatchId rawMatchId ->
-            ( { model | rawMatchId = rawMatchId }, Cmd.none )
+            ( { model | rawMatchId = rawMatchId }, Effect.none )
 
         JoinMatch ->
             joinMatch model
@@ -223,28 +209,31 @@ update msg model =
             joinMatch { model | rawMatchId = newId }
 
         SetSpeedSetting newSetting ->
-            ( { model | speedSetting = newSetting } |> setRawLimit, Cmd.none )
+            ( { model | speedSetting = newSetting } |> setRawLimit, Effect.none )
 
         SetRawMinutes newRawMinutes ->
-            ( { model | rawMinutes = newRawMinutes } |> tryParseRawLimit, Cmd.none )
+            ( { model | rawMinutes = newRawMinutes } |> tryParseRawLimit, Effect.none )
 
         SetRawSeconds newRawSeconds ->
-            ( { model | rawSeconds = newRawSeconds } |> tryParseRawLimit, Cmd.none )
+            ( { model | rawSeconds = newRawSeconds } |> tryParseRawLimit, Effect.none )
 
         SetRawIncrement newRawIncrement ->
-            ( { model | rawIncrement = newRawIncrement } |> tryParseRawLimit, Cmd.none )
+            ( { model | rawIncrement = newRawIncrement } |> tryParseRawLimit, Effect.none )
 
         GotRecentGames games ->
-            ( { model | recentGames = RemoteData.Success (List.reverse games) }, Cmd.none )
+            ( { model | recentGames = RemoteData.Success (List.reverse games) }, Effect.none )
 
         ErrorRecentGames error ->
-            ( { model | recentGames = RemoteData.Failure error }, Cmd.none )
+            ( { model | recentGames = RemoteData.Failure error }, Effect.none )
 
         RefreshRecentGames ->
-            ( { model | recentGames = RemoteData.Loading }, refreshRecentGames )
+            ( { model | recentGames = RemoteData.Loading }, refreshRecentGames |> Effect.fromCmd )
 
         HttpError error ->
-            ( model, Ports.logToConsole (Api.Backend.describeError error) )
+            ( model, Ports.logToConsole (Api.Backend.describeError error) |> Effect.fromCmd )
+
+        ToShared outMsg ->
+            ( model, Effect.fromShared outMsg )
 
 
 refreshRecentGames : Cmd Msg
@@ -285,18 +274,18 @@ setRawLimit model =
     }
 
 
-joinMatch : Model -> ( Model, Cmd Msg )
+joinMatch : Model -> ( Model, Effect Msg )
 joinMatch model =
     ( { model | matchConnectionStatus = MatchConnectionRequested model.rawMatchId }
-    , pushUrl model.key (Route.toString (Route.Game__Id_String { id = model.rawMatchId }))
+    , pushUrl model.key (Route.toHref (Route.Game__Id_ { id = model.rawMatchId })) |> Effect.fromCmd
     )
 
 
 {-| Requests a new syncronized match from the server.
 -}
-createMatch : Model -> ( Model, Cmd Msg )
+createMatch : Model -> ( Model, Effect Msg )
 createMatch model =
-    ( model, Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting) HttpError MatchCreatedOnServer )
+    ( model, Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting) HttpError MatchCreatedOnServer |> Effect.fromCmd )
 
 
 
@@ -305,22 +294,22 @@ createMatch model =
 --------------------------------------------------------------------------------
 
 
-matchSetupUi : Model -> Element Msg
-matchSetupUi model =
+matchSetupUi : Shared.Model -> Model -> Element Msg
+matchSetupUi shared model =
     Element.column [ width fill, height fill, scrollbarY ]
-        [ Components.header1 (t model.language i18nPlayPacoSako)
-        , matchSetupUiInner model
+        [ Components.header1 (t shared.language i18nPlayPacoSako)
+        , matchSetupUiInner shared model
         ]
 
 
-matchSetupUiInner : Model -> Element Msg
-matchSetupUiInner model =
+matchSetupUiInner : Shared.Model -> Model -> Element Msg
+matchSetupUiInner shared model =
     Element.column [ width (fill |> Element.maximum 1200), padding 5, spacing 5, centerX ]
         [ Element.row [ width fill, spacing 5, centerX ]
-            [ joinOnlineMatchUi model
-            , setupOnlineMatchUi model
+            [ joinOnlineMatchUi shared model
+            , setupOnlineMatchUi shared model
             ]
-        , recentGamesList model model.recentGames
+        , recentGamesList shared model model.recentGames
         ]
 
 
@@ -332,20 +321,20 @@ box color content =
         )
 
 
-setupOnlineMatchUi : Model -> Element Msg
-setupOnlineMatchUi model =
+setupOnlineMatchUi : Shared.Model -> Model -> Element Msg
+setupOnlineMatchUi shared model =
     box (Element.rgb255 220 230 220)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text (t model.language i18nCreateNewGame))
+        [ Element.el [ centerX, Font.size 30 ] (Element.text (t shared.language i18nCreateNewGame))
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.spaceShuttle
-                , caption = t model.language i18nLightspeed
+                , caption = t shared.language i18nLightspeed
                 , event = SetSpeedSetting Lightspeed
                 , selected = model.speedSetting == Lightspeed
                 }
             , speedButton
                 { buttonIcon = Solid.bolt
-                , caption = t model.language i18nBlitz
+                , caption = t shared.language i18nBlitz
                 , event = SetSpeedSetting Blitz
                 , selected = model.speedSetting == Blitz
                 }
@@ -353,13 +342,13 @@ setupOnlineMatchUi model =
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.frog
-                , caption = t model.language i18nRapid
+                , caption = t shared.language i18nRapid
                 , event = SetSpeedSetting Rapid
                 , selected = model.speedSetting == Rapid
                 }
             , speedButton
                 { buttonIcon = Solid.couch
-                , caption = t model.language i18nRelaxed
+                , caption = t shared.language i18nRelaxed
                 , event = SetSpeedSetting Relaxed
                 , selected = model.speedSetting == Relaxed
                 }
@@ -367,7 +356,7 @@ setupOnlineMatchUi model =
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.wrench
-                , caption = t model.language i18nCustom
+                , caption = t shared.language i18nCustom
                 , event =
                     SetSpeedSetting
                         (intoCustomSpeedSetting model.speedSetting
@@ -378,15 +367,15 @@ setupOnlineMatchUi model =
                 }
             , speedButton
                 { buttonIcon = Solid.dove
-                , caption = t model.language i18nNoTimer
+                , caption = t shared.language i18nNoTimer
                 , event = SetSpeedSetting NoTimer
                 , selected = model.speedSetting == NoTimer
                 }
             ]
-        , timeLimitInputLabel model
+        , timeLimitInputLabel shared model
         , bigRoundedButton (Element.rgb255 200 210 200)
             (Just CreateMatch)
-            [ Element.text (t model.language i18nCreateMatch) ]
+            [ Element.text (t shared.language i18nCreateMatch) ]
         ]
 
 
@@ -408,21 +397,21 @@ speedButtonColor selected =
         Element.rgb255 200 210 200
 
 
-timeLimitInputLabel : Model -> Element Msg
-timeLimitInputLabel model =
+timeLimitInputLabel : Shared.Model -> Model -> Element Msg
+timeLimitInputLabel shared model =
     case model.speedSetting of
         Custom _ ->
-            timeLimitInputCustom model
+            timeLimitInputCustom shared model
 
         _ ->
-            timeLimitLabelOnly model
+            timeLimitLabelOnly shared model
 
 
-timeLimitLabelOnly : Model -> Element Msg
-timeLimitLabelOnly model =
+timeLimitLabelOnly : Shared.Model -> Model -> Element Msg
+timeLimitLabelOnly shared model =
     let
         ( m, s, i ) =
-            t model.language i18nChoosenTimeLimit
+            t shared.language i18nChoosenTimeLimit
     in
     case intoCustomSpeedSetting model.speedSetting of
         Just { minutes, seconds, increment } ->
@@ -435,14 +424,14 @@ timeLimitLabelOnly model =
                     ++ i
 
         Nothing ->
-            Element.text (t model.language i18nPlayWithoutTimeLimit)
+            Element.text (t shared.language i18nPlayWithoutTimeLimit)
 
 
-timeLimitInputCustom : Model -> Element Msg
-timeLimitInputCustom model =
+timeLimitInputCustom : Shared.Model -> Model -> Element Msg
+timeLimitInputCustom shared model =
     let
         ( m, s, i ) =
-            t model.language i18nChoosenTimeLimit
+            t shared.language i18nChoosenTimeLimit
     in
     Element.wrappedRow []
         [ Input.text [ width (Element.px 60) ]
@@ -457,19 +446,19 @@ timeLimitInputCustom model =
         ]
 
 
-joinOnlineMatchUi : Model -> Element Msg
-joinOnlineMatchUi model =
+joinOnlineMatchUi : Shared.Model -> Model -> Element Msg
+joinOnlineMatchUi shared model =
     box (Element.rgb255 220 220 230)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text (t model.language i18nIGotAnInvite))
+        [ Element.el [ centerX, Font.size 30 ] (Element.text (t shared.language i18nIGotAnInvite))
         , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
             { onChange = SetRawMatchId
             , text = model.rawMatchId
-            , placeholder = Just (Input.placeholder [] (Element.text (t model.language i18nEnterMatchId)))
-            , label = Input.labelLeft [ centerY ] (Element.text (t model.language i18nMatchId))
+            , placeholder = Just (Input.placeholder [] (Element.text (t shared.language i18nEnterMatchId)))
+            , label = Input.labelLeft [ centerY ] (Element.text (t shared.language i18nMatchId))
             }
         , bigRoundedButton (Element.rgb255 200 200 210)
             (Just JoinMatch)
-            [ Element.text (t model.language i18nJoinGame) ]
+            [ Element.text (t shared.language i18nJoinGame) ]
         ]
 
 
@@ -483,41 +472,41 @@ bigRoundedButton color event content =
         }
 
 
-recentGamesList : Model -> WebData (List CurrentMatchState) -> Element Msg
-recentGamesList model data =
+recentGamesList : Shared.Model -> Model -> WebData (List CurrentMatchState) -> Element Msg
+recentGamesList shared model data =
     case data of
         RemoteData.NotAsked ->
             Input.button [ padding 10 ]
                 { onPress = Just RefreshRecentGames
-                , label = Element.text (t model.language i18nRecentSearchNotAsked)
+                , label = Element.text (t shared.language i18nRecentSearchNotAsked)
                 }
 
         RemoteData.Loading ->
             Element.el [ padding 10 ]
-                (Element.text (t model.language i18nRecentSearchLoading))
+                (Element.text (t shared.language i18nRecentSearchLoading))
 
         RemoteData.Failure _ ->
             Input.button [ padding 10 ]
                 { onPress = Just RefreshRecentGames
-                , label = Element.text (t model.language i18nRecentSearchError)
+                , label = Element.text (t shared.language i18nRecentSearchError)
                 }
 
         RemoteData.Success games ->
-            recentGamesListSuccess model games
+            recentGamesListSuccess shared model games
 
 
-recentGamesListSuccess : Model -> List CurrentMatchState -> Element Msg
-recentGamesListSuccess model games =
+recentGamesListSuccess : Shared.Model -> Model -> List CurrentMatchState -> Element Msg
+recentGamesListSuccess shared model games =
     if List.isEmpty games then
         Input.button [ padding 10 ]
             { onPress = Just RefreshRecentGames
-            , label = Element.text (t model.language i18nRecentSearchNoGames)
+            , label = Element.text (t shared.language i18nRecentSearchNoGames)
             }
 
     else
         Element.wrappedRow [ width fill, spacing 5 ]
-            (List.map (lazy2 recentGamesListSuccessOne model.language) games
-                ++ [ refreshButton (t model.language i18nRecentSearchRefresh) ]
+            (List.map (lazy2 recentGamesListSuccessOne shared.language) games
+                ++ [ refreshButton (t shared.language i18nRecentSearchRefresh) ]
             )
 
 
@@ -556,7 +545,7 @@ recentGamesListSuccessOne lang matchState =
         [ padding 10
         , Background.color (Element.rgb 0.9 0.9 0.9)
         ]
-        { url = Route.toString (Route.Game__Id_String { id = matchState.key })
+        { url = Route.toHref (Route.Game__Id_ { id = matchState.key })
         , label = column [ spacing 10 ] [ position, gameKeyLabel ]
         }
 

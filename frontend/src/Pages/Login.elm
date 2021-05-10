@@ -1,28 +1,28 @@
 module Pages.Login exposing (Model, Msg, Params, getCurrentLogin, page)
 
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
+import Effect exposing (Effect)
 import Element exposing (Element, padding, spacing)
 import Element.Border as Border
 import Element.Input as Input
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
+import Page exposing (Page)
 import RemoteData exposing (RemoteData)
+import Request
 import Shared exposing (User)
-import Spa.Document exposing (Document)
-import Spa.Page as Page exposing (Page)
 import Spa.Url exposing (Url)
+import View exposing (View)
 
 
-page : Page Params Model Msg
-page =
-    Page.application
-        { init = init
+page : Shared.Model -> Request.With Params -> Page.With Model Msg
+page shared _ =
+    Page.advanced
+        { init = init shared
         , update = update
         , subscriptions = subscriptions
         , view = view
-        , save = save
-        , load = load
         }
 
 
@@ -41,13 +41,13 @@ type alias Model =
     }
 
 
-init : Shared.Model -> Url Params -> ( Model, Cmd Msg )
-init shared _ =
+init : Shared.Model -> ( Model, Effect Msg )
+init shared =
     ( { usernameRaw = ""
       , passwordRaw = ""
       , user = initUser shared.user
       }
-    , Cmd.none
+    , Effect.none
     )
 
 
@@ -72,14 +72,14 @@ type Msg
     | LoginError
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
         TypeUsername raw ->
-            ( { model | usernameRaw = raw }, Cmd.none )
+            ( { model | usernameRaw = raw }, Effect.none )
 
         TypePassword raw ->
-            ( { model | passwordRaw = raw }, Cmd.none )
+            ( { model | passwordRaw = raw }, Effect.none )
 
         TryLogin ->
             ( { model | user = RemoteData.Loading }
@@ -87,6 +87,7 @@ update msg model =
                 { password = model.passwordRaw
                 , username = model.usernameRaw
                 }
+                |> Effect.fromCmd
             )
 
         DoLogout ->
@@ -95,7 +96,7 @@ update msg model =
                 , usernameRaw = ""
                 , passwordRaw = ""
               }
-            , getLogout
+            , getLogout |> Effect.fromCmd
             )
 
         LoggedOut ->
@@ -104,7 +105,7 @@ update msg model =
                 , usernameRaw = ""
                 , passwordRaw = ""
               }
-            , Cmd.none
+            , Effect.none
             )
 
         LoggedIn user ->
@@ -113,21 +114,11 @@ update msg model =
                 , usernameRaw = ""
                 , passwordRaw = ""
               }
-            , Cmd.none
+            , Effect.none
             )
 
         LoginError ->
-            ( { model | user = RemoteData.Failure () }, Cmd.none )
-
-
-save : Model -> Shared.Model -> Shared.Model
-save model shared =
-    { shared | user = RemoteData.toMaybe model.user }
-
-
-load : Shared.Model -> Model -> ( Model, Cmd Msg )
-load shared model =
-    ( { model | user = initUser shared.user }, Cmd.none )
+            ( { model | user = RemoteData.Failure () }, Effect.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -139,11 +130,11 @@ subscriptions _ =
 -- VIEW
 
 
-view : Model -> Document Msg
+view : Model -> View Msg
 view model =
     { title = "Log in to Paco Play"
-    , body =
-        [ case model.user of
+    , element =
+        case model.user of
             RemoteData.Success user ->
                 loginInfoPage user
 
@@ -155,7 +146,6 @@ view model =
 
             RemoteData.Loading ->
                 loginDialog { isFailed = False, isWaiting = True } model
-        ]
     }
 
 

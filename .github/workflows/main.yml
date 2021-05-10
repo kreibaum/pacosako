@@ -85,7 +85,7 @@ jobs:
       - uses: actions/setup-node@v2
 
       - name: Install Elm
-        run: sudo npm install -g elm elm-spa@5.0.4 typescript uglify-js --unsafe-perm=true --allow-root
+        run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
 
       - name: Compile Frontend
         run: |
