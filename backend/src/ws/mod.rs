@@ -364,6 +364,11 @@ async fn handle_client_message(
 
             let mut game = fetch_game(&room.key, conn).await?;
 
+            if game.actions.is_empty() {
+                // If there are no actios yet, rolling back does nothing.
+                return Ok(());
+            }
+
             let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
 
             if state.victory_state.is_over() {
