@@ -68,7 +68,7 @@ end
 function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
     @assert !Game.is_frozen(ps)
     status_code = ccall((:apply_action_bang, DYNLIB_PATH), Int64, (Ptr{Nothing}, UInt8), ps.ptr, UInt8(action))
-    if length(Game.legal_actions(ps)) == 0
+    if length(Game.legal_actions(ps)) == 0 && ccall((:status, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr) == 42
         ps.forfeit_by = Game.current_player(ps)
     end
     @assert status_code == 0 "Error during apply_action! of PacoSako game!"
@@ -113,7 +113,11 @@ end
 function deserialize(bincode::Vector{UInt8})::PacoSako
     ptr = ccall((:deserialize, DYNLIB_PATH), Ptr{Nothing}, (Ptr{UInt8}, Int64), bincode, length(bincode))
     @assert ptr != C_NULL "Deserialization error for PacoSako game!"
-    wrap_pacosako_ptr(ptr)
+    ps = wrap_pacosako_ptr(ptr)
+    if length(Game.legal_actions(ps)) == 0 && ccall((:status, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr) == 42
+        ps.forfeit_by = Game.current_player(ps)
+    end
+    ps
 end
 
 function Game.is_frozen(ps::PacoSako)::Bool
