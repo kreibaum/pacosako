@@ -279,6 +279,7 @@ type VictoryState
     = Running
     | PacoVictory Color
     | TimeoutVictory Color
+    | NoProgressDraw
 
 
 decodeVictoryState : Decoder VictoryState
@@ -297,6 +298,15 @@ decodeVictoryState =
             (Decode.field "TimeoutVictory" decodeColor)
         , Decode.map PacoVictory
             (Decode.field "PacoVictory" decodeColor)
+        , Decode.string
+            |> Decode.andThen
+                (\str ->
+                    if str == "NoProgressDraw" then
+                        Decode.succeed NoProgressDraw
+
+                    else
+                        Decode.fail "Expected constant string 'NoProgressDraw'."
+                )
         ]
 
 

@@ -94,6 +94,7 @@ pub enum VictoryState {
     Running,
     PacoVictory(PlayerColor),
     TimeoutVictory(PlayerColor),
+    NoProgressDraw,
 }
 
 impl VictoryState {
@@ -102,6 +103,7 @@ impl VictoryState {
             VictoryState::Running => false,
             VictoryState::PacoVictory(_) => true,
             VictoryState::TimeoutVictory(_) => true,
+            VictoryState::NoProgressDraw => true,
         }
     }
 }
@@ -122,6 +124,7 @@ pub struct DenseBoard {
     /// Stores castling information
     castling: Castling,
     victory_state: VictoryState,
+    no_progress_half_moves: u8,
 }
 
 /// Defines a random generator for Paco Ŝako games that are not over yet.
@@ -256,6 +259,7 @@ impl EditorBoard {
             promotion: None,
             castling: Castling::new(),
             victory_state: VictoryState::Running,
+            no_progress_half_moves: 0,
         };
 
         // Copy piece from the `pieces` list into the dense arrays.
@@ -409,6 +413,7 @@ impl DenseBoard {
             promotion: None,
             castling: Castling::new(),
             victory_state: VictoryState::Running,
+            no_progress_half_moves: 0,
         };
 
         // Board structure
@@ -456,6 +461,7 @@ impl DenseBoard {
             promotion: None,
             castling: Castling::new(),
             victory_state: VictoryState::Running,
+            no_progress_half_moves: 0,
         }
     }
 
@@ -591,11 +597,29 @@ impl DenseBoard {
                 let board_piece = *self.active_pieces().get(target.0 as usize).unwrap();
                 *self.active_pieces_mut().get_mut(target.0 as usize).unwrap() = Some(piece);
                 if let Some(new_hand_piece) = board_piece {
+                    // This is a chain, so we track a piece in hand.
                     self.lifted_piece = Hand::Single {
                         piece: new_hand_piece,
                         position: target,
                     };
                 } else {
+                    // Not a chain.
+
+                    // Check if the half move counter goes up or down.
+                    // Is there a new union we are creating?
+                    if let Some(Some(_)) = self.opponent_pieces().get(target.0 as usize) {
+                        self.no_progress_half_moves = 0;
+                    } else {
+                        // No new union -> no progress
+                        // This is slightly incorrect if you are promoting a
+                        // pawn in the same chain, but I think that is a detail
+                        // we can fix in the board rewrite.
+                        self.no_progress_half_moves += 1;
+                        if self.no_progress_half_moves == 100 {
+                            self.victory_state = VictoryState::NoProgressDraw;
+                        }
+                    }
+
                     // If a pawn is advanced two steps from the home row, store en passant information.
                     if piece == PieceType::Pawn
                         && position.in_pawn_row(self.current_player)
@@ -672,6 +696,12 @@ impl DenseBoard {
                         .unwrap() = Some(partner);
                     self.lifted_piece = Hand::Empty;
                     self.current_player = self.current_player.other();
+
+                    // Moving a pair never gets any progress.
+                    self.no_progress_half_moves += 1;
+                    if self.no_progress_half_moves == 100 {
+                        self.victory_state = VictoryState::NoProgressDraw;
+                    }
                     Ok(self)
                 }
             }
@@ -683,6 +713,14 @@ impl DenseBoard {
         position: BoardPosition,
         target: BoardPosition,
     ) -> Result<&mut Self, PacoError> {
+        // Moving the king does never progress the game and even
+        // castling or forfeiting castling does not count as
+        // progress according to FIDE rules.
+        self.no_progress_half_moves += 1;
+        if self.no_progress_half_moves == 100 {
+            self.victory_state = VictoryState::NoProgressDraw;
+        }
+
         if self.current_player == PlayerColor::White {
             // White queen side castling
             if position == BoardPosition(4) && target == BoardPosition(2) {
@@ -764,6 +802,8 @@ impl DenseBoard {
 
             *promoted_pawn = Some(new_type);
             self.promotion = None;
+
+            self.no_progress_half_moves = 0;
 
             Ok(self)
         } else {
@@ -1736,6 +1776,11 @@ mod tests {
         ($board:expr, place, $square:expr) => {{
             $board
                 .execute_trusted(PacoAction::Place($square.try_into().unwrap()))
+                .unwrap();
+        }};
+        ($board:expr, promote, $pieceType:expr) => {{
+            $board
+                .execute_trusted(PacoAction::Promote($pieceType))
                 .unwrap();
         }};
     }
@@ -2787,6 +2832,108 @@ mod tests {
         );
 
         assert!(board.actions()?.is_empty());
+
+        Ok(())
+    }
+
+    /// Tests that 50 turns without any progress result in a draw.
+    /// Also tests that after those 50 turns (100 half turns) there are no
+    /// longer any legal moves.
+    #[test]
+    fn test_no_progress_draw_after_50_moves() -> Result<(), PacoError> {
+        let mut board = DenseBoard::new();
+
+        for _ in 0..25 {
+            assert_eq!(board.victory_state(), VictoryState::Running);
+            // White
+            execute_action!(board, lift, "b1");
+            execute_action!(board, place, "c3");
+            // Black
+            execute_action!(board, lift, "g8");
+            execute_action!(board, place, "f6");
+            // White back
+            execute_action!(board, lift, "c3");
+            execute_action!(board, place, "b1");
+            // Black back
+            execute_action!(board, lift, "f6");
+            execute_action!(board, place, "g8");
+        }
+
+        assert_eq!(board.victory_state(), VictoryState::NoProgressDraw);
+        assert!(board.actions()?.is_empty());
+
+        Ok(())
+    }
+
+    /// Tests that you can do more than 50 turns if you make progress.
+    #[test]
+    fn test_more_than_50_turns_if_there_is_progress() -> Result<(), PacoError> {
+        let mut board = DenseBoard::new();
+
+        for _ in 1..24 {
+            // White
+            execute_action!(board, lift, "b1");
+            execute_action!(board, place, "c3");
+            // Black
+            execute_action!(board, lift, "g8");
+            execute_action!(board, place, "f6");
+            // White back
+            execute_action!(board, lift, "c3");
+            execute_action!(board, place, "b1");
+            // Black back
+            execute_action!(board, lift, "f6");
+            execute_action!(board, place, "g8");
+        }
+
+        // White
+        execute_action!(board, lift, "b1");
+        execute_action!(board, place, "c3");
+        // Black
+        execute_action!(board, lift, "g8");
+        execute_action!(board, place, "f6");
+        // White back
+        execute_action!(board, lift, "c3");
+        execute_action!(board, place, "d5");
+        // Black back
+        execute_action!(board, lift, "f6");
+        execute_action!(board, place, "d5");
+
+        assert_eq!(board.victory_state(), VictoryState::Running);
+        assert!(!board.actions()?.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_their_turn(
+    ) -> Result<(), PacoError> {
+        let mut board = DenseBoard::new();
+
+        // White
+        execute_action!(board, lift, "b1");
+        execute_action!(board, place, "c3");
+        // Black
+        execute_action!(board, lift, "d7");
+        execute_action!(board, place, "d5");
+        // White, capture pawn
+        execute_action!(board, lift, "c3");
+        execute_action!(board, place, "d5");
+        assert_eq!(board.no_progress_half_moves, 0);
+        // Black knight
+        execute_action!(board, lift, "g8");
+        execute_action!(board, place, "f6");
+        // White back 1
+        execute_action!(board, lift, "d5");
+        execute_action!(board, place, "c3");
+        // Black knight back
+        execute_action!(board, lift, "f6");
+        execute_action!(board, place, "d5");
+        // White back 1
+        execute_action!(board, lift, "c3");
+        execute_action!(board, place, "b1");
+        assert_eq!(board.no_progress_half_moves, 4);
+        execute_action!(board, promote, PieceType::Queen);
+        assert_eq!(board.no_progress_half_moves, 0);
 
         Ok(())
     }

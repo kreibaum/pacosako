@@ -962,6 +962,11 @@ maybeVictoryStateInfo shared model victoryState =
                 , Element.el [ Font.size 20, centerX ] (Element.text (t shared.language i18nTimeout))
                 ]
 
+        Sako.NoProgressDraw ->
+            bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nDraw))
+                ]
+
 
 {-| Links to the replay, but only after the game is finished.
 -}
@@ -1119,6 +1124,15 @@ i18nPacoBlack =
         { english = "Paco Black"
         , dutch = "Paco Zwart"
         , esperanto = "Paco Nigro"
+        }
+
+
+i18nDraw : I18nToken String
+i18nDraw =
+    I18nToken
+        { english = "Draw"
+        , dutch = "Remise"
+        , esperanto = "Sendecida"
         }
 
 
