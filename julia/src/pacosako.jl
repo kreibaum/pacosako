@@ -9,7 +9,7 @@ const DYNLIB_PATH = "../lib/target/release/libpacosako.so"
 
 mutable struct PacoSako <: Game.AbstractGame
     ptr::Ptr{Nothing}
-    cache::Union{Nothing, Vector{UInt8}} # store serialized game when frozen
+    cache::Union{Nothing,Vector{UInt8}} # store serialized game when frozen
     forfeit_by::Int64
 end
 
@@ -75,10 +75,19 @@ function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
     ps
 end
 
-## TODOS:
+function Game.array(ps::PacoSako)::Array{Float32,3}
+    size = Base.size(ps)
+    memory = zeros(Float32, prod(size))
+    status_code = ccall((:repr, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{Float32}, Int64), ps.ptr, memory, length(memory))
+    @assert status_code == 0 "Error while determining the game representation"
+    reshape(memory, size)
+end
 
-# Only when we want to to use neuronal network models
-# Game.array(:: PacoSako) = error("unimplemented")
+function Base.size(:: Type{PacoSako})
+    layer_count = ccall((:repr_layer_count, DYNLIB_PATH), Int64, ())
+    @assert layer_count > 0 "Layer count must be positive"
+    (8, 8, layer_count)
+end
 
 Game.policy_length(:: Type{PacoSako})::Int = 132
 

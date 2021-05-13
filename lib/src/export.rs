@@ -1,7 +1,7 @@
 //! This module defines all the methods that are exposed in the C library.
 //! It is the part that can be used by Julia.
 
-use crate::{BoardPosition, DenseBoard, PacoBoard};
+use crate::{BoardPosition, DenseBoard, PacoBoard, PieceType, PlayerColor};
 
 #[no_mangle]
 pub extern "C" fn new() -> *mut DenseBoard {
@@ -190,5 +190,96 @@ pub extern "C" fn deserialize(mut bincode_ptr: *mut u8, reserved_space: i64) -> 
         leak_to_julia(board)
     } else {
         std::ptr::null_mut()
+    }
+}
+
+/// Layers are:
+/// (Pawn, Rook, Knight, Bishop, Queen, King) x (White, Black) x (settled, lifted) # 24
+/// Single layers for flags,
+#[no_mangle]
+pub extern "C" fn repr_layer_count() -> i64 {
+    24
+}
+
+/// Generates a Tensor representation of the board state for machine learning.
+#[no_mangle]
+pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) -> i64 {
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+    if reserved_space != repr_layer_count() * 8 * 8 {
+        return -1;
+    }
+
+    // How does this vector look representing the Tensor?
+    // (1 3) (5 7)
+    // (2 4) (6 8)
+    // -> 1 2 3 4 5 6 7 8
+
+    // Iterate over all tiles
+    for t in 0..64 {
+        if let Some(&Some(piece_type)) = ps.white.get(t as usize) {
+            unsafe {
+                let cell = out.offset(t + 64 * layer_offset(piece_type));
+                *cell = 1.0;
+            }
+        }
+        if let Some(&Some(piece_type)) = ps.black.get(t as usize) {
+            unsafe {
+                let cell = out.offset(t + 64 * layer_offset(piece_type) + 64 * 6);
+                *cell = 1.0;
+            }
+        }
+    }
+
+    match ps.lifted_piece {
+        crate::Hand::Empty => {}
+        crate::Hand::Single { piece, position } => unsafe {
+            enable_cell_at(position.0 as isize, piece, ps.current_player, true, out);
+        },
+        crate::Hand::Pair {
+            piece,
+            partner,
+            position,
+        } => unsafe {
+            enable_cell_at(position.0 as isize, piece, ps.current_player, true, out);
+            enable_cell_at(
+                position.0 as isize,
+                partner,
+                ps.current_player.other(),
+                true,
+                out,
+            );
+        },
+    }
+
+    0
+}
+
+unsafe fn enable_cell_at(
+    pos: isize,
+    piece_type: PieceType,
+    color: PlayerColor,
+    is_lifted: bool,
+    out: *mut f32,
+) {
+    let color_offset = if color == PlayerColor::White {
+        0
+    } else {
+        6 * 64
+    };
+    let lift_offset = if is_lifted { 12 * 64 } else { 0 };
+    let offset = pos + layer_offset(piece_type) + color_offset + lift_offset;
+
+    let cell = out.offset(offset);
+    *cell = 1.0;
+}
+
+fn layer_offset(piece_type: PieceType) -> isize {
+    match piece_type {
+        PieceType::Pawn => 0,
+        PieceType::Rook => 1,
+        PieceType::Knight => 2,
+        PieceType::Bishop => 3,
+        PieceType::Queen => 4,
+        PieceType::King => 5,
     }
 }
