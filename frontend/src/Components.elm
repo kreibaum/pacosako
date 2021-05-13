@@ -5,15 +5,14 @@ should not have their own message type or their own complicated data.
 -}
 
 import Custom.Element exposing (icon)
-import Element exposing (Element, centerX, el, fill, height, padding, row, spacing, width)
+import Element exposing (Element, centerX, fill, height, padding, row, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
-import Element.Font as Font exposing (center)
+import Element.Font as Font
 import Element.Input exposing (button)
 import Element.Region exposing (description)
 import FontAwesome.Attributes
 import FontAwesome.Icon exposing (Icon)
-import Html exposing (select)
 import Svg
 
 

@@ -4,10 +4,8 @@ module Animation exposing
     , Duration
     , Timeline
     , animate
-    , animateProperty
     , init
     , interrupt
-    , map
     , milliseconds
     , pause
     , queue
@@ -72,24 +70,6 @@ init initial =
     , queued = []
     , running = True
     }
-
-
-{-| Map over a timeline. This is important if you have some function that takes
-a `Timeline b` for rendering but are storing a `Timeline a` yourself.
--}
-map : (a -> b) -> Timeline a -> Timeline b
-map f timeline =
-    { now = timeline.now
-    , old = mapSecond f timeline.old
-    , new = Maybe.map (mapSecond f) timeline.new
-    , queued = List.map (mapSecond f) timeline.queued
-    , running = timeline.running
-    }
-
-
-mapSecond : (a -> b) -> ( t, a ) -> ( t, b )
-mapSecond f ( t, x ) =
-    ( t, f x )
 
 
 {-| Tells the animation to transition to a new event over a given duration.
@@ -252,21 +232,3 @@ It is also optional, so fading in and out must be implemented as well.
 -}
 type AnimationProperty property
     = Interpolate { t : Float, old : property, new : property }
-    | FadeIn { t : Float, new : property }
-    | FadeOut { t : Float, old : property }
-
-
-animateProperty : (state -> Maybe property) -> { t : Float, old : state, new : state } -> Maybe (AnimationProperty property)
-animateProperty extract { t, old, new } =
-    case ( extract old, extract new ) of
-        ( Just o, Just n ) ->
-            Just (Interpolate { t = t, old = o, new = n })
-
-        ( Nothing, Just n ) ->
-            Just (FadeIn { t = t, new = n })
-
-        ( Just o, Nothing ) ->
-            Just (FadeOut { t = t, old = o })
-
-        ( Nothing, Nothing ) ->
-            Nothing

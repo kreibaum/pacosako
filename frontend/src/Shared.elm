@@ -13,18 +13,13 @@ import Api.LocalStorage as LocalStorage exposing (Permission(..))
 import Api.Ports
 import Browser.Events
 import Browser.Navigation exposing (Key)
-import Custom.Element exposing (icon)
-import Element exposing (..)
-import Html exposing (..)
-import Html.Attributes exposing (class)
 import Http
-import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
+import I18n.Strings exposing (Language)
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Encode exposing (Value)
 import Request exposing (Request)
 import Time exposing (Posix)
 import Url exposing (Url)
-import View exposing (View)
 
 
 type alias Flags =

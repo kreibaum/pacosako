@@ -3,7 +3,6 @@ module Pages.Home_ exposing (Model, Msg, Params, page)
 import Api.Backend
 import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
-import Browser
 import Browser.Navigation exposing (pushUrl)
 import Components
 import Custom.Element exposing (icon)
@@ -20,20 +19,14 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
-import List.Extra as List
-import Maybe.Extra as Maybe
+import I18n.Strings exposing (I18nToken(..), Language, t)
 import Page
 import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight(..))
-import Reactive exposing (Device(..))
 import RemoteData exposing (WebData)
 import Request
-import Result.Extra as Result
 import Sako exposing (Tile(..))
-import SaveState exposing (SaveState(..))
 import Shared
-import Svg
-import Svg.Custom as Svg exposing (BoardRotation(..))
+import Svg.Custom exposing (BoardRotation(..))
 import Timer
 import View exposing (View)
 

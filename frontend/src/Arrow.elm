@@ -4,7 +4,6 @@ module Arrow exposing (Arrow, toSvg)
 tile. An arrow is given as a labeled pair of Tiles {head, tail}.
 -}
 
-import Array exposing (length)
 import Sako exposing (Tile(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA

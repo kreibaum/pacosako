@@ -12,7 +12,7 @@ import Colors
 import Components
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Effect exposing (Effect)
-import Element exposing (Element, alignTop, centerX, fill, fillPortion, height, padding, scrollbarY, spacing, width)
+import Element exposing (Element, alignTop, fill, fillPortion, height, padding, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -21,19 +21,17 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
+import I18n.Strings exposing (I18nToken(..), t)
 import List.Extra as List
-import Page exposing (Page)
+import Page
 import Pages.NotFound
-import Pieces
 import PositionView exposing (OpaqueRenderData)
 import RemoteData exposing (WebData)
 import Request
-import Sako exposing (Action, Color(..))
+import Sako exposing (Color(..))
 import Shared
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
-import Url exposing (Url)
 import View exposing (View)
 
 
@@ -91,7 +89,6 @@ init shared params =
 type Msg
     = GotReplay Replay
     | HttpErrorReplay Http.Error
-    | TriggerReplayReload
     | GoToActionCount Int
     | SetInputMode (Maybe CastingDeco.InputMode)
     | ClearDecoTiles
@@ -124,11 +121,6 @@ update msg model =
 
         HttpErrorReplay error ->
             ( { model | replay = RemoteData.Failure error }, Effect.none )
-
-        TriggerReplayReload ->
-            ( { model | replay = RemoteData.Loading }
-            , Api.Backend.getReplay model.key HttpErrorReplay GotReplay |> Effect.fromCmd
-            )
 
         GoToActionCount actionCount ->
             ( setAndAnimateActionCount actionCount model, Effect.none )

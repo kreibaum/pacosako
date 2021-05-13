@@ -15,10 +15,7 @@ module CastingDeco exposing
 import Arrow exposing (Arrow)
 import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf)
 import Custom.Events exposing (BoardMousePosition)
-import Element exposing (Element, padding, spacing)
-import Element.Background as Background
-import Element.Font as Font
-import Element.Input as Input
+import Element exposing (Element, spacing)
 import I18n.Strings exposing (I18nToken(..), Language, t)
 import List.Extra as List
 import Sako exposing (Tile)

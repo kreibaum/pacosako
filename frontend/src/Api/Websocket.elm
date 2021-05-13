@@ -3,11 +3,9 @@ module Api.Websocket exposing
     , ServerMessage(..)
     , ShareStatus(..)
     , WebsocketStaus(..)
-    , getGameKey
     , listen
     , listenToStatus
     , send
-    , share
     )
 
 {-|
@@ -32,7 +30,6 @@ import Http
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Sako
-import Timer
 
 
 {-| Elm version of websocket::ClientMessage
@@ -44,8 +41,6 @@ type ClientMessage
     = SubscribeToMatch String
     | DoAction { key : String, action : Sako.Action }
     | Rollback String
-    | SetTimer { key : String, timer : Timer.TimerConfig }
-    | StartTimer String
 
 
 encodeClientMessage : ClientMessage -> Value
@@ -73,25 +68,6 @@ encodeClientMessage clientMessage =
         Rollback key ->
             Encode.object
                 [ ( "Rollback"
-                  , Encode.object
-                        [ ( "key", Encode.string key )
-                        ]
-                  )
-                ]
-
-        SetTimer data ->
-            Encode.object
-                [ ( "SetTimer"
-                  , Encode.object
-                        [ ( "key", Encode.string data.key )
-                        , ( "timer", Timer.encodeConfig data.timer )
-                        ]
-                  )
-                ]
-
-        StartTimer key ->
-            Encode.object
-                [ ( "StartTimer"
                   , Encode.object
                         [ ( "key", Encode.string key )
                         ]
@@ -165,17 +141,6 @@ listenToStatus msg =
     Ports.websocketStatus (decodeWebsocketStatus >> msg)
 
 
-{-| REST method which starts sharing a board state.
--}
-share : (ShareStatus -> msg) -> List Value -> Cmd msg
-share onShare steps =
-    Http.post
-        { url = "/api/share"
-        , body = Http.jsonBody (Encode.list (\v -> v) steps)
-        , expect = Http.expectString (shareStatusFromHttpResult >> onShare)
-        }
-
-
 {-| When sharing, this hold the game key. Otherwise this explains why we are not
 sharing right now.
 
@@ -186,31 +151,4 @@ Only then is the share status `ShareConnected`.
 
 -}
 type ShareStatus
-    = NotShared
-    | ShareRequested
-    | ShareFailed Http.Error
-    | ShareExists String
-    | ShareConnected String
-
-
-shareStatusFromHttpResult : Result Http.Error String -> ShareStatus
-shareStatusFromHttpResult result =
-    case result of
-        Ok gameKey ->
-            ShareExists gameKey
-
-        Err error ->
-            ShareFailed error
-
-
-getGameKey : ShareStatus -> Maybe String
-getGameKey shareStatus =
-    case shareStatus of
-        ShareExists gameKey ->
-            Just gameKey
-
-        ShareConnected gameKey ->
-            Just gameKey
-
-        _ ->
-            Nothing
+    = ShareFailed Http.Error

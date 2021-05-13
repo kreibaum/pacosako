@@ -2,7 +2,6 @@ module Header exposing (..)
 
 import Api.LocalStorage exposing (Permission(..))
 import Custom.Element exposing (icon)
-import Effect exposing (Effect)
 import Element exposing (Element, fill, height, padding, paragraph, spacing, width)
 import Element.Background as Background
 import Element.Input as Input

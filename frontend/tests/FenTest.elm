@@ -6,8 +6,6 @@ module FenTest exposing (..)
 import Element.Region exposing (description)
 import Expect exposing (Expectation)
 import Fen
-import Fuzz exposing (Fuzzer, int, list, string)
-import Http exposing (Expect)
 import Sako exposing (Color(..), Piece, Tile(..), Type(..))
 import Test exposing (..)
 

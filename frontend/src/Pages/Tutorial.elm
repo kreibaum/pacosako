@@ -1,4 +1,4 @@
-module Pages.Tutorial exposing (Model, Msg, Params, page)
+module Pages.Tutorial exposing (Model, Msg, page)
 
 import Effect exposing (Effect)
 import Element exposing (Element, centerX, el, fill, height, maximum, padding, paragraph, scrollbarY, spacing, text, width)
@@ -8,10 +8,9 @@ import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
 import Header
 import I18n.Strings as I18n exposing (I18nToken, Language(..), t)
-import Page exposing (Page)
+import Page
 import Request exposing (Request)
 import Shared
-import Spa.Url exposing (Url)
 import View exposing (View)
 
 

@@ -9,7 +9,7 @@ TODO: Should go into Custom.Svg
 
 import Html exposing (Html)
 import Sako exposing (Color(..), Tile(..))
-import Svg exposing (Svg)
+import Svg
 import Svg.Attributes as SvgA
 
 

@@ -22,7 +22,7 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import I18n.Strings as I18n exposing (I18nToken(..), Language, t)
+import I18n.Strings exposing (I18nToken(..), t)
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
 import Page
@@ -32,7 +32,7 @@ import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, Dra
 import Request exposing (Request)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
-import SaveState exposing (SaveState(..), saveStateModify, saveStateStored)
+import SaveState exposing (SaveState(..), saveStateModify)
 import Shared
 import Svg.Custom as Svg exposing (BoardRotation(..), coordinateOfTile)
 import Time exposing (Posix)
@@ -212,8 +212,6 @@ type Msg
     | SvgReadyForDownload String
     | UpdateUserPaste String
     | UseUserPaste Sako.Position
-    | SavePosition Sako.Position SaveState
-    | PositionSaveSuccess SavePositionDone
     | RequestRandomPosition
     | GotRandomPosition Sako.Position
     | RequestAnalysePosition Sako.Position
@@ -384,14 +382,6 @@ update msg model =
                 |> animateToCurrentPosition
             , Effect.none
             )
-
-        SavePosition position saveState ->
-            ( model
-            , Api.Backend.postSave position saveState HttpError PositionSaveSuccess |> Effect.fromCmd
-            )
-
-        PositionSaveSuccess data ->
-            ( { model | saveState = saveStateStored data.id model.saveState }, Effect.none )
 
         RequestRandomPosition ->
             ( model, Api.Backend.getRandomPosition HttpError GotRandomPosition |> Effect.fromCmd )

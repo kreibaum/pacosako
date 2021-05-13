@@ -9,17 +9,14 @@ module Sako exposing
     , actionTile
     , decodeAction
     , decodeColor
-    , decodePosition
     , decodeVictoryState
     , doAction
     , doActionsList
     , emptyPosition
     , encodeAction
-    , encodePosition
     , enumeratePieceIdentity
     , exportExchangeNotation
     , importExchangeNotation
-    , importExchangeNotationList
     , initialPosition
     , isAt
     , isChaining
@@ -146,24 +143,9 @@ fromStringColor string =
             Decode.fail ("Not valid pattern for decoder to Color. Pattern: " ++ string)
 
 
-toStringColor : Color -> String
-toStringColor color =
-    case color of
-        White ->
-            "White"
-
-        Black ->
-            "Black"
-
-
 decodeColor : Decoder Color
 decodeColor =
     Decode.string |> Decode.andThen fromStringColor
-
-
-encodeColor : Color -> Value
-encodeColor =
-    toStringColor >> Encode.string
 
 
 {-| Represents a Paco Ŝako playing piece with type, color and position.
@@ -178,34 +160,6 @@ type alias Piece =
     , position : Tile
     , identity : String
     }
-
-
-{-| Deserializes a Piece.
--}
-decodePacoPiece : Decoder Piece
-decodePacoPiece =
-    Decode.map4 Piece
-        (Decode.field "pieceType" decodeType)
-        (Decode.field "color" decodeColor)
-        (Decode.field "position" decodeTile)
-        (Decode.field "identity" Decode.string)
-
-
-{-| Serializes a Piece.
-
-This also stores the identity of the piece which is important for tracking
-pieces across multiple board states. If we did not store this information with
-the pieces, animations would not work.
-
--}
-encodePiece : Piece -> Value
-encodePiece record =
-    Encode.object
-        [ ( "pieceType", encodeType <| record.pieceType )
-        , ( "color", encodeColor <| record.color )
-        , ( "position", encodeTile <| record.position )
-        , ( "identity", Encode.string record.identity )
-        ]
 
 
 isAt : Tile -> Piece -> Bool
@@ -686,18 +640,6 @@ tileFromFlatCoordinate i =
     Tile (modBy 8 i) (i // 8)
 
 
-encodeTile : Tile -> Value
-encodeTile (Tile x y) =
-    Encode.object [ ( "x", Encode.int x ), ( "y", Encode.int y ) ]
-
-
-decodeTile : Decoder Tile
-decodeTile =
-    Decode.map2 Tile
-        (Decode.field "x" Decode.int)
-        (Decode.field "y" Decode.int)
-
-
 getY : Tile -> Int
 getY (Tile _ y) =
     y
@@ -752,23 +694,6 @@ emptyPosition =
 positionFromPieces : List Piece -> Position
 positionFromPieces pieces =
     { emptyPosition | pieces = pieces }
-
-
-decodePosition : Decoder Position
-decodePosition =
-    Decode.map3 Position
-        (Decode.field "pieces" (Decode.list decodePacoPiece))
-        (Decode.field "liftedPieces" (Decode.list decodePacoPiece))
-        (Decode.field "currentPlayer" decodeColor)
-
-
-encodePosition : Position -> Value
-encodePosition record =
-    Encode.object
-        [ ( "pieces", Encode.list encodePiece <| record.pieces )
-        , ( "liftedPieces", Encode.list encodePiece <| record.liftedPieces )
-        , ( "currentPlayer", encodeColor <| record.currentPlayer )
-        ]
 
 
 
@@ -1012,26 +937,6 @@ importExchangeNotation input =
     Parser.run parsePosition input
         |> Result.mapError (\_ -> "There is an error in the position notation :-(")
         |> Result.map positionFromPieces
-
-
-{-| A library is a list of PacoPositions separated by a newline.
-Deprecated: In the future the examples won't come from a file, instead it will
-be read from the server in a json where each position data has a separate
-field anyway. Then this function won't be needed anymore.
--}
-parseLibrary : Parser (List (List Piece))
-parseLibrary =
-    sepBy parsePosition (Parser.symbol "-" |. linebreak)
-
-
-{-| Given a file that contains many Paco Ŝako in human readable exchange notation
-separated by a '-' character, this function parses all positions.
--}
-importExchangeNotationList : String -> Result String (List Position)
-importExchangeNotationList input =
-    Parser.run parseLibrary input
-        |> Result.mapError (\_ -> "There is an error in the position notation :-(")
-        |> Result.map (List.map positionFromPieces)
 
 
 linebreak : Parser ()

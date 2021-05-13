@@ -3,10 +3,10 @@ module Pages.Settings exposing (Model, Msg, Params, page)
 import Color exposing (Color)
 import ColorPicker
 import Effect exposing (Effect)
-import Element exposing (column, el)
+import Element exposing (column)
 import Element.Input as Input
 import Html
-import Page exposing (Page)
+import Page
 import Request
 import Shared
 import View exposing (View)
