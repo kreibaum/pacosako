@@ -39,7 +39,7 @@ pub extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
 }
 
 /// Stores a 0 terminated array into the array given by the out pointer. The
-/// array must have at least 128 bytes (u8) of space. If all the space is used,
+/// array must have at least 64 bytes (u8) of space. If all the space is used,
 /// no null termination is used.
 #[no_mangle]
 pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
@@ -63,7 +63,7 @@ pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
                 length += 1;
             }
         }
-        if length < 128 {
+        if length < 64 {
             unsafe { *out = 0 }
         }
     } else {
@@ -113,5 +113,6 @@ pub extern "C" fn status(ps: *mut DenseBoard) -> i64 {
         crate::VictoryState::PacoVictory(Black) => -1,
         crate::VictoryState::TimeoutVictory(White) => 1,
         crate::VictoryState::TimeoutVictory(Black) => -1,
+        crate::VictoryState::NoProgressDraw => 0,
     }
 }

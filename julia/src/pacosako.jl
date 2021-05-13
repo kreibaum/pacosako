@@ -54,7 +54,9 @@ end
 Game.current_player(ps::PacoSako)::Int64 = ccall((:current_player, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr)
 
 function Game.legal_actions(ps::PacoSako)
-    out = zeros(UInt8, 128)
+    # While there are 132 possible actions (64+64+4) there can be at most 64
+    # actions that are legal at any point.
+    out = zeros(UInt8, 64)
     ccall((:legal_actions, DYNLIB_PATH), Nothing, (Ptr{Nothing}, Ptr{UInt8}), ps.ptr, out)
     Int.(collect(Iterators.takewhile(x -> x > 0, out)))
 end
