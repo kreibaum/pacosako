@@ -66,21 +66,40 @@ function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
     if length(Game.legal_actions(ps)) == 0
         ps.forfeit_by = Game.current_player(ps)
     end
+    @assert status_code == 0 "Error during apply_action! of PacoSako game!"
     ps
 end
 
 ## TODOS:
 
 # Only when we want to to use neuronal network models
-# Game.array(:: AbstractGame) = error("unimplemented")
+# Game.array(:: PacoSako) = error("unimplemented")
 
 Game.policy_length(:: Type{PacoSako})::Int = 132
 
 # Only when a human player wants to play
-# draw(io :: IO, game :: AbstractGame) :: Nothing = error("drawing $(typeof(game)) not implemented.")
+# draw(io :: IO, game :: PacoSako) :: Nothing = error("drawing $(typeof(game)) not implemented.")
 
 # For performance:
-# function is_action_legal(game :: AbstractGame, action :: ActionIndex)
+# function is_action_legal(game :: PacoSako, action :: ActionIndex)
+
+################################################################################
+## (De-)Serialization ##########################################################
+################################################################################
+
+function serialize(ps::PacoSako)::Vector{UInt8}
+    length = ccall((:serialize_len, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr)
+    out = zeros(UInt8, length)
+    status_code = ccall((:serialize, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{UInt8}, Int64), ps.ptr, out, length)
+    @assert status_code == 0 "Error during serialization of PacoSako game!"
+    out
+end
+
+function deserialize(bincode::Vector{UInt8})::PacoSako
+    ptr = ccall((:deserialize, DYNLIB_PATH), Ptr{Nothing}, (Ptr{UInt8}, Int64), bincode, length(bincode))
+    @assert ptr != C_NULL "Deserialization error for PacoSako game!"
+    wrap_pacosako_ptr(ptr)
+end
 
 ################################################################################
 ## Helpers #####################################################################

@@ -89,7 +89,7 @@ impl PieceType {
 /// Note that Drawing a game is not implemented yet. Possible draw reasons may
 /// be: Repeated position x3, No progress made for 50 moves (100 half-moves) or
 /// all pieces paired up. Maybe others?
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VictoryState {
     Running,
     PacoVictory(PlayerColor),
@@ -109,7 +109,7 @@ impl VictoryState {
 }
 
 /// In a DenseBoard we reserve memory for all positions.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DenseBoard {
     white: Vec<Option<PieceType>>,
     black: Vec<Option<PieceType>>,
@@ -291,7 +291,7 @@ pub struct SakoSearchResult {
     pub black: Vec<Vec<PacoAction>>,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 struct Castling {
     white_queen_side: bool,
     white_king_side: bool,

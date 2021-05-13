@@ -5,8 +5,12 @@ use crate::{BoardPosition, DenseBoard, PacoBoard};
 
 #[no_mangle]
 pub extern "C" fn new() -> *mut DenseBoard {
-    // Leaks the memory (for now) and returns a pointer.
-    Box::into_raw(Box::from(DenseBoard::new()))
+    leak_to_julia(DenseBoard::new())
+}
+
+/// Leaks the memory (for now) and returns a pointer.
+fn leak_to_julia(board: DenseBoard) -> *mut DenseBoard {
+    Box::into_raw(Box::from(board))
 }
 
 #[no_mangle]
@@ -114,5 +118,77 @@ pub extern "C" fn status(ps: *mut DenseBoard) -> i64 {
         crate::VictoryState::TimeoutVictory(White) => 1,
         crate::VictoryState::TimeoutVictory(Black) => -1,
         crate::VictoryState::NoProgressDraw => 0,
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// (De-)Serialization //////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+#[no_mangle]
+pub extern "C" fn serialize_len(ps: *mut DenseBoard) -> i64 {
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+
+    if let Ok(encoded) = bincode::serialize(ps) {
+        encoded.len() as i64
+    } else {
+        -1
+    }
+}
+
+/// Expects an out pointer to an u8 array that has exactly serialize_len(ps)
+/// space to store the board. This means we are currently doing serialization
+/// twice to avoid having to allocate a julia array from rust code.
+///
+/// If you improperly specify the buffer, this may buffer overrun and cause a
+/// security issue. Make sure you own the memory you write to!
+#[no_mangle]
+pub extern "C" fn serialize(ps: *mut DenseBoard, mut out: *mut u8, reserved_space: i64) -> i64 {
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+
+    if let Ok(encoded) = bincode::serialize(ps) {
+        if encoded.len() as i64 != reserved_space {
+            // If julia reserved the wrong amout of space, this could write into
+            // memory it is not supposed to, triggering a Segfault in the best
+            // case and a vulnerability in the worst case. This is why we double
+            // check the reserved space.
+            return -1;
+        }
+        for byte in encoded {
+            unsafe {
+                *out = byte;
+                out = out.offset(1);
+            }
+        }
+        return 0; // No error :-)
+    }
+    return -2;
+}
+
+/// Tries to deserialize a DenseBoard from the given bincode data. If the
+/// conversion fails this will return a null pointer.
+///
+/// If you don't properly specify the buffer size, this can buffer over-read and
+/// copy memory you may not want exposed to a new location.
+/// (e.g. Heartblead was a buffer over-read vulnerability)
+/// Make sure you own the memory you read from!
+#[no_mangle]
+pub extern "C" fn deserialize(mut bincode_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
+    // Read bytes into a buffer vector
+    let mut buffer = Vec::with_capacity(reserved_space as usize);
+    for _ in 0..reserved_space {
+        let byte = unsafe {
+            let b = *bincode_ptr;
+            bincode_ptr = bincode_ptr.offset(1);
+            b
+        };
+        buffer.push(byte);
+    }
+
+    let board: Result<DenseBoard, _> = bincode::deserialize(&buffer);
+    if let Ok(board) = board {
+        leak_to_julia(board)
+    } else {
+        std::ptr::null_mut()
     }
 }
