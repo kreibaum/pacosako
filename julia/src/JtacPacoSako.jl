@@ -83,7 +83,7 @@ function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
     end
     @assert status_code == 0 "Error during apply_action! of PacoSako game!"
     ps
-end
+    end
 
 function Game.array(ps::PacoSako)::Array{Float32,3}
     size = Base.size(ps)
@@ -128,7 +128,7 @@ function deserialize(bincode::Vector{UInt8})::PacoSako
         ps.forfeit_by = Game.current_player(ps)
     end
     ps
-end
+    end
 
 function Game.is_frozen(ps::PacoSako)::Bool
     !isnothing(ps.cache)
@@ -148,7 +148,7 @@ end
 ## Helpers #####################################################################
 ################################################################################
 
-function Base.show(io :: IO, game :: PacoSako)
+function Base.show(io::IO, game::PacoSako)
   if Game.is_over(game)
     print(io, "PacoSako($(Game.status(game)) won)")
   else
@@ -156,7 +156,7 @@ function Base.show(io :: IO, game :: PacoSako)
   end
 end
 
-function Base.show(io :: IO, :: MIME"text/plain", game :: PacoSako)
+function Base.show(io::IO, :: MIME"text/plain", game::PacoSako)
   if Game.is_over(game)
     print(io, "PacoSako game with result $(Game.status(game))")
   else
@@ -167,6 +167,10 @@ end
 function Base.println(ps::PacoSako)
     @assert !Game.is_frozen(ps)
     ccall((:print, DYNLIB_PATH), Nothing, (Ptr{Nothing},), ps.ptr)
+end
+
+function Base.:(==)(ps1::PacoSako, ps2::PacoSako)::Bool
+    ccall((:equals, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{Nothing}), ps1.ptr, ps2.ptr) == 0
 end
 
 ################################################################################

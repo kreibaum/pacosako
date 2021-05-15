@@ -283,3 +283,15 @@ fn layer_offset(piece_type: PieceType) -> isize {
         PieceType::King => 5,
     }
 }
+
+#[no_mangle]
+pub extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i64 {
+    let ps1: &DenseBoard = unsafe { &*ps1 };
+    let ps2: &DenseBoard = unsafe { &*ps2 };
+
+    if ps1 == ps2 {
+        0
+    } else {
+        1
+    }
+}
