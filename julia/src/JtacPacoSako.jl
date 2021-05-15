@@ -1,11 +1,21 @@
 """This module wraps the rust pacosako dynamic library"""
+module JtacPacoSako
 
 using Jtac
+
+# PacoSako game type
+export PacoSako
+
+# export Jtac interface
+export Game,
+       Model,
+       Player,
+       Training
 
 # To build this, run `cargo build` in ../lib
 # const DYNLIB_PATH = "../lib/target/debug/libpacosako.so"
 # To build this, run `cargo build --release` in ../lib
-const DYNLIB_PATH = "../lib/target/release/libpacosako.so"
+const DYNLIB_PATH = joinpath(dirname(@__DIR__), "../lib/target/release/libpacosako.so")
 
 mutable struct PacoSako <: Game.AbstractGame
     ptr::Ptr{Nothing}
@@ -138,7 +148,33 @@ end
 ## Helpers #####################################################################
 ################################################################################
 
-function println(ps::PacoSako)
+function Base.show(io :: IO, game :: PacoSako)
+  if Game.is_over(game)
+    print(io, "PacoSako($(Game.status(game)) won)")
+  else
+    print(io, "PacoSako($(Game.current_player(game)) moving)")
+  end
+end
+
+function Base.show(io :: IO, :: MIME"text/plain", game :: PacoSako)
+  if Game.is_over(game)
+    print(io, "PacoSako game with result $(Game.status(game))")
+  else
+    print(io, "PacoSako game with player $(Game.current_player(game)) moving")
+  end
+end
+
+function Base.println(ps::PacoSako)
     @assert !Game.is_frozen(ps)
     ccall((:print, DYNLIB_PATH), Nothing, (Ptr{Nothing},), ps.ptr)
+end
+
+################################################################################
+## PacoPlay module to interact with pacoplay servers ###########################
+################################################################################
+
+export PacoPlay
+
+include("pacoplay.jl")
+
 end
