@@ -483,6 +483,26 @@ impl DenseBoard {
         result
     }
 
+    /// To help the AIs a bit, we are not allowin it to lift any pieces that
+    /// get stuck instantly. They need to have at least one position where they
+    /// can be placed down again.
+    fn pieces_that_can_be_lifted(&self) -> Result<Vec<PacoAction>, PacoError> {
+        let mut result = vec![];
+
+        for p in self.active_positions() {
+            let is_pair = self.opponent_present(p);
+            let piece = *self.active_pieces().get(p.0 as usize).unwrap();
+            if let Some(piece) = piece {
+                let targets = self.place_targets(p, piece, is_pair)?;
+                if !targets.is_empty() {
+                    result.push(PacoAction::Lift(p));
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     /// Lifts the piece of the current player in the given position of the board.
     /// Only one piece may be lifted at a time.
     fn lift(&mut self, position: BoardPosition) -> Result<&mut Self, PacoError> {
@@ -1275,7 +1295,7 @@ impl PacoBoard for DenseBoard {
             Hand::Empty => {
                 // If no piece is lifted up, then we just return lifting actions of all pieces of
                 // the current player.
-                Ok(self.active_positions().map(Lift).collect())
+                self.pieces_that_can_be_lifted()
             }
             Hand::Single { piece, position } => {
                 // the player currently lifts a piece, we calculate all possible positions where
