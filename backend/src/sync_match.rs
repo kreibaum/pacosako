@@ -260,8 +260,8 @@ mod test {
         assert_eq!(no_stamps, no_stamps_2);
         assert_eq!(current_state.legal_actions, current_state_2.legal_actions);
 
-        // there are two moves in the state and 16 possible actions.
+        // there are two moves in the state and 10 possible actions.
         assert_eq!(current_state.actions.len(), 2);
-        assert_eq!(current_state.legal_actions.len(), 16);
+        assert_eq!(current_state.legal_actions.len(), 10);
     }
 }
