@@ -7,7 +7,9 @@ using Jtac
 export PacoSako
 
 # export Jtac interface
-export Game,
+export Jtac,
+       Util,
+       Game,
        Model,
        Player,
        Training
