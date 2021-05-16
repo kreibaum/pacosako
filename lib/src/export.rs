@@ -47,20 +47,11 @@ pub extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
 /// no null termination is used.
 #[no_mangle]
 pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
-    use crate::PieceType::*;
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     if let Ok(ls) = ps.actions() {
         let mut length = 0;
         for action in ls {
-            let a = match action {
-                crate::PacoAction::Lift(p) => 1 + p.0,
-                crate::PacoAction::Place(p) => 1 + p.0 + 64,
-                crate::PacoAction::Promote(Rook) => 129,
-                crate::PacoAction::Promote(Knight) => 130,
-                crate::PacoAction::Promote(Bishop) => 131,
-                crate::PacoAction::Promote(Queen) => 132,
-                crate::PacoAction::Promote(_) => 255,
-            };
+            let a = action_to_action_index(action);
             unsafe {
                 *out = a;
                 out = out.offset(1);
@@ -72,6 +63,19 @@ pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
         }
     } else {
         unsafe { *out = 0 }
+    }
+}
+
+fn action_to_action_index(action: crate::PacoAction) -> u8 {
+    use crate::PieceType::*;
+    match action {
+        crate::PacoAction::Lift(p) => 1 + p.0,
+        crate::PacoAction::Place(p) => 1 + p.0 + 64,
+        crate::PacoAction::Promote(Rook) => 129,
+        crate::PacoAction::Promote(Knight) => 130,
+        crate::PacoAction::Promote(Bishop) => 131,
+        crate::PacoAction::Promote(Queen) => 132,
+        crate::PacoAction::Promote(_) => 255,
     }
 }
 
@@ -294,4 +298,76 @@ pub extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i64 {
     } else {
         1
     }
+}
+
+#[no_mangle]
+pub extern "C" fn random_position() -> *mut DenseBoard {
+    use rand::Rng;
+
+    let mut rng = rand::thread_rng();
+    let board: DenseBoard = rng.gen();
+    leak_to_julia(board)
+}
+
+// status_code = ccall((:find_sako_sequences, DYNLIB_PATH), Int64,
+// (Ptr{Nothing}, Ptr{UInt8}, Int64),
+// ps.ptr, memory, memory_length)
+
+/// Finds all the sako sequences that are possible in the given position.
+/// Needs to use the output memory to returns these, so it may not return
+/// all the chains that were found.
+#[no_mangle]
+pub extern "C" fn find_sako_sequences(
+    ps: *mut DenseBoard,
+    out: *mut u8,
+    reserved_space: i64,
+) -> i64 {
+    let ps: &DenseBoard = unsafe { &*ps };
+    let mut actions = vec![];
+
+    let explored = crate::determine_all_moves(ps.clone());
+
+    if let Ok(explored) = explored {
+        // Is there a state where the black king is dancing?
+        for board in explored.settled {
+            if board.king_in_union(PlayerColor::Black) {
+                if let Some(trace) = crate::trace_first_move(&board, &explored.found_via) {
+                    actions.push(trace);
+                }
+            }
+        }
+
+        // Now we have generated a list of chains and can write this into a null
+        // separated list.
+        let mut offset = 0;
+        for chain in actions {
+            // Check if the whole action fits in the remaining memory.
+            let remaining_memory = reserved_space - offset;
+            if remaining_memory < chain.len() as i64 {
+                return 0;
+            }
+            for action in chain {
+                let a = action_to_action_index(action);
+                unsafe {
+                    let cell = out.offset(offset as isize);
+                    *cell = a;
+                }
+                offset += 1;
+            }
+            // Leave a space unwritten to terminate the chain.
+            // This is optional and does not need to be written for the last
+            // chain if there is no more space for this one byte.
+            offset += 1;
+            if reserved_space - offset > 0 {
+                unsafe {
+                    let cell = out.offset(offset as isize);
+                    *cell = 0;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    return -1;
 }
