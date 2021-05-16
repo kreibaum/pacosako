@@ -166,7 +166,7 @@ function Base.show(io::IO, :: MIME"text/plain", game::PacoSako)
   end
 end
 
-function Base.println(ps::PacoSako)
+function Game.draw(ps::PacoSako)
     @assert !Game.is_frozen(ps)
     ccall((:print, DYNLIB_PATH), Nothing, (Ptr{Nothing},), ps.ptr)
 end
@@ -238,7 +238,7 @@ function find_simple_positions(; tries=100)::Training.Dataset{PacoSako}
                 label[1] = 1
                 push!(result.label, label)
                 push!(result.flabel, Vector())
-                
+
                 Game.apply_action!(ps2, action)
             end
         end
