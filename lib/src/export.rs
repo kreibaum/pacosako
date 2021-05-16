@@ -206,6 +206,9 @@ pub extern "C" fn repr_layer_count() -> i64 {
 }
 
 /// Generates a Tensor representation of the board state for machine learning.
+/// When the black player is playing, the white and black pieces are flipped.
+/// Both the memory blocks are switched and the top/bottom is switched.
+/// This means the AI does not really know which color it is playing.
 #[no_mangle]
 pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
@@ -219,16 +222,23 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
     // -> 1 2 3 4 5 6 7 8
 
     // Iterate over all tiles
+    let white_offset = color_offset(PlayerColor::White, ps.controlling_player()) as isize;
+    let black_offset = color_offset(PlayerColor::Black, ps.controlling_player()) as isize;
     for t in 0..64 {
+        let mirror_t = if ps.controlling_player() == PlayerColor::White {
+            t
+        } else {
+            mirror_paco_position(BoardPosition(t as u8)).0 as isize
+        };
         if let Some(&Some(piece_type)) = ps.white.get(t as usize) {
             unsafe {
-                let cell = out.offset(t + 64 * layer_offset(piece_type));
+                let cell = out.offset(mirror_t + 64 * layer_offset(piece_type) + white_offset);
                 *cell = 1.0;
             }
         }
         if let Some(&Some(piece_type)) = ps.black.get(t as usize) {
             unsafe {
-                let cell = out.offset(t + 64 * layer_offset(piece_type) + 64 * 6);
+                let cell = out.offset(mirror_t + 64 * layer_offset(piece_type) + black_offset);
                 *cell = 1.0;
             }
         }
@@ -237,21 +247,15 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
     match ps.lifted_piece {
         crate::Hand::Empty => {}
         crate::Hand::Single { piece, position } => unsafe {
-            enable_cell_at(position.0 as isize, piece, ps.current_player, true, out);
+            enable_cell_at(position, piece, true, true, out);
         },
         crate::Hand::Pair {
             piece,
             partner,
             position,
         } => unsafe {
-            enable_cell_at(position.0 as isize, piece, ps.current_player, true, out);
-            enable_cell_at(
-                position.0 as isize,
-                partner,
-                ps.current_player.other(),
-                true,
-                out,
-            );
+            enable_cell_at(position, piece, true, true, out);
+            enable_cell_at(position, partner, false, true, out);
         },
     }
 
@@ -259,22 +263,44 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
 }
 
 unsafe fn enable_cell_at(
-    pos: isize,
+    pos: BoardPosition,
     piece_type: PieceType,
-    color: PlayerColor,
+    is_for_current_player: bool,
     is_lifted: bool,
     out: *mut f32,
 ) {
-    let color_offset = if color == PlayerColor::White {
-        0
-    } else {
-        6 * 64
-    };
+    let color_offset = if is_for_current_player { 0 } else { 6 * 64 };
     let lift_offset = if is_lifted { 12 * 64 } else { 0 };
+    let pos = if is_for_current_player {
+        pos.0 as isize
+    } else {
+        mirror_paco_position(pos).0 as isize
+    };
     let offset = pos + layer_offset(piece_type) + color_offset + lift_offset;
 
     let cell = out.offset(offset);
     *cell = 1.0;
+}
+
+fn color_offset(color: PlayerColor, controlling_player: PlayerColor) -> i32 {
+    if color == controlling_player {
+        0
+    } else {
+        6 * 64
+    }
+}
+
+fn mirror_paco_position(pos: BoardPosition) -> BoardPosition {
+    // Field indices are as follows:
+    // 56 57 58 59 60 61 62 63
+    // 48 49 50 51 52 53 54 55
+    // 40 41 42 43 44 45 46 47
+    // 32 33 34 35 36 37 38 39
+    // 24 25 26 27 28 29 30 31
+    // 16 17 18 19 20 21 22 23
+    //  8  9 10 11 12 13 14 15
+    //  0  1  2  3  4  5  6  7
+    BoardPosition::new(pos.x(), 7 - pos.y())
 }
 
 fn layer_offset(piece_type: PieceType) -> isize {
