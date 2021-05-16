@@ -215,6 +215,36 @@ function find_sako_sequences(ps::PacoSako)::Vector{Vector{Int64}}
 end
 
 ################################################################################
+## Generates states where the best policy is known. ############################
+################################################################################
+
+"""
+Returns a vector of positions together with a single action that is optimal
+in this situation. This may return the same position twice if there is more than
+one optimal action. (i.e. two ways to capture the king.)
+"""
+function find_simple_positions(; tries=100)::Training.Dataset{PacoSako}
+    result = Training.Dataset{PacoSako}()
+    for _ in 1:tries
+        ps = random_position()
+        solutions = find_sako_sequences(ps)
+        for chain in solutions
+            ps2 = copy(ps)
+            for action in chain
+                push!(result.games, copy(ps2))
+                label = Util.one_hot(1 + 132, 1 + action)
+                label[1] = 1
+                push!(result.label, label)
+                push!(result.flabel, Vector())
+                
+                Game.apply_action!(ps2, action)
+            end
+        end
+    end
+    result
+end
+
+################################################################################
 ## PacoPlay module to interact with pacoplay servers ###########################
 ################################################################################
 
