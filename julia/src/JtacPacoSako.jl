@@ -25,7 +25,6 @@ mutable struct PacoSako <: Game.AbstractGame
     forfeit_by::Int64
 end
 
-
 """Initializer and general memory management"""
 function PacoSako()::PacoSako
     ptr = ccall((:new, DYNLIB_PATH), Ptr{Nothing}, ())
@@ -244,6 +243,12 @@ function find_simple_positions(; tries=100)::Training.Dataset{PacoSako}
         end
     end
     result
+end
+
+function __init__()
+  # We have to register the game in order to use all functionality of Jtac
+  # (loading and saving datasets and models)
+  Game.register!(PacoSako)
 end
 
 ################################################################################
