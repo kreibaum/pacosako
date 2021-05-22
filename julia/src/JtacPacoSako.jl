@@ -12,7 +12,8 @@ export Jtac,
        Game,
        Model,
        Player,
-       Training
+       Training,
+       Bench
 
 # To build this, run `cargo build` in ../lib
 # const DYNLIB_PATH = "../lib/target/debug/libpacosako.so"
