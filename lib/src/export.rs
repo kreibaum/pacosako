@@ -199,10 +199,10 @@ pub extern "C" fn deserialize(mut bincode_ptr: *mut u8, reserved_space: i64) -> 
 
 /// Layers are:
 /// (Pawn, Rook, Knight, Bishop, Queen, King) x (White, Black) x (settled, lifted) # 24
-/// Single layers for flags,
+/// Single layers for flags, 4xCastling + en passant + no-progress # 6
 #[no_mangle]
 pub extern "C" fn repr_layer_count() -> i64 {
-    24
+    24 + 6
 }
 
 /// Generates a Tensor representation of the board state for machine learning.
@@ -221,7 +221,7 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
     // (2 4) (6 8)
     // -> 1 2 3 4 5 6 7 8
 
-    // Iterate over all tiles
+    // Layers describing the settled pieces
     let white_offset = color_offset(PlayerColor::White, ps.controlling_player()) as isize;
     let black_offset = color_offset(PlayerColor::Black, ps.controlling_player()) as isize;
     for t in 0..64 {
@@ -244,6 +244,7 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
         }
     }
 
+    // Layers describing the lifted pieces
     match ps.lifted_piece {
         crate::Hand::Empty => {}
         crate::Hand::Single { piece, position } => unsafe {
@@ -259,7 +260,64 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
         },
     }
 
+    // Flag layers describing castling options
+    if ps.controlling_player() == PlayerColor::White {
+        if ps.castling.white_queen_side {
+            unsafe { set_layer(24, 1.0, out) };
+        }
+        if ps.castling.white_king_side {
+            unsafe { set_layer(25, 1.0, out) };
+        }
+        if ps.castling.black_queen_side {
+            unsafe { set_layer(26, 1.0, out) };
+        }
+        if ps.castling.black_king_side {
+            unsafe { set_layer(27, 1.0, out) };
+        }
+    } else {
+        if ps.castling.black_queen_side {
+            unsafe { set_layer(24, 1.0, out) };
+        }
+        if ps.castling.black_king_side {
+            unsafe { set_layer(25, 1.0, out) };
+        }
+        if ps.castling.white_queen_side {
+            unsafe { set_layer(26, 1.0, out) };
+        }
+        if ps.castling.white_king_side {
+            unsafe { set_layer(27, 1.0, out) };
+        }
+    }
+
+    // Layer that shows the en-passant square
+    if let Some((t, c)) = ps.en_passant {
+        if c != ps.controlling_player() {
+            let mirror_t = if ps.controlling_player() == PlayerColor::White {
+                t.0 as isize
+            } else {
+                mirror_paco_position(BoardPosition(t.0 as u8)).0 as isize
+            };
+            unsafe {
+                let cell = out.offset(mirror_t + 64 * 28);
+                *cell = 1.0
+            }
+        }
+    }
+
+    // Layer that gives the half-move counter (normalized between 0 and 1)
+    unsafe { set_layer(29, ps.no_progress_half_moves as f32 / 100.0, out) }
+
+    // Still missing are the "repetition" layers. Doing the same move 3 times
+    // leads to a draw. This is not implemented in the engine yet.
+
     0
+}
+
+unsafe fn set_layer(layer: isize, value: f32, out: *mut f32) {
+    for i in 0..64 {
+        let cell = out.offset(64 * layer + i);
+        *cell = value;
+    }
 }
 
 unsafe fn enable_cell_at(
