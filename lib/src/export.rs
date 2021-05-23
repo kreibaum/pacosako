@@ -1,7 +1,7 @@
 //! This module defines all the methods that are exposed in the C library.
 //! It is the part that can be used by Julia.
 
-use crate::{BoardPosition, DenseBoard, PacoBoard, PieceType, PlayerColor};
+use crate::{BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType, PlayerColor};
 
 #[no_mangle]
 pub extern "C" fn new() -> *mut DenseBoard {
@@ -51,7 +51,7 @@ pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
     if let Ok(ls) = ps.actions() {
         let mut length = 0;
         for action in ls {
-            let a = action_to_action_index(action);
+            let a = action_to_action_index(action.align(ps.controlling_player()));
             unsafe {
                 *out = a;
                 out = out.offset(1);
@@ -79,31 +79,53 @@ fn action_to_action_index(action: crate::PacoAction) -> u8 {
     }
 }
 
+trait PlayerAlign {
+    /// If the given player is Black, then the position is flipped around.
+    /// Applying this twice must return the original value.
+    fn align(self, color: PlayerColor) -> Self;
+}
+
+impl PlayerAlign for BoardPosition {
+    fn align(self, color: PlayerColor) -> Self {
+        if color == PlayerColor::White {
+            self
+        } else {
+            mirror_paco_position(self)
+        }
+    }
+}
+
+impl PlayerAlign for PacoAction {
+    fn align(self, color: PlayerColor) -> Self {
+        match self {
+            PacoAction::Lift(p) => PacoAction::Lift(p.align(color)),
+            PacoAction::Place(p) => PacoAction::Place(p.align(color)),
+            PacoAction::Promote(_) => self,
+        }
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i64 {
     use crate::PieceType::*;
     let ps: &mut DenseBoard = unsafe { &mut *ps };
-    let res = if 1 <= action && action <= 64 {
-        let action = crate::PacoAction::Lift(BoardPosition(action - 1));
-        ps.execute(action)
+
+    let action = if 1 <= action && action <= 64 {
+        crate::PacoAction::Lift(BoardPosition(action - 1))
     } else if action <= 128 {
-        let action = crate::PacoAction::Place(BoardPosition(action - 1 - 64));
-        ps.execute(action)
+        crate::PacoAction::Place(BoardPosition(action - 1 - 64))
     } else if action == 129 {
-        let action = crate::PacoAction::Promote(Rook);
-        ps.execute(action)
+        crate::PacoAction::Promote(Rook)
     } else if action == 130 {
-        let action = crate::PacoAction::Promote(Knight);
-        ps.execute(action)
+        crate::PacoAction::Promote(Knight)
     } else if action == 131 {
-        let action = crate::PacoAction::Promote(Bishop);
-        ps.execute(action)
+        crate::PacoAction::Promote(Bishop)
     } else if action == 132 {
-        let action = crate::PacoAction::Promote(Queen);
-        ps.execute(action)
+        crate::PacoAction::Promote(Queen)
     } else {
         return -1;
     };
+    let res = ps.execute(action.align(ps.controlling_player()));
     if res.is_err() {
         -1
     } else {
@@ -407,11 +429,10 @@ pub extern "C" fn find_sako_sequences(
     reserved_space: i64,
 ) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
-    let mut actions = vec![];
 
     let explored = crate::determine_all_moves(ps.clone());
-
     if let Ok(explored) = explored {
+        let mut actions = vec![];
         // Is there a state where the black king is dancing?
         for board in explored.settled {
             if board.king_in_union(ps.current_player.other()) {
@@ -431,7 +452,7 @@ pub extern "C" fn find_sako_sequences(
                 return 0;
             }
             for action in chain {
-                let a = action_to_action_index(action);
+                let a = action_to_action_index(action.align(ps.controlling_player()));
                 unsafe {
                     let cell = out.offset(offset as isize);
                     *cell = a;
