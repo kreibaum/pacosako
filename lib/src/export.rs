@@ -1,6 +1,8 @@
 //! This module defines all the methods that are exposed in the C library.
 //! It is the part that can be used by Julia.
 
+use std::collections::hash_map::DefaultHasher;
+
 use crate::{BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType, PlayerColor};
 
 #[no_mangle]
@@ -404,6 +406,15 @@ pub extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i64 {
     } else {
         1
     }
+}
+
+#[no_mangle]
+pub extern "C" fn hash(ps: *mut DenseBoard) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let ps: &DenseBoard = unsafe { &*ps };
+    let mut hasher = DefaultHasher::new();
+    ps.hash(&mut hasher);
+    hasher.finish()
 }
 
 #[no_mangle]

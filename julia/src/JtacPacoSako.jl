@@ -175,6 +175,11 @@ function Base.:(==)(ps1::PacoSako, ps2::PacoSako)::Bool
     ccall((:equals, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{Nothing}), ps1.ptr, ps2.ptr) == 0
 end
 
+function Game.hash(ps::PacoSako)::UInt64
+    @assert !Game.is_frozen(ps)
+    ccall((:hash, DYNLIB_PATH), UInt64, (Ptr{Nothing},), ps.ptr)
+end
+
 """
 Returns a random Paco Ŝako position that is legal and still running.
 """
