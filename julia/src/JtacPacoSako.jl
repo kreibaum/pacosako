@@ -83,7 +83,7 @@ function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
     if length(Game.legal_actions(ps)) == 0 && ccall((:status, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr) == 42
         ps.forfeit_by = Game.current_player(ps)
     end
-    @assert status_code == 0 "Error during apply_action! of PacoSako game!"
+    @assert status_code == 0 "Error during apply_action! of PacoSako game"
     ps
     end
 
@@ -261,8 +261,15 @@ end
 ## PacoPlay module to interact with pacoplay servers ###########################
 ################################################################################
 
-export PacoPlay
+module PacoPlay
 
-include("pacoplay.jl")
+  using ..JtacPacoSako
+  using HTTP, LazyJSON
+
+  include("pacoplay.jl")
+
+end # module PacoPlay
+
+export PacoPlay
 
 end
