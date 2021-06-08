@@ -553,6 +553,7 @@ fn rocket() -> _ {
                 websocket_port,
                 recently_created_games,
                 language::user_language,
+                language::set_user_language
             ],
         )
         .mount("/", routes![index_fallback])

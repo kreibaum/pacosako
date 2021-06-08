@@ -1,6 +1,8 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use rocket::http::hyper::header::ACCEPT_LANGUAGE;
+use rocket::http::Cookie;
+use rocket::http::CookieJar;
 use rocket::{
     request::{self, FromRequest},
     Request,
@@ -8,10 +10,25 @@ use rocket::{
 // In this module we read the language settings the user is using and provide
 // the correct compiled version from it.
 
+const LANGUAGE_COOKIE_NAME: &str = "language";
+
 /// Example endpoint where the user can see what language they currently get.
 #[get("/language")]
-pub async fn user_language<'r>(lang: AcceptLanguage) -> String {
-    format!("accept: {:?}", lang.0)
+pub async fn user_language<'r>(lang: AcceptLanguage, jar: &CookieJar<'_>) -> String {
+    if let Some(language_cookie) = jar.get(LANGUAGE_COOKIE_NAME) {
+        format!(
+            "accept: {:?}; cookie: {:?}",
+            lang.0,
+            language_cookie.value()
+        )
+    } else {
+        format!("accept: {:?}; no cookie", lang.0)
+    }
+}
+
+#[post("/language", data = "<language>")]
+pub async fn set_user_language<'r>(language: String, jar: &CookieJar<'_>) -> () {
+    jar.add(Cookie::new(LANGUAGE_COOKIE_NAME, language));
 }
 
 /// Request guard that parses the accept-language header.
