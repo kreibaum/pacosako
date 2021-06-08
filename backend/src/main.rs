@@ -1,4 +1,5 @@
 mod db;
+mod language;
 mod sync_match;
 mod timer;
 mod ws;
@@ -551,6 +552,7 @@ fn rocket() -> _ {
                 get_game,
                 websocket_port,
                 recently_created_games,
+                language::user_language,
             ],
         )
         .mount("/", routes![index_fallback])

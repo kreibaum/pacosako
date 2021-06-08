@@ -1,0 +1,76 @@
+use lazy_static::lazy_static;
+use regex::Regex;
+use rocket::http::hyper::header::ACCEPT_LANGUAGE;
+use rocket::{
+    request::{self, FromRequest},
+    Request,
+};
+// In this module we read the language settings the user is using and provide
+// the correct compiled version from it.
+
+/// Example endpoint where the user can see what language they currently get.
+#[get("/language")]
+pub async fn user_language<'r>(lang: AcceptLanguage) -> String {
+    format!("accept: {:?}", lang.0)
+}
+
+/// Request guard that parses the accept-language header.
+pub struct AcceptLanguage(Vec<String>);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for AcceptLanguage {
+    type Error = ();
+
+    async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let accept_language: Option<&str> = req.headers().get_one(ACCEPT_LANGUAGE.as_str());
+
+        if let Some(accept_language) = accept_language {
+            request::Outcome::Success(AcceptLanguage(parse_languages(accept_language)))
+        } else {
+            request::Outcome::Success(AcceptLanguage(vec![]))
+        }
+    }
+}
+
+fn parse_languages(header: &str) -> Vec<String> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new("([a-z\\*]+)(-[A-Z]+)?(;q=[0-9\\.]+)?").unwrap();
+    }
+
+    let mut languages = vec![];
+
+    for lang in RE.captures_iter(header) {
+        languages.push(lang[1].to_string());
+    }
+    languages
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn en_example() -> Result<(), anyhow::Error> {
+        const EXAMPLE: &str = "en-US";
+        assert_eq!(vec!["en".to_string()], parse_languages(EXAMPLE));
+        Ok(())
+    }
+
+    #[test]
+    fn mdn_example() -> Result<(), anyhow::Error> {
+        const EXAMPLE: &str = "fr-CH, fr;q=0.9, en;q=0.8, de;q=0.7, *;q=0.5";
+
+        assert_eq!(
+            vec![
+                "fr".to_string(),
+                "fr".to_string(),
+                "en".to_string(),
+                "de".to_string(),
+                "*".to_string()
+            ],
+            parse_languages(EXAMPLE)
+        );
+
+        Ok(())
+    }
+}

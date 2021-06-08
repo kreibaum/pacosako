@@ -25,6 +25,8 @@ futures = "0.3"
 anyhow = "1.0"
 thiserror = "1.0"
 async-channel = "1.6"
+regex = "1"
+lazy_static = "1.4.0"
 
 [dependencies.rocket]
 git = "https://github.com/SergioBenitez/Rocket"
