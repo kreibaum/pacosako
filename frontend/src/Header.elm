@@ -8,9 +8,10 @@ import Element.Input as Input
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Gen.Route as Route exposing (Route)
-import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
+import I18n.Strings as I18n exposing (I18nToken(..), t)
 import Shared exposing (Msg(..))
 import Svg.Custom
+import Translations exposing (Language(..))
 
 
 {-| This module contains the page header.
@@ -32,9 +33,9 @@ wrapWithHeader shared toMsg body =
 pageHeader : Shared.Model -> Element Shared.Msg -> Element Shared.Msg
 pageHeader model additionalHeader =
     Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton Route.Home_ (t model.language i18nPlayPacoSako)
-        , pageHeaderButton Route.Editor (t model.language i18nDesignPuzzles)
-        , pageHeaderButton Route.Tutorial (t model.language i18nTutorial)
+        [ pageHeaderButton Route.Home_ (t i18nPlayPacoSako)
+        , pageHeaderButton Route.Editor (t i18nDesignPuzzles)
+        , pageHeaderButton Route.Tutorial (t i18nTutorial)
         , additionalHeader
         , languageChoice
 
@@ -66,7 +67,7 @@ loginHeaderInfo model login =
                     Element.row [ padding 10, spacing 10 ] [ icon [] Solid.user, Element.text user.username ]
 
                 Nothing ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text (t model.language i18nLogin) ]
+                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text (t i18nLogin) ]
     in
     Element.link [ Element.alignRight ]
         { url = Route.toHref Route.Login
@@ -82,11 +83,11 @@ gamesArePublicHint model =
     else
         Element.row [ width fill, Background.color (Element.rgb255 255 230 230), padding 10 ]
             [ paragraph [ spacing 10 ]
-                [ Element.text (t model.language I18n.gamesArePublicHint)
+                [ Element.text (t I18n.gamesArePublicHint)
                 , Input.button
                     [ Element.alignRight ]
                     { onPress = Just UserHidesGamesArePublicHint
-                    , label = Element.text (t model.language I18n.hideGamesArePublicHint)
+                    , label = Element.text (t I18n.hideGamesArePublicHint)
                     }
                 ]
             ]

@@ -13,13 +13,13 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Element.Lazy exposing (lazy2)
+import Element.Lazy exposing (lazy)
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import I18n.Strings exposing (I18nToken(..), Language, t)
+import I18n.Strings exposing (I18nToken(..), t)
 import Page
 import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight(..))
 import RemoteData exposing (WebData)
@@ -290,7 +290,7 @@ createMatch model =
 matchSetupUi : Shared.Model -> Model -> Element Msg
 matchSetupUi shared model =
     Element.column [ width fill, height fill, scrollbarY ]
-        [ Components.header1 (t shared.language i18nPlayPacoSako)
+        [ Components.header1 (t i18nPlayPacoSako)
         , matchSetupUiInner shared model
         ]
 
@@ -317,17 +317,17 @@ box color content =
 setupOnlineMatchUi : Shared.Model -> Model -> Element Msg
 setupOnlineMatchUi shared model =
     box (Element.rgb255 220 230 220)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text (t shared.language i18nCreateNewGame))
+        [ Element.el [ centerX, Font.size 30 ] (Element.text (t i18nCreateNewGame))
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.spaceShuttle
-                , caption = t shared.language i18nLightspeed
+                , caption = t i18nLightspeed
                 , event = SetSpeedSetting Lightspeed
                 , selected = model.speedSetting == Lightspeed
                 }
             , speedButton
                 { buttonIcon = Solid.bolt
-                , caption = t shared.language i18nBlitz
+                , caption = t i18nBlitz
                 , event = SetSpeedSetting Blitz
                 , selected = model.speedSetting == Blitz
                 }
@@ -335,13 +335,13 @@ setupOnlineMatchUi shared model =
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.frog
-                , caption = t shared.language i18nRapid
+                , caption = t i18nRapid
                 , event = SetSpeedSetting Rapid
                 , selected = model.speedSetting == Rapid
                 }
             , speedButton
                 { buttonIcon = Solid.couch
-                , caption = t shared.language i18nRelaxed
+                , caption = t i18nRelaxed
                 , event = SetSpeedSetting Relaxed
                 , selected = model.speedSetting == Relaxed
                 }
@@ -349,7 +349,7 @@ setupOnlineMatchUi shared model =
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.wrench
-                , caption = t shared.language i18nCustom
+                , caption = t i18nCustom
                 , event =
                     SetSpeedSetting
                         (intoCustomSpeedSetting model.speedSetting
@@ -360,7 +360,7 @@ setupOnlineMatchUi shared model =
                 }
             , speedButton
                 { buttonIcon = Solid.dove
-                , caption = t shared.language i18nNoTimer
+                , caption = t i18nNoTimer
                 , event = SetSpeedSetting NoTimer
                 , selected = model.speedSetting == NoTimer
                 }
@@ -368,7 +368,7 @@ setupOnlineMatchUi shared model =
         , timeLimitInputLabel shared model
         , bigRoundedButton (Element.rgb255 200 210 200)
             (Just CreateMatch)
-            [ Element.text (t shared.language i18nCreateMatch) ]
+            [ Element.text (t i18nCreateMatch) ]
         ]
 
 
@@ -404,7 +404,7 @@ timeLimitLabelOnly : Shared.Model -> Model -> Element Msg
 timeLimitLabelOnly shared model =
     let
         ( m, s, i ) =
-            t shared.language i18nChoosenTimeLimit
+            t i18nChoosenTimeLimit
     in
     case intoCustomSpeedSetting model.speedSetting of
         Just { minutes, seconds, increment } ->
@@ -417,14 +417,14 @@ timeLimitLabelOnly shared model =
                     ++ i
 
         Nothing ->
-            Element.text (t shared.language i18nPlayWithoutTimeLimit)
+            Element.text (t i18nPlayWithoutTimeLimit)
 
 
 timeLimitInputCustom : Shared.Model -> Model -> Element Msg
 timeLimitInputCustom shared model =
     let
         ( m, s, i ) =
-            t shared.language i18nChoosenTimeLimit
+            t i18nChoosenTimeLimit
     in
     Element.wrappedRow []
         [ Input.text [ width (Element.px 60) ]
@@ -442,16 +442,16 @@ timeLimitInputCustom shared model =
 joinOnlineMatchUi : Shared.Model -> Model -> Element Msg
 joinOnlineMatchUi shared model =
     box (Element.rgb255 220 220 230)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text (t shared.language i18nIGotAnInvite))
+        [ Element.el [ centerX, Font.size 30 ] (Element.text (t i18nIGotAnInvite))
         , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
             { onChange = SetRawMatchId
             , text = model.rawMatchId
-            , placeholder = Just (Input.placeholder [] (Element.text (t shared.language i18nEnterMatchId)))
-            , label = Input.labelLeft [ centerY ] (Element.text (t shared.language i18nMatchId))
+            , placeholder = Just (Input.placeholder [] (Element.text (t i18nEnterMatchId)))
+            , label = Input.labelLeft [ centerY ] (Element.text (t i18nMatchId))
             }
         , bigRoundedButton (Element.rgb255 200 200 210)
             (Just JoinMatch)
-            [ Element.text (t shared.language i18nJoinGame) ]
+            [ Element.text (t i18nJoinGame) ]
         ]
 
 
@@ -471,17 +471,17 @@ recentGamesList shared model data =
         RemoteData.NotAsked ->
             Input.button [ padding 10 ]
                 { onPress = Just RefreshRecentGames
-                , label = Element.text (t shared.language i18nRecentSearchNotAsked)
+                , label = Element.text (t i18nRecentSearchNotAsked)
                 }
 
         RemoteData.Loading ->
             Element.el [ padding 10 ]
-                (Element.text (t shared.language i18nRecentSearchLoading))
+                (Element.text (t i18nRecentSearchLoading))
 
         RemoteData.Failure _ ->
             Input.button [ padding 10 ]
                 { onPress = Just RefreshRecentGames
-                , label = Element.text (t shared.language i18nRecentSearchError)
+                , label = Element.text (t i18nRecentSearchError)
                 }
 
         RemoteData.Success games ->
@@ -493,13 +493,13 @@ recentGamesListSuccess shared model games =
     if List.isEmpty games then
         Input.button [ padding 10 ]
             { onPress = Just RefreshRecentGames
-            , label = Element.text (t shared.language i18nRecentSearchNoGames)
+            , label = Element.text (t i18nRecentSearchNoGames)
             }
 
     else
         Element.wrappedRow [ width fill, spacing 5 ]
-            (List.map (lazy2 recentGamesListSuccessOne shared.language) games
-                ++ [ refreshButton (t shared.language i18nRecentSearchRefresh) ]
+            (List.map (lazy recentGamesListSuccessOne) games
+                ++ [ refreshButton (t i18nRecentSearchRefresh) ]
             )
 
 
@@ -520,8 +520,8 @@ refreshButton caption =
         }
 
 
-recentGamesListSuccessOne : Language -> CurrentMatchState -> Element msg
-recentGamesListSuccessOne lang matchState =
+recentGamesListSuccessOne : CurrentMatchState -> Element msg
+recentGamesListSuccessOne matchState =
     let
         position =
             Sako.initialPosition
@@ -532,7 +532,7 @@ recentGamesListSuccessOne lang matchState =
                 |> Element.el [ width (px 150), height (px 150) ]
 
         gameKeyLabel =
-            Element.el [ centerX ] (Element.text (t lang i18nMatch ++ " " ++ matchState.key))
+            Element.el [ centerX ] (Element.text (t i18nMatch ++ " " ++ matchState.key))
     in
     Element.link
         [ padding 10

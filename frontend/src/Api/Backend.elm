@@ -21,7 +21,6 @@ the server api.
 
 import Api.Decoders exposing (CurrentMatchState, decodeMatchState)
 import Http exposing (Error)
-import I18n.Strings exposing (Language(..))
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -29,6 +28,7 @@ import Sako
 import SaveState exposing (SaveState(..), saveStateId)
 import Time exposing (Posix)
 import Timer
+import Translations exposing (Language(..))
 
 
 {-| When calling a server method, you need to specify how errors are handled and

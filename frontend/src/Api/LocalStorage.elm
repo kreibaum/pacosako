@@ -23,7 +23,6 @@ The format is:
 
 -}
 
-import I18n.Strings exposing (Language(..), decodeLanguage, encodeLanguage)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
@@ -156,7 +155,7 @@ type alias Data =
 
 defaultData : Data
 defaultData =
-    { username = "", language = English }
+    { username = "" }
 
 
 latestVersion : Int
@@ -170,7 +169,6 @@ encodeData : Data -> Value
 encodeData data =
     Encode.object
         [ ( "username", Encode.string data.username )
-        , ( "language", encodeLanguage data.language )
         ]
 
 
@@ -201,7 +199,6 @@ censor permissions data =
 
 type alias DataV1 =
     { username : String
-    , language : Language
     }
 
 
@@ -221,9 +218,8 @@ censorUser permissions data =
 
 decodeDataV1 : Decoder DataV1
 decodeDataV1 =
-    Decode.map2 DataV1
+    Decode.map DataV1
         (Decode.field "username" Decode.string)
-        (Decode.field "language" decodeLanguage)
 
 
 

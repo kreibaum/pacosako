@@ -22,7 +22,7 @@ import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
-import I18n.Strings as I18n exposing (I18nToken(..), Language(..), t)
+import I18n.Strings as I18n exposing (I18nToken(..), t)
 import Json.Decode as Decode
 import List.Extra as List
 import Maybe.Extra as Maybe
@@ -572,7 +572,7 @@ keybindings =
 
 view : Shared.Model -> Model -> View Msg
 view shared model =
-    { title = t shared.language i18nTitle
+    { title = t i18nTitle
     , element = Header.wrapWithHeader shared ToShared (playUi shared model)
     }
 
@@ -826,15 +826,15 @@ sidebar shared model =
         [ gameCodeLabel shared model model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
             (Just Rollback)
-            [ Element.text (t shared.language i18nRestartMove) ]
+            [ Element.text (t i18nRestartMove) ]
             |> Element.el [ width fill ]
         , maybePromotionButtons shared model model.currentState.legalActions
         , maybeVictoryStateInfo shared model model.currentState.gameState
         , maybeReplayLink shared model
         , Element.el [ padding 10 ] Element.none
-        , CastingDeco.configView shared.language castingDecoMessages model.inputMode model.castingDeco
+        , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
         , Element.el [ padding 10 ] Element.none
-        , Element.text (t shared.language i18nPlayAs)
+        , Element.text (t i18nPlayAs)
         , rotationButtons shared model model.rotation
         , Element.el [ padding 10 ] Element.none
         , playerNamesInput shared model
@@ -871,7 +871,7 @@ gameCodeLabel shared model subscription =
             Element.column [ width fill, spacing 5 ]
                 [ Components.gameIdBadgeBig id
                 , Element.row [ width fill, height fill ]
-                    [ btn (t shared.language i18nCopyToClipboard)
+                    [ btn (t i18nCopyToClipboard)
                         |> withSmallIcon Regular.clipboard
                         |> withMsg (CopyToClipboard (Url.toString model.gameUrl))
                         |> withStyle (width fill)
@@ -880,7 +880,7 @@ gameCodeLabel shared model subscription =
                 ]
 
         Nothing ->
-            Element.text (t shared.language i18nNotConnected)
+            Element.text (t i18nNotConnected)
 
 
 maybePromotionButtons : Shared.Model -> Model -> List Sako.Action -> Element Msg
@@ -943,29 +943,29 @@ maybeVictoryStateInfo shared model victoryState =
 
         Sako.PacoVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoWhite))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoWhite))
                 ]
 
         Sako.PacoVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoBlack))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoBlack))
                 ]
 
         Sako.TimeoutVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoWhite))
-                , Element.el [ Font.size 20, centerX ] (Element.text (t shared.language i18nTimeout))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoWhite))
+                , Element.el [ Font.size 20, centerX ] (Element.text (t i18nTimeout))
                 ]
 
         Sako.TimeoutVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nPacoBlack))
-                , Element.el [ Font.size 20, centerX ] (Element.text (t shared.language i18nTimeout))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoBlack))
+                , Element.el [ Font.size 20, centerX ] (Element.text (t i18nTimeout))
                 ]
 
         Sako.NoProgressDraw ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t shared.language i18nDraw))
+                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nDraw))
                 ]
 
 
@@ -983,7 +983,7 @@ maybeReplayLink shared model =
                     (\key ->
                         Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
                             { url = Route.toHref (Route.Replay__Id_ { id = key })
-                            , label = Element.text (t shared.language i18nWatchReplay)
+                            , label = Element.text (t i18nWatchReplay)
                             }
                     )
                 |> Maybe.withDefault Element.none
@@ -1020,8 +1020,8 @@ distributeSeconds seconds =
 rotationButtons : Shared.Model -> Model -> BoardRotation -> Element Msg
 rotationButtons shared model rotation =
     Element.row [ spacing 5 ]
-        [ rotationButton WhiteBottom rotation (t shared.language i18nWhite)
-        , rotationButton BlackBottom rotation (t shared.language i18nBlack)
+        [ rotationButton WhiteBottom rotation (t i18nWhite)
+        , rotationButton BlackBottom rotation (t i18nBlack)
         ]
 
 
@@ -1037,13 +1037,13 @@ playerNamesInput : Shared.Model -> Model -> Element Msg
 playerNamesInput shared model =
     let
         whitePlayerName =
-            Element.text (t shared.language i18nWhitePlayerName)
+            Element.text (t i18nWhitePlayerName)
 
         blackPlayerName =
-            Element.text (t shared.language i18nBlackPlayerName)
+            Element.text (t i18nBlackPlayerName)
     in
     Element.column [ spacing 5 ]
-        [ Element.text (t shared.language i18nPlayerNamesForStreaming)
+        [ Element.text (t i18nPlayerNamesForStreaming)
         , Input.text []
             { onChange = SetWhiteName
             , text = model.whiteName

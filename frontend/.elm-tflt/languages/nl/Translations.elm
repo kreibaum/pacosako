@@ -1,7 +1,11 @@
-module Translations exposing (bishop, compiledLanguage, king, knight, pawn, queen, rook)
+module Translations exposing (bishop, compiledLanguage, king, knight, pawn, queen, rook, Language(..))
 
-import I18n.Strings exposing (Language(..))
-
+{-| List of all supported languages. Default language is english.
+-}
+type Language
+    = English
+    | Dutch
+    | Esperanto
 
 compiledLanguage : Language
 compiledLanguage =

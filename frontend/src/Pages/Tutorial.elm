@@ -7,10 +7,11 @@ import Element.Font as Font
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
 import Header
-import I18n.Strings as I18n exposing (I18nToken, Language(..), t)
+import I18n.Strings as I18n exposing (I18nToken, t)
 import Page
 import Request exposing (Request)
 import Shared
+import Translations exposing (Language(..))
 import View exposing (View)
 
 
@@ -67,9 +68,9 @@ subscriptions _ =
 
 view : Shared.Model -> Model -> View Msg
 view shared _ =
-    { title = t shared.language I18n.tutorialPageTitle
+    { title = t I18n.tutorialPageTitle
     , element =
-        (case shared.language of
+        (case Translations.compiledLanguage of
             English ->
                 textPageWrapper englishTutorial
 
@@ -104,11 +105,11 @@ dutchTutorial lang =
 tutorialPageInner : Language -> Element msg
 tutorialPageInner lang =
     Element.column [ width (fill |> maximum 1000), centerX, padding 30, spacing 10 ]
-        [ t lang I18n.tutorialHeader
+        [ t I18n.tutorialHeader
             |> text
             |> el [ Font.size 40, centerX ]
         , paragraph []
-            [ t lang I18n.tutorialSummary |> text ]
+            [ t I18n.tutorialSummary |> text ]
         , oneVideo lang I18n.tutorialSetup
         , oneVideo lang I18n.tutorialMovement
         , oneVideo lang I18n.tutorialFourPacoSakoRules
@@ -126,7 +127,7 @@ oneVideo : Language -> I18nToken ( String, Maybe String ) -> Element msg
 oneVideo lang token =
     let
         ( caption, link ) =
-            t lang token
+            t token
     in
     grayBox
         [ text caption |> el [ Font.size 25 ]
@@ -143,7 +144,7 @@ oneVideo lang token =
 
             Nothing ->
                 paragraph []
-                    [ t lang I18n.tutorialNoVideo |> text ]
+                    [ t I18n.tutorialNoVideo |> text ]
         ]
 
 

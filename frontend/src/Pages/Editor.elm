@@ -1016,7 +1016,7 @@ maybeEditorUi shared model =
     case model.query of
         QueryError ->
             Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-                { url = Route.toHref Route.Editor, label = Element.text (t shared.language i18nPageNotFound) }
+                { url = Route.toHref Route.Editor, label = Element.text (t i18nPageNotFound) }
 
         _ ->
             editorUi shared model
@@ -1274,7 +1274,7 @@ sidebar shared model =
          , addPieceButtons Sako.White "White:" model.smartTool
          , addPieceButtons Sako.Black "Black:" model.smartTool
          , colorSchemeConfig model
-         , CastingDeco.configView shared.language castingDecoMessages model.inputMode model.castingDeco
+         , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
          , analysisResult model
          ]
             ++ exportOptions

@@ -16,7 +16,7 @@ import Arrow exposing (Arrow)
 import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf)
 import Custom.Events exposing (BoardMousePosition)
 import Element exposing (Element, spacing)
-import I18n.Strings exposing (I18nToken(..), Language, t)
+import I18n.Strings exposing (I18nToken(..), t)
 import List.Extra as List
 import Sako exposing (Tile)
 
@@ -173,68 +173,68 @@ type alias Messages msg =
 
 {-| Input element where you can manage the casting deco.
 -}
-configView : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
-configView lang messages mode model =
+configView : Messages msg -> Maybe InputMode -> Model -> Element msg
+configView messages mode model =
     Element.column [ spacing 5 ]
-        [ normalInputModeButton lang messages mode
-        , tileInputMode lang messages mode model
-        , arrowInputMode lang messages mode model
+        [ normalInputModeButton messages mode
+        , tileInputMode messages mode model
+        , arrowInputMode messages mode model
         ]
 
 
-normalInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
-normalInputModeButton lang messages mode =
-    btn (t lang i18nNormalMode)
+normalInputModeButton : Messages msg -> Maybe InputMode -> Element msg
+normalInputModeButton messages mode =
+    btn (t i18nNormalMode)
         |> withMsg (messages.setInputMode Nothing)
         |> isSelectedIf (mode == Nothing)
         |> viewButton
 
 
-tileInputMode : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
-tileInputMode lang messages mode model =
+tileInputMode : Messages msg -> Maybe InputMode -> Model -> Element msg
+tileInputMode messages mode model =
     Element.row [ spacing 5 ]
-        [ tileInputModeButton lang messages mode
-        , tileInputClearButton lang messages model
+        [ tileInputModeButton messages mode
+        , tileInputClearButton messages model
         ]
 
 
-tileInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
-tileInputModeButton lang messages mode =
-    btn (t lang i18nHighlight)
+tileInputModeButton : Messages msg -> Maybe InputMode -> Element msg
+tileInputModeButton messages mode =
+    btn (t i18nHighlight)
         |> withMsg (messages.setInputMode (Just InputTiles))
         |> withMsgIf (mode == Just InputTiles) (messages.setInputMode Nothing)
         |> isSelectedIf (mode == Just InputTiles)
         |> viewButton
 
 
-tileInputClearButton : Language -> Messages msg -> Model -> Element msg
-tileInputClearButton lang messages model =
-    btn (t lang i18nClearHighlight)
+tileInputClearButton : Messages msg -> Model -> Element msg
+tileInputClearButton messages model =
+    btn (t i18nClearHighlight)
         |> withMsgIf (not <| List.isEmpty model.tiles) messages.clearTiles
         |> isEnabledIf (not <| List.isEmpty model.tiles)
         |> viewButton
 
 
-arrowInputMode : Language -> Messages msg -> Maybe InputMode -> Model -> Element msg
-arrowInputMode lang messages mode model =
+arrowInputMode : Messages msg -> Maybe InputMode -> Model -> Element msg
+arrowInputMode messages mode model =
     Element.row [ spacing 5 ]
-        [ arrowInputModeButton lang messages mode
-        , arrowInputClearButton lang messages model
+        [ arrowInputModeButton messages mode
+        , arrowInputClearButton messages model
         ]
 
 
-arrowInputModeButton : Language -> Messages msg -> Maybe InputMode -> Element msg
-arrowInputModeButton lang messages mode =
-    btn (t lang i18nArrows)
+arrowInputModeButton : Messages msg -> Maybe InputMode -> Element msg
+arrowInputModeButton messages mode =
+    btn (t i18nArrows)
         |> withMsg (messages.setInputMode (Just InputArrows))
         |> withMsgIf (mode == Just InputArrows) (messages.setInputMode Nothing)
         |> isSelectedIf (mode == Just InputArrows)
         |> viewButton
 
 
-arrowInputClearButton : Language -> Messages msg -> Model -> Element msg
-arrowInputClearButton lang messages model =
-    btn (t lang i18nClearArrows)
+arrowInputClearButton : Messages msg -> Model -> Element msg
+arrowInputClearButton messages model =
+    btn (t i18nClearArrows)
         |> withMsgIf (not <| List.isEmpty model.arrows) messages.clearArrows
         |> isEnabledIf (not <| List.isEmpty model.arrows)
         |> viewButton

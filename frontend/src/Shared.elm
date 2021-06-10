@@ -14,11 +14,11 @@ import Api.Ports
 import Browser.Events
 import Browser.Navigation exposing (Key)
 import Http
-import I18n.Strings exposing (Language)
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Encode exposing (Value)
 import Request exposing (Request)
 import Time exposing (Posix)
+import Translations exposing (Language(..))
 import Url exposing (Url)
 
 
@@ -31,7 +31,6 @@ type alias Model =
     , key : Key
     , windowSize : ( Int, Int )
     , user : Maybe User
-    , language : Language
 
     -- Even when not logged in, you can set a username that is shown to other
     -- people sharing a game with you.
@@ -69,7 +68,6 @@ init { url, key } flags =
       , key = key
       , windowSize = parseWindowSize flags
       , user = Nothing
-      , language = ls.data.language
       , username = ls.data.username
       , permissions = ls.permissions
       , now = parseNow flags
@@ -138,15 +136,8 @@ update _ msg model =
 
 setLanguage : Language -> Model -> ( Model, Cmd Msg )
 setLanguage lang model =
-    let
-        newModel =
-            { model | language = lang }
-    in
-    ( newModel
-    , Cmd.batch
-        [ triggerSaveLocalStorage newModel
-        , Api.Backend.postLanguage lang HttpError (\() -> TriggerReload)
-        ]
+    ( model
+    , Api.Backend.postLanguage lang HttpError (\() -> TriggerReload)
     )
 
 
@@ -162,7 +153,7 @@ userHidesGamesArePublicHint model =
 triggerSaveLocalStorage : Model -> Cmd msg
 triggerSaveLocalStorage model =
     LocalStorage.store
-        { data = { username = model.username, language = model.language }
+        { data = { username = model.username }
         , permissions = model.permissions
         }
 

@@ -1,6 +1,5 @@
 module I18n.Strings exposing
     ( I18nToken(..)
-    , Language(..)
     , decodeLanguage
     , encodeLanguage
     , gamesArePublicHint
@@ -30,14 +29,7 @@ module I18n.Strings exposing
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
-
-
-{-| List of all supported languages. Default language is english.
--}
-type Language
-    = English
-    | Dutch
-    | Esperanto
+import Translations exposing (Language(..))
 
 
 encodeLanguage : Language -> Value
@@ -98,9 +90,9 @@ possible as well:
     (t model.lang I18n.flag) : Svg msg
 
 -}
-t : Language -> I18nToken a -> a
-t lang (I18nToken token) =
-    case lang of
+t : I18nToken a -> a
+t (I18nToken token) =
+    case Translations.compiledLanguage of
         English ->
             token.english
 

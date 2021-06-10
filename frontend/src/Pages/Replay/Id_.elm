@@ -504,7 +504,6 @@ sidebar shared model replay =
         , rematchLink shared model
         , actionList model replay
         , CastingDeco.configView
-            shared.language
             { setInputMode = SetInputMode
             , clearTiles = ClearDecoTiles
             , clearArrows = ClearDecoArrows
@@ -529,7 +528,7 @@ editorLink : Shared.Model -> Model -> Element msg
 editorLink shared model =
     Element.link [ Font.underline, Font.color (Element.rgb 0 0 1) ]
         { url = Route.toHref Route.Editor ++ "?game=" ++ model.key ++ "&action=" ++ String.fromInt model.actionCount
-        , label = Element.text (t shared.language i18nShowInEditor)
+        , label = Element.text (t i18nShowInEditor)
         }
 
 
@@ -537,7 +536,7 @@ rematchLink : Shared.Model -> Model -> Element Msg
 rematchLink shared model =
     Input.button [ Font.underline, Font.color (Element.rgb 0 0 1) ]
         { onPress = Just <| RematchFromActionIndex model.key model.actionCount
-        , label = Element.text (t shared.language i18nRematchFromHere)
+        , label = Element.text (t i18nRematchFromHere)
         }
 
 
