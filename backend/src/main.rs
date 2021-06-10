@@ -59,11 +59,17 @@ struct UseMinJs {
 
 /// If the server is running in development mode, we are returning the regular
 /// elm.js file. In staging and production we are returning the minified
-/// version of it.
+/// version of it. Here we also need to make sure that we pick the correct
+/// language version.
 #[get("/elm.min.js")]
-async fn elm(config: State<'_, UseMinJs>) -> Result<NamedFile, ServerError> {
+async fn elm(
+    config: State<'_, UseMinJs>,
+    lang: language::UserLanguage,
+) -> Result<NamedFile, ServerError> {
     if config.use_min_js {
-        static_file("../target/elm.min.js").await
+        let filename =
+            language::get_static_language_file(&lang.0).unwrap_or("../target/elm.en.min.js");
+        static_file(filename).await
     } else {
         static_file("../target/elm.js").await
     }

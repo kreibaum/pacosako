@@ -40,6 +40,7 @@ import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Timer
+import Translations as T
 import Url
 import Url.Parser exposing (query)
 import View exposing (View)
@@ -911,24 +912,24 @@ promotionButtons shared model =
             [ bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Queen)))
                 [ icon [ centerX ] Solid.chessQueen
-                , Element.el [ centerX ] (Element.text (t shared.language I18n.queen))
+                , Element.el [ centerX ] (Element.text T.queen)
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Knight)))
                 [ icon [ centerX ] Solid.chessKnight
-                , Element.el [ centerX ] (Element.text (t shared.language I18n.knight))
+                , Element.el [ centerX ] (Element.text T.knight)
                 ]
             ]
         , Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Rook)))
                 [ icon [ centerX ] Solid.chessRook
-                , Element.el [ centerX ] (Element.text (t shared.language I18n.rook))
+                , Element.el [ centerX ] (Element.text T.rook)
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
                 (Just (ActionInputStep (Sako.Promote Sako.Bishop)))
                 [ icon [ centerX ] Solid.chessBishop
-                , Element.el [ centerX ] (Element.text (t shared.language I18n.bishop))
+                , Element.el [ centerX ] (Element.text T.bishop)
                 ]
             ]
         ]

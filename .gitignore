@@ -13,6 +13,7 @@ lib/Cargo.lock
 /frontend/elm-stuff/
 .elm-spa
 /target/
+frontend/.elm-tflt/linked/
 
 # Server log
 /backend/server.log

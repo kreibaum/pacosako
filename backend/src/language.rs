@@ -31,6 +31,42 @@ pub async fn set_user_language<'r>(language: String, jar: &CookieJar<'_>) -> () 
     jar.add(Cookie::new(LANGUAGE_COOKIE_NAME, language));
 }
 
+pub fn get_static_language_file(lang: &str) -> Option<&'static str> {
+    match lang {
+        "en" => Some("../target/elm.en.min.js"),
+        "nl" => Some("../target/elm.nl.min.js"),
+        "eo" => Some("../target/elm.eo.min.js"),
+        _ => None,
+    }
+}
+
+/// Request guard that combines the accept-language header & the language cookie.
+pub struct UserLanguage(pub String);
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for UserLanguage {
+    type Error = ();
+
+    async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        if let Some(language_cookie) = req.cookies().get(LANGUAGE_COOKIE_NAME) {
+            let lang = language_cookie.value();
+            if get_static_language_file(lang).is_some() {
+                return request::Outcome::Success(UserLanguage(lang.to_string()));
+            }
+        }
+
+        if let request::Outcome::Success(allowed) = AcceptLanguage::from_request(req).await {
+            for lang in allowed.0 {
+                if get_static_language_file(&lang).is_none() {
+                    return request::Outcome::Success(UserLanguage(lang.to_string()));
+                }
+            }
+        }
+
+        return request::Outcome::Success(UserLanguage("en".to_string()));
+    }
+}
+
 /// Request guard that parses the accept-language header.
 pub struct AcceptLanguage(Vec<String>);
 

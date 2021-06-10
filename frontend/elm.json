@@ -3,7 +3,8 @@
     "source-directories": [
         "src",
         ".elm-spa/defaults",
-        ".elm-spa/generated"
+        ".elm-spa/generated",
+        ".elm-tflt/linked"
     ],
     "elm-version": "0.19.1",
     "dependencies": {

@@ -8,6 +8,7 @@ module Api.Backend exposing
     , getRecentGameKeys
     , getReplay
     , postAnalysePosition
+    , postLanguage
     , postLoginPassword
     , postMatchRequest
     , postRematchFromActionIndex
@@ -20,6 +21,7 @@ the server api.
 
 import Api.Decoders exposing (CurrentMatchState, decodeMatchState)
 import Http exposing (Error)
+import I18n.Strings exposing (Language(..))
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -93,6 +95,32 @@ handle errMsg okMsg result =
 
         Err err ->
             errMsg err
+
+
+
+--------------------------------------------------------------------------------
+-- Handling internationalisation -----------------------------------------------
+--------------------------------------------------------------------------------
+
+
+postLanguage : Language -> Api () msg
+postLanguage lang errMsg okMsg =
+    Http.post
+        { url = "/api/language"
+        , body =
+            Http.stringBody "text/plain"
+                (case lang of
+                    English ->
+                        "en"
+
+                    Dutch ->
+                        "nl"
+
+                    Esperanto ->
+                        "eo"
+                )
+        , expect = Http.expectWhatever (handle errMsg okMsg)
+        }
 
 
 

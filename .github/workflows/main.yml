@@ -88,18 +88,7 @@ jobs:
         run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
 
       - name: Compile Frontend
-        run: |
-          mkdir -p target
-          cp frontend/static/* target/
-          cd frontend
-          elm-spa build
-          elm make src/Main.elm --output=../target/elm.js
-          cd ..
-          # Typescript
-          tsc
-          # Minimize Javascript
-          uglifyjs ./target/elm.js -o ./target/elm.min.js --mangle --compress
-          uglifyjs ./target/main.js -o ./target/main.min.js --mangle --compress
+        run: ./scripts/compile-frontend.sh
 
       - name: Install SQLX-tooling
         uses: actions-rs/install@v0.1

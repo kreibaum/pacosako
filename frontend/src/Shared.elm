@@ -49,6 +49,7 @@ type alias User =
 
 type Msg
     = TriggerSaveLocalStorage
+    | TriggerReload
     | HttpError Http.Error
     | LoginSuccess User
     | LogoutSuccess
@@ -131,6 +132,9 @@ update _ msg model =
         UpdateNow now ->
             ( { model | now = now }, Cmd.none )
 
+        TriggerReload ->
+            ( model, Browser.Navigation.reload )
+
 
 setLanguage : Language -> Model -> ( Model, Cmd Msg )
 setLanguage lang model =
@@ -138,7 +142,12 @@ setLanguage lang model =
         newModel =
             { model | language = lang }
     in
-    ( newModel, triggerSaveLocalStorage newModel )
+    ( newModel
+    , Cmd.batch
+        [ triggerSaveLocalStorage newModel
+        , Api.Backend.postLanguage lang HttpError (\() -> TriggerReload)
+        ]
+    )
 
 
 userHidesGamesArePublicHint : Model -> ( Model, Cmd Msg )

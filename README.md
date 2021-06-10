@@ -43,3 +43,19 @@ To run an example, just execute `cargo run`.
 To build the webassembler file from the library run `wasm-pack build`.
 
 See https://rustwasm.github.io/docs/book/game-of-life/hello-world.html for details on wasm.
+
+## Working on translations
+
+Currently the translations are not integrated into the live reloading
+development server. You can set the language you see the UI in by going into
+the `frontend` folder and copying the right language version into position:
+
+    # English
+    cp ./.elm-tflt/languages/en/Translations.elm ./.elm-tflt/linked/Translations.elm
+    # Dutch
+    cp ./.elm-tflt/languages/nl/Translations.elm ./.elm-tflt/linked/Translations.elm
+    # Esperanto
+    cp ./.elm-tflt/languages/eo/Translations.elm ./.elm-tflt/linked/Translations.elm
+
+Once you copy this the dev server should pick up the change and recompile the
+frontend for you.
