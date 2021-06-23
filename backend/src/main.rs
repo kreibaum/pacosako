@@ -12,7 +12,6 @@ extern crate rocket_contrib;
 extern crate log;
 extern crate simplelog;
 use crate::ws::RocketToWsMsg;
-use async_std::task;
 use db::Pool;
 use pacosako::{DenseBoard, SakoSearchResult};
 use rand::{thread_rng, Rng};
@@ -474,7 +473,7 @@ fn websocket_port(port: State<WebsocketPort>) -> Json<u16> {
 }
 
 /// Initialize the database Pool and register it as a Rocket state.
-fn init_database_pool(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Build> {
+async fn init_database_pool(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Build> {
     info!("Creating database pool");
     // If there is no database specified, the server is allowed to just
     // crash. This is why we can "safely" unwrap.
@@ -483,7 +482,20 @@ fn init_database_pool(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Build> {
         .extract()
         .expect("Config could not be parsed");
 
-    let pool = task::block_on(db::Pool::new(&config.database_path)).unwrap();
+    let pool = db::Pool::new(&config.database_path)
+        .await
+        .expect("Pool can't be created.");
+
+    // Apply all pending database migrations. (Important for automated updates)
+    info!("Starting database migrations (if neccessary)");
+    let migration_result = sqlx::migrate!().run(&pool.0).await;
+    if let Err(migration_error) = migration_result {
+        panic!(
+            "Migration error when starting the server: {:?}",
+            migration_error
+        );
+    }
+    info!("Database migrated successfully.");
 
     rocket.manage(pool)
 }
@@ -522,7 +534,7 @@ fn rocket() -> _ {
     // the different stages like that.
     rocket::build()
         .attach(AdHoc::on_ignite("Database Pool", |rocket| {
-            Box::pin(async move { init_database_pool(rocket) })
+            init_database_pool(rocket)
         }))
         .attach(AdHoc::on_ignite("Websocket Server", |rocket| {
             Box::pin(async move { init_new_websocket_server(rocket) })
