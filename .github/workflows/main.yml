@@ -89,8 +89,10 @@ jobs:
 
       - name: Install pytrans.py
         run: |
-          curl -L -o frontend/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.1/pytrans.py
-          chmod +x frontend/pytrans.py
+          mkdir -p $GITHUB_WORKSPACE/bin
+          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
+          curl -L -o $GITHUB_WORKSPACE/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.1/pytrans.py
+          chmod +x $GITHUB_WORKSPACE/bin/pytrans.py
 
       - name: Compile Frontend
         run: ./scripts/compile-frontend.sh
