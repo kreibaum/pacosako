@@ -54,11 +54,13 @@ development server. You can set the language you see the UI in by going into
 the `frontend` folder and copying the right language version into position:
 
     # English
-    cp ./.elm-tflt/languages/en/Translations.elm ./.elm-tflt/linked/Translations.elm
+    pytrans.py English
     # Dutch
-    cp ./.elm-tflt/languages/nl/Translations.elm ./.elm-tflt/linked/Translations.elm
+    pytrans.py Dutch
     # Esperanto
-    cp ./.elm-tflt/languages/eo/Translations.elm ./.elm-tflt/linked/Translations.elm
+    pytrans.py Esperanto
+    # Once you have choosen a language it is remembered any you can rebuild using
+    pytrans.py
 
 Once you copy this the dev server should pick up the change and recompile the
 frontend for you.
