@@ -87,6 +87,11 @@ jobs:
       - name: Install Elm
         run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
 
+      - name: Install pytrans.py
+        run: |
+          curl -L -o frontend/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.1/pytrans.py
+          chmod +x frontend/pytrans.py
+
       - name: Compile Frontend
         run: ./scripts/compile-frontend.sh
 

@@ -1,0 +1,8 @@
+{
+    "pawn": "Pawn",
+    "rook": "Rook",
+    "knight": "Knight",
+    "bishop": "Bishop",
+    "queen": "Queen",
+    "king": "King"
+}

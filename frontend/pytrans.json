@@ -1,0 +1,9 @@
+{
+    "mainLanguage": "English",
+    "inputFolder": "i18n",
+    "output" : ".elm-i18n/Translations.elm",
+    "translatedTo": [
+        "Dutch",
+        "Esperanto"
+    ]
+}

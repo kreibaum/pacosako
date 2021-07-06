@@ -1,0 +1,8 @@
+{
+    "pawn": "Pion",
+    "rook": "Toren",
+    "knight": "Paard",
+    "bishop": "Loper",
+    "queen": "Dame",
+    "king": "Koning"
+}

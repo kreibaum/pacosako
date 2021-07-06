@@ -1,0 +1,8 @@
+{
+    "pawn": "Peono",
+    "rook": "Turo",
+    "knight": "Ĉevalo",
+    "bishop": "Kuriero",
+    "queen": "Damo",
+    "king": "Reĝo"
+}

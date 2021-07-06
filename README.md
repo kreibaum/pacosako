@@ -18,7 +18,10 @@ you make changes to rust code. The frontend is already recompiled automatically.
 ## Running without Gitpod
 
 If you want to run the development environment locally, you will need to have
-Rust, Elm and [elm-live](https://elm-live.com) installed. Then you run
+Rust, Elm and [elm-live](https://elm-live.com) installed.
+You also need the lastest version of [pytrans.py](https://github.com/kreibaum/pytrans.py/releases) on your path.
+
+Then you run
 
     # Initialize target directory, copy static files
     ./gitpod-init.sh
