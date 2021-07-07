@@ -3,11 +3,19 @@
 # This takes care of the workspace setup for you and will have already run
 # for all prebuild workspaces.
 
+# Setup pytrans.py
+mkdir -p /home/gitpod/bin
+curl -L -o /home/gitpod/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.1/pytrans.py
+chmod +x /home/gitpod/bin/pytrans.py
+export PATH="/home/gitpod/bin:$PATH"
+echo "export PATH="/home/gitpod/bin:$PATH"" >> ~/.bashrc
+
 # Prepare target directory, prebuild frontend
 echo Prebuild of elm frontend
 mkdir -p target
 cp frontend/static/* target/
 cd frontend
+pytrans.py
 elm-spa build
 elm make src/Main.elm --output=../target/elm.js
 cd ..
