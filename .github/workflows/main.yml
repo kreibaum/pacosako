@@ -86,16 +86,22 @@ jobs:
 
       - name: Install Elm
         run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
-
+        
+      - name: Setup Python
+        uses: actions/setup-python@v2.2.2
+  
       - name: Install pytrans.py
         run: |
           mkdir -p $GITHUB_WORKSPACE/bin
           export PATH="$GITHUB_WORKSPACE/bin:$PATH"
           curl -L -o $GITHUB_WORKSPACE/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.1/pytrans.py
           chmod +x $GITHUB_WORKSPACE/bin/pytrans.py
+          ls $GITHUB_WORKSPACE/bin
 
       - name: Compile Frontend
-        run: ./scripts/compile-frontend.sh
+        run: |
+          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
+          ./scripts/compile-frontend.sh
 
       - name: Install SQLX-tooling
         uses: actions-rs/install@v0.1
