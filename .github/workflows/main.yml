@@ -99,7 +99,9 @@ jobs:
           ls $GITHUB_WORKSPACE/bin
 
       - name: Compile Frontend
-        run: ./scripts/compile-frontend.sh
+        run: |
+          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
+          ./scripts/compile-frontend.sh
 
       - name: Install SQLX-tooling
         uses: actions-rs/install@v0.1
