@@ -16,9 +16,9 @@ import Arrow exposing (Arrow)
 import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf)
 import Custom.Events exposing (BoardMousePosition)
 import Element exposing (Element, spacing)
-import I18n.Strings exposing (I18nToken(..), t)
 import List.Extra as List
 import Sako exposing (Tile)
+import Translations as T
 
 
 type alias Model =
@@ -184,7 +184,7 @@ configView messages mode model =
 
 normalInputModeButton : Messages msg -> Maybe InputMode -> Element msg
 normalInputModeButton messages mode =
-    btn (t i18nNormalMode)
+    btn T.decoNormalMode
         |> withMsg (messages.setInputMode Nothing)
         |> isSelectedIf (mode == Nothing)
         |> viewButton
@@ -200,7 +200,7 @@ tileInputMode messages mode model =
 
 tileInputModeButton : Messages msg -> Maybe InputMode -> Element msg
 tileInputModeButton messages mode =
-    btn (t i18nHighlight)
+    btn T.decoHighlight
         |> withMsg (messages.setInputMode (Just InputTiles))
         |> withMsgIf (mode == Just InputTiles) (messages.setInputMode Nothing)
         |> isSelectedIf (mode == Just InputTiles)
@@ -209,7 +209,7 @@ tileInputModeButton messages mode =
 
 tileInputClearButton : Messages msg -> Model -> Element msg
 tileInputClearButton messages model =
-    btn (t i18nClearHighlight)
+    btn T.decoClearHighlight
         |> withMsgIf (not <| List.isEmpty model.tiles) messages.clearTiles
         |> isEnabledIf (not <| List.isEmpty model.tiles)
         |> viewButton
@@ -225,7 +225,7 @@ arrowInputMode messages mode model =
 
 arrowInputModeButton : Messages msg -> Maybe InputMode -> Element msg
 arrowInputModeButton messages mode =
-    btn (t i18nArrows)
+    btn T.decoArrows
         |> withMsg (messages.setInputMode (Just InputArrows))
         |> withMsgIf (mode == Just InputArrows) (messages.setInputMode Nothing)
         |> isSelectedIf (mode == Just InputArrows)
@@ -234,58 +234,7 @@ arrowInputModeButton messages mode =
 
 arrowInputClearButton : Messages msg -> Model -> Element msg
 arrowInputClearButton messages model =
-    btn (t i18nClearArrows)
+    btn T.decoClearArrows
         |> withMsgIf (not <| List.isEmpty model.arrows) messages.clearArrows
         |> isEnabledIf (not <| List.isEmpty model.arrows)
         |> viewButton
-
-
-
---------------------------------------------------------------------------------
--- I18n Strings ----------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-i18nNormalMode : I18nToken String
-i18nNormalMode =
-    I18nToken
-        { english = "Normal Mode"
-        , dutch = "Normale modus"
-        , esperanto = "Normala reĝimo"
-        }
-
-
-i18nHighlight : I18nToken String
-i18nHighlight =
-    I18nToken
-        { english = "Highlight"
-        , dutch = "Markeer"
-        , esperanto = "Markilo"
-        }
-
-
-i18nClearHighlight : I18nToken String
-i18nClearHighlight =
-    I18nToken
-        { english = "Clear Highlight"
-        , dutch = "Clear Markeer"
-        , esperanto = "Forigi Markiloj"
-        }
-
-
-i18nArrows : I18nToken String
-i18nArrows =
-    I18nToken
-        { english = "Arrows"
-        , dutch = "Pijlen"
-        , esperanto = "Sagoj"
-        }
-
-
-i18nClearArrows : I18nToken String
-i18nClearArrows =
-    I18nToken
-        { english = "Clear Arrows"
-        , dutch = "Clear Pijlen"
-        , esperanto = "Forigi Sagoj"
-        }

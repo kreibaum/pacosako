@@ -21,7 +21,6 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import I18n.Strings exposing (I18nToken(..), t)
 import List.Extra as List
 import Page
 import Pages.NotFound
@@ -32,6 +31,7 @@ import Sako exposing (Color(..))
 import Shared
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
+import Translations as T
 import View exposing (View)
 
 
@@ -500,8 +500,8 @@ sidebar shared model replay =
     Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
         [ Components.gameIdBadgeBig model.key
         , arrowButtons
-        , editorLink shared model
-        , rematchLink shared model
+        , editorLink model
+        , rematchLink model
         , actionList model replay
         , CastingDeco.configView
             { setInputMode = SetInputMode
@@ -524,19 +524,19 @@ arrowButtons =
         ]
 
 
-editorLink : Shared.Model -> Model -> Element msg
-editorLink shared model =
+editorLink : Model -> Element msg
+editorLink model =
     Element.link [ Font.underline, Font.color (Element.rgb 0 0 1) ]
         { url = Route.toHref Route.Editor ++ "?game=" ++ model.key ++ "&action=" ++ String.fromInt model.actionCount
-        , label = Element.text (t i18nShowInEditor)
+        , label = Element.text T.replayShowInEditor
         }
 
 
-rematchLink : Shared.Model -> Model -> Element Msg
-rematchLink shared model =
+rematchLink : Model -> Element Msg
+rematchLink model =
     Input.button [ Font.underline, Font.color (Element.rgb 0 0 1) ]
         { onPress = Just <| RematchFromActionIndex model.key model.actionCount
-        , label = Element.text (t i18nRematchFromHere)
+        , label = Element.text T.replayRematchFromHere
         }
 
 
@@ -723,27 +723,3 @@ isLift action =
 
         _ ->
             False
-
-
-
---------------------------------------------------------------------------------
--- I18n Strings ----------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-i18nShowInEditor : I18nToken String
-i18nShowInEditor =
-    I18nToken
-        { english = "Show in editor"
-        , dutch = "Weergeven in editor"
-        , esperanto = "Montru en desegnilo"
-        }
-
-
-i18nRematchFromHere : I18nToken String
-i18nRematchFromHere =
-    I18nToken
-        { english = "Rematch from here"
-        , dutch = "Rematch vanaf hier"
-        , esperanto = "Revanĉo de ĉi tiam"
-        }

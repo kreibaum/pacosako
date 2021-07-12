@@ -22,7 +22,6 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import I18n.Strings exposing (I18nToken(..), t)
 import Json.Encode as Encode
 import Maybe.Extra as Maybe
 import Page
@@ -36,6 +35,7 @@ import SaveState exposing (SaveState(..), saveStateModify)
 import Shared
 import Svg.Custom as Svg exposing (BoardRotation(..), coordinateOfTile)
 import Time exposing (Posix)
+import Translations as T
 import Url
 import View exposing (View)
 
@@ -1016,7 +1016,7 @@ maybeEditorUi shared model =
     case model.query of
         QueryError ->
             Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-                { url = Route.toHref Route.Editor, label = Element.text (t i18nPageNotFound) }
+                { url = Route.toHref Route.Editor, label = Element.text T.editorPageNotFound }
 
         _ ->
             editorUi shared model
@@ -1547,18 +1547,3 @@ type alias AnalysisReport =
 
     -- TODO: search_result: SakoSearchResult,
     }
-
-
-
---------------------------------------------------------------------------------
--- I18n Strings ----------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-i18nPageNotFound : I18nToken String
-i18nPageNotFound =
-    I18nToken
-        { english = "Page not found. Open empty editor."
-        , dutch = "Pagina niet gevonden. Open lege editor."
-        , esperanto = "Paĝo ne trovita. Malfermu malplenan desegnilon."
-        }

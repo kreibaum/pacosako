@@ -8,10 +8,10 @@ import Element.Input as Input
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Gen.Route as Route exposing (Route)
-import I18n.Strings as I18n exposing (I18nToken(..), t)
+import I18n.Strings as I18n exposing (t)
 import Shared exposing (Msg(..))
 import Svg.Custom
-import Translations exposing (Language(..))
+import Translations as T exposing (Language(..))
 
 
 {-| This module contains the page header.
@@ -33,9 +33,9 @@ wrapWithHeader shared toMsg body =
 pageHeader : Shared.Model -> Element Shared.Msg -> Element Shared.Msg
 pageHeader model additionalHeader =
     Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton Route.Home_ (t i18nPlayPacoSako)
-        , pageHeaderButton Route.Editor (t i18nDesignPuzzles)
-        , pageHeaderButton Route.Tutorial (t i18nTutorial)
+        [ pageHeaderButton Route.Home_ T.headerPlayPacoSako
+        , pageHeaderButton Route.Editor T.headerDesignPuzzles
+        , pageHeaderButton Route.Tutorial T.headerTutorial
         , additionalHeader
         , languageChoice
 
@@ -67,7 +67,7 @@ loginHeaderInfo model login =
                     Element.row [ padding 10, spacing 10 ] [ icon [] Solid.user, Element.text user.username ]
 
                 Nothing ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text (t i18nLogin) ]
+                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text T.headerLogin ]
     in
     Element.link [ Element.alignRight ]
         { url = Route.toHref Route.Login
@@ -111,45 +111,3 @@ languageChoice =
             , label = Svg.Custom.flagEo |> Element.html
             }
         ]
-
-
-
---------------------------------------------------------------------------------
--- I18n Strings ----------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-i18nPlayPacoSako : I18nToken String
-i18nPlayPacoSako =
-    I18nToken
-        { english = "Play Paco Ŝako"
-        , dutch = "Speel Paco Ŝako"
-        , esperanto = "Ludi Paco Ŝako"
-        }
-
-
-i18nDesignPuzzles : I18nToken String
-i18nDesignPuzzles =
-    I18nToken
-        { english = "Design Puzzles"
-        , dutch = "Ontwerp puzzel"
-        , esperanto = "Desegni Puzloj"
-        }
-
-
-i18nTutorial : I18nToken String
-i18nTutorial =
-    I18nToken
-        { english = "Tutorial"
-        , dutch = "Tutorial"
-        , esperanto = "Lernilo"
-        }
-
-
-i18nLogin : I18nToken String
-i18nLogin =
-    I18nToken
-        { english = "Login"
-        , dutch = "Log in"
-        , esperanto = "Ensaluti"
-        }

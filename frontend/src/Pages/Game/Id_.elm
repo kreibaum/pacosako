@@ -22,7 +22,6 @@ import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
-import I18n.Strings as I18n exposing (I18nToken(..), t)
 import Json.Decode as Decode
 import List.Extra as List
 import Maybe.Extra as Maybe
@@ -30,11 +29,9 @@ import Page
 import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
 import Reactive exposing (Device(..))
 import Request
-import Result.Extra as Result
 import Sako exposing (Tile(..))
 import SaveState exposing (SaveState(..))
 import Shared
-import Spa.Url exposing (Url)
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
@@ -572,7 +569,7 @@ keybindings =
 
 view : Shared.Model -> Model -> View Msg
 view shared model =
-    { title = t i18nTitle
+    { title = T.gameTitle
     , element = Header.wrapWithHeader shared ToShared (playUi shared model)
     }
 
@@ -826,7 +823,7 @@ sidebar shared model =
         [ gameCodeLabel shared model model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
             (Just Rollback)
-            [ Element.text (t i18nRestartMove) ]
+            [ Element.text T.gameRestartMove ]
             |> Element.el [ width fill ]
         , maybePromotionButtons shared model model.currentState.legalActions
         , maybeVictoryStateInfo shared model model.currentState.gameState
@@ -834,7 +831,7 @@ sidebar shared model =
         , Element.el [ padding 10 ] Element.none
         , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
         , Element.el [ padding 10 ] Element.none
-        , Element.text (t i18nPlayAs)
+        , Element.text T.gamePlayAs
         , rotationButtons shared model model.rotation
         , Element.el [ padding 10 ] Element.none
         , playerNamesInput shared model
@@ -871,7 +868,7 @@ gameCodeLabel shared model subscription =
             Element.column [ width fill, spacing 5 ]
                 [ Components.gameIdBadgeBig id
                 , Element.row [ width fill, height fill ]
-                    [ btn (t i18nCopyToClipboard)
+                    [ btn T.gameCopyToClipboard
                         |> withSmallIcon Regular.clipboard
                         |> withMsg (CopyToClipboard (Url.toString model.gameUrl))
                         |> withStyle (width fill)
@@ -880,7 +877,7 @@ gameCodeLabel shared model subscription =
                 ]
 
         Nothing ->
-            Element.text (t i18nNotConnected)
+            Element.text T.gameNotConnected
 
 
 maybePromotionButtons : Shared.Model -> Model -> List Sako.Action -> Element Msg
@@ -943,29 +940,29 @@ maybeVictoryStateInfo shared model victoryState =
 
         Sako.PacoVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoWhite))
+                [ Element.el [ Font.size 30, centerX ] (Element.text T.gamePacoWhite)
                 ]
 
         Sako.PacoVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoBlack))
+                [ Element.el [ Font.size 30, centerX ] (Element.text T.gamePacoBlack)
                 ]
 
         Sako.TimeoutVictory Sako.White ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoWhite))
-                , Element.el [ Font.size 20, centerX ] (Element.text (t i18nTimeout))
+                [ Element.el [ Font.size 30, centerX ] (Element.text T.gamePacoWhite)
+                , Element.el [ Font.size 20, centerX ] (Element.text T.gameTimeout)
                 ]
 
         Sako.TimeoutVictory Sako.Black ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nPacoBlack))
-                , Element.el [ Font.size 20, centerX ] (Element.text (t i18nTimeout))
+                [ Element.el [ Font.size 30, centerX ] (Element.text T.gamePacoBlack)
+                , Element.el [ Font.size 20, centerX ] (Element.text T.gameTimeout)
                 ]
 
         Sako.NoProgressDraw ->
             bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
-                [ Element.el [ Font.size 30, centerX ] (Element.text (t i18nDraw))
+                [ Element.el [ Font.size 30, centerX ] (Element.text T.gameDraw)
                 ]
 
 
@@ -983,7 +980,7 @@ maybeReplayLink shared model =
                     (\key ->
                         Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
                             { url = Route.toHref (Route.Replay__Id_ { id = key })
-                            , label = Element.text (t i18nWatchReplay)
+                            , label = Element.text T.gameWatchReplay
                             }
                     )
                 |> Maybe.withDefault Element.none
@@ -1020,8 +1017,8 @@ distributeSeconds seconds =
 rotationButtons : Shared.Model -> Model -> BoardRotation -> Element Msg
 rotationButtons shared model rotation =
     Element.row [ spacing 5 ]
-        [ rotationButton WhiteBottom rotation (t i18nWhite)
-        , rotationButton BlackBottom rotation (t i18nBlack)
+        [ rotationButton WhiteBottom rotation T.gameWhite
+        , rotationButton BlackBottom rotation T.gameBlack
         ]
 
 
@@ -1037,13 +1034,13 @@ playerNamesInput : Shared.Model -> Model -> Element Msg
 playerNamesInput shared model =
     let
         whitePlayerName =
-            Element.text (t i18nWhitePlayerName)
+            Element.text T.gameWhitePlayerName
 
         blackPlayerName =
-            Element.text (t i18nBlackPlayerName)
+            Element.text T.gameBlackPlayerName
     in
     Element.column [ spacing 5 ]
-        [ Element.text (t i18nPlayerNamesForStreaming)
+        [ Element.text T.gamePlayerNamesForStreaming
         , Input.text []
             { onChange = SetWhiteName
             , text = model.whiteName
@@ -1057,144 +1054,3 @@ playerNamesInput shared model =
             , label = Input.labelAbove [] blackPlayerName
             }
         ]
-
-
-
---------------------------------------------------------------------------------
--- I18n Strings ----------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-i18nTitle : I18nToken String
-i18nTitle =
-    I18nToken
-        { english = "Play Paco Ŝako - pacoplay.com"
-        , dutch = "Speel Paco Ŝako - pacoplay.com"
-        , esperanto = "Ludi Paco Ŝako - pacoplay.com"
-        }
-
-
-i18nCopyToClipboard : I18nToken String
-i18nCopyToClipboard =
-    I18nToken
-        { english = "Copy url for a friend"
-        , dutch = "Kopieer de url voor een vriend"
-        , esperanto = "Kopiu url por amikon"
-        }
-
-
-i18nRestartMove : I18nToken String
-i18nRestartMove =
-    I18nToken
-        { english = "Restart move"
-        , dutch = "Herstart verplaatsen"
-        , esperanto = "Rekomenci movon"
-        }
-
-
-i18nPlayAs : I18nToken String
-i18nPlayAs =
-    I18nToken
-        { english = "Play as:"
-        , dutch = "Speel als:"
-        , esperanto = "Ludi kiel:"
-        }
-
-
-i18nNotConnected : I18nToken String
-i18nNotConnected =
-    I18nToken
-        { english = "Not connected"
-        , dutch = "Niet verbonden"
-        , esperanto = "Ne konektita"
-        }
-
-
-i18nPacoWhite : I18nToken String
-i18nPacoWhite =
-    I18nToken
-        { english = "Paco White"
-        , dutch = "Paco Wit"
-        , esperanto = "Paco Blanko"
-        }
-
-
-i18nPacoBlack : I18nToken String
-i18nPacoBlack =
-    I18nToken
-        { english = "Paco Black"
-        , dutch = "Paco Zwart"
-        , esperanto = "Paco Nigro"
-        }
-
-
-i18nDraw : I18nToken String
-i18nDraw =
-    I18nToken
-        { english = "Draw"
-        , dutch = "Remise"
-        , esperanto = "Sendecida"
-        }
-
-
-i18nTimeout : I18nToken String
-i18nTimeout =
-    I18nToken
-        { english = "(Timeout)"
-        , dutch = "(Time-out)"
-        , esperanto = "(Tempolimo)"
-        }
-
-
-i18nWatchReplay : I18nToken String
-i18nWatchReplay =
-    I18nToken
-        { english = "Watch Replay"
-        , dutch = "Bekijk Replay"
-        , esperanto = "Spektu Ripeton"
-        }
-
-
-i18nWhite : I18nToken String
-i18nWhite =
-    I18nToken
-        { english = "White"
-        , dutch = "Wit"
-        , esperanto = "Blanko"
-        }
-
-
-i18nBlack : I18nToken String
-i18nBlack =
-    I18nToken
-        { english = "Black"
-        , dutch = "Zwart"
-        , esperanto = "Nigro"
-        }
-
-
-i18nPlayerNamesForStreaming : I18nToken String
-i18nPlayerNamesForStreaming =
-    I18nToken
-        { english = "Player names for streaming"
-        , dutch = "Spelersnamen voor streaming"
-        , esperanto = "Ludantnomoj por elsendfluo"
-        }
-
-
-i18nWhitePlayerName : I18nToken String
-i18nWhitePlayerName =
-    I18nToken
-        { english = "Name of the White player"
-        , dutch = "Naam speler wit"
-        , esperanto = "Nomo de la Blanka ludanto"
-        }
-
-
-i18nBlackPlayerName : I18nToken String
-i18nBlackPlayerName =
-    I18nToken
-        { english = "Name of the Black player"
-        , dutch = "Naam speler zwart"
-        , esperanto = "Nomo de la Nigra ludanto"
-        }

@@ -6,6 +6,7 @@ import Gen.Route as Route
 import Page exposing (Page)
 import Request
 import Shared
+import Translations as T
 import View exposing (View)
 
 
@@ -35,4 +36,4 @@ view =
 body : Element msg
 body =
     Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-        { url = Route.toHref Route.Home_, label = text "Page not found. Return to start page." }
+        { url = Route.toHref Route.Home_, label = text T.pageNotFoundReturn }
