@@ -86,7 +86,7 @@ fn many_start_positions(sequences: &SakoSearchResult) -> Option<String> {
     let white_has_direct_capture = sequences.white.iter().any(|chain| chain.len() <= 2);
     let black_has_direct_capture = sequences.black.iter().any(|chain| chain.len() <= 2);
 
-    if (white_has_direct_capture || black_has_direct_capture) {
+    if white_has_direct_capture || black_has_direct_capture {
         return None;
     }
 

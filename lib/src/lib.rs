@@ -210,6 +210,19 @@ impl Distribution<DenseBoard> for Standard {
             PlayerColor::Black
         };
 
+        // Figure out if any castling permissions remain
+        let white_king_in_position = board.white[4] == Some(PieceType::King);
+        let black_king_in_position = board.black[60] == Some(PieceType::King);
+
+        board.castling.white_queen_side =
+            white_king_in_position && board.white[0] == Some(PieceType::Rook);
+        board.castling.white_king_side =
+            white_king_in_position && board.white[7] == Some(PieceType::Rook);
+        board.castling.black_queen_side =
+            black_king_in_position && board.black[56] == Some(PieceType::Rook);
+        board.castling.black_king_side =
+            black_king_in_position && board.black[63] == Some(PieceType::Rook);
+
         board
     }
 }
