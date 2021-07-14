@@ -8,7 +8,6 @@ import Element.Input as Input
 import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Gen.Route as Route exposing (Route)
-import I18n.Strings as I18n exposing (t)
 import Shared exposing (Msg(..))
 import Svg.Custom
 import Translations as T exposing (Language(..))
@@ -83,11 +82,11 @@ gamesArePublicHint model =
     else
         Element.row [ width fill, Background.color (Element.rgb255 255 230 230), padding 10 ]
             [ paragraph [ spacing 10 ]
-                [ Element.text (t I18n.gamesArePublicHint)
+                [ Element.text T.gamesArePublicHint
                 , Input.button
                     [ Element.alignRight ]
                     { onPress = Just UserHidesGamesArePublicHint
-                    , label = Element.text (t I18n.hideGamesArePublicHint)
+                    , label = Element.text T.hideGamesArePublicHint
                     }
                 ]
             ]

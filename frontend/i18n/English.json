@@ -52,5 +52,8 @@
     "headerPlayPacoSako": "Play Paco Ŝako",
     "headerDesignPuzzles": "Design Puzzles",
     "headerTutorial": "Tutorial",
-    "headerLogin": "Login"
+    "headerLogin": "Login",
+    "gamesArePublicHint": "All games you play are stored indefinitely and publicly available!",
+    "hideGamesArePublicHint": "Hide message.",
+    "tutorialPageTitle": "Learn Paco Ŝako - pacoplay.com"
 }

@@ -19,7 +19,6 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import I18n.Strings exposing (I18nToken(..), t)
 import Page
 import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight(..))
 import RemoteData exposing (WebData)
@@ -50,7 +49,7 @@ view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "Paco Ŝako - pacoplay.com"
     , element =
-        Header.wrapWithHeader shared ToShared (matchSetupUi shared model)
+        Header.wrapWithHeader shared ToShared (matchSetupUi model)
     }
 
 
@@ -288,22 +287,22 @@ createMatch model =
 --------------------------------------------------------------------------------
 
 
-matchSetupUi : Shared.Model -> Model -> Element Msg
-matchSetupUi shared model =
+matchSetupUi : Model -> Element Msg
+matchSetupUi model =
     Element.column [ width fill, height fill, scrollbarY ]
         [ Components.header1 T.playPacoSako
-        , matchSetupUiInner shared model
+        , matchSetupUiInner model
         ]
 
 
-matchSetupUiInner : Shared.Model -> Model -> Element Msg
-matchSetupUiInner shared model =
+matchSetupUiInner : Model -> Element Msg
+matchSetupUiInner model =
     Element.column [ width (fill |> Element.maximum 1200), padding 5, spacing 5, centerX ]
         [ Element.row [ width fill, spacing 5, centerX ]
-            [ joinOnlineMatchUi shared model
-            , setupOnlineMatchUi shared model
+            [ joinOnlineMatchUi model
+            , setupOnlineMatchUi model
             ]
-        , recentGamesList shared model model.recentGames
+        , recentGamesList model.recentGames
         ]
 
 
@@ -315,8 +314,8 @@ box color content =
         )
 
 
-setupOnlineMatchUi : Shared.Model -> Model -> Element Msg
-setupOnlineMatchUi shared model =
+setupOnlineMatchUi : Model -> Element Msg
+setupOnlineMatchUi model =
     box (Element.rgb255 220 230 220)
         [ Element.el [ centerX, Font.size 30 ] (Element.text T.createNewGame)
         , Element.row [ width fill, spacing 7 ]
@@ -366,7 +365,7 @@ setupOnlineMatchUi shared model =
                 , selected = model.speedSetting == NoTimer
                 }
             ]
-        , timeLimitInputLabel shared model
+        , timeLimitInputLabel model
         , bigRoundedButton (Element.rgb255 200 210 200)
             (Just CreateMatch)
             [ Element.text T.createMatch ]
@@ -391,21 +390,21 @@ speedButtonColor selected =
         Element.rgb255 200 210 200
 
 
-timeLimitInputLabel : Shared.Model -> Model -> Element Msg
-timeLimitInputLabel shared model =
+timeLimitInputLabel : Model -> Element Msg
+timeLimitInputLabel model =
     case model.speedSetting of
         Custom _ ->
-            timeLimitInputCustom shared model
+            timeLimitInputCustom model
 
         _ ->
-            timeLimitLabelOnly shared model
+            timeLimitLabelOnly model
 
 
-timeLimitLabelOnly : Shared.Model -> Model -> Element Msg
-timeLimitLabelOnly shared model =
+timeLimitLabelOnly : Model -> Element Msg
+timeLimitLabelOnly model =
     let
         ( m, s, i ) =
-            t i18nChoosenTimeLimit
+            i18nChoosenTimeLimit
     in
     case intoCustomSpeedSetting model.speedSetting of
         Just { minutes, seconds, increment } ->
@@ -421,11 +420,11 @@ timeLimitLabelOnly shared model =
             Element.text T.playWithoutTimeLimit
 
 
-timeLimitInputCustom : Shared.Model -> Model -> Element Msg
-timeLimitInputCustom shared model =
+timeLimitInputCustom : Model -> Element Msg
+timeLimitInputCustom model =
     let
         ( m, s, i ) =
-            t i18nChoosenTimeLimit
+            i18nChoosenTimeLimit
     in
     Element.wrappedRow []
         [ Input.text [ width (Element.px 60) ]
@@ -440,8 +439,8 @@ timeLimitInputCustom shared model =
         ]
 
 
-joinOnlineMatchUi : Shared.Model -> Model -> Element Msg
-joinOnlineMatchUi shared model =
+joinOnlineMatchUi : Model -> Element Msg
+joinOnlineMatchUi model =
     box (Element.rgb255 220 220 230)
         [ Element.el [ centerX, Font.size 30 ] (Element.text T.iGotAnInvite)
         , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
@@ -466,8 +465,8 @@ bigRoundedButton color event content =
         }
 
 
-recentGamesList : Shared.Model -> Model -> WebData (List CurrentMatchState) -> Element Msg
-recentGamesList shared model data =
+recentGamesList : WebData (List CurrentMatchState) -> Element Msg
+recentGamesList data =
     case data of
         RemoteData.NotAsked ->
             Input.button [ padding 10 ]
@@ -486,11 +485,11 @@ recentGamesList shared model data =
                 }
 
         RemoteData.Success games ->
-            recentGamesListSuccess shared model games
+            recentGamesListSuccess games
 
 
-recentGamesListSuccess : Shared.Model -> Model -> List CurrentMatchState -> Element Msg
-recentGamesListSuccess shared model games =
+recentGamesListSuccess : List CurrentMatchState -> Element Msg
+recentGamesListSuccess games =
     if List.isEmpty games then
         Input.button [ padding 10 ]
             { onPress = Just RefreshRecentGames
@@ -544,10 +543,14 @@ recentGamesListSuccessOne matchState =
         }
 
 
-i18nChoosenTimeLimit : I18nToken ( String, String, String )
+i18nChoosenTimeLimit : ( String, String, String )
 i18nChoosenTimeLimit =
-    I18nToken
-        { english = ( " minutes, ", " seconds with ", " seconds increment." )
-        , dutch = ( " minuten, ", " seconden mit ", " seconden toename." )
-        , esperanto = ( " minutoj, ", " sekundoj kun ", " sekundoj aldonata." )
-        }
+    case T.compiledLanguage of
+        T.English ->
+            ( " minutes, ", " seconds with ", " seconds increment." )
+
+        T.Dutch ->
+            ( " minuten, ", " seconden mit ", " seconden toename." )
+
+        T.Esperanto ->
+            ( " minutoj, ", " sekundoj kun ", " sekundoj aldonata." )

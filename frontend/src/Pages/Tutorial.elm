@@ -7,11 +7,10 @@ import Element.Font as Font
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
 import Header
-import I18n.Strings as I18n exposing (I18nToken, t)
 import Page
 import Request exposing (Request)
 import Shared
-import Translations exposing (Language(..))
+import Translations as T exposing (Language(..))
 import View exposing (View)
 
 
@@ -68,14 +67,14 @@ subscriptions _ =
 
 view : Shared.Model -> Model -> View Msg
 view shared _ =
-    { title = t I18n.tutorialPageTitle
+    { title = T.tutorialPageTitle
     , element =
-        (case Translations.compiledLanguage of
+        (case T.compiledLanguage of
             English ->
                 textPageWrapper englishTutorial
 
             Dutch ->
-                dutchTutorial Dutch
+                dutchTutorial
 
             Esperanto ->
                 textPageWrapper
@@ -96,39 +95,35 @@ textPageWrapper content =
 {-| The tutorial needs only a language and this is stored outside. It contains
 the language toggle for now, so it needs to be taught to send language messages.
 -}
-dutchTutorial : Language -> Element msg
-dutchTutorial lang =
+dutchTutorial : Element msg
+dutchTutorial =
     Element.el [ width fill, height fill, scrollbarY ]
-        (tutorialPageInner lang)
+        tutorialPageInner
 
 
-tutorialPageInner : Language -> Element msg
-tutorialPageInner lang =
+tutorialPageInner : Element msg
+tutorialPageInner =
     Element.column [ width (fill |> maximum 1000), centerX, padding 30, spacing 10 ]
-        [ t I18n.tutorialHeader
+        [ "Leer Paco Ŝako"
             |> text
             |> el [ Font.size 40, centerX ]
         , paragraph []
-            [ t I18n.tutorialSummary |> text ]
-        , oneVideo lang I18n.tutorialSetup
-        , oneVideo lang I18n.tutorialMovement
-        , oneVideo lang I18n.tutorialFourPacoSakoRules
-        , oneVideo lang I18n.tutorialGoal
-        , oneVideo lang I18n.tutorialCombosLoopsChains
-        , oneVideo lang I18n.tutorialStrategy
-        , oneVideo lang I18n.tutorialGamePhases
-        , oneVideo lang I18n.tutorialSpecialRules
-        , oneVideo lang I18n.tutorialCreativePlayingStyle
-        , oneVideo lang I18n.tutorialFunAndBeauty
+            [ "Felix bereidt een reeks video-instructies over Paco Ŝako voor. Je kunt ze hier en op zijn YouTube-kanaal vinden." |> text ]
+        , oneVideo ( "Opstelling", Just "1jybatEtdPo" )
+        , oneVideo ( "Beweging van de stukken", Just "mCoara3xUlk" )
+        , oneVideo ( "4 Paco Ŝako Regles", Just "zEq1fqBoL9M" )
+        , oneVideo ( "Doel Van Het Spel", Nothing )
+        , oneVideo ( "Combo's, Loop, Ketting", Nothing )
+        , oneVideo ( "Strategie", Nothing )
+        , oneVideo ( "Opening, Middenspel, Eindspel", Nothing )
+        , oneVideo ( "Rokeren, Promoveren, En Passant", Nothing )
+        , oneVideo ( "Creatieve Speelwijze", Nothing )
+        , oneVideo ( "Spel Plezier & Schoonheid", Nothing )
         ]
 
 
-oneVideo : Language -> I18nToken ( String, Maybe String ) -> Element msg
-oneVideo lang token =
-    let
-        ( caption, link ) =
-            t token
-    in
+oneVideo : ( String, Maybe String ) -> Element msg
+oneVideo ( caption, link ) =
     grayBox
         [ text caption |> el [ Font.size 25 ]
         , case link of
@@ -144,7 +139,7 @@ oneVideo lang token =
 
             Nothing ->
                 paragraph []
-                    [ t I18n.tutorialNoVideo |> text ]
+                    [ "Felix bereidt momenteel deze video voor." |> text ]
         ]
 
 
