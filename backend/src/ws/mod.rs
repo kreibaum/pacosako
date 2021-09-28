@@ -182,6 +182,7 @@ enum ClientMessage {
     SubscribeToMatch { key: String },
     DoAction { key: String, action: PacoAction },
     Rollback { key: String },
+    TimeDriftCheck { send: DateTime<Utc> },
 }
 
 /// Messages that may be send by the server to the client.
@@ -193,6 +194,10 @@ pub enum ServerMessage {
         state: CurrentMatchState,
     },
     Error(String),
+    TimeDriftResponse {
+        send: DateTime<Utc>,
+        bounced: DateTime<Utc>,
+    },
 }
 
 /// This handle message is wired up, so that each message is handled separately.
@@ -380,6 +385,17 @@ async fn handle_client_message(
             let state = game.rollback()?;
             store_game(&game, conn).await?;
             broadcast_state(room, &state, ws).await;
+        }
+        ClientMessage::TimeDriftCheck { send } => {
+            send_msg(
+                ServerMessage::TimeDriftResponse {
+                    send,
+                    bounced: Utc::now(),
+                },
+                &sender,
+                ws,
+            )
+            .await?;
         }
     }
     return Ok(());

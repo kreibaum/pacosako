@@ -26,7 +26,9 @@ import Json.Decode as Decode
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Page
+import Platform exposing (Task)
 import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
+import Process
 import Reactive exposing (Device(..))
 import Request
 import Sako exposing (Tile(..))
@@ -35,6 +37,7 @@ import Shared
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
+import Task
 import Time exposing (Posix)
 import Timer
 import Translations as T
@@ -75,6 +78,7 @@ type alias Model =
     , blackName : String
     , gameUrl : Url.Url
     , colorSettings : Colors.ColorOptions
+    , timeDriftMillis : Float
     }
 
 
@@ -100,8 +104,17 @@ init shared params query =
       , blackName = ""
       , gameUrl = shared.url
       , colorSettings = determineColorSettingsFromQuery query
+      , timeDriftMillis = 0
       }
-    , Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id) |> Effect.fromCmd
+    , Cmd.batch
+        [ Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
+        , -- This is not really nice, but we want to give the websocket time to
+          -- connect. This is why we wait five seconds.
+          Process.sleep 5000
+            |> Task.andThen (\() -> Time.now)
+            |> Task.perform (\now -> TimeDriftRequestTrigger { send = now })
+        ]
+        |> Effect.fromCmd
     )
 
 
@@ -138,6 +151,8 @@ type Msg
     | CopyToClipboard String
     | WebsocketStatusChange Api.Websocket.WebsocketStaus
     | ToShared Shared.Msg
+    | TimeDriftRequestTrigger { send : Posix }
+    | TimeDriftResponseTriple { send : Posix, bounced : Posix, back : Posix }
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -230,6 +245,19 @@ update msg model =
 
         ToShared outMsg ->
             ( model, Effect.fromShared outMsg )
+
+        TimeDriftRequestTrigger { send } ->
+            ( model, Api.Websocket.send (Api.Websocket.TimeDriftCheck send) |> Effect.fromCmd )
+
+        TimeDriftResponseTriple data ->
+            let
+                clientTimeAverage =
+                    (toFloat (Time.posixToMillis data.send) + toFloat (Time.posixToMillis data.back)) / 2
+
+                clientDrift =
+                    clientTimeAverage - toFloat (Time.posixToMillis data.bounced)
+            in
+            ( { model | timeDriftMillis = clientDrift }, Effect.none )
 
 
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
@@ -539,6 +567,20 @@ updateWebsocket serverMessage model =
         Api.Websocket.MatchConnectionSuccess data ->
             updateMatchConnectionSuccess data model
 
+        Api.Websocket.TimeDriftRespose data ->
+            ( model
+            , Task.perform
+                (\now ->
+                    TimeDriftResponseTriple
+                        { send = data.send
+                        , bounced = data.bounced
+                        , back = now
+                        }
+                )
+                Time.now
+                |> Effect.fromCmd
+            )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -685,8 +727,16 @@ additionalSvg shared model =
 
 playTimerSvg : Posix -> Model -> Maybe (Svg a)
 playTimerSvg now model =
+    let
+        correctedTime =
+            Time.posixToMillis now
+                |> toFloat
+                |> (\n -> n - model.timeDriftMillis)
+                |> round
+                |> Time.millisToPosix
+    in
     model.currentState.timer
-        |> Maybe.map (justPlayTimerSvg now model)
+        |> Maybe.map (justPlayTimerSvg correctedTime model)
 
 
 justPlayTimerSvg : Posix -> Model -> Timer.Timer -> Svg a

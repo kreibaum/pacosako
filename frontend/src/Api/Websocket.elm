@@ -27,9 +27,11 @@ I do allow this module access to the Sako module.
 import Api.Decoders exposing (CurrentMatchState, decodeMatchState)
 import Api.Ports as Ports
 import Http
+import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Sako
+import Time exposing (Posix)
 
 
 {-| Elm version of websocket::ClientMessage
@@ -41,6 +43,7 @@ type ClientMessage
     = SubscribeToMatch String
     | DoAction { key : String, action : Sako.Action }
     | Rollback String
+    | TimeDriftCheck Posix
 
 
 encodeClientMessage : ClientMessage -> Value
@@ -74,6 +77,15 @@ encodeClientMessage clientMessage =
                   )
                 ]
 
+        TimeDriftCheck timestamp ->
+            Encode.object
+                [ ( "TimeDriftCheck"
+                  , Encode.object
+                        [ ( "send", Iso8601.encode timestamp )
+                        ]
+                  )
+                ]
+
 
 {-| Elm version of websocket::ServerMessage
 
@@ -84,6 +96,7 @@ type ServerMessage
     = TechnicalError String
     | NewMatchState CurrentMatchState
     | MatchConnectionSuccess { key : String, state : CurrentMatchState }
+    | TimeDriftRespose { send : Posix, bounced : Posix }
 
 
 decodeServerMessage : Decoder ServerMessage
@@ -96,6 +109,15 @@ decodeServerMessage =
         , Decode.map2 (\key matchState -> MatchConnectionSuccess { key = key, state = matchState })
             (Decode.at [ "MatchConnectionSuccess", "key" ] Decode.string)
             (Decode.at [ "MatchConnectionSuccess", "state" ] decodeMatchState)
+        , Decode.map2
+            (\sendTimestamp bouncedTimestamp ->
+                TimeDriftRespose
+                    { send = sendTimestamp
+                    , bounced = bouncedTimestamp
+                    }
+            )
+            (Decode.at [ "TimeDriftResponse", "send" ] Iso8601.decoder)
+            (Decode.at [ "TimeDriftResponse", "bounced" ] Iso8601.decoder)
         ]
 
 
