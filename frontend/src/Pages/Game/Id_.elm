@@ -257,7 +257,20 @@ update msg model =
                 clientDrift =
                     clientTimeAverage - toFloat (Time.posixToMillis data.bounced)
             in
-            ( { model | timeDriftMillis = clientDrift }, Effect.none )
+            ( { model | timeDriftMillis = clientDrift }
+            , Ports.logToConsole
+                ("Time drift determined as "
+                    ++ String.fromFloat clientDrift
+                    ++ ". { send = "
+                    ++ String.fromInt (Time.posixToMillis data.send)
+                    ++ ", bounced = "
+                    ++ String.fromInt (Time.posixToMillis data.bounced)
+                    ++ ", back = "
+                    ++ String.fromInt (Time.posixToMillis data.back)
+                    ++ " }"
+                )
+                |> Effect.fromCmd
+            )
 
 
 addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchState
