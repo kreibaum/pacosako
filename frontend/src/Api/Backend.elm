@@ -324,11 +324,11 @@ getRecentGameKeys =
 
 {-| Use this to call the "create game" api of the server.
 -}
-postMatchRequest : Maybe Timer.TimerConfig -> Api String msg
-postMatchRequest config errorHandler successHandler =
+postMatchRequest : Maybe Timer.TimerConfig -> Bool -> Api String msg
+postMatchRequest config safeMode errorHandler successHandler =
     Http.post
         { url = "/api/create_game"
-        , body = Http.jsonBody (encodePostMatchRequest config)
+        , body = Http.jsonBody (encodePostMatchRequest config safeMode)
         , expect =
             Http.expectString
                 (\response ->
@@ -342,13 +342,14 @@ postMatchRequest config errorHandler successHandler =
         }
 
 
-encodePostMatchRequest : Maybe Timer.TimerConfig -> Value
-encodePostMatchRequest timer =
+encodePostMatchRequest : Maybe Timer.TimerConfig -> Bool -> Value
+encodePostMatchRequest timer safeMode =
     Encode.object
         [ ( "timer"
           , Maybe.map Timer.encodeConfig timer
                 |> Maybe.withDefault Encode.null
           )
+        , ( "safe_mode", Encode.bool safeMode )
         ]
 
 

@@ -67,6 +67,7 @@ init shared =
       , rawMinutes = ""
       , rawSeconds = ""
       , rawIncrement = ""
+      , safeMode = False
       , recentGames = RemoteData.Loading
       , key = shared.key
       , login = shared.user
@@ -84,6 +85,7 @@ type Msg
     | SetRawMinutes String
     | SetRawSeconds String
     | SetRawIncrement String
+    | SetSafeMode Bool
     | RefreshRecentGames
     | GotRecentGames (List CurrentMatchState)
     | ErrorRecentGames Http.Error
@@ -98,6 +100,7 @@ type alias Model =
     , rawMinutes : String
     , rawSeconds : String
     , rawIncrement : String
+    , safeMode : Bool
     , recentGames : WebData (List CurrentMatchState)
     , key : Browser.Navigation.Key
     , login : Maybe User
@@ -228,6 +231,9 @@ update msg model =
         ToShared outMsg ->
             ( model, Effect.fromShared outMsg )
 
+        SetSafeMode safeModeEnabled ->
+            ( { model | safeMode = safeModeEnabled }, Effect.none )
+
 
 refreshRecentGames : Cmd Msg
 refreshRecentGames =
@@ -278,7 +284,13 @@ joinMatch model =
 -}
 createMatch : Model -> ( Model, Effect Msg )
 createMatch model =
-    ( model, Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting) HttpError MatchCreatedOnServer |> Effect.fromCmd )
+    ( model
+    , Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting)
+        model.safeMode
+        HttpError
+        MatchCreatedOnServer
+        |> Effect.fromCmd
+    )
 
 
 
@@ -366,6 +378,7 @@ setupOnlineMatchUi model =
                 }
             ]
         , timeLimitInputLabel model
+        , safeModeToggle model
         , bigRoundedButton (Element.rgb255 200 210 200)
             (Just CreateMatch)
             [ Element.text T.createMatch ]
@@ -437,6 +450,18 @@ timeLimitInputCustom model =
             { onChange = SetRawIncrement, text = model.rawIncrement, placeholder = Nothing, label = Input.labelHidden "Increment" }
         , Element.text i
         ]
+
+
+safeModeToggle : Model -> Element Msg
+safeModeToggle model =
+    Input.checkbox []
+        { onChange = SetSafeMode
+        , icon = Input.defaultCheckbox
+        , checked = model.safeMode
+        , label =
+            Input.labelRight []
+                (text T.enableGameProtection)
+        }
 
 
 joinOnlineMatchUi : Model -> Element Msg
