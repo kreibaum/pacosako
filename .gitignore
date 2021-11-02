@@ -16,6 +16,7 @@ lib/Cargo.lock
 frontend/.elm-tflt/linked/
 /frontend/.elm-i18n/
 /frontend/.pytrans
+/frontend/public/dist/elm.js
 
 # Server log
 /backend/server.log
