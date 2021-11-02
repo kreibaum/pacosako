@@ -150,6 +150,7 @@ async fn loop_logic_server(
 #[derive(Debug, Default)]
 struct ServerState {
     rooms: HashMap<String, GameRoom>,
+    uuids: HashMap<SocketAddr, String>,
 }
 
 impl ServerState {
@@ -183,6 +184,9 @@ enum ClientMessage {
     DoAction { key: String, action: PacoAction },
     Rollback { key: String },
     TimeDriftCheck { send: DateTime<Utc> },
+    SetUUID { uuid: String },
+    // Ask for the socket uuid by sending "GetUUID" as json. For debugging.
+    GetUUID,
 }
 
 /// Messages that may be send by the server to the client.
@@ -197,6 +201,10 @@ pub enum ServerMessage {
     TimeDriftResponse {
         send: DateTime<Utc>,
         bounced: DateTime<Utc>,
+    },
+    /// Returns the socket uuid. For debugging.
+    SocketUUID {
+        uuid: String,
     },
 }
 
@@ -396,6 +404,17 @@ async fn handle_client_message(
                 ws,
             )
             .await?;
+        }
+        ClientMessage::SetUUID { uuid } => {
+            server_state.uuids.insert(sender, uuid);
+        }
+        ClientMessage::GetUUID => {
+            let uuid = server_state
+                .uuids
+                .get(&sender)
+                .map_or("None".to_owned(), |s| s.clone());
+            let msg = ServerMessage::SocketUUID { uuid: uuid };
+            send_msg(msg, &sender, ws).await?;
         }
     }
     return Ok(());
