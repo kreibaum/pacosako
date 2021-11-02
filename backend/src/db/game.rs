@@ -12,9 +12,10 @@ pub async fn insert(game: &mut SyncronizedMatch, conn: &mut Connection) -> Resul
     };
 
     let id = sqlx::query!(
-        "insert into game (action_history, timer) values (?, ?)",
+        "insert into game (action_history, timer, safe_mode) values (?, ?, ?)",
         action_history,
-        timer
+        timer,
+        game.safe_mode
     )
     .execute(conn)
     .await?

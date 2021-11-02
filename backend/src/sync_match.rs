@@ -13,6 +13,7 @@ use std::convert::TryFrom;
 #[derive(Deserialize, Clone)]
 pub struct MatchParameters {
     timer: Option<TimerConfig>,
+    safe_mode: Option<bool>,
 }
 
 /// A paco sako action together with a timestamp that remembers when it was done.
@@ -135,7 +136,7 @@ impl SyncronizedMatch {
             key: key.to_owned(),
             actions: Vec::default(),
             timer: params.timer.map(|t| t.into()),
-            safe_mode: false,
+            safe_mode: params.safe_mode.unwrap_or(false),
         }
     }
 
@@ -246,7 +247,13 @@ mod test {
     /// Does a move and mostly just checks that it does not crash.
     #[test]
     fn test_legal_moves_are_ok() {
-        let mut game = SyncronizedMatch::new_with_key("Game1", MatchParameters { timer: None });
+        let mut game = SyncronizedMatch::new_with_key(
+            "Game1",
+            MatchParameters {
+                timer: None,
+                safe_mode: Some(false),
+            },
+        );
 
         game.do_action(PacoAction::Lift(BoardPosition(10))).unwrap();
         let current_state = game
