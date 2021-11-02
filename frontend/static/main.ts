@@ -208,6 +208,21 @@ if (app.ports.copy) {
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * The browser stores a uuid that is send over the websocket to prevent other
+ * people from moving your pieces.
+ * 
+ * https://github.com/kreibaum/pacosako/issues/53
+ */
+function getUUID(): string {
+    let uuid = localStorage.getItem('uuid');
+    if (!uuid) {
+        uuid = Date.now().toString(36) + Math.random().toString(36).substring(2);
+        localStorage.setItem("uuid", uuid);
+    }
+    return uuid;
+}
+
+/**
  * Wrapper for the websocket that takes care of several additional aspects:
  * 
  * - Registering to the elm port
@@ -312,11 +327,16 @@ class WebsocketWrapper {
     private onopen(ev: Event) {
         console.log("Websocket connection established.");
         console.log(`There are ${this.queue.length} messages waiting to be send.`)
+        this.registerUUID();
         let messages = this.queue;
         this.queue = [];
         messages.forEach(msg => {
             this.trySend(msg)
         });
+    }
+
+    private registerUUID() {
+        this.trySend({ "SetUUID": { "uuid": getUUID() } })
     }
 
     private onmessage(ev: MessageEvent<any>) {
