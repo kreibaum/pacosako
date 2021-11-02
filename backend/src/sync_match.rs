@@ -32,6 +32,7 @@ pub struct SyncronizedMatch {
     pub key: String,
     pub actions: Vec<StampedAction>,
     pub timer: Option<Timer>,
+    pub safe_mode: bool,
 }
 
 /// Message that may be send by the client to the server.
@@ -134,6 +135,7 @@ impl SyncronizedMatch {
             key: key.to_owned(),
             actions: Vec::default(),
             timer: params.timer.map(|t| t.into()),
+            safe_mode: false,
         }
     }
 

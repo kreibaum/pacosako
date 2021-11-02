@@ -160,6 +160,7 @@ impl ServerState {
         let room = self.rooms.entry(key.clone()).or_insert(GameRoom {
             key: key.clone(),
             connected: HashSet::new(),
+            allowed_uuids: [None, None],
         });
         room.connected.insert(asked_by);
         room
@@ -169,12 +170,22 @@ impl ServerState {
     fn destroy_room(&mut self, key: &String) {
         self.rooms.remove(key);
     }
+
+    fn get_uuid(&self, sender: SocketAddr) -> String {
+        self.uuids
+            .get(&sender)
+            .map_or("None".to_owned(), |s| s.clone())
+    }
 }
 
 #[derive(Debug)]
 struct GameRoom {
     key: String,
     connected: HashSet<SocketAddr>,
+    /// The UUIDs that are allowed to make moves on this board.
+    /// This is not persisted for now, so after a server restart the game
+    /// can be hijacked in principle.
+    allowed_uuids: [Option<String>; 2],
 }
 
 /// All allowed messages that may be send by the client to the server.
@@ -350,6 +361,7 @@ async fn handle_client_message(
             send_msg(response, &sender, ws).await?;
         }
         ClientMessage::DoAction { key, action } => {
+            let uuid = server_state.get_uuid(sender);
             let room = server_state.room(&key, sender);
 
             let game = fetch_game(&room.key, conn).await;
@@ -359,6 +371,8 @@ async fn handle_client_message(
                 server_state.destroy_room(&key);
                 return send_error(format!("Game {} not found", key), &sender, ws).await;
             };
+
+            ensure_uuid_is_allowed(room, &game, uuid)?;
 
             let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
 
@@ -373,9 +387,12 @@ async fn handle_client_message(
             broadcast_state(room, &state, ws).await;
         }
         ClientMessage::Rollback { key } => {
+            let uuid = server_state.get_uuid(sender);
             let room = server_state.room(&key, sender);
 
             let mut game = fetch_game(&room.key, conn).await?;
+
+            ensure_uuid_is_allowed(room, &game, uuid)?;
 
             if game.actions.is_empty() {
                 // If there are no actios yet, rolling back does nothing.
@@ -409,15 +426,54 @@ async fn handle_client_message(
             server_state.uuids.insert(sender, uuid);
         }
         ClientMessage::GetUUID => {
-            let uuid = server_state
-                .uuids
-                .get(&sender)
-                .map_or("None".to_owned(), |s| s.clone());
+            let uuid: String = server_state.get_uuid(sender);
             let msg = ServerMessage::SocketUUID { uuid: uuid };
             send_msg(msg, &sender, ws).await?;
         }
     }
     return Ok(());
+}
+
+/// If the game is running in safe mode, this will check if the sender is allowed
+/// to perform actions in the game. Or if there is still space for another player
+/// in the room, then the uuid will be tracked in the room.
+fn ensure_uuid_is_allowed(
+    room: &mut GameRoom,
+    game: &SyncronizedMatch,
+    uuid: String,
+) -> Result<(), anyhow::Error> {
+    if !game.safe_mode {
+        return Ok(());
+    }
+    match &room.allowed_uuids[0] {
+        Some(inside_uuid) => {
+            // Check if we are the first player
+            if *inside_uuid == uuid {
+                return Ok(());
+            }
+        }
+        None => {
+            // We are the first to move, register
+            room.allowed_uuids[0] = Some(uuid);
+            return Ok(());
+        }
+    }
+    // If we arrive here, we are not the first player.
+    match &room.allowed_uuids[1] {
+        Some(inside_uuid) => {
+            // Check if we are the second player
+            if *inside_uuid == uuid {
+                return Ok(());
+            }
+        }
+        None => {
+            // We are the second to move, register
+            room.allowed_uuids[1] = Some(uuid);
+            return Ok(());
+        }
+    }
+    // We are neither player, so we throw an error.
+    anyhow::bail!("Your browser is not allowed to make moves in this game.");
 }
 
 async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState, ws: &PeerMap) {

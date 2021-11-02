@@ -57,7 +57,7 @@ pub async fn select(
 ) -> Result<Option<SyncronizedMatch>, ServerError> {
     let raw_game = sqlx::query_as!(
         RawGame,
-        "select id, action_history, timer from game where id = ?",
+        "select id, action_history, timer, safe_mode from game where id = ?",
         id
     )
     .fetch_optional(conn)
@@ -73,7 +73,7 @@ pub async fn select(
 pub async fn latest(conn: &mut Connection) -> Result<Vec<SyncronizedMatch>, ServerError> {
     let raw_games = sqlx::query_as!(
         RawGame,
-        r"select id, action_history, timer from game
+        r"select id, action_history, timer, safe_mode from game
         order by created desc
         limit 5"
     )
@@ -94,6 +94,7 @@ struct RawGame {
     id: i64,
     action_history: String,
     timer: Option<String>,
+    safe_mode: bool,
 }
 
 impl RawGame {
@@ -108,6 +109,7 @@ impl RawGame {
             key: format!("{}", self.id),
             actions: serde_json::from_str(&self.action_history)?,
             timer,
+            safe_mode: self.safe_mode,
         })
     }
 }
