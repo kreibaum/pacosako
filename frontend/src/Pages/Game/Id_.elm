@@ -20,7 +20,7 @@ import Element.Font as Font
 import Element.Input as Input
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
-import Gen.Route as Route
+import Gen.Route as Route exposing (Route)
 import Header
 import Json.Decode as Decode
 import List.Extra as List
@@ -47,9 +47,9 @@ import View exposing (View)
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
-page shared { params, query } =
+page shared { params, query, url } =
     Page.advanced
-        { init = init shared params query
+        { init = init params query url
         , update = update
         , subscriptions = subscriptions
         , view = view shared
@@ -82,8 +82,8 @@ type alias Model =
     }
 
 
-init : Shared.Model -> Params -> Dict String String -> ( Model, Effect Msg )
-init shared params query =
+init : Params -> Dict String String -> Url.Url -> ( Model, Effect Msg )
+init params query url =
     ( { board = Sako.initialPosition
       , subscription = Just params.id
       , currentState =
@@ -102,7 +102,7 @@ init shared params query =
       , rotation = WhiteBottom
       , whiteName = ""
       , blackName = ""
-      , gameUrl = shared.url
+      , gameUrl = url
       , colorSettings = determineColorSettingsFromQuery query
       , timeDriftMillis = 0
       }
