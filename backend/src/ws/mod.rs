@@ -14,7 +14,7 @@ use async_tungstenite::tungstenite::Message;
 use chrono::{DateTime, Utc};
 use client_connector::{PeerMap, WebsocketOutMsg};
 use log::*;
-use pacosako::PacoAction;
+use pacosako::{PacoAction, PlayerColor};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string;
@@ -160,7 +160,7 @@ impl ServerState {
         let room = self.rooms.entry(key.clone()).or_insert(GameRoom {
             key: key.clone(),
             connected: HashSet::new(),
-            allowed_uuids: [None, None],
+            protection: ProtectionState::NoPlayers,
         });
         room.connected.insert(asked_by);
         room
@@ -185,7 +185,7 @@ struct GameRoom {
     /// The UUIDs that are allowed to make moves on this board.
     /// This is not persisted for now, so after a server restart the game
     /// can be hijacked in principle.
-    allowed_uuids: [Option<String>; 2],
+    protection: ProtectionState,
 }
 
 /// All allowed messages that may be send by the client to the server.
@@ -434,9 +434,24 @@ async fn handle_client_message(
     return Ok(());
 }
 
+/// Possible states the game protection can be. Note that "No game protection"
+/// must be managed externally.
+#[derive(Debug, Clone)]
+enum ProtectionState {
+    NoPlayers,
+    OnePlayer(String),
+    TwoPlayers { white: String, black: String },
+}
+
 /// If the game is running in safe mode, this will check if the sender is allowed
 /// to perform actions in the game. Or if there is still space for another player
 /// in the room, then the uuid will be tracked in the room.
+///
+/// If there are two different players connected, then the first player can only
+/// controll white while the second player can only controll black.
+///
+/// Please note that currently game protection is not persisted across server
+/// restart. This means it is possible that the first move is done by black.
 fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
     game: &SyncronizedMatch,
@@ -445,35 +460,35 @@ fn ensure_uuid_is_allowed(
     if !game.safe_mode {
         return Ok(());
     }
-    match &room.allowed_uuids[0] {
-        Some(inside_uuid) => {
-            // Check if we are the first player
-            if *inside_uuid == uuid {
-                return Ok(());
-            }
-        }
-        None => {
-            // We are the first to move, register
-            room.allowed_uuids[0] = Some(uuid);
+
+    let white_is_moving = game.current_state()?.controlling_player == PlayerColor::White;
+    match &room.protection {
+        ProtectionState::NoPlayers => {
+            room.protection = ProtectionState::OnePlayer(uuid);
             return Ok(());
         }
-    }
-    // If we arrive here, we are not the first player.
-    match &room.allowed_uuids[1] {
-        Some(inside_uuid) => {
-            // Check if we are the second player
-            if *inside_uuid == uuid {
-                return Ok(());
+        ProtectionState::OnePlayer(p1) => {
+            if *p1 != uuid {
+                if white_is_moving {
+                    room.protection = ProtectionState::TwoPlayers {
+                        white: uuid,
+                        black: p1.clone(),
+                    };
+                } else {
+                    room.protection = ProtectionState::TwoPlayers {
+                        white: p1.clone(),
+                        black: uuid,
+                    };
+                }
             }
         }
-        None => {
-            // We are the second to move, register
-            room.allowed_uuids[1] = Some(uuid);
-            return Ok(());
+        ProtectionState::TwoPlayers { white, black } => {
+            if (white_is_moving && *white != uuid) || (!white_is_moving && *black != uuid) {
+                anyhow::bail!("Your browser is not allowed to make moves in this game.");
+            }
         }
     }
-    // We are neither player, so we throw an error.
-    anyhow::bail!("Your browser is not allowed to make moves in this game.");
+    Ok(())
 }
 
 async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState, ws: &PeerMap) {
