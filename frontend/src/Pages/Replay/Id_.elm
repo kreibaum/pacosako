@@ -63,6 +63,7 @@ type alias Model =
     , now : Posix
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
+    , showMovementIndicators : Bool
     }
 
 
@@ -77,6 +78,7 @@ init shared params =
       , now = Time.millisToPosix 0
       , castingDeco = CastingDeco.initModel
       , inputMode = Nothing
+      , showMovementIndicators = True
       }
     , Api.Backend.getReplay params.id HttpErrorReplay GotReplay |> Effect.fromCmd
     )
@@ -101,6 +103,8 @@ type Msg
     | PreviousAction
     | NextMove
     | PreviousMove
+    | PlayAll
+    | EnableMovementIndicators
     | AnimationTick Posix
     | RematchFromActionIndex String Int
     | HttpErrorBranch Http.Error
@@ -157,6 +161,16 @@ update msg model =
 
         PreviousMove ->
             ( setAndAnimateActionCount (previousMove model) model, Effect.none )
+
+        PlayAll ->
+            ( { model | showMovementIndicators = False }
+                |> setAndAnimateActionCount 0
+                |> animateStepByStep (lastMove model)
+            , Effect.none
+            )
+
+        EnableMovementIndicators ->
+            ( { model | showMovementIndicators = True }, Effect.none )
 
         AnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Effect.none )
@@ -290,6 +304,17 @@ previousMove model =
                 |> List.find (\move -> lastActionCountOf move >= model.actionCount)
                 |> Maybe.map (\move -> firstActionCountOf move - 1)
                 |> Maybe.withDefault 0
+    in
+    actionCount
+
+
+lastMove : Model -> Int
+lastMove model =
+    let
+        actionCount =
+            model.sidebarData
+                |> List.map (.actions >> List.length)
+                |> List.sum
     in
     actionCount
 
@@ -483,10 +508,14 @@ boardViewOk model actions position =
 
 decoration : Model -> List Sako.Action -> Sako.Position -> List PositionView.BoardDecoration
 decoration model actions position =
-    CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
-        ++ (PositionView.pastMovementIndicatorList position actions
-                |> List.map PositionView.PastMovementIndicator
-           )
+    if model.showMovementIndicators then
+        CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
+            ++ (PositionView.pastMovementIndicatorList position actions
+                    |> List.map PositionView.PastMovementIndicator
+               )
+
+    else
+        CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
 
 
 
@@ -500,6 +529,7 @@ sidebar shared model replay =
     Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
         [ Components.gameIdBadgeBig model.key
         , arrowButtons
+        , enableMovementIndicators model.showMovementIndicators
         , editorLink model
         , rematchLink model
         , actionList model replay
@@ -518,10 +548,23 @@ arrowButtons =
     Element.row [ spacing 10 ]
         [ Components.iconButton "Previous move." Solid.arrowLeft (Just PreviousMove)
         , Components.iconButton "Previous action." Solid.chevronLeft (Just PreviousAction)
+        , Components.iconButton "Play all." Solid.play (Just PlayAll)
         , Components.iconButton "Next action." Solid.chevronRight (Just NextAction)
         , Components.iconButton "Next move." Solid.arrowRight (Just NextMove)
         , Element.text "(or use arrow keys)"
         ]
+
+
+enableMovementIndicators : Bool -> Element Msg
+enableMovementIndicators showMovementIndicators =
+    if showMovementIndicators then
+        Element.none
+
+    else
+        Element.row [ spacing 10 ]
+            [ Components.iconButton "" Solid.eye (Just EnableMovementIndicators)
+            , Element.text "Show movement indicators"
+            ]
 
 
 editorLink : Model -> Element msg
