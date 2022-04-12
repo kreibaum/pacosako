@@ -2,6 +2,8 @@ module View exposing (View, map, none, placeholder, toBrowserDocument)
 
 import Browser
 import Element exposing (Element)
+import Html
+import Html.Attributes
 
 
 type alias View msg =
@@ -14,7 +16,8 @@ toBrowserDocument : View msg -> Browser.Document msg
 toBrowserDocument view =
     { title = view.title
     , body =
-        [ Element.layout [] view.element
+        [ Html.canvas [ Html.Attributes.id "offscreen-canvas" ] [ Html.text "Canvas not supported" ]
+        , Element.layout [] view.element
         ]
     }
 
