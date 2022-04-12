@@ -86,10 +86,10 @@ jobs:
 
       - name: Install Elm
         run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
-        
+
       - name: Setup Python
         uses: actions/setup-python@v2.2.2
-  
+
       - name: Install pytrans.py
         run: |
           mkdir -p $GITHUB_WORKSPACE/bin
@@ -164,3 +164,4 @@ jobs:
           SSH_AUTH_SOCK: /tmp/ssh_agent.sock
         run: |
           scp -v deploy.tar.gz pacosako@pacoplay.com:~
+          ssh -t pacosako@pacoplay.com "./update-stage.sh"
