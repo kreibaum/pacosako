@@ -49,7 +49,7 @@ view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "Paco Ŝako - pacoplay.com"
     , element =
-        Header.wrapWithHeader shared ToShared (matchSetupUi model)
+        Header.wrapWithHeaderV2 shared ToShared (\r -> r == Route.Home_) (matchSetupUi model)
     }
 
 
@@ -301,18 +301,21 @@ createMatch model =
 
 matchSetupUi : Model -> Element Msg
 matchSetupUi model =
-    Element.column [ width fill, height fill, scrollbarY ]
-        [ Components.header1 T.playPacoSako
-        , matchSetupUiInner model
+    Element.column
+        [ width fill
+        , height fill
+        , scrollbarY
+        ]
+        [ matchSetupUiInner model
         ]
 
 
 matchSetupUiInner : Model -> Element Msg
 matchSetupUiInner model =
-    Element.column [ width (fill |> Element.maximum 1200), padding 5, spacing 5, centerX ]
-        [ Element.row [ width fill, spacing 5, centerX ]
-            [ joinOnlineMatchUi model
-            , setupOnlineMatchUi model
+    Element.column [ width (fill |> Element.maximum 1120), spacing 40, centerX, paddingXY 10 40 ]
+        [ Element.row [ width fill, spacing 15, centerX ]
+            [ setupOnlineMatchUi model
+            , joinOnlineMatchUi model
             ]
         , recentGamesList model.recentGames
         ]
@@ -320,7 +323,7 @@ matchSetupUiInner model =
 
 box : Element.Color -> List (Element Msg) -> Element Msg
 box color content =
-    Element.el [ width fill, centerX, padding 10, Background.color color, height fill ]
+    Element.el [ width fill, centerX, padding 10, Background.color color, Border.rounded 5, Element.alignTop ]
         (Element.column [ width fill, centerX, spacing 7 ]
             content
         )
@@ -328,8 +331,14 @@ box color content =
 
 setupOnlineMatchUi : Model -> Element Msg
 setupOnlineMatchUi model =
-    box (Element.rgb255 220 230 220)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text T.createNewGame)
+    box (Element.rgba255 255 255 255 0.6)
+        [ Element.el
+            [ centerX
+            , Font.size 30
+            , Font.color (Element.rgb255 100 100 100)
+            , Element.paddingXY 0 10
+            ]
+            (Element.text T.createNewGame)
         , Element.row [ width fill, spacing 7 ]
             [ speedButton
                 { buttonIcon = Solid.spaceShuttle
@@ -377,30 +386,54 @@ setupOnlineMatchUi model =
                 , selected = model.speedSetting == NoTimer
                 }
             ]
-        , timeLimitInputLabel model
-        , safeModeToggle model
-        , bigRoundedButton (Element.rgb255 200 210 200)
-            (Just CreateMatch)
-            [ Element.text T.createMatch ]
+        , el [ centerX ] (timeLimitInputLabel model)
+        , el [ centerX ] (safeModeToggle model)
+        , Input.button
+            [ Background.color (Element.rgb255 40 255 40)
+            , Element.mouseOver [ Background.color (Element.rgb255 85 200 85) ]
+            , centerX
+            , Border.rounded 100
+            ]
+            { onPress = Just CreateMatch
+            , label =
+                Element.row
+                    [ height fill
+                    , centerX
+                    , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                    , spacing 5
+                    ]
+                    [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
+                    , Element.text T.createMatch
+                    ]
+            }
         ]
 
 
 speedButton : { buttonIcon : Icon, caption : String, event : Msg, selected : Bool } -> Element Msg
 speedButton config =
-    bigRoundedButton (speedButtonColor config.selected)
-        (Just config.event)
-        [ icon [ centerX ] config.buttonIcon
-        , Element.el [ centerX ] (Element.text config.caption)
+    Input.button
+        [ Background.color (speedButtonColor config.selected)
+        , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+        , width fill
+        , height fill
+        , Border.rounded 5
         ]
+        { onPress = Just config.event
+        , label =
+            Element.row [ height fill, padding 15, spacing 10 ]
+                [ el [ width (px 30) ] (icon [ centerX ] config.buttonIcon)
+                , Element.el [] (Element.text config.caption)
+                ]
+        }
 
 
 speedButtonColor : Bool -> Element.Color
 speedButtonColor selected =
     if selected then
-        Element.rgb255 180 200 180
+        Element.rgb255 180 180 180
 
     else
-        Element.rgb255 200 210 200
+        Element.rgb255 220 220 220
 
 
 timeLimitInputLabel : Model -> Element Msg
@@ -466,28 +499,39 @@ safeModeToggle model =
 
 joinOnlineMatchUi : Model -> Element Msg
 joinOnlineMatchUi model =
-    box (Element.rgb255 220 220 230)
-        [ Element.el [ centerX, Font.size 30 ] (Element.text T.iGotAnInvite)
+    box (Element.rgba255 255 255 255 0.6)
+        [ Element.el
+            [ centerX
+            , Font.size 30
+            , Font.color (Element.rgb255 100 100 100)
+            , Element.paddingXY 0 10
+            ]
+            (Element.text T.iGotAnInvite)
         , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
             { onChange = SetRawMatchId
             , text = model.rawMatchId
             , placeholder = Just (Input.placeholder [] (Element.text T.enterMatchId))
             , label = Input.labelLeft [ centerY ] (Element.text T.matchId)
             }
-        , bigRoundedButton (Element.rgb255 200 200 210)
-            (Just JoinMatch)
-            [ Element.text T.joinGame ]
+        , Input.button
+            [ Background.color (Element.rgb255 100 100 255)
+            , Element.mouseOver [ Background.color (Element.rgb255 60 60 200) ]
+            , centerX
+            , Border.rounded 100
+            ]
+            { onPress = Just JoinMatch
+            , label =
+                Element.row
+                    [ height fill
+                    , centerX
+                    , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                    , spacing 5
+                    ]
+                    [ el [ width (px 20) ] (icon [ centerX ] Solid.arrowCircleRight)
+                    , Element.text T.joinGame
+                    ]
+            }
         ]
-
-
-{-| A button that is implemented via a vertical column.
--}
-bigRoundedButton : Element.Color -> Maybe msg -> List (Element msg) -> Element msg
-bigRoundedButton color event content =
-    Input.button [ Background.color color, width fill, height fill, Border.rounded 5 ]
-        { onPress = event
-        , label = Element.column [ height fill, centerX, padding 15, spacing 10 ] content
-        }
 
 
 recentGamesList : WebData (List CurrentMatchState) -> Element Msg
@@ -515,24 +559,32 @@ recentGamesList data =
 
 recentGamesListSuccess : List CurrentMatchState -> Element Msg
 recentGamesListSuccess games =
-    if List.isEmpty games then
-        Input.button [ padding 10 ]
-            { onPress = Just RefreshRecentGames
-            , label = Element.text T.recentSearchNoGames
-            }
+    Element.column [ centerX ]
+        [ Element.el
+            [ centerX
+            , Font.size 30
+            , Font.color (Element.rgb255 100 100 100)
+            , Element.paddingXY 0 10
+            ]
+            (Element.text T.watchLatestMatches)
+        , if List.isEmpty games then
+            refreshButton
 
-    else
-        Element.wrappedRow [ width fill, spacing 5 ]
-            (List.map (lazy recentGamesListSuccessOne) games
-                ++ [ refreshButton T.recentSearchRefresh ]
-            )
+          else
+            Element.wrappedRow [ width fill, spacing 5 ]
+                (List.map (lazy recentGamesListSuccessOne) games
+                    ++ [ refreshButton ]
+                )
+        ]
 
 
-refreshButton : String -> Element Msg
-refreshButton caption =
+refreshButton : Element Msg
+refreshButton =
     Input.button
         [ padding 10
-        , Background.color (Element.rgb 0.9 0.9 0.9)
+        , Background.color (Element.rgba 1 1 1 0.6)
+        , Element.mouseOver [ Background.color (Element.rgba 1 1 1 1) ]
+        , Border.rounded 5
         ]
         { onPress = Just RefreshRecentGames
         , label =
@@ -540,7 +592,7 @@ refreshButton caption =
                 [ icon [] Solid.redo
                     |> Element.el [ centerX, centerY ]
                     |> Element.el [ width (px 150), height (px 150) ]
-                , Element.text caption |> Element.el [ centerX ]
+                , Element.text T.recentSearchRefresh |> Element.el [ centerX ]
                 ]
         }
 
@@ -561,7 +613,9 @@ recentGamesListSuccessOne matchState =
     in
     Element.link
         [ padding 10
-        , Background.color (Element.rgb 0.9 0.9 0.9)
+        , Background.color (Element.rgba 1 1 1 0.6)
+        , Element.mouseOver [ Background.color (Element.rgba 1 1 1 1) ]
+        , Border.rounded 5
         ]
         { url = Route.toHref (Route.Game__Id_ { id = matchState.key })
         , label = column [ spacing 10 ] [ position, gameKeyLabel ]

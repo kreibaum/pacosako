@@ -51,6 +51,16 @@ async fn favicon() -> Result<NamedFile, ServerError> {
     static_file("../target/favicon.svg").await
 }
 
+#[get("/pacosako-logo.png")]
+async fn logo() -> Result<NamedFile, ServerError> {
+    static_file("../target/pacosako-logo.png").await
+}
+
+#[get("/bg.jpg")]
+async fn bg() -> Result<NamedFile, ServerError> {
+    static_file("../target/bg.jpg").await
+}
+
 #[derive(Deserialize)]
 struct UseMinJs {
     use_min_js: bool,
@@ -546,6 +556,8 @@ fn rocket() -> _ {
                 index,
                 elm,
                 favicon,
+                logo,
+                bg,
                 examples,
                 place_piece,
                 main_js,
