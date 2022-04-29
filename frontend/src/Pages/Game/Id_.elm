@@ -5,6 +5,8 @@ import Api.Ai
 import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
 import Api.Websocket
+import Browser.Dom
+import Browser.Events
 import CastingDeco
 import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
@@ -20,13 +22,12 @@ import Element.Font as Font
 import Element.Input as Input
 import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
-import Gen.Route as Route exposing (Route)
+import Gen.Route as Route
 import Header
 import Json.Decode as Decode
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Page
-import Platform exposing (Task)
 import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
 import Process
 import Reactive exposing (Device(..))
@@ -79,6 +80,8 @@ type alias Model =
     , gameUrl : Url.Url
     , colorSettings : Colors.ColorOptions
     , timeDriftMillis : Float
+    , windowHeight : Int
+    , visibleHeaderSize : Int
     }
 
 
@@ -105,14 +108,20 @@ init params query url =
       , gameUrl = url
       , colorSettings = determineColorSettingsFromQuery query
       , timeDriftMillis = 0
+      , windowHeight = 500
+      , visibleHeaderSize = 0
       }
     , Cmd.batch
         [ Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
         , -- This is not really nice, but we want to give the websocket time to
           -- connect. This is why we wait five seconds.
+          -- May be better to move this into typescript.
           Process.sleep 5000
             |> Task.andThen (\() -> Time.now)
             |> Task.perform (\now -> TimeDriftRequestTrigger { send = now })
+        , Browser.Dom.getViewport
+            |> Task.perform (\data -> SetWindowHeight (round data.viewport.height))
+        , fetchHeaderSize
         ]
         |> Effect.fromCmd
     )
@@ -153,6 +162,9 @@ type Msg
     | ToShared Shared.Msg
     | TimeDriftRequestTrigger { send : Posix }
     | TimeDriftResponseTriple { send : Posix, bounced : Posix, back : Posix }
+    | SetWindowHeight Int
+    | FetchHeaderSize
+    | SetVisibleHeaderSize Int
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -270,6 +282,37 @@ update msg model =
                     ++ " }"
                 )
                 |> Effect.fromCmd
+            )
+
+        SetWindowHeight h ->
+            ( { model | windowHeight = h }, Effect.none )
+
+        FetchHeaderSize ->
+            ( model
+            , fetchHeaderSize |> Effect.fromCmd
+            )
+
+        SetVisibleHeaderSize h ->
+            if model.visibleHeaderSize == h then
+                ( model, Effect.none )
+
+            else
+                -- Here we have to do some magic to prevent flickering.
+                -- Basically whenever we would flicker, this picks the middle of the states and becomes stable.
+                ( { model | visibleHeaderSize = (h + model.visibleHeaderSize) // 2 }, Effect.none )
+
+
+fetchHeaderSize : Cmd Msg
+fetchHeaderSize =
+    Browser.Dom.getElement "sako-editor"
+        |> Task.attempt
+            (\res ->
+                case res of
+                    Ok data ->
+                        SetVisibleHeaderSize (max (round (data.element.y - data.viewport.y)) 0)
+
+                    Err _ ->
+                        SetVisibleHeaderSize 0
             )
 
 
@@ -603,6 +646,8 @@ subscriptions model =
         , Api.Websocket.listenToStatus WebsocketStatusChange
         , Api.Ai.subscribeMoveFromAi AiCrashed MoveFromAi
         , Custom.Events.onKeyUp keybindings
+        , Browser.Events.onResize (\_ y -> SetWindowHeight y)
+        , Ports.scrollTrigger (\_ -> FetchHeaderSize)
         ]
 
 
@@ -625,7 +670,13 @@ keybindings =
 view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = T.gameTitle
-    , element = Header.wrapWithHeader shared ToShared (playUi shared model)
+    , element =
+        Header.wrapWithHeaderV2 shared
+            ToShared
+            { isRouteHighlighted = \_ -> False
+            , isWithBackground = False
+            }
+            (playUi shared model)
     }
 
 
@@ -633,7 +684,10 @@ playUi : Shared.Model -> Model -> Element Msg
 playUi shared model =
     case Reactive.classify shared.windowSize of
         LandscapeDevice ->
-            playUiLandscape shared model
+            Element.column [ width fill, height fill ]
+                [ playUiLandscape shared model
+                , Element.el [ height (px model.visibleHeaderSize) ] Element.none
+                ]
 
         PortraitDevice ->
             playUiPortrait shared model
@@ -641,11 +695,13 @@ playUi shared model =
 
 playUiLandscape : Shared.Model -> Model -> Element Msg
 playUiLandscape shared model =
-    Element.row
-        [ width fill, height fill, Element.scrollbarY ]
-        [ playPositionView shared model
-        , sidebar shared model
-        ]
+    el [ centerX, height fill, width (Element.maximum 1120 fill) ]
+        (Element.row
+            [ width fill, height fill, paddingXY 10 0, spacing 10 ]
+            [ playPositionView shared model
+            , sidebar model
+            ]
+        )
 
 
 playUiPortrait : Shared.Model -> Model -> Element Msg
@@ -653,13 +709,16 @@ playUiPortrait shared model =
     Element.column
         [ width fill, height fill ]
         [ playPositionView shared model
-        , sidebar shared model
+        , sidebar model
         ]
 
 
 playPositionView : Shared.Model -> Model -> Element Msg
 playPositionView shared model =
-    Element.el [ width fill, height fill ]
+    Element.el
+        [ width fill
+        , height (Element.maximum (model.windowHeight - model.visibleHeaderSize) fill)
+        ]
         (PositionView.viewTimeline
             { colorScheme = model.colorSettings
             , nodeId = Just sakoEditorId
@@ -873,31 +932,31 @@ playTimerReplaceViewport model =
 
     else
         Just
-            { x = -70
+            { x = -10
             , y = -80
-            , width = 900
+            , width = 820
             , height = 960
             }
 
 
-sidebar : Shared.Model -> Model -> Element Msg
-sidebar shared model =
-    Element.column [ spacing 5, padding 20, height fill ]
-        [ gameCodeLabel shared model model.subscription
+sidebar : Model -> Element Msg
+sidebar model =
+    Element.column [ spacing 5, height fill, paddingXY 0 40 ]
+        [ gameCodeLabel model model.subscription
         , bigRoundedButton (Element.rgb255 220 220 220)
             (Just Rollback)
             [ Element.text T.gameRestartMove ]
             |> Element.el [ width fill ]
-        , maybePromotionButtons shared model model.currentState.legalActions
-        , maybeVictoryStateInfo shared model model.currentState.gameState
-        , maybeReplayLink shared model
+        , maybePromotionButtons model.currentState.legalActions
+        , maybeVictoryStateInfo model.currentState.gameState
+        , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
         , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
         , Element.el [ padding 10 ] Element.none
         , Element.text T.gamePlayAs
-        , rotationButtons shared model model.rotation
+        , rotationButtons model.rotation
         , Element.el [ padding 10 ] Element.none
-        , playerNamesInput shared model
+        , playerNamesInput model
 
         -- , Input.button []
         --     { onPress = Just (PlayMsgWrapper RequestAiMove)
@@ -924,8 +983,8 @@ castingDecoMessages =
     }
 
 
-gameCodeLabel : Shared.Model -> Model -> Maybe String -> Element Msg
-gameCodeLabel shared model subscription =
+gameCodeLabel : Model -> Maybe String -> Element Msg
+gameCodeLabel model subscription =
     case subscription of
         Just id ->
             Element.column [ width fill, spacing 5 ]
@@ -943,8 +1002,8 @@ gameCodeLabel shared model subscription =
             Element.text T.gameNotConnected
 
 
-maybePromotionButtons : Shared.Model -> Model -> List Sako.Action -> Element Msg
-maybePromotionButtons shared model actions =
+maybePromotionButtons : List Sako.Action -> Element Msg
+maybePromotionButtons actions =
     let
         canPromote =
             actions
@@ -959,14 +1018,14 @@ maybePromotionButtons shared model actions =
                     )
     in
     if canPromote then
-        promotionButtons shared model
+        promotionButtons
 
     else
         Element.none
 
 
-promotionButtons : Shared.Model -> Model -> Element Msg
-promotionButtons shared model =
+promotionButtons : Element Msg
+promotionButtons =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
@@ -995,8 +1054,8 @@ promotionButtons shared model =
         ]
 
 
-maybeVictoryStateInfo : Shared.Model -> Model -> Sako.VictoryState -> Element msg
-maybeVictoryStateInfo shared model victoryState =
+maybeVictoryStateInfo : Sako.VictoryState -> Element msg
+maybeVictoryStateInfo victoryState =
     case victoryState of
         Sako.Running ->
             Element.none
@@ -1031,8 +1090,8 @@ maybeVictoryStateInfo shared model victoryState =
 
 {-| Links to the replay, but only after the game is finished.
 -}
-maybeReplayLink : Shared.Model -> Model -> Element msg
-maybeReplayLink shared model =
+maybeReplayLink : Model -> Element msg
+maybeReplayLink model =
     case model.currentState.gameState of
         Sako.Running ->
             Element.none
@@ -1077,8 +1136,8 @@ distributeSeconds seconds =
     { seconds = seconds |> modBy 60, minutes = seconds // 60 }
 
 
-rotationButtons : Shared.Model -> Model -> BoardRotation -> Element Msg
-rotationButtons shared model rotation =
+rotationButtons : BoardRotation -> Element Msg
+rotationButtons rotation =
     Element.row [ spacing 5 ]
         [ rotationButton WhiteBottom rotation T.gameWhite
         , rotationButton BlackBottom rotation T.gameBlack
@@ -1093,8 +1152,8 @@ rotationButton rotation currentRotation label =
         |> viewButton
 
 
-playerNamesInput : Shared.Model -> Model -> Element Msg
-playerNamesInput shared model =
+playerNamesInput : Model -> Element Msg
+playerNamesInput model =
     let
         whitePlayerName =
             Element.text T.gameWhitePlayerName

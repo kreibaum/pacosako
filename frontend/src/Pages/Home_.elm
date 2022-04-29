@@ -4,7 +4,6 @@ import Api.Backend
 import Api.Decoders exposing (CurrentMatchState)
 import Api.Ports as Ports
 import Browser.Navigation exposing (pushUrl)
-import Components
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Effect exposing (Effect)
@@ -49,7 +48,12 @@ view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "Paco Ŝako - pacoplay.com"
     , element =
-        Header.wrapWithHeaderV2 shared ToShared (\r -> r == Route.Home_) (matchSetupUi model)
+        Header.wrapWithHeaderV2 shared
+            ToShared
+            { isRouteHighlighted = \r -> r == Route.Home_
+            , isWithBackground = True
+            }
+            (matchSetupUi model)
     }
 
 

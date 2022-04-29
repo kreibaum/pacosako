@@ -121,18 +121,28 @@ languageChoice =
 ---- V2
 
 
+type alias HeaderData =
+    { isRouteHighlighted : Route -> Bool
+    , isWithBackground : Bool
+    }
+
+
 {-| Header for the refactored ui.
 -}
-wrapWithHeaderV2 : Shared.Model -> (Shared.Msg -> msg) -> (Route -> Bool) -> Element msg -> Element msg
-wrapWithHeaderV2 shared toMsg isRouteHighlighted body =
+wrapWithHeaderV2 : Shared.Model -> (Shared.Msg -> msg) -> HeaderData -> Element msg -> Element msg
+wrapWithHeaderV2 shared toMsg headerData body =
     Element.column
         [ width fill
         , height fill
         , Element.scrollbarY
-        , Background.image "/bg.jpg"
+        , if headerData.isWithBackground then
+            Background.image "/bg.jpg"
+
+          else
+            Background.color (Element.rgb255 255 255 255)
         ]
         [ Element.html FontAwesome.Styles.css
-        , pageHeaderV2 shared isRouteHighlighted
+        , pageHeaderV2 shared headerData
             |> Element.map toMsg
         , gamesArePublicHint shared
             |> Element.map toMsg
@@ -145,8 +155,8 @@ wrapWithHeaderV2 shared toMsg isRouteHighlighted body =
 TODO: Make this reactive for small devices and put a hamburger menu on the left.
 
 -}
-pageHeaderV2 : Shared.Model -> (Route -> Bool) -> Element Shared.Msg
-pageHeaderV2 model isRouteHighlighted =
+pageHeaderV2 : Shared.Model -> HeaderData -> Element Shared.Msg
+pageHeaderV2 model headerData =
     Element.row
         [ width fill
         , Border.solid
@@ -166,9 +176,9 @@ pageHeaderV2 model isRouteHighlighted =
             , spacing 5
             ]
             [ Element.row [ spacing 15, width fill ]
-                [ pageHeaderButtonV2 Route.Home_ T.headerPlayPacoSako isRouteHighlighted
-                , pageHeaderButtonV2 Route.Tutorial T.headerTutorial isRouteHighlighted
-                , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles isRouteHighlighted
+                [ pageHeaderButtonV2 Route.Home_ T.headerPlayPacoSako headerData.isRouteHighlighted
+                , pageHeaderButtonV2 Route.Tutorial T.headerTutorial headerData.isRouteHighlighted
+                , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles headerData.isRouteHighlighted
                 ]
             , el [] pacosakoLogo
             , el [ width fill ] languageChoiceV2

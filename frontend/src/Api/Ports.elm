@@ -6,6 +6,7 @@ port module Api.Ports exposing
     , requestMoveFromAi
     , requestSvgNodeContent
     , responseSvgNodeContent
+    , scrollTrigger
     , subscribeMoveFromAi
     , triggerPngDownload
     , websocketReceive
@@ -74,6 +75,11 @@ port playSound : () -> Cmd msg
 {-| Copy a text to the clipboard
 -}
 port copy : String -> Cmd msg
+
+
+{-| Triggers whenever the window is scrolled.
+-}
+port scrollTrigger : (() -> msg) -> Sub msg
 
 
 

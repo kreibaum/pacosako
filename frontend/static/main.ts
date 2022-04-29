@@ -412,6 +412,25 @@ if (app.ports.playSound) {
     app.ports.playSound.subscribe(() => play_sound());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Ports for scroll detection //////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+let scrollTicking = false;
+window.addEventListener('scroll', function (e) {
+
+    if (!scrollTicking) {
+        window.requestAnimationFrame(function () {
+            if (app.ports.scrollTrigger) {
+                app.ports.scrollTrigger.send(null);
+            }
+            scrollTicking = false;
+        });
+
+        scrollTicking = true;
+    }
+});
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Ports for the AI Web Worker /////////////////////////////////////////////////
