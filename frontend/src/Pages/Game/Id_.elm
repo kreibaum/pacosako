@@ -82,6 +82,7 @@ type alias Model =
     , timeDriftMillis : Float
     , windowHeight : Int
     , visibleHeaderSize : Int
+    , elementHeight : Int
     }
 
 
@@ -110,6 +111,7 @@ init params query url =
       , timeDriftMillis = 0
       , windowHeight = 500
       , visibleHeaderSize = 0
+      , elementHeight = 500
       }
     , Cmd.batch
         [ Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
@@ -164,7 +166,7 @@ type Msg
     | TimeDriftResponseTriple { send : Posix, bounced : Posix, back : Posix }
     | SetWindowHeight Int
     | FetchHeaderSize
-    | SetVisibleHeaderSize Int
+    | SetVisibleHeaderSize { header : Int, elementHeight : Int }
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -292,14 +294,14 @@ update msg model =
             , fetchHeaderSize |> Effect.fromCmd
             )
 
-        SetVisibleHeaderSize h ->
-            if model.visibleHeaderSize == h then
+        SetVisibleHeaderSize { header, elementHeight } ->
+            if model.visibleHeaderSize == header && model.elementHeight == elementHeight then
                 ( model, Effect.none )
 
             else
                 -- Here we have to do some magic to prevent flickering.
                 -- Basically whenever we would flicker, this picks the middle of the states and becomes stable.
-                ( { model | visibleHeaderSize = (h + model.visibleHeaderSize) // 2 }, Effect.none )
+                ( { model | visibleHeaderSize = header, elementHeight = elementHeight }, Effect.none )
 
 
 fetchHeaderSize : Cmd Msg
@@ -309,10 +311,16 @@ fetchHeaderSize =
             (\res ->
                 case res of
                     Ok data ->
-                        SetVisibleHeaderSize (max (round (data.element.y - data.viewport.y)) 0)
+                        Debug.log "data" data
+                            |> (\_ ->
+                                    SetVisibleHeaderSize
+                                        { header = max (round (data.element.y - data.viewport.y)) 0
+                                        , elementHeight = round data.element.height
+                                        }
+                               )
 
                     Err _ ->
-                        SetVisibleHeaderSize 0
+                        SetVisibleHeaderSize { header = 0, elementHeight = 0 }
             )
 
 
@@ -686,7 +694,15 @@ playUi shared model =
         LandscapeDevice ->
             Element.column [ width fill, height fill ]
                 [ playUiLandscape shared model
-                , Element.el [ height (px model.visibleHeaderSize) ] Element.none
+                , Element.el
+                    [ height
+                        (px
+                            (max model.visibleHeaderSize
+                                (model.windowHeight - model.visibleHeaderSize - model.elementHeight)
+                            )
+                        )
+                    ]
+                    Element.none
                 ]
 
         PortraitDevice ->
@@ -715,9 +731,13 @@ playUiPortrait shared model =
 
 playPositionView : Shared.Model -> Model -> Element Msg
 playPositionView shared model =
+    let
+        rect =
+            playTimerReplaceViewport model
+    in
     Element.el
         [ width fill
-        , height (Element.maximum (model.windowHeight - model.visibleHeaderSize) fill)
+        , height (Element.maximum (min (model.windowHeight - model.visibleHeaderSize) (round rect.height)) fill)
         ]
         (PositionView.viewTimeline
             { colorScheme = model.colorSettings
@@ -728,7 +748,7 @@ playPositionView shared model =
             , mouseUp = Just MouseUp
             , mouseMove = Just MouseMove
             , additionalSvg = additionalSvg shared model
-            , replaceViewport = playTimerReplaceViewport model
+            , replaceViewport = Just rect
             }
             model.timeline
         )
@@ -920,23 +940,25 @@ playerLabelSvg name yPos =
 playTimerReplaceViewport :
     Model
     ->
-        Maybe
-            { x : Float
-            , y : Float
-            , width : Float
-            , height : Float
-            }
+        { x : Float
+        , y : Float
+        , width : Float
+        , height : Float
+        }
 playTimerReplaceViewport model =
     if Maybe.isNothing model.currentState.timer then
-        Nothing
+        { x = -10
+        , y = -80
+        , width = 820
+        , height = 820
+        }
 
     else
-        Just
-            { x = -10
-            , y = -80
-            , width = 820
-            , height = 960
-            }
+        { x = -10
+        , y = -80
+        , width = 820
+        , height = 960
+        }
 
 
 sidebar : Model -> Element Msg
@@ -956,12 +978,6 @@ sidebar model =
         , Element.text T.gamePlayAs
         , rotationButtons model.rotation
         , Element.el [ padding 10 ] Element.none
-        , playerNamesInput model
-
-        -- , Input.button []
-        --     { onPress = Just (PlayMsgWrapper RequestAiMove)
-        --     , label = Element.text "Request Ai Move"
-        --     }
         ]
 
 
@@ -1150,29 +1166,3 @@ rotationButton rotation currentRotation label =
         |> withMsgIf (rotation /= currentRotation) (SetRotation rotation)
         |> isSelectedIf (rotation == currentRotation)
         |> viewButton
-
-
-playerNamesInput : Model -> Element Msg
-playerNamesInput model =
-    let
-        whitePlayerName =
-            Element.text T.gameWhitePlayerName
-
-        blackPlayerName =
-            Element.text T.gameBlackPlayerName
-    in
-    Element.column [ spacing 5 ]
-        [ Element.text T.gamePlayerNamesForStreaming
-        , Input.text []
-            { onChange = SetWhiteName
-            , text = model.whiteName
-            , placeholder = Just (Input.placeholder [] whitePlayerName)
-            , label = Input.labelAbove [] whitePlayerName
-            }
-        , Input.text []
-            { onChange = SetBlackName
-            , text = model.blackName
-            , placeholder = Just (Input.placeholder [] blackPlayerName)
-            , label = Input.labelAbove [] blackPlayerName
-            }
-        ]

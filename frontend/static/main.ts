@@ -431,6 +431,14 @@ window.addEventListener('scroll', function (e) {
     }
 });
 
+if (app.ports.scrollTrigger) {
+    // Wait 10 ms before calling app.ports.scrollTrigger.send(null);
+    setTimeout(() => {
+        app.ports.scrollTrigger.send(null);
+    }
+        , 10);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Ports for the AI Web Worker /////////////////////////////////////////////////
