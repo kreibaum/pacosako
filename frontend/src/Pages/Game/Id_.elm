@@ -9,7 +9,7 @@ import Browser.Dom
 import Browser.Events
 import CastingDeco
 import Colors
-import Components exposing (btn, isSelectedIf, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
+import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Dict exposing (Dict)
@@ -948,9 +948,9 @@ playTimerReplaceViewport :
 playTimerReplaceViewport model =
     if Maybe.isNothing model.currentState.timer then
         { x = -10
-        , y = -80
+        , y = -20
         , width = 820
-        , height = 820
+        , height = 840
         }
 
     else
@@ -1003,16 +1003,20 @@ gameCodeLabel : Model -> Maybe String -> Element Msg
 gameCodeLabel model subscription =
     case subscription of
         Just id ->
-            Element.column [ width fill, spacing 5 ]
-                [ Components.gameIdBadgeBig id
-                , Element.row [ width fill, height fill ]
-                    [ btn T.gameCopyToClipboard
-                        |> withSmallIcon Regular.clipboard
-                        |> withMsg (CopyToClipboard (Url.toString model.gameUrl))
-                        |> withStyle (width fill)
-                        |> viewButton
-                    ]
+            Input.button
+                [ Background.color (Element.rgb255 220 220 220)
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , width fill
+                , Border.rounded 5
                 ]
+                { onPress = Just (CopyToClipboard (Url.toString model.gameUrl))
+                , label =
+                    Element.row [ height fill, width fill, padding 15, Font.size 40 ]
+                        [ el [ width fill ] Element.none
+                        , el [] (Element.text id)
+                        , el [ width fill, Font.size 30, paddingXY 5 0 ] (icon [ alignRight ] Regular.clipboard)
+                        ]
+                }
 
         Nothing ->
             Element.text T.gameNotConnected
