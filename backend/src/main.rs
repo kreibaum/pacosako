@@ -135,7 +135,7 @@ pub enum ServerError {
 impl<'r> rocket::response::Responder<'r, 'static> for ServerError {
     fn respond_to(self, _: &'r Request<'_>) -> rocket::response::Result<'static> {
         error!("Server Error: {:?}", self);
-        return Err(rocket::http::Status::InternalServerError);
+        Err(rocket::http::Status::InternalServerError)
     }
 }
 
@@ -361,7 +361,7 @@ async fn create_game(
     db::game::insert(&mut game, &mut conn).await?;
 
     info!("Game created with id {}.", game.key);
-    Ok(format!("{}", game.key))
+    Ok(game.key.to_string())
 }
 
 /// Returns the current state of the given game. This is intended for use by the
@@ -386,7 +386,7 @@ async fn post_action_to_game(
     key: String,
     action: Json<pacosako::PacoAction>,
     send_to_websocket: State<'_, async_channel::Sender<ws::RocketToWsMsg>>,
-) -> () {
+) {
     match send_to_websocket
         .send(RocketToWsMsg::AiAction {
             key,
