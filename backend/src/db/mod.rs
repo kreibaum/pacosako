@@ -2,7 +2,7 @@
 pub mod game;
 pub mod user;
 
-use super::{LoginRequest, Position, SavePositionRequest, SavePositionResponse, ServerError, User};
+use super::{Position, SavePositionRequest, SavePositionResponse, ServerError, User};
 use sqlx::pool::PoolConnection;
 /// All database logic for the pacosako game server lives in this project.
 /// We are using sqlx to talk to an sqlite database.

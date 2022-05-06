@@ -1,28 +1,28 @@
 module Pages.Login exposing (Model, Msg, Params, getCurrentLogin, page)
 
-import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
+import Api.Backend exposing (DiscordApplicationId(..))
 import Effect exposing (Effect)
 import Element exposing (Element, padding, spacing)
 import Element.Border as Border
 import Element.Input as Input
 import Http
 import Json.Decode as Decode exposing (Decoder)
-import Json.Encode as Encode exposing (Value)
-import Page exposing (Page)
+import Page
 import RemoteData exposing (RemoteData)
 import Request
 import Shared exposing (User)
-import Spa.Url exposing (Url)
+import Url exposing (Url)
+import Url.Builder
 import View exposing (View)
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
-page shared _ =
+page shared request =
     Page.advanced
         { init = init shared
         , update = update
         , subscriptions = subscriptions
-        , view = view
+        , view = view shared request.url
         }
 
 
@@ -38,6 +38,7 @@ type alias Model =
     { usernameRaw : String
     , passwordRaw : String
     , user : RemoteData () User
+    , discordApplicationId : Maybe DiscordApplicationId
     }
 
 
@@ -46,8 +47,10 @@ init shared =
     ( { usernameRaw = ""
       , passwordRaw = ""
       , user = initUser shared.user
+      , discordApplicationId = Nothing
       }
-    , Effect.none
+    , Api.Backend.getDiscordApplicationId (\_ -> LoginError) SetDiscordAppId
+        |> Effect.fromCmd
     )
 
 
@@ -65,11 +68,11 @@ initUser maybeUser =
 type Msg
     = TypeUsername String
     | TypePassword String
-    | TryLogin
     | LoggedIn User
     | DoLogout
     | LoggedOut
     | LoginError
+    | SetDiscordAppId DiscordApplicationId
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -80,15 +83,6 @@ update msg model =
 
         TypePassword raw ->
             ( { model | passwordRaw = raw }, Effect.none )
-
-        TryLogin ->
-            ( { model | user = RemoteData.Loading }
-            , postLoginPassword
-                { password = model.passwordRaw
-                , username = model.usernameRaw
-                }
-                |> Effect.fromCmd
-            )
 
         DoLogout ->
             ( { model
@@ -120,6 +114,9 @@ update msg model =
         LoginError ->
             ( { model | user = RemoteData.Failure () }, Effect.none )
 
+        SetDiscordAppId id ->
+            ( { model | discordApplicationId = Just id }, Effect.none )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -130,23 +127,60 @@ subscriptions _ =
 -- VIEW
 
 
-view : Model -> View Msg
-view model =
+view : Shared.Model -> Url -> Model -> View Msg
+view shared url model =
     { title = "Log in to Paco Play"
     , element =
-        case model.user of
-            RemoteData.Success user ->
-                loginInfoPage user
+        case model.discordApplicationId of
+            Just id ->
+                discordLoginButton url shared.oAuthState id
 
-            RemoteData.NotAsked ->
-                loginDialog { isFailed = False, isWaiting = False } model
-
-            RemoteData.Failure () ->
-                loginDialog { isFailed = True, isWaiting = False } model
-
-            RemoteData.Loading ->
-                loginDialog { isFailed = False, isWaiting = True } model
+            Nothing ->
+                Element.none
     }
+
+
+redirectUrl : Url -> String -> DiscordApplicationId -> String
+redirectUrl url oAuthState (DiscordApplicationId id) =
+    let
+        redirectUri =
+            (case url.protocol of
+                Url.Https ->
+                    "https://"
+
+                Url.Http ->
+                    "http://"
+            )
+                ++ url.host
+                ++ (case url.port_ of
+                        Just port_ ->
+                            ":" ++ String.fromInt port_
+
+                        Nothing ->
+                            ""
+                   )
+                ++ "/api/oauth/redirect"
+    in
+    Url.Builder.crossOrigin "https://discord.com"
+        [ "api", "oauth2", "authorize" ]
+        [ Url.Builder.string "client_id" id
+        , Url.Builder.string "response_type" "code"
+        , Url.Builder.string "scope" "identify"
+        , Url.Builder.string "state" oAuthState
+        , Url.Builder.string "redirect_uri" redirectUri
+
+        -- You can set "consent" here which forces the user to accept the connection.
+        , Url.Builder.string "prompt" "none"
+        ]
+
+
+discordLoginButton : Url -> String -> DiscordApplicationId -> Element Msg
+discordLoginButton url oAuthState (DiscordApplicationId id) =
+    Element.link []
+        { url =
+            redirectUrl url oAuthState (DiscordApplicationId id)
+        , label = Element.text "Log in with Discord"
+        }
 
 
 loginDialog : { isFailed : Bool, isWaiting : Bool } -> Model -> Element Msg
@@ -158,7 +192,7 @@ loginDialog params model =
             , placeholder = Just (Input.placeholder [] (Element.text "Username"))
             , text = model.usernameRaw
             }
-        , Input.currentPassword [ onKeyUpAttr [ forKey "Enter" |> fireMsg TryLogin ] ]
+        , Input.currentPassword []
             { label = Input.labelAbove [] (Element.text "Password")
             , onChange = TypePassword
             , placeholder = Just (Input.placeholder [] (Element.text "Password"))
@@ -169,7 +203,7 @@ loginDialog params model =
             Input.button [] { label = Element.text "Logging in ...", onPress = Nothing }
 
           else
-            Input.button [ Element.alignRight ] { label = Element.text "Login", onPress = Just TryLogin }
+            Input.button [ Element.alignRight ] { label = Element.text "Login", onPress = Nothing }
         , if params.isFailed then
             Element.text "Error while logging in"
 
@@ -204,44 +238,11 @@ thinBorder content =
 -- API
 
 
-type alias LoginData =
-    { username : String
-    , password : String
-    }
-
-
-encodeLoginData : LoginData -> Value
-encodeLoginData record =
-    Encode.object
-        [ ( "username", Encode.string <| record.username )
-        , ( "password", Encode.string <| record.password )
-        ]
-
-
 decodeUser : Decoder User
 decodeUser =
     Decode.map2 User
         (Decode.field "user_id" Decode.int)
         (Decode.field "username" Decode.string)
-
-
-postLoginPassword : LoginData -> Cmd Msg
-postLoginPassword data =
-    Http.post
-        { url = "/api/login/password"
-        , body = Http.jsonBody (encodeLoginData data)
-        , expect =
-            Http.expectJson
-                (\res ->
-                    case res of
-                        Ok user ->
-                            LoggedIn user
-
-                        Err _ ->
-                            LoginError
-                )
-                decodeUser
-        }
 
 
 {-| Gets information on the currently logged in user. This method will not

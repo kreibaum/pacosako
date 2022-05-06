@@ -1,4 +1,5 @@
 mod db;
+mod discord;
 mod language;
 mod sync_match;
 mod timer;
@@ -221,12 +222,6 @@ async fn position_get_list(
 // User Authentication /////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Deserialize)]
-pub struct LoginRequest {
-    username: String,
-    password: String,
-}
-
 /// Request guard that makes it easy to define routes that are only available
 /// to logged in members of the website.
 #[derive(Serialize)]
@@ -243,38 +238,32 @@ impl<'r> FromRequest<'r> for User {
         use rocket::outcome::try_outcome;
 
         let pool: State<'_, db::Pool> = try_outcome!(request.guard::<State<'_, db::Pool>>().await);
+        let conn = pool.conn().await;
+
+        if conn.is_err() {
+            return request::Outcome::Failure((rocket::http::Status::InternalServerError, ()));
+        }
+        let mut conn = conn.unwrap();
 
         let cookies = request.cookies();
-        let user_id = cookies.get_private("user_id");
+        let session_id = cookies.get_private("session_id");
 
-        if let Some(user_id) = user_id {
-            let username = user_id.value().to_owned();
-            if let Ok(user) = pool.get_user(username.clone()).await {
-                return request::Outcome::Success(user);
+        if let Some(session_id) = session_id {
+            let user = discord::get_user_for_session_id(session_id.value(), &mut conn).await;
+
+            if user.is_err() {
+                return request::Outcome::Failure((rocket::http::Status::InternalServerError, ()));
+            }
+            let user = user.unwrap();
+            if let Some(user) = user {
+                return request::Outcome::Success(User {
+                    user_id: user.id,
+                    username: user.username,
+                });
             }
         }
 
         request::Outcome::Forward(())
-    }
-}
-
-/// Log in with username and password
-#[post("/login/password", data = "<login>")]
-async fn login(
-    login: Json<LoginRequest>,
-    jar: &CookieJar<'_>,
-    conn: State<'_, Pool>,
-) -> Result<Json<User>, ServerError> {
-    let mut conn = conn.conn().await?;
-
-    if db::user::check_password(&login.0, &mut conn).await? {
-        jar.add_private(Cookie::new("user_id", login.username.clone()));
-        let user = db::user::get_user(login.username.clone(), &mut conn)
-            .await
-            .unwrap();
-        Ok(Json(user))
-    } else {
-        Err(ServerError::NotAllowed)
     }
 }
 
@@ -284,10 +273,42 @@ fn user_id(user: Option<User>) -> Json<Option<User>> {
     Json(user)
 }
 
+#[get("/oauth/discord_client_id")]
+async fn discord_client_id(config: State<'_, CustomConfig>) -> Json<String> {
+    Json(config.discord_client_id.clone())
+}
+
+#[get("/oauth/redirect?<code>&<state>")]
+async fn authorize_discord_oauth_code(
+    config: State<'_, CustomConfig>,
+    code: &str,
+    state: &str,
+    jar: &CookieJar<'_>,
+    pool: State<'_, Pool>,
+) -> Flash<Redirect> {
+    let conn = pool.conn().await;
+    if conn.is_err() {
+        return Flash::error(Redirect::to("/"), "Database error");
+    }
+    let mut conn = conn.unwrap();
+
+    let res = discord::authorize_oauth_code(&config, code, state, jar, &mut conn).await;
+    match res {
+        Ok(user) => Flash::success(Redirect::to("/"), "Login successful"),
+        Err(e) => {
+            warn!("Login failed: {}", e);
+            Flash::error(
+                Redirect::to("/login"),
+                "Error during authentication. Please try again.",
+            )
+        }
+    }
+}
+
 /// Remove the `user_id` cookie.
 #[get("/logout")]
 fn logout(jar: &CookieJar<'_>) -> Flash<Redirect> {
-    jar.remove_private(Cookie::named("user_id"));
+    jar.remove_private(Cookie::named("session_id"));
     Flash::success(Redirect::to("/"), "Successfully logged out.")
 }
 
@@ -528,9 +549,12 @@ fn init_new_websocket_server(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Bu
 }
 
 #[derive(Deserialize)]
-struct CustomConfig {
+pub struct CustomConfig {
     websocket_port: u16,
     database_path: String,
+    discord_client_id: String,
+    discord_client_secret: String,
+    application_url: String,
 }
 
 #[launch]
@@ -550,6 +574,7 @@ fn rocket() -> _ {
             Box::pin(async move { init_new_websocket_server(rocket) })
         }))
         .attach(AdHoc::config::<UseMinJs>())
+        .attach(AdHoc::config::<CustomConfig>())
         .mount(
             "/",
             routes![
@@ -567,7 +592,6 @@ fn rocket() -> _ {
         .mount(
             "/api/",
             routes![
-                login,
                 logout,
                 user_id,
                 position_create,
@@ -583,7 +607,9 @@ fn rocket() -> _ {
                 websocket_port,
                 recently_created_games,
                 language::user_language,
-                language::set_user_language
+                language::set_user_language,
+                discord_client_id,
+                authorize_discord_oauth_code
             ],
         )
         .mount("/", routes![index_fallback])

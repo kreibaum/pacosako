@@ -37,6 +37,7 @@ type alias Model =
     , username : String
     , permissions : List LocalStorage.Permission
     , now : Posix
+    , oAuthState : String
     }
 
 
@@ -63,6 +64,11 @@ init { url, key } flags =
     let
         ls =
             LocalStorage.load flags
+
+        oAuthState =
+            Decode.decodeValue (Decode.field "oAuthState" Decode.string) flags
+                |> Result.toMaybe
+                |> Maybe.withDefault ""
     in
     ( { url = url
       , key = key
@@ -71,6 +77,7 @@ init { url, key } flags =
       , username = ls.data.username
       , permissions = ls.permissions
       , now = parseNow flags
+      , oAuthState = oAuthState
       }
     , Api.Backend.getCurrentLogin HttpError
         (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)

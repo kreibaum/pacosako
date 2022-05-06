@@ -1,8 +1,10 @@
 module Api.Backend exposing
     ( Api
+    , DiscordApplicationId(..)
     , Replay
     , describeError
     , getCurrentLogin
+    , getDiscordApplicationId
     , getLogout
     , getRandomPosition
     , getRecentGameKeys
@@ -417,3 +419,19 @@ decodeStampedAction =
     Decode.map2 (\a b -> ( a, b ))
         Sako.decodeAction
         (Decode.field "timestamp" Iso8601.decoder)
+
+
+
+-- API methods for discord OAuth
+
+
+type DiscordApplicationId
+    = DiscordApplicationId String
+
+
+getDiscordApplicationId : Api DiscordApplicationId msg
+getDiscordApplicationId =
+    getJson
+        { url = "/api/oauth/discord_client_id"
+        , decoder = Decode.string |> Decode.map DiscordApplicationId
+        }
