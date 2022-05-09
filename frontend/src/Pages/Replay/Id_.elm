@@ -387,7 +387,7 @@ successBody shared model replay =
     Element.row
         [ width fill, height fill, Element.scrollbarY ]
         [ boardView model replay
-        , sidebar shared model replay
+        , sidebar shared model
         ]
 
 
@@ -524,15 +524,15 @@ decoration model actions position =
 --------------------------------------------------------------------------------
 
 
-sidebar : Shared.Model -> Model -> Replay -> Element Msg
-sidebar shared model replay =
+sidebar : Shared.Model -> Model -> Element Msg
+sidebar _ model =
     Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
         [ Components.gameIdBadgeBig model.key
         , arrowButtons
         , enableMovementIndicators model.showMovementIndicators
         , editorLink model
         , rematchLink model
-        , actionList model replay
+        , actionList model
         , CastingDeco.configView
             { setInputMode = SetInputMode
             , clearTiles = ClearDecoTiles
@@ -586,8 +586,8 @@ rematchLink model =
 {-| The interactive list of all action that happened in the game. You can click
 on one action go to to that position.
 -}
-actionList : Model -> Replay -> Element Msg
-actionList model replay =
+actionList : Model -> Element Msg
+actionList model =
     Element.column [ width fill, height fill, scrollbarY ]
         (setupButton model :: List.map (sidebarMove model) model.sidebarData)
 

@@ -30,7 +30,7 @@ pub fn run_server(port: u16, pool: db::Pool) -> Result<Sender<RocketToWsMsg>, Se
 
     let all_peers = client_connector::run_websocket_connector(port, to_logic.clone());
     let to_timeout = timeout_connector::run_timeout_thread(to_logic.clone());
-    let for_rocket = run_rocket_ws_msg(to_logic.clone());
+    let for_rocket = run_rocket_ws_msg(to_logic);
 
     run_logic_server(all_peers, to_timeout, message_queue, pool);
 
@@ -64,13 +64,10 @@ fn run_rocket_ws_msg(to_logic: Sender<LogicMsg>) -> Sender<RocketToWsMsg> {
         async_std::task::block_on(forward_rocket_messages(from_rocket, to_logic))
     });
 
-    return for_rocket;
+    for_rocket
 }
 
-async fn forward_rocket_messages(
-    from_rocket: Receiver<RocketToWsMsg>,
-    to_logic: Sender<LogicMsg>,
-) -> () {
+async fn forward_rocket_messages(from_rocket: Receiver<RocketToWsMsg>, to_logic: Sender<LogicMsg>) {
     while let Ok(RocketToWsMsg::AiAction { key, action }) = from_rocket.recv().await {
         if to_logic
             .send(LogicMsg::AiAction { key, action })
@@ -156,9 +153,9 @@ struct ServerState {
 impl ServerState {
     /// Returns a room, creating it if required. The socket that asked is added
     /// to the room automatically.
-    fn room(&mut self, key: &String, asked_by: SocketAddr) -> &mut GameRoom {
-        let room = self.rooms.entry(key.clone()).or_insert(GameRoom {
-            key: key.clone(),
+    fn room(&mut self, key: &str, asked_by: SocketAddr) -> &mut GameRoom {
+        let room = self.rooms.entry(key.to_string()).or_insert(GameRoom {
+            key: key.to_string(),
             connected: HashSet::new(),
             protection: ProtectionState::NoPlayers,
         });
@@ -258,7 +255,7 @@ async fn handle_message(
                     info!("Close message recieved. This is not implemented here.");
                 }
             };
-            return Ok(());
+            Ok(())
         }
         LogicMsg::Timeout { key, timestamp } => {
             info!("Timeout was called for game {} at {}", key, timestamp);
@@ -271,7 +268,7 @@ async fn handle_message(
             if let Some(room) = server_state.rooms.get_mut(&game.key) {
                 broadcast_state(room, &state, ws).await;
             }
-            return Ok(());
+            Ok(())
         }
         LogicMsg::AiAction { key, action } => {
             let mut game = fetch_game(&key, conn).await?;
@@ -291,7 +288,7 @@ async fn handle_message(
                 broadcast_state(room, &state, ws).await;
             }
 
-            return Ok(());
+            Ok(())
         }
     }
 }
@@ -312,7 +309,7 @@ async fn progress_the_timer(
                     .await
                     .expect("Timeout connector quit unexpectedly.");
             }
-            return Ok(state);
+            Ok(state)
         }
         Err(e) => {
             bail!("Error when progressing the timer: {}", e);
@@ -427,11 +424,11 @@ async fn handle_client_message(
         }
         ClientMessage::GetUUID => {
             let uuid: String = server_state.get_uuid(sender);
-            let msg = ServerMessage::SocketUUID { uuid: uuid };
+            let msg = ServerMessage::SocketUUID { uuid };
             send_msg(msg, &sender, ws).await?;
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 /// Possible states the game protection can be. Note that "No game protection"
@@ -498,7 +495,7 @@ async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState, ws: &Pe
         // remove the offending party from the room.
         let res = send_msg(ServerMessage::CurrentMatchState(state.clone()), target, ws).await;
         if res.is_err() {
-            offenders.push(target.clone());
+            offenders.push(*target);
         }
     }
 

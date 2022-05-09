@@ -1,6 +1,5 @@
 /// Everything related to the play page.
 pub mod game;
-pub mod user;
 
 use super::{Position, SavePositionRequest, SavePositionResponse, ServerError, User};
 use sqlx::pool::PoolConnection;
@@ -101,16 +100,6 @@ impl Pool {
         .await?;
 
         recs.iter().map(PositionRaw::into_position).collect()
-    }
-
-    pub(crate) async fn get_user(&self, username: String) -> Result<User, ServerError> {
-        Ok(sqlx::query_as!(
-            User,
-            "SELECT id as user_id, username FROM user WHERE username = ?1",
-            username
-        )
-        .fetch_one(&self.0)
-        .await?)
     }
 }
 

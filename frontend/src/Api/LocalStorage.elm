@@ -224,22 +224,6 @@ decodeDataV1 =
 
 
 --------------------------------------------------------------------------------
----- Various helper functions --------------------------------------------------
---------------------------------------------------------------------------------
-
-
-encodeNullable : (a -> Value) -> Maybe a -> Value
-encodeNullable encode thing =
-    case thing of
-        Just something ->
-            encode something
-
-        Nothing ->
-            Encode.null
-
-
-
---------------------------------------------------------------------------------
 --- Trampoline functionality ---------------------------------------------------
 --------------------------------------------------------------------------------
 -- The trampolineIn and trampolineOut are a way to send a global message.

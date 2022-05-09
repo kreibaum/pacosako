@@ -27,7 +27,7 @@ pub async fn user_language<'r>(lang: AcceptLanguage, jar: &CookieJar<'_>) -> Str
 }
 
 #[post("/language", data = "<language>")]
-pub async fn set_user_language<'r>(language: String, jar: &CookieJar<'_>) -> () {
+pub async fn set_user_language<'r>(language: String, jar: &CookieJar<'_>) {
     jar.add(Cookie::new(LANGUAGE_COOKIE_NAME, language));
 }
 
@@ -58,7 +58,7 @@ impl<'r> FromRequest<'r> for UserLanguage {
         if let request::Outcome::Success(allowed) = AcceptLanguage::from_request(req).await {
             for lang in allowed.0 {
                 if get_static_language_file(&lang).is_none() {
-                    return request::Outcome::Success(UserLanguage(lang.to_string()));
+                    return request::Outcome::Success(UserLanguage(lang));
                 }
             }
         }

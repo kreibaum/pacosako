@@ -2,9 +2,7 @@ module Pages.Login exposing (Model, Msg, Params, getCurrentLogin, page)
 
 import Api.Backend exposing (DiscordApplicationId(..))
 import Effect exposing (Effect)
-import Element exposing (Element, padding, spacing)
-import Element.Border as Border
-import Element.Input as Input
+import Element exposing (Element)
 import Http
 import Json.Decode as Decode exposing (Decoder)
 import Page
@@ -181,57 +179,6 @@ discordLoginButton url oAuthState (DiscordApplicationId id) =
             redirectUrl url oAuthState (DiscordApplicationId id)
         , label = Element.text "Log in with Discord"
         }
-
-
-loginDialog : { isFailed : Bool, isWaiting : Bool } -> Model -> Element Msg
-loginDialog params model =
-    Element.column [ padding 10, spacing 10, Element.centerX, Element.centerY ]
-        [ Input.username []
-            { label = Input.labelAbove [] (Element.text "Username")
-            , onChange = TypeUsername
-            , placeholder = Just (Input.placeholder [] (Element.text "Username"))
-            , text = model.usernameRaw
-            }
-        , Input.currentPassword []
-            { label = Input.labelAbove [] (Element.text "Password")
-            , onChange = TypePassword
-            , placeholder = Just (Input.placeholder [] (Element.text "Password"))
-            , text = model.passwordRaw
-            , show = False
-            }
-        , if params.isWaiting then
-            Input.button [] { label = Element.text "Logging in ...", onPress = Nothing }
-
-          else
-            Input.button [ Element.alignRight ] { label = Element.text "Login", onPress = Nothing }
-        , if params.isFailed then
-            Element.text "Error while logging in"
-
-          else
-            Element.none
-        ]
-        |> thinBorder
-
-
-loginInfoPage : User -> Element Msg
-loginInfoPage user =
-    Element.column [ Element.centerX, Element.centerY ]
-        [ Element.text ("Username: " ++ user.username)
-        , Element.text ("ID: " ++ String.fromInt user.id)
-        , Input.button [] { label = Element.text "Logout", onPress = Just DoLogout }
-        ]
-
-
-thinBorder : Element msg -> Element msg
-thinBorder content =
-    Element.el
-        [ Border.color (Element.rgb255 230 230 230)
-        , Border.rounded 5
-        , Border.width 1
-        , Element.centerX
-        , Element.centerY
-        ]
-        content
 
 
 

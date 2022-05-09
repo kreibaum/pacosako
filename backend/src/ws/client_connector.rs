@@ -35,11 +35,7 @@ impl PeerMap {
     }
 
     pub async fn get(&self, addr: &SocketAddr) -> Option<Sender<Message>> {
-        if let Some(tx) = self.map.read().await.get(addr) {
-            Some(tx.clone())
-        } else {
-            None
-        }
+        self.map.read().await.get(addr).cloned()
     }
 
     async fn remove(&self, addr: &SocketAddr) {
@@ -85,7 +81,7 @@ async fn handle_connection(
                 match msg {
                     Some(msg) => {
                         let msg = msg?;
-                        if let Some(out_msg) = WebsocketOutMsg::from_ws_message(msg, peer.clone()) {
+                        if let Some(out_msg) = WebsocketOutMsg::from_ws_message(msg, peer) {
                             let send_result = to_logic.send(out_msg).await;
 
                             if send_result.is_err() {

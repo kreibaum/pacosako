@@ -13,7 +13,6 @@ import Element
 import Html.Events
 import Json.Decode as Decode exposing (Decoder)
 import Sako exposing (Tile(..))
-import Shared exposing (Msg)
 import Svg exposing (Attribute)
 import Svg.Custom as Svg exposing (BoardRotation, safeTileCoordinate)
 import Svg.Events

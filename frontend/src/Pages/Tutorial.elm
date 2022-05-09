@@ -15,7 +15,7 @@ import View exposing (View)
 
 
 page : Shared.Model -> Request -> Page.With Model Msg
-page shared request =
+page shared _ =
     Page.advanced
         { init = init shared
         , update = update
@@ -26,10 +26,6 @@ page shared request =
 
 
 -- INIT
-
-
-type alias Params =
-    ()
 
 
 type alias Model =

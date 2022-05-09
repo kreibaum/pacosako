@@ -47,7 +47,7 @@ where
 async fn read_async<T>(
     to_timeout_async: async_channel::Receiver<(T, DateTime<Utc>)>,
     to_timeout: Sender<(T, DateTime<Utc>)>,
-) -> () {
+) {
     while let Ok(pair) = to_timeout_async.recv().await {
         if to_timeout.send(pair).is_err() {
             break;
@@ -61,7 +61,7 @@ async fn read_async<T>(
 async fn forward_async<T>(
     from_timeout: Receiver<(T, DateTime<Utc>)>,
     to_logic: async_channel::Sender<impl TimeoutOutMsg<T>>,
-) -> () {
+) {
     while let Ok((data, timestamp)) = from_timeout.recv() {
         if let Some(msg) = TimeoutOutMsg::from_ws_message(data, timestamp) {
             if to_logic.send(msg).await.is_err() {

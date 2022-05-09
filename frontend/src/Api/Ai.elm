@@ -1,7 +1,6 @@
 module Api.Ai exposing (AiWorkerState(..), requestMoveFromAi, subscribeMoveFromAi)
 
 import Api.Ports as Ports
-import Api.Websocket
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Sako

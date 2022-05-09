@@ -37,7 +37,7 @@ type alias Model =
 
 
 init : Shared.Model -> ( Model, Effect Msg )
-init shared =
+init _ =
     ( initModel
     , Effect.none
     )

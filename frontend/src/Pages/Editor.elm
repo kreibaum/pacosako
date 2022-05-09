@@ -122,17 +122,13 @@ decodeQueryReplay dict =
 
 decodeQueryFen : Dict String String -> Maybe QueryParameter
 decodeQueryFen dict =
-    case Dict.get "fen" dict of
-        Just fen ->
-            case Fen.parseFen fen of
-                Just position ->
-                    Just <| QueryFen { fen = position }
-
-                Nothing ->
-                    Just QueryError
-
-        Nothing ->
-            Nothing
+    Maybe.map
+        (\fen ->
+            Fen.parseFen fen
+                |> Maybe.map (\pos -> QueryFen { fen = pos })
+                |> Maybe.withDefault QueryError
+        )
+        (Dict.get "fen" dict)
 
 
 decodeQueryEmpty : Dict String String -> Maybe QueryParameter
@@ -1004,33 +1000,33 @@ view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "Design Puzzles - pacoplay.com"
     , element =
-        Header.wrapWithHeader shared ToShared (maybeEditorUi shared model)
+        Header.wrapWithHeader shared ToShared (maybeEditorUi model)
     }
 
 
 {-| Check if the query parameter are actually an a good state, otherwise show
 error page.
 -}
-maybeEditorUi : Shared.Model -> Model -> Element Msg
-maybeEditorUi shared model =
+maybeEditorUi : Model -> Element Msg
+maybeEditorUi model =
     case model.query of
         QueryError ->
             Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
                 { url = Route.toHref Route.Editor, label = Element.text T.editorPageNotFound }
 
         _ ->
-            editorUi shared model
+            editorUi model
 
 
-editorUi : Shared.Model -> Model -> Element Msg
-editorUi shared model =
+editorUi : Model -> Element Msg
+editorUi model =
     row
         [ width fill, height fill, Element.scrollbarY ]
         [ column [ width fill, height fill, padding 10, spacing 10 ]
             [ sharingHeader model
             , positionView model
             ]
-        , sidebar shared model
+        , sidebar model
         ]
 
 
@@ -1254,8 +1250,8 @@ sakoEditorId =
 --------------------------------------------------------------------------------
 
 
-sidebar : Shared.Model -> Model -> Element Msg
-sidebar shared model =
+sidebar : Model -> Element Msg
+sidebar model =
     let
         exportOptions =
             if model.showExportOptions then
@@ -1535,11 +1531,6 @@ analysisResult model =
 --------------------------------------------------------------------------------
 -- REST api - Mostly moved to Api.Backend exept for some alias definitions. ----
 --------------------------------------------------------------------------------
-
-
-type alias SavePositionDone =
-    { id : Int
-    }
 
 
 type alias AnalysisReport =

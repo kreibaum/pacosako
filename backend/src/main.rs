@@ -294,7 +294,7 @@ async fn authorize_discord_oauth_code(
 
     let res = discord::authorize_oauth_code(&config, code, state, jar, &mut conn).await;
     match res {
-        Ok(user) => Flash::success(Redirect::to("/"), "Login successful"),
+        Ok(_) => Flash::success(Redirect::to("/"), "Login successful"),
         Err(e) => {
             warn!("Login failed: {}", e);
             Flash::error(

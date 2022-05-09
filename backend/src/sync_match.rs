@@ -100,7 +100,7 @@ impl CurrentMatchState {
         sync_match: &SyncronizedMatch,
         board: &pacosako::DenseBoard,
     ) -> Result<Self, PacoError> {
-        let victory_state = Self::victory_state(&board, &sync_match.timer);
+        let victory_state = Self::victory_state(board, &sync_match.timer);
 
         Ok(CurrentMatchState {
             key: sync_match.key.clone(),
@@ -112,7 +112,7 @@ impl CurrentMatchState {
             },
             controlling_player: board.controlling_player(),
             timer: sync_match.timer.clone(),
-            victory_state: victory_state,
+            victory_state,
         })
     }
 
@@ -146,7 +146,7 @@ impl SyncronizedMatch {
         // have been added to the action list.
         let mut board = pacosako::DenseBoard::new();
         for action in &self.actions {
-            board.execute_trusted(action.action.clone())?;
+            board.execute_trusted(action.action)?;
         }
         Ok(board)
     }
