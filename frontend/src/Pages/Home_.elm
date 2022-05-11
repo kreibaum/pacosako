@@ -393,8 +393,8 @@ setupOnlineMatchUi model =
         , el [ centerX ] (timeLimitInputLabel model)
         , el [ centerX ] (safeModeToggle model)
         , Input.button
-            [ Background.color (Element.rgb255 40 255 40)
-            , Element.mouseOver [ Background.color (Element.rgb255 85 200 85) ]
+            [ Background.color (Element.rgb255 41 204 57)
+            , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
             , centerX
             , Border.rounded 100
             ]
@@ -518,8 +518,8 @@ joinOnlineMatchUi model =
             , label = Input.labelLeft [ centerY ] (Element.text T.matchId)
             }
         , Input.button
-            [ Background.color (Element.rgb255 100 100 255)
-            , Element.mouseOver [ Background.color (Element.rgb255 60 60 200) ]
+            [ Background.color (Element.rgb255 51 191 255)
+            , Element.mouseOver [ Background.color (Element.rgb255 102 206 255) ]
             , centerX
             , Border.rounded 100
             ]
