@@ -153,7 +153,14 @@ impl Timer {
             PlayerColor::Black => self.time_left_black,
         };
 
-        self.last_timestamp + time_left
+        // If the timer is NotRunning, then assume it would start running now.
+        // Otherwise use the last_timestamp as a baseline.
+        let fake_now = match self.timer_state {
+            TimerState::NotStarted => Utc::now(),
+            _ => self.last_timestamp,
+        };
+
+        fake_now + time_left
     }
 }
 

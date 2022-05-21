@@ -155,6 +155,7 @@ impl SyncronizedMatch {
     pub fn do_action(&mut self, new_action: PacoAction) -> Result<CurrentMatchState, PacoError> {
         let mut board = self.project()?;
         let controlling_player = board.controlling_player();
+        self.ensure_timer_is_running();
         self.update_timer(controlling_player);
 
         // Check if the timer has run out, in that case we return an error.
@@ -218,11 +219,20 @@ impl SyncronizedMatch {
         Ok(())
     }
 
+    /// Checks if the timer is in NotStarted mode and starts it in that case.
+    fn ensure_timer_is_running(&mut self) {
+        if let Some(ref mut timer) = &mut self.timer {
+            if timer.get_state() == TimerState::NotStarted {
+                timer.start(Utc::now());
+            }
+        }
+    }
+
     /// Updates the timer
     fn update_timer(&mut self, player: pacosako::PlayerColor) {
         if let Some(ref mut timer) = self.timer {
             if timer.get_state() == TimerState::NotStarted {
-                timer.start(Utc::now());
+                // Nothing to do #55
             } else if timer.get_state() == TimerState::Running {
                 timer.use_time(player, Utc::now());
             }
