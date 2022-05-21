@@ -1,4 +1,4 @@
-module Api.Decoders exposing (CurrentMatchState, decodeMatchState)
+module Api.Decoders exposing (CurrentMatchState, LegalActions(..), decodeMatchState, getActionList)
 
 import Json.Decode as Decode exposing (Decoder)
 import Sako
@@ -8,11 +8,26 @@ import Timer
 type alias CurrentMatchState =
     { key : String
     , actionHistory : List Sako.Action
-    , legalActions : List Sako.Action
+    , legalActions : LegalActions
     , controllingPlayer : Sako.Color
     , timer : Maybe Timer.Timer
     , gameState : Sako.VictoryState
     }
+
+
+type LegalActions
+    = ActionsNotLoaded
+    | ActionsLoaded (List Sako.Action)
+
+
+getActionList : LegalActions -> List Sako.Action
+getActionList actionState =
+    case actionState of
+        ActionsNotLoaded ->
+            []
+
+        ActionsLoaded actions ->
+            actions
 
 
 {-| Some decoders are shared by the REST endpoints and by the websocket
@@ -24,7 +39,7 @@ decodeMatchState =
         (\key actionHistory legalActions controllingPlayer timer gameState ->
             { key = key
             , actionHistory = actionHistory
-            , legalActions = legalActions
+            , legalActions = ActionsLoaded legalActions
             , controllingPlayer = controllingPlayer
             , timer = timer
             , gameState = gameState

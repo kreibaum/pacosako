@@ -2,7 +2,7 @@ module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
 import Api.Ai
-import Api.Decoders exposing (CurrentMatchState)
+import Api.Decoders exposing (CurrentMatchState, getActionList)
 import Api.Ports as Ports
 import Api.Websocket
 import Browser.Dom
@@ -93,7 +93,7 @@ init params query url =
       , currentState =
             { key = ""
             , actionHistory = []
-            , legalActions = []
+            , legalActions = Api.Decoders.ActionsNotLoaded
             , controllingPlayer = Sako.White
             , timer = Nothing
             , gameState = Sako.Running
@@ -328,13 +328,14 @@ addActionToCurrentMatchState : Sako.Action -> CurrentMatchState -> CurrentMatchS
 addActionToCurrentMatchState action state =
     { state
         | actionHistory = state.actionHistory ++ [ action ]
-        , legalActions = []
+        , legalActions = Api.Decoders.ActionsNotLoaded
     }
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
 legalActionAt state tile =
     state.legalActions
+        |> getActionList
         |> List.filter (\action -> Sako.actionTile action == Just tile)
         -- There can never be two actions on the same square, so this is safe.
         |> List.head
@@ -343,6 +344,7 @@ legalActionAt state tile =
 liftActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
 liftActionAt state tile =
     state.legalActions
+        |> getActionList
         |> List.filter (\action -> Sako.actionTile action == Just tile)
         |> List.filterMap
             (\a ->
@@ -762,6 +764,7 @@ sakoEditorId =
 playDecoration : Model -> List PositionView.BoardDecoration
 playDecoration play =
     (play.currentState.legalActions
+        |> getActionList
         |> List.filterMap actionDecoration
     )
         ++ playViewHighlight play
@@ -965,10 +968,7 @@ sidebar : Model -> Element Msg
 sidebar model =
     Element.column [ spacing 5, height fill, paddingXY 0 40 ]
         [ gameCodeLabel model model.subscription
-        , bigRoundedButton (Element.rgb255 220 220 220)
-            (Just Rollback)
-            [ Element.text T.gameRestartMove ]
-            |> Element.el [ width fill ]
+        , rollbackButton model
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
         , maybeReplayLink model
@@ -979,6 +979,69 @@ sidebar model =
         , rotationButtons model.rotation
         , Element.el [ padding 10 ] Element.none
         ]
+
+
+{-| This button allows you to restart your move. This is helpful when your chain
+doesn't quite work as expected and it is absolutely required if you get stuck in
+a dead end. This means there are three states to the button:
+
+    * The button is disabled. Please lift a piece.
+    * The button is enabled and you can click it.
+    * The button is enabled and you should click it, because you are stuck.
+
+If we don't know about the legal actions because we are waiting for a server
+response, then the button is disabled.
+
+-}
+rollbackButton : Model -> Element Msg
+rollbackButton model =
+    let
+        data =
+            case getRollbackButtonState model of
+                RollbackButtonDisabled ->
+                    { bg = Element.rgb255 220 220 220, hbg = Element.rgb255 220 220 220, fg = Element.rgb255 100 100 100, event = Nothing }
+
+                RollbackButtonSuggested ->
+                    { bg = Element.rgb255 51 191 255, hbg = Element.rgb255 102 206 255, fg = Element.rgb255 0 0 0, event = Just Rollback }
+
+                RollbackButtonEnabled ->
+                    { bg = Element.rgb255 220 220 220, hbg = Element.rgb255 200 200 200, fg = Element.rgb255 0 0 0, event = Just Rollback }
+    in
+    Input.button
+        [ Background.color data.bg
+        , Element.mouseOver [ Background.color data.hbg ]
+        , width fill
+        , Border.rounded 5
+        , Font.color data.fg
+        ]
+        { onPress = data.event
+        , label =
+            Element.el [ height fill, centerX, padding 15 ]
+                (Element.text T.gameRestartMove)
+        }
+
+
+type RollbackButtonState
+    = RollbackButtonDisabled
+    | RollbackButtonEnabled
+    | RollbackButtonSuggested
+
+
+getRollbackButtonState : Model -> RollbackButtonState
+getRollbackButtonState model =
+    case model.currentState.legalActions of
+        Api.Decoders.ActionsNotLoaded ->
+            RollbackButtonDisabled
+
+        Api.Decoders.ActionsLoaded actions ->
+            if List.any Sako.isLiftAction actions then
+                RollbackButtonDisabled
+
+            else if List.isEmpty actions then
+                RollbackButtonSuggested
+
+            else
+                RollbackButtonEnabled
 
 
 {-| A button that is implemented via a vertical column.
@@ -1022,11 +1085,12 @@ gameCodeLabel model subscription =
             Element.text T.gameNotConnected
 
 
-maybePromotionButtons : List Sako.Action -> Element Msg
+maybePromotionButtons : Api.Decoders.LegalActions -> Element Msg
 maybePromotionButtons actions =
     let
         canPromote =
             actions
+                |> getActionList
                 |> List.any
                     (\a ->
                         case a of
