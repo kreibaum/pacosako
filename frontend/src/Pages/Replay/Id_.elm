@@ -12,7 +12,7 @@ import Colors
 import Components
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Effect exposing (Effect)
-import Element exposing (Element, alignTop, fill, fillPortion, height, padding, scrollbarY, spacing, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingXY, px, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -351,7 +351,12 @@ view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "Watch Replay - pacoplay.com"
     , element =
-        Header.wrapWithHeader shared ToShared (body shared model)
+        Header.wrapWithHeaderV2 shared
+            ToShared
+            { isRouteHighlighted = \_ -> False
+            , isWithBackground = False
+            }
+            (body shared model)
     }
 
 
@@ -359,6 +364,7 @@ view shared model =
 -- Constants
 
 
+bg : { black : Element.Color, white : Element.Color, selected : Element.Color }
 bg =
     { black = Element.rgb255 200 200 200
     , white = Element.rgb255 240 240 240
@@ -384,11 +390,13 @@ body shared model =
 
 successBody : Shared.Model -> Model -> Replay -> Element Msg
 successBody shared model replay =
-    Element.row
-        [ width fill, height fill, Element.scrollbarY ]
-        [ boardView model replay
-        , sidebar shared model
-        ]
+    el [ centerX, height fill, width (Element.maximum 1120 fill) ]
+        (Element.row
+            [ width fill, height fill, paddingXY 10 0, spacing 10 ]
+            [ column [ width fill, height fill ] [ boardView model replay ]
+            , sidebar shared model
+            ]
+        )
 
 
 
@@ -415,17 +423,21 @@ chainPauseTime =
 -}
 boardView : Model -> Replay -> Element Msg
 boardView model replay =
-    Element.el [ width (fillPortion 3), height fill ]
-        (case currentBoard model replay of
-            ReplayOk actions position ->
-                boardViewOk model actions position
+    case currentBoard model replay of
+        ReplayOk actions position ->
+            Element.el
+                [ width fill
+                , height fill
+                , Element.scrollbarY
+                , centerX
+                ]
+                (boardViewOk model actions position)
 
-            ReplayToShort ->
-                Element.text "Replay is corrupted, too short :-("
+        ReplayToShort ->
+            Element.text "Replay is corrupted, too short :-("
 
-            ReplayError ->
-                Element.text "Replay is corrupted, rule violation :-("
-        )
+        ReplayError ->
+            Element.text "Replay is corrupted, rule violation :-("
 
 
 {-| Given a model where the timeline does not match the actionCount, this adds
@@ -497,9 +509,9 @@ boardViewOk model actions position =
         , additionalSvg = Nothing
         , replaceViewport =
             Just
-                { x = -70
+                { x = -10
                 , y = -80
-                , width = 900
+                , width = 820
                 , height = 960
                 }
         }
@@ -526,9 +538,10 @@ decoration model actions position =
 
 sidebar : Shared.Model -> Model -> Element Msg
 sidebar _ model =
-    Element.column [ spacing 10, padding 10, alignTop, height fill, width (fillPortion 1) ]
+    Element.column [ spacing 10, padding 10, alignTop, height fill, width (px 250) ]
         [ Components.gameIdBadgeBig model.key
         , arrowButtons
+        , Element.text "(or use arrow keys)"
         , enableMovementIndicators model.showMovementIndicators
         , editorLink model
         , rematchLink model
@@ -551,7 +564,6 @@ arrowButtons =
         , Components.iconButton "Play all." Solid.play (Just PlayAll)
         , Components.iconButton "Next action." Solid.chevronRight (Just NextAction)
         , Components.iconButton "Next move." Solid.arrowRight (Just NextMove)
-        , Element.text "(or use arrow keys)"
         ]
 
 
