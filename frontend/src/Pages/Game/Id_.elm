@@ -959,7 +959,7 @@ playTimerReplaceViewport =
 
 sidebar : Model -> Element Msg
 sidebar model =
-    Element.column [ spacing 5, height fill, paddingXY 0 40 ]
+    Element.column [ spacing 5, width (px 250), height fill, paddingXY 0 40 ]
         [ gameCodeLabel model model.subscription
         , rollbackButton model
         , maybePromotionButtons model.currentState.legalActions

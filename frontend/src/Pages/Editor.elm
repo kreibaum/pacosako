@@ -10,7 +10,7 @@ import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
 import Dict exposing (Dict)
 import Effect exposing (Effect)
-import Element exposing (Element, centerX, column, el, fill, height, padding, row, shrink, spacing, width)
+import Element exposing (Element, centerX, column, el, fill, height, padding, paddingXY, px, row, shrink, spacing, width)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
@@ -1000,7 +1000,12 @@ view : Shared.Model -> Model -> View Msg
 view shared model =
     { title = "Design Puzzles - pacoplay.com"
     , element =
-        Header.wrapWithHeader shared ToShared (maybeEditorUi model)
+        Header.wrapWithHeaderV2 shared
+            ToShared
+            { isRouteHighlighted = \r -> r == Route.Editor
+            , isWithBackground = False
+            }
+            (maybeEditorUi model)
     }
 
 
@@ -1020,14 +1025,15 @@ maybeEditorUi model =
 
 editorUi : Model -> Element Msg
 editorUi model =
-    row
-        [ width fill, height fill, Element.scrollbarY ]
-        [ column [ width fill, height fill, padding 10, spacing 10 ]
-            [ sharingHeader model
-            , positionView model
+    el [ centerX, height fill, width (Element.maximum 1120 fill) ]
+        (Element.row
+            [ width fill, height fill, paddingXY 10 0, spacing 10 ]
+            [ column [ width fill, height fill ]
+                [ positionView model
+                ]
+            , sidebar model
             ]
-        , sidebar model
-        ]
+        )
 
 
 {-| This header holds a link to the current position (using fen) which allows
@@ -1051,6 +1057,7 @@ sharingHeader model =
             , centerX
             , Element.clip
             , spacing 10
+            , padding 15
             ]
         |> el [ width fill ]
 
@@ -1072,6 +1079,7 @@ positionView model =
         , height fill
         , Element.scrollbarY
         , centerX
+        , Element.inFront (sharingHeader model)
         ]
         (positionViewInner model)
 
@@ -1107,9 +1115,9 @@ boardViewConfig model =
     , replaceViewport =
         Just
             { x = -10
-            , y = -10
+            , y = -80
             , width = 820
-            , height = 820
+            , height = 960
             }
     }
 
@@ -1264,11 +1272,11 @@ sidebar model =
             else
                 [ showExportOptions ]
     in
-    column [ width (fill |> Element.maximum 400), height fill, spacing 10, padding 10, Element.alignRight ]
+    column [ width (px 250), height fill, spacing 10, padding 10, Element.alignRight ]
         ([ sidebarActionButtons model.game
          , Element.text "Add piece:"
-         , addPieceButtons Sako.White "White:" model.smartTool
-         , addPieceButtons Sako.Black "Black:" model.smartTool
+         , addPieceButtons Sako.White "W:" model.smartTool
+         , addPieceButtons Sako.Black "B:" model.smartTool
          , colorSchemeConfig model
          , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
          , analysisResult model
@@ -1430,7 +1438,7 @@ colorSchemeConfig taco =
 
 colorSchemeConfigWhite : Model -> Element Msg
 colorSchemeConfigWhite taco =
-    row [ width fill ]
+    row [ width fill, Font.size 10 ]
         [ colorPicker WhiteSideColor taco.colorScheme.white Pieces.whitePieceColor
         , colorPicker WhiteSideColor taco.colorScheme.white Pieces.redPieceColor
         , colorPicker WhiteSideColor taco.colorScheme.white Pieces.orangePieceColor
@@ -1445,7 +1453,7 @@ colorSchemeConfigWhite taco =
 
 colorSchemeConfigBlack : Model -> Element Msg
 colorSchemeConfigBlack taco =
-    Element.wrappedRow [ width fill ]
+    Element.wrappedRow [ width fill, Font.size 10 ]
         [ colorPicker BlackSideColor taco.colorScheme.black Pieces.whitePieceColor
         , colorPicker BlackSideColor taco.colorScheme.black Pieces.redPieceColor
         , colorPicker BlackSideColor taco.colorScheme.black Pieces.orangePieceColor
