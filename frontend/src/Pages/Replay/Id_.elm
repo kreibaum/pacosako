@@ -32,6 +32,7 @@ import Shared
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Translations as T
+import Url
 import View exposing (View)
 
 
@@ -99,6 +100,7 @@ type Msg
     | MouseDown CastingDeco.InputMode BoardMousePosition
     | MouseUp CastingDeco.InputMode BoardMousePosition
     | MouseMove CastingDeco.InputMode BoardMousePosition
+    | CopyToClipboard String
     | NextAction
     | PreviousAction
     | NextMove
@@ -149,6 +151,9 @@ update msg model =
 
         MouseMove mode pos ->
             ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Effect.none )
+
+        CopyToClipboard text ->
+            ( model, Api.Ports.copy text |> Effect.fromCmd )
 
         NextAction ->
             ( setAndAnimateActionCount (nextAction model) model, Effect.none )
@@ -537,9 +542,11 @@ decoration model actions position =
 
 
 sidebar : Shared.Model -> Model -> Element Msg
-sidebar _ model =
+sidebar shared model =
     Element.column [ spacing 10, padding 10, alignTop, height fill, width (px 250) ]
-        [ Components.gameIdBadgeBig model.key
+        [ Components.gameCodeLabel
+            (CopyToClipboard (Url.toString shared.url))
+            model.key
         , arrowButtons
         , Element.text "(or use arrow keys)"
         , enableMovementIndicators model.showMovementIndicators

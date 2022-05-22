@@ -1,11 +1,27 @@
-module Components exposing (StyleableButton, btn, gameIdBadgeBig, header1, header2, header3, iconButton, isEnabledIf, isSelectedIf, paragraph, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
+module Components exposing
+    ( StyleableButton
+    , btn
+    , gameCodeLabel
+    , header1
+    , header2
+    , header3
+    , iconButton
+    , isEnabledIf
+    , isSelectedIf
+    , paragraph
+    , viewButton
+    , withMsg
+    , withMsgIf
+    , withSmallIcon
+    , withStyle
+    )
 
 {-| Module to collect small reusable ui components. Everything in this root module
 should not have their own message type or their own complicated data.
 -}
 
 import Custom.Element exposing (icon)
-import Element exposing (Element, centerX, fill, height, padding, row, spacing, width)
+import Element exposing (Element, alignRight, centerX, el, fill, height, padding, paddingXY, row, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -13,18 +29,8 @@ import Element.Input exposing (button)
 import Element.Region exposing (description)
 import FontAwesome.Attributes
 import FontAwesome.Icon exposing (Icon)
+import FontAwesome.Regular as Regular
 import Svg
-
-
-{-| A label that is implemented via a horizontal row with a big colored background.
-Currently only used for the timer, not sure if it will stay that way.
--}
-gameIdBadgeBig : String -> Element msg
-gameIdBadgeBig gameId =
-    Element.el [ Background.color (Element.rgb255 220 220 220), width fill, Border.rounded 5 ]
-        (Element.el [ height fill, centerX, padding 15, spacing 10, Font.size 40 ]
-            (Element.text gameId)
-        )
 
 
 {-| Small button that is just an icon and that usually fires a message.
@@ -40,17 +46,17 @@ iconButton altText iconType msg =
 
 header1 : String -> Element msg
 header1 caption =
-    Element.el [ padding 40, centerX, Font.size 40 ] (Element.text caption)
+    el [ padding 40, centerX, Font.size 40 ] (Element.text caption)
 
 
 header2 : String -> Element msg
 header2 caption =
-    Element.el [ Font.size 30 ] (Element.text caption)
+    el [ Font.size 30 ] (Element.text caption)
 
 
 header3 : String -> Element msg
 header3 caption =
-    Element.el [ Font.bold ] (Element.text caption)
+    el [ Font.bold ] (Element.text caption)
 
 
 paragraph : String -> Element msg
@@ -150,7 +156,7 @@ viewButton (SB data) =
         icon =
             case data.icon of
                 Just iconType ->
-                    [ Element.el [ Element.moveUp 3 ]
+                    [ el [ Element.moveUp 3 ]
                         (Element.html (FontAwesome.Icon.viewStyled iconStyle iconType))
                     ]
 
@@ -185,4 +191,22 @@ viewButton (SB data) =
                    ]
             )
                 |> row [ spacing 3, centerX ]
+        }
+
+
+gameCodeLabel : msg -> String -> Element msg
+gameCodeLabel copyUrlMsg gameKey =
+    button
+        [ Background.color (Element.rgb255 220 220 220)
+        , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+        , width fill
+        , Border.rounded 5
+        ]
+        { onPress = Just copyUrlMsg
+        , label =
+            Element.row [ height fill, width fill, padding 15, Font.size 40 ]
+                [ el [ width fill ] Element.none
+                , el [] (Element.text gameKey)
+                , el [ width fill, Font.size 30, paddingXY 5 0 ] (icon [ alignRight ] Regular.clipboard)
+                ]
         }

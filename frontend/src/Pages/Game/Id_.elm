@@ -20,7 +20,6 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import FontAwesome.Regular as Regular
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
@@ -42,7 +41,7 @@ import Task
 import Time exposing (Posix)
 import Timer
 import Translations as T
-import Url
+import Url exposing (Url)
 import Url.Parser exposing (query)
 import View exposing (View)
 
@@ -67,7 +66,7 @@ type alias Params =
 
 type alias Model =
     { board : Sako.Position
-    , subscription : Maybe String
+    , gameKey : String
     , currentState : CurrentMatchState
     , timeline : Timeline OpaqueRenderData
     , focus : Maybe Tile
@@ -89,7 +88,7 @@ type alias Model =
 init : Params -> Dict String String -> Url.Url -> ( Model, Effect Msg )
 init params query url =
     ( { board = Sako.initialPosition
-      , subscription = Just params.id
+      , gameKey = params.id
       , currentState =
             { key = ""
             , actionHistory = []
@@ -180,7 +179,7 @@ update msg model =
 
         Rollback ->
             ( model
-            , Api.Websocket.send (Api.Websocket.Rollback (Maybe.withDefault "" model.subscription)) |> Effect.fromCmd
+            , Api.Websocket.send (Api.Websocket.Rollback model.gameKey) |> Effect.fromCmd
             )
 
         MouseDown pos ->
@@ -250,7 +249,7 @@ update msg model =
             ( model
             , case status of
                 Api.Websocket.WSConnected ->
-                    Api.Websocket.send (Api.Websocket.SubscribeToMatch (Maybe.withDefault "" model.subscription))
+                    Api.Websocket.send (Api.Websocket.SubscribeToMatch model.gameKey)
                         |> Effect.fromCmd
 
                 _ ->
@@ -426,7 +425,7 @@ updateMouseUp pos model =
 
 sendRollback : Model -> Cmd msg
 sendRollback model =
-    Api.Websocket.send (Api.Websocket.Rollback (Maybe.withDefault "" model.subscription))
+    Api.Websocket.send (Api.Websocket.Rollback model.gameKey)
 
 
 {-| Determines if the current board state allows a quick rollback. This happens
@@ -520,7 +519,7 @@ updateActionInputStep action model =
       }
     , Effect.batch
         [ Api.Websocket.DoAction
-            { key = Maybe.withDefault "" model.subscription
+            { key = model.gameKey
             , action = action
             }
             |> Api.Websocket.send
@@ -580,7 +579,7 @@ updateCurrentMatchState data model =
 
 updateMatchConnectionSuccess : { key : String, state : CurrentMatchState } -> Model -> ( Model, Effect Msg )
 updateMatchConnectionSuccess data model =
-    { model | subscription = Just data.key }
+    { model | gameKey = data.key }
         |> updateCurrentMatchState data.state
 
 
@@ -960,7 +959,9 @@ playTimerReplaceViewport =
 sidebar : Model -> Element Msg
 sidebar model =
     Element.column [ spacing 5, width (px 250), height fill, paddingXY 0 40 ]
-        [ gameCodeLabel model model.subscription
+        [ Components.gameCodeLabel
+            (CopyToClipboard (Url.toString model.gameUrl))
+            model.gameKey
         , rollbackButton model
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
@@ -1060,29 +1061,6 @@ castingDecoMessages =
     }
 
 
-gameCodeLabel : Model -> Maybe String -> Element Msg
-gameCodeLabel model subscription =
-    case subscription of
-        Just id ->
-            Input.button
-                [ Background.color (Element.rgb255 220 220 220)
-                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
-                , width fill
-                , Border.rounded 5
-                ]
-                { onPress = Just (CopyToClipboard (Url.toString model.gameUrl))
-                , label =
-                    Element.row [ height fill, width fill, padding 15, Font.size 40 ]
-                        [ el [ width fill ] Element.none
-                        , el [] (Element.text id)
-                        , el [ width fill, Font.size 30, paddingXY 5 0 ] (icon [ alignRight ] Regular.clipboard)
-                        ]
-                }
-
-        Nothing ->
-            Element.text T.gameNotConnected
-
-
 maybePromotionButtons : Api.Decoders.LegalActions -> Element Msg
 maybePromotionButtons actions =
     let
@@ -1179,15 +1157,10 @@ maybeReplayLink model =
             Element.none
 
         _ ->
-            model.subscription
-                |> Maybe.map
-                    (\key ->
-                        Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-                            { url = Route.toHref (Route.Replay__Id_ { id = key })
-                            , label = Element.text T.gameWatchReplay
-                            }
-                    )
-                |> Maybe.withDefault Element.none
+            Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
+                { url = Route.toHref (Route.Replay__Id_ { id = model.gameKey })
+                , label = Element.text T.gameWatchReplay
+                }
 
 
 {-| Label that is used for the Victory status.
