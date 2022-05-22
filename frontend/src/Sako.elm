@@ -23,6 +23,7 @@ module Sako exposing
     , isColor
     , isLiftAction
     , isPromoting
+    , isStateOver
     , liftedAtTile
     , tileFlat
     , tileToIdentifier
@@ -291,6 +292,16 @@ type VictoryState
     | PacoVictory Color
     | TimeoutVictory Color
     | NoProgressDraw
+
+
+isStateOver : VictoryState -> Bool
+isStateOver state =
+    case state of
+        Running ->
+            False
+
+        _ ->
+            True
 
 
 decodeVictoryState : Decoder VictoryState

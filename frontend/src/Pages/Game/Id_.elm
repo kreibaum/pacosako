@@ -733,13 +733,16 @@ playUiPortrait shared model =
 
 playPositionView : Shared.Model -> Model -> Element Msg
 playPositionView shared model =
-    let
-        rect =
-            playTimerReplaceViewport model
-    in
     Element.el
         [ width fill
-        , height (Element.maximum (min (model.windowHeight - model.visibleHeaderSize) (round rect.height)) fill)
+        , height
+            (Element.maximum
+                (min
+                    (model.windowHeight - model.visibleHeaderSize)
+                    (round playTimerReplaceViewport.height)
+                )
+                fill
+            )
         ]
         (PositionView.viewTimeline
             { colorScheme = model.colorSettings
@@ -750,7 +753,7 @@ playPositionView shared model =
             , mouseUp = Just MouseUp
             , mouseMove = Just MouseMove
             , additionalSvg = additionalSvg shared model
-            , replaceViewport = Just rect
+            , replaceViewport = Just playTimerReplaceViewport
             }
             model.timeline
         )
@@ -941,27 +944,17 @@ playerLabelSvg name yPos =
 
 
 playTimerReplaceViewport :
-    Model
-    ->
-        { x : Float
-        , y : Float
-        , width : Float
-        , height : Float
-        }
-playTimerReplaceViewport model =
-    if Maybe.isNothing model.currentState.timer then
-        { x = -10
-        , y = -20
-        , width = 820
-        , height = 840
-        }
-
-    else
-        { x = -10
-        , y = -80
-        , width = 820
-        , height = 960
-        }
+    { x : Float
+    , y : Float
+    , width : Float
+    , height : Float
+    }
+playTimerReplaceViewport =
+    { x = -10
+    , y = -80
+    , width = 820
+    , height = 960
+    }
 
 
 sidebar : Model -> Element Msg
@@ -991,6 +984,8 @@ a dead end. This means there are three states to the button:
 
 If we don't know about the legal actions because we are waiting for a server
 response, then the button is disabled.
+
+If the game is over, then the button is also disabled.
 
 -}
 rollbackButton : Model -> Element Msg
@@ -1035,6 +1030,9 @@ getRollbackButtonState model =
 
         Api.Decoders.ActionsLoaded actions ->
             if List.any Sako.isLiftAction actions then
+                RollbackButtonDisabled
+
+            else if Sako.isStateOver model.currentState.gameState then
                 RollbackButtonDisabled
 
             else if List.isEmpty actions then
