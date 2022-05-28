@@ -3,7 +3,6 @@ module FenTest exposing (..)
 {-| Test module for the X-Fen we are using.
 -}
 
-import Element.Region exposing (description)
 import Expect exposing (Expectation)
 import Fen
 import Sako exposing (Color(..), Piece, Tile(..), Type(..))

@@ -11,10 +11,10 @@ import CastingDeco
 import Colors
 import Components
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
+import Custom.List as List
 import Effect exposing (Effect)
 import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingXY, px, scrollbarY, spacing, width)
 import Element.Background as Background
-import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import FontAwesome.Solid as Solid
@@ -22,6 +22,7 @@ import Gen.Route as Route
 import Header
 import Http
 import List.Extra as List
+import Notation
 import Page
 import Pages.NotFound
 import PositionView exposing (OpaqueRenderData)
@@ -56,7 +57,7 @@ type alias Params =
 
 type alias Model =
     { replay : WebData Replay
-    , sidebarData : SidebarData
+    , sidebarData : List Notation.SidebarMoveData
     , key : String
     , navigationKey : Browser.Navigation.Key
     , actionCount : Int
@@ -120,7 +121,7 @@ update msg model =
         GotReplay replay ->
             ( { model
                 | replay = RemoteData.Success replay
-                , sidebarData = sidebarData replay
+                , sidebarData = Notation.compile replay
               }
             , Effect.none
             )
@@ -170,7 +171,7 @@ update msg model =
         PlayAll ->
             ( { model | showMovementIndicators = False }
                 |> setAndAnimateActionCount 0
-                |> animateStepByStep (lastMove model)
+                |> animateStepByStep (Notation.lastAction model.sidebarData)
             , Effect.none
             )
 
@@ -200,30 +201,35 @@ Here are the rules:
     then this is animated action by action.
   - Otherwise, the animation goes strait to the target state.
 
+Note that we can't just put in this information from the place where we are
+calling, because you can jump to any move at any time.
+
 -}
 setAndAnimateActionCount : Int -> Model -> Model
 setAndAnimateActionCount actionCount model =
     let
-        firstNewActionCount =
-            model.sidebarData
-                -- find Move
-                |> List.find (\move -> lastActionCountOf move >= actionCount)
-                -- find first action of move
-                |> Maybe.map .actions
-                |> Maybe.andThen List.head
-                -- extract corresponding action count
-                |> Maybe.map (\( i, _ ) -> i)
-                |> Maybe.withDefault actionCount
-    in
-    if actionCount > model.actionCount && model.actionCount + 1 == firstNewActionCount then
-        -- Skip the "Lift" action that is at the start of moves.
-        animateStepByStep actionCount { model | actionCount = model.actionCount + 1 }
+        currentMoveNumber =
+            Notation.moveContainingAction model.actionCount model.sidebarData
+                |> Maybe.map .moveNumber
+                |> Maybe.withDefault -42
+                |> Debug.log "currentMoveNumber"
 
-    else if actionCount > model.actionCount && model.actionCount + 1 >= firstNewActionCount then
-        animateStepByStep actionCount model
+        targetMoveNumber =
+            Notation.moveContainingAction actionCount model.sidebarData
+                |> Maybe.map .moveNumber
+                |> Maybe.withDefault -1337
+                |> Debug.log "targetMoveNumber"
+    in
+    if actionCount < model.actionCount then
+        -- we jumped backwards
+        animateDirect { model | actionCount = actionCount }
+
+    else if currentMoveNumber + 1 < targetMoveNumber then
+        -- This would jump too far ahead.
+        animateDirect { model | actionCount = actionCount }
 
     else
-        animateDirect { model | actionCount = actionCount }
+        animateStepByStep actionCount model
 
 
 {-| Tail recursive animation function that steps the timeline forward step by step.
@@ -234,7 +240,7 @@ animateStepByStep actionCount model =
         model
 
     else
-        animateDirect { model | actionCount = model.actionCount + 1 }
+        animateDirect { model | actionCount = nextAction model }
             |> (\m -> { m | timeline = Animation.pause chainPauseTime m.timeline })
             |> animateStepByStep actionCount
 
@@ -244,13 +250,8 @@ limit.
 -}
 nextAction : Model -> Int
 nextAction model =
-    let
-        maxActionCount =
-            model.sidebarData
-                |> List.map (.actions >> List.length)
-                |> List.sum
-    in
-    min (model.actionCount + 1) maxActionCount
+    Notation.firstActionCountAfterIndex model.actionCount model.sidebarData
+        |> Maybe.withDefault model.actionCount
 
 
 {-| Just decreases the actionCount by one and makes sure it does not go below
@@ -258,7 +259,7 @@ zero.
 -}
 previousAction : Model -> Int
 previousAction model =
-    max (model.actionCount - 1) 0
+    Notation.lastActionCountBeforeIndex model.actionCount model.sidebarData
 
 
 {-| Finds the first move that is not already completely shown by the current
@@ -269,31 +270,11 @@ nextMove model =
     let
         actionCount =
             model.sidebarData
-                |> List.find (\move -> lastActionCountOf move > model.actionCount)
-                |> Maybe.map lastActionCountOf
+                |> List.find (\move -> Notation.lastActionCountOf move > model.actionCount)
+                |> Maybe.map Notation.lastActionCountOf
                 |> Maybe.withDefault model.actionCount
     in
     actionCount
-
-
-{-| Given a move, returns the action count of the last action in in. If the
-move is invalid (i.e. has no actions) then -42 is returned instead.
--}
-lastActionCountOf : SidebarMoveData -> Int
-lastActionCountOf data =
-    List.last data.actions
-        |> Maybe.map (\( i, _ ) -> i)
-        |> Maybe.withDefault -42
-
-
-{-| Given a move, returns the action count of the first action in in. If the
-move is invalid (i.e. has no actions) then -42 is returned instead.
--}
-firstActionCountOf : SidebarMoveData -> Int
-firstActionCountOf data =
-    List.head data.actions
-        |> Maybe.map (\( i, _ ) -> i)
-        |> Maybe.withDefault -42
 
 
 {-| Finds the first move that is not already partially shown by the current
@@ -306,20 +287,9 @@ previousMove model =
     let
         actionCount =
             model.sidebarData
-                |> List.find (\move -> lastActionCountOf move >= model.actionCount)
-                |> Maybe.map (\move -> firstActionCountOf move - 1)
+                |> List.find (\move -> Notation.lastActionCountOf move >= model.actionCount)
+                |> Maybe.map (\move -> Notation.lastActionCountBefore move)
                 |> Maybe.withDefault 0
-    in
-    actionCount
-
-
-lastMove : Model -> Int
-lastMove model =
-    let
-        actionCount =
-            model.sidebarData
-                |> List.map (.actions >> List.length)
-                |> List.sum
     in
     actionCount
 
@@ -616,20 +586,27 @@ actionList model =
 setupButton : Model -> Element Msg
 setupButton model =
     let
-        background =
+        attrs =
             if model.actionCount == 0 then
-                Background.color bg.selected
+                [ Background.color (Element.rgb255 51 191 255), padding 5, width fill ]
 
             else
-                Background.color bg.black
+                [ Element.mouseOver
+                    [ Background.color (Element.rgb255 102 206 255)
+                    , Background.color bg.black
+                    ]
+                , Background.color bg.black
+                , padding 5
+                , width fill
+                ]
     in
-    Input.button [ padding 5, background, width fill ]
+    Input.button attrs
         { onPress = Just (GoToActionCount 0)
         , label = Element.text "Restart"
         }
 
 
-sidebarMove : Model -> SidebarMoveData -> Element Msg
+sidebarMove : Model -> Notation.SidebarMoveData -> Element Msg
 sidebarMove model moveData =
     Element.row [ width fill, moveBackground moveData.color ]
         [ sidebarMoveComlete moveData
@@ -640,19 +617,19 @@ sidebarMove model moveData =
 {-| Left side, summarizes all action of a move into a single block.
 You can click this block to go to the end of the whole move block.
 -}
-sidebarMoveComlete : SidebarMoveData -> Element Msg
+sidebarMoveComlete : Notation.SidebarMoveData -> Element Msg
 sidebarMoveComlete moveData =
-    Input.button [ height fill, width (fillPortion 1), padding 5 ]
+    Input.button [ height fill, width (fillPortion 1), paddingXY 5 0 ]
         { onPress = goToLastAction moveData
         , label = Element.text (String.fromInt moveData.moveNumber)
         }
 
 
-goToLastAction : SidebarMoveData -> Maybe Msg
+goToLastAction : Notation.SidebarMoveData -> Maybe Msg
 goToLastAction moveData =
     moveData.actions
         |> List.last
-        |> Maybe.map (\( count, _ ) -> GoToActionCount count)
+        |> Maybe.map (\cak -> GoToActionCount cak.actionIndex)
 
 
 {-| Tells the user if the move was done by white or by black.
@@ -669,119 +646,19 @@ moveBackground color =
 
 {-| Shows a single action and will take you to it.
 -}
-sidebarAction : Model -> ( Int, Sako.Action ) -> Element Msg
-sidebarAction model ( count, action ) =
+sidebarAction : Model -> Notation.ConsensedActionKey -> Element Msg
+sidebarAction model cak =
     let
         attrs =
-            [ Just (padding 3)
-            , Just (Border.rounded 4)
-            , Just (Border.color (Element.rgb 0 0 0))
-            , Just (Border.width 1)
-            , if model.actionCount == count then
-                Just (Background.color (Element.rgb255 220 255 220))
-
-              else
-                Nothing
-            ]
-                |> List.filterMap (\e -> e)
-    in
-    Element.el [ padding 2 ]
-        (Input.button attrs
-            { onPress = Just (GoToActionCount count)
-            , label = Element.text (actionText action)
-            }
-        )
-
-
-{-| Human readable form of the action for display.
--}
-actionText : Sako.Action -> String
-actionText action =
-    case action of
-        Sako.Lift tile ->
-            "Lift " ++ Sako.tileToIdentifier tile
-
-        Sako.Place tile ->
-            "Place " ++ Sako.tileToIdentifier tile
-
-        Sako.Promote pieceType ->
-            "Promote " ++ Sako.toStringType pieceType
-
-
-type alias SidebarData =
-    List SidebarMoveData
-
-
-type alias SidebarMoveData =
-    { moveNumber : Int
-    , color : Sako.Color
-    , actions : List ( Int, Sako.Action )
-    }
-
-
-{-| Takes a replay and prepares the data for the sidebar. This would usually be
-quite a stateful computation, so in elm we are folding with quite a bit of
-carry over information.
--}
-sidebarData : Replay -> SidebarData
-sidebarData replay =
-    replay.actions
-        |> List.indexedMap (\i ( action, _ ) -> ( i + 1, action ))
-        |> breakAt (\( _, action ) -> isLift action)
-        |> List.indexedMap
-            (\i actions ->
-                { moveNumber = i // 2 + 1
-                , color =
-                    if modBy 2 i == 0 then
-                        White
-
-                    else
-                        Black
-                , actions = actions
-                }
-            )
-
-
-{-| Separates a list into sublist where a new list is started whenever the
-predicate is true.
-
-    breakAt id [ True, False, True ]
-        == [ [ True, False ], [ True ] ]
-
-    breakAt id [ False, False, True, True, False, True, False ]
-        == [ [ False, False ], [ True ], [ True, False ], [ True, False ] ]
-
--}
-breakAt : (a -> Bool) -> List a -> List (List a)
-breakAt p list =
-    case list of
-        [] ->
-            []
-
-        x :: xs ->
-            breakAtInner p xs ( [ x ], [] )
-                |> (\( _, accOuter ) -> List.reverse accOuter)
-
-
-breakAtInner : (a -> Bool) -> List a -> ( List a, List (List a) ) -> ( List a, List (List a) )
-breakAtInner p list ( accInner, accOuter ) =
-    case list of
-        [] ->
-            ( [], List.reverse accInner :: accOuter )
-
-        x :: xs ->
-            if p x then
-                breakAtInner p xs ( [ x ], List.reverse accInner :: accOuter )
+            if model.actionCount == cak.actionIndex then
+                [ Background.color (Element.rgb255 51 191 255), paddingXY 0 5 ]
 
             else
-                breakAtInner p xs ( x :: accInner, accOuter )
-
-
-isLift : Sako.Action -> Bool
-isLift action =
-    case action of
-        Sako.Lift _ ->
-            True
-
-        _ ->
-            False
+                [ paddingXY 0 5
+                , Element.mouseOver [ Background.color (Element.rgb255 102 206 255) ]
+                ]
+    in
+    Input.button attrs
+        { onPress = Just (GoToActionCount cak.actionIndex)
+        , label = Element.text (Notation.writeOut cak.actions)
+        }

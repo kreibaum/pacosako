@@ -16,6 +16,7 @@ module Sako exposing
     , encodeAction
     , enumeratePieceIdentity
     , exportExchangeNotation
+    , getPiecesAt
     , importExchangeNotation
     , initialPosition
     , isAt
@@ -26,6 +27,7 @@ module Sako exposing
     , isStateOver
     , liftedAtTile
     , tileFlat
+    , tileFromFlatCoordinate
     , tileToIdentifier
     , toStringType
     )
@@ -408,7 +410,7 @@ doLiftAction : Tile -> Position -> Maybe Position
 doLiftAction tile position =
     let
         piecesToLift =
-            position.pieces |> List.filter (isAt tile)
+            getPiecesAt position tile
     in
     if List.isEmpty position.liftedPieces then
         Just
@@ -419,6 +421,14 @@ doLiftAction tile position =
 
     else
         Nothing
+
+
+{-| Returns all pieces which are currently resting on the given tile.
+This will not return lifted pieces.
+-}
+getPiecesAt : Position -> Tile -> List Piece
+getPiecesAt position tile =
+    position.pieces |> List.filter (isAt tile)
 
 
 {-| Compares currently lifted pieces with the targed and then either
