@@ -212,13 +212,11 @@ setAndAnimateActionCount actionCount model =
             Notation.moveContainingAction model.actionCount model.sidebarData
                 |> Maybe.map .moveNumber
                 |> Maybe.withDefault -42
-                |> Debug.log "currentMoveNumber"
 
         targetMoveNumber =
             Notation.moveContainingAction actionCount model.sidebarData
                 |> Maybe.map .moveNumber
                 |> Maybe.withDefault -1337
-                |> Debug.log "targetMoveNumber"
     in
     if actionCount < model.actionCount then
         -- we jumped backwards
