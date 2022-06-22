@@ -8,7 +8,6 @@ mod ws;
 #[macro_use]
 extern crate rocket;
 extern crate pbkdf2;
-extern crate rocket_contrib;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
@@ -16,15 +15,15 @@ use crate::ws::RocketToWsMsg;
 use db::Pool;
 use pacosako::{DenseBoard, SakoSearchResult};
 use rand::{thread_rng, Rng};
-use rocket::response::NamedFile;
+use rocket::fs::NamedFile;
 use rocket::response::{Flash, Redirect};
+use rocket::serde::json::Json;
 use rocket::State;
 use rocket::{http::Cookie, http::CookieJar};
 use rocket::{
     request::{self, FromRequest, Request},
     Build,
 };
-use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use sync_match::SyncronizedMatch;
@@ -73,7 +72,7 @@ struct UseMinJs {
 /// language version.
 #[get("/elm.min.js")]
 async fn elm(
-    config: State<'_, UseMinJs>,
+    config: &State<UseMinJs>,
     lang: language::UserLanguage,
 ) -> Result<NamedFile, ServerError> {
     if config.use_min_js {
@@ -89,7 +88,7 @@ async fn elm(
 /// main.js file. In staging and production we are returning the minified
 /// version of it.
 #[get("/main.min.js")]
-async fn main_js(config: State<'_, UseMinJs>) -> Result<NamedFile, ServerError> {
+async fn main_js(config: &State<UseMinJs>) -> Result<NamedFile, ServerError> {
     if config.use_min_js {
         static_file("../target/main.min.js").await
     } else {
@@ -164,7 +163,7 @@ struct SavePositionResponse {
 async fn position_create(
     create_request: Json<SavePositionRequest>,
     user: User,
-    pool: State<'_, Pool>,
+    pool: &State<Pool>,
 ) -> Result<Json<SavePositionResponse>, String> {
     match pool.position_create(create_request.0, user).await {
         Ok(v) => Ok(Json(v)),
@@ -177,7 +176,7 @@ async fn position_update(
     id: i64,
     update_request: Json<SavePositionRequest>,
     user: User,
-    pool: State<'_, Pool>,
+    pool: &State<Pool>,
 ) -> Result<Json<SavePositionResponse>, ServerError> {
     // You can only update a position that you own.
     if pool.position_get(id).await?.owner != user.user_id {
@@ -198,7 +197,7 @@ struct Position {
 async fn position_get(
     id: i64,
     user: User,
-    conn: State<'_, Pool>,
+    conn: &State<Pool>,
 ) -> Result<Json<Position>, ServerError> {
     conn.position_get(id).await.and_then(|position| {
         if position.owner == user.user_id {
@@ -213,7 +212,7 @@ async fn position_get(
 #[get("/position")]
 async fn position_get_list(
     user: User,
-    conn: State<'_, Pool>,
+    conn: &State<Pool>,
 ) -> Result<Json<Vec<Position>>, ServerError> {
     Ok(Json(conn.position_get_list(user.user_id).await?))
 }
@@ -237,7 +236,7 @@ impl<'r> FromRequest<'r> for User {
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<User, ()> {
         use rocket::outcome::try_outcome;
 
-        let pool: State<'_, db::Pool> = try_outcome!(request.guard::<State<'_, db::Pool>>().await);
+        let pool: &State<db::Pool> = try_outcome!(request.guard::<&State<db::Pool>>().await);
         let conn = pool.conn().await;
 
         if conn.is_err() {
@@ -274,17 +273,17 @@ fn user_id(user: Option<User>) -> Json<Option<User>> {
 }
 
 #[get("/oauth/discord_client_id")]
-async fn discord_client_id(config: State<'_, CustomConfig>) -> Json<String> {
+async fn discord_client_id(config: &State<CustomConfig>) -> Json<String> {
     Json(config.discord_client_id.clone())
 }
 
 #[get("/oauth/redirect?<code>&<state>")]
 async fn authorize_discord_oauth_code(
-    config: State<'_, CustomConfig>,
+    config: &State<CustomConfig>,
     code: &str,
     state: &str,
     jar: &CookieJar<'_>,
-    pool: State<'_, Pool>,
+    pool: &State<Pool>,
 ) -> Flash<Redirect> {
     let conn = pool.conn().await;
     if conn.is_err() {
@@ -292,7 +291,7 @@ async fn authorize_discord_oauth_code(
     }
     let mut conn = conn.unwrap();
 
-    let res = discord::authorize_oauth_code(&config, code, state, jar, &mut conn).await;
+    let res = discord::authorize_oauth_code(config, code, state, jar, &mut conn).await;
     match res {
         Ok(_) => Flash::success(Redirect::to("/"), "Login successful"),
         Err(e) => {
@@ -369,7 +368,7 @@ fn analyse_position(
 #[post("/create_game", data = "<game_parameters>")]
 async fn create_game(
     game_parameters: Json<sync_match::MatchParameters>,
-    pool: State<'_, Pool>,
+    pool: &State<Pool>,
 ) -> Result<String, ServerError> {
     // Create a match on the database and return the id.
     // The Websocket will then have to load it on its own. While that is
@@ -390,7 +389,7 @@ async fn create_game(
 #[get("/game/<key>")]
 async fn get_game(
     key: String,
-    pool: State<'_, Pool>,
+    pool: &State<Pool>,
 ) -> Result<Json<sync_match::CurrentMatchState>, ServerError> {
     let key: i64 = key.parse()?;
     let mut conn = pool.conn().await?;
@@ -406,7 +405,7 @@ async fn get_game(
 async fn post_action_to_game(
     key: String,
     action: Json<pacosako::PacoAction>,
-    send_to_websocket: State<'_, async_channel::Sender<ws::RocketToWsMsg>>,
+    send_to_websocket: &State<async_channel::Sender<ws::RocketToWsMsg>>,
 ) {
     match send_to_websocket
         .send(RocketToWsMsg::AiAction {
@@ -424,7 +423,7 @@ async fn post_action_to_game(
 
 #[get("/game/recent")]
 async fn recently_created_games(
-    pool: State<'_, Pool>,
+    pool: &State<Pool>,
 ) -> Result<Json<Vec<sync_match::CurrentMatchState>>, ServerError> {
     let games = db::game::latest(&mut pool.conn().await?).await?;
 
@@ -445,7 +444,7 @@ struct BranchParameters {
 #[post("/branch_game", data = "<game_branch_parameters>")]
 async fn branch_game(
     game_branch_parameters: Json<BranchParameters>,
-    pool: State<'_, Pool>,
+    pool: &State<Pool>,
 ) -> Result<String, ServerError> {
     info!("Creating a new game on client request.");
     let mut conn = pool.conn().await?;
@@ -499,7 +498,7 @@ fn init_logger() {
 struct WebsocketPort(u16);
 
 #[get("/websocket/port")]
-fn websocket_port(port: State<WebsocketPort>) -> Json<u16> {
+fn websocket_port(port: &State<WebsocketPort>) -> Json<u16> {
     Json(port.0)
 }
 
