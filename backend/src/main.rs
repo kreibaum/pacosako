@@ -7,7 +7,6 @@ mod ws;
 
 #[macro_use]
 extern crate rocket;
-extern crate pbkdf2;
 #[macro_use]
 extern crate log;
 extern crate simplelog;

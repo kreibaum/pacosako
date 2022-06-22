@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-pbkdf2 = "0.6.0" # New 0.7 api is more complicated
 serde_json = "1.0"
 pacosako-rust = { path = "../lib" }
 rand = "0.7.3"
