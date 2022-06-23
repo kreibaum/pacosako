@@ -112,7 +112,7 @@ pub extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i64 {
     use crate::PieceType::*;
     let ps: &mut DenseBoard = unsafe { &mut *ps };
 
-    let action = if 1 <= action && action <= 64 {
+    let action = if (1..=64).contains(&action) {
         crate::PacoAction::Lift(BoardPosition(action - 1))
     } else if action <= 128 {
         crate::PacoAction::Place(BoardPosition(action - 1 - 64))
@@ -188,9 +188,10 @@ pub extern "C" fn serialize(ps: *mut DenseBoard, mut out: *mut u8, reserved_spac
                 out = out.offset(1);
             }
         }
-        return 0; // No error :-)
+        0 // No error :-)
+    } else {
+        -2
     }
-    return -2;
 }
 
 /// Tries to deserialize a DenseBoard from the given bincode data. If the
@@ -482,8 +483,8 @@ pub extern "C" fn find_sako_sequences(
             }
         }
 
-        return 0;
+        0
+    } else {
+        -1
     }
-
-    return -1;
 }

@@ -4,7 +4,7 @@ pub mod timeout_connector;
 
 use crate::{
     db,
-    sync_match::{CurrentMatchState, SyncronizedMatch},
+    sync_match::{CurrentMatchState, SynchronizedMatch},
     ServerError,
 };
 use anyhow::bail;
@@ -246,13 +246,13 @@ async fn handle_message(
                     }
                 }
                 Message::Binary(payload) => {
-                    warn!("Binary message recieved: {:?}", payload);
-                    bail!("Binary message recieved: {:?}", payload);
+                    warn!("Binary message received: {:?}", payload);
+                    bail!("Binary message received: {:?}", payload);
                 }
                 Message::Ping(payload) => send_raw_msg(ws, &source, Message::Pong(payload)).await?,
                 Message::Pong(_) => {}
                 Message::Close(_) => {
-                    info!("Close message recieved. This is not implemented here.");
+                    info!("Close message received. This is not implemented here.");
                 }
             };
             Ok(())
@@ -294,7 +294,7 @@ async fn handle_message(
 }
 
 async fn progress_the_timer(
-    game: &mut SyncronizedMatch,
+    game: &mut SynchronizedMatch,
     to_timeout: Sender<(String, DateTime<Utc>)>,
     key: String,
 ) -> Result<CurrentMatchState, anyhow::Error> {
@@ -392,7 +392,7 @@ async fn handle_client_message(
             ensure_uuid_is_allowed(room, &game, uuid)?;
 
             if game.actions.is_empty() {
-                // If there are no actios yet, rolling back does nothing.
+                // If there are no actions yet, rolling back does nothing.
                 return Ok(());
             }
 
@@ -445,13 +445,13 @@ enum ProtectionState {
 /// in the room, then the uuid will be tracked in the room.
 ///
 /// If there are two different players connected, then the first player can only
-/// controll white while the second player can only controll black.
+/// control white while the second player can only control black.
 ///
 /// Please note that currently game protection is not persisted across server
 /// restart. This means it is possible that the first move is done by black.
 fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
-    game: &SyncronizedMatch,
+    game: &SynchronizedMatch,
     uuid: String,
 ) -> Result<(), anyhow::Error> {
     if !game.safe_mode {
@@ -537,7 +537,7 @@ async fn send_error(
 async fn fetch_game(
     key: &str,
     conn: &mut db::Connection,
-) -> Result<SyncronizedMatch, anyhow::Error> {
+) -> Result<SynchronizedMatch, anyhow::Error> {
     let id = key.parse()?;
     match db::game::select(id, conn).await? {
         Some(game) => Ok(game),
@@ -548,7 +548,7 @@ async fn fetch_game(
 }
 
 async fn store_game(
-    game: &SyncronizedMatch,
+    game: &SynchronizedMatch,
     conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
     db::game::update(game, conn).await?;

@@ -41,7 +41,7 @@ import Task
 import Time exposing (Posix)
 import Timer
 import Translations as T
-import Url exposing (Url)
+import Url
 import Url.Parser exposing (query)
 import View exposing (View)
 

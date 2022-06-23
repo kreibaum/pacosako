@@ -25,7 +25,7 @@ use rocket::{
 };
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use sync_match::SyncronizedMatch;
+use sync_match::SynchronizedMatch;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Static Files ////////////////////////////////////////////////////////////////
@@ -338,7 +338,7 @@ struct AnalysisReport {
 }
 
 #[post("/analyse", data = "<position>")]
-fn analyse_position(
+fn analyze_position(
     position: Json<SavePositionRequest>,
 ) -> Result<Json<AnalysisReport>, ServerError> {
     use std::convert::TryInto;
@@ -376,7 +376,7 @@ async fn create_game(
 
     info!("Creating a new game on client request.");
     let mut conn = pool.conn().await?;
-    let mut game = SyncronizedMatch::new_with_key("0", game_parameters.0);
+    let mut game = SynchronizedMatch::new_with_key("0", game_parameters.0);
     db::game::insert(&mut game, &mut conn).await?;
 
     info!("Game created with id {}.", game.key);
@@ -516,7 +516,7 @@ async fn init_database_pool(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Bui
         .expect("Pool can't be created.");
 
     // Apply all pending database migrations. (Important for automated updates)
-    info!("Starting database migrations (if neccessary)");
+    info!("Starting database migrations (if necessary)");
     let migration_result = sqlx::migrate!().run(&pool.0).await;
     if let Err(migration_error) = migration_result {
         panic!(
@@ -598,7 +598,7 @@ fn rocket() -> _ {
                 position_get,
                 post_action_to_game,
                 random_position,
-                analyse_position,
+                analyze_position,
                 create_game,
                 branch_game,
                 get_game,

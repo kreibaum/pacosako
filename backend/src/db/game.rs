@@ -1,8 +1,11 @@
 use crate::db::Connection;
-use crate::{sync_match::SyncronizedMatch, ServerError};
+use crate::{sync_match::SynchronizedMatch, ServerError};
 
 /// Stores the game in the database as a new entry and updates the id
-pub async fn insert(game: &mut SyncronizedMatch, conn: &mut Connection) -> Result<(), ServerError> {
+pub async fn insert(
+    game: &mut SynchronizedMatch,
+    conn: &mut Connection,
+) -> Result<(), ServerError> {
     let action_history = serde_json::to_string(&game.actions)?;
 
     let timer = if let Some(ref timer) = game.timer {
@@ -27,7 +30,7 @@ pub async fn insert(game: &mut SyncronizedMatch, conn: &mut Connection) -> Resul
 }
 
 /// Updates the game in the database.
-pub async fn update(game: &SyncronizedMatch, conn: &mut Connection) -> Result<(), ServerError> {
+pub async fn update(game: &SynchronizedMatch, conn: &mut Connection) -> Result<(), ServerError> {
     let id: i64 = game.key.parse()?;
 
     let action_history = serde_json::to_string(&game.actions)?;
@@ -55,7 +58,7 @@ pub async fn update(game: &SyncronizedMatch, conn: &mut Connection) -> Result<()
 pub async fn select(
     id: i64,
     conn: &mut Connection,
-) -> Result<Option<SyncronizedMatch>, ServerError> {
+) -> Result<Option<SynchronizedMatch>, ServerError> {
     let raw_game = sqlx::query_as!(
         RawGame,
         "select id, action_history, timer, safe_mode from game where id = ?",
@@ -71,7 +74,7 @@ pub async fn select(
     }
 }
 
-pub async fn latest(conn: &mut Connection) -> Result<Vec<SyncronizedMatch>, ServerError> {
+pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, ServerError> {
     let raw_games = sqlx::query_as!(
         RawGame,
         r"select id, action_history, timer, safe_mode from game
@@ -89,7 +92,7 @@ pub async fn latest(conn: &mut Connection) -> Result<Vec<SyncronizedMatch>, Serv
     Ok(result)
 }
 
-// Database representation of a sync_match::SyncronizedMatch
+// Database representation of a sync_match::SynchronizedMatch
 // We don't fully normalize the data, instead we just dump JSON into the db.
 struct RawGame {
     id: i64,
@@ -99,14 +102,14 @@ struct RawGame {
 }
 
 impl RawGame {
-    fn to_match(self) -> Result<SyncronizedMatch, ServerError> {
+    fn to_match(self) -> Result<SynchronizedMatch, ServerError> {
         let timer = if let Some(ref timer) = self.timer {
             Some(serde_json::from_str(timer)?)
         } else {
             None
         };
 
-        Ok(SyncronizedMatch {
+        Ok(SynchronizedMatch {
             key: format!("{}", self.id),
             actions: serde_json::from_str(&self.action_history)?,
             timer,

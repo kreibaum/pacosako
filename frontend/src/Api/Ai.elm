@@ -2,7 +2,7 @@ module Api.Ai exposing (AiWorkerState(..), requestMoveFromAi, subscribeMoveFromA
 
 import Api.Ports as Ports
 import Json.Decode as Decode exposing (Decoder)
-import Json.Encode as Encode exposing (Value)
+import Json.Encode as Encode
 import Sako
 
 

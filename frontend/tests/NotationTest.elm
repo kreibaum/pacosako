@@ -3,10 +3,9 @@ module NotationTest exposing (..)
 {-| Tests to support the Notation module.
 -}
 
-import Expect exposing (Expectation)
-import Http exposing (Expect)
+import Expect
 import Notation
-import Sako exposing (Action(..), Color(..), Piece, Tile(..), Type(..))
+import Sako exposing (Action(..), Color(..), Tile(..), Type(..))
 import Test exposing (..)
 import Time exposing (Posix, millisToPosix)
 

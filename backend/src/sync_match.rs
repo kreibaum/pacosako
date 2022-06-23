@@ -5,7 +5,7 @@ use pacosako::{PacoAction, PacoBoard, PacoError};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use std::convert::TryFrom;
-/// This module implements match synchonization on top of an instance manager.
+/// This module implements match synchronization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
 /// already clear and we only implement the Paco Ŝako specific parts.
 
@@ -28,7 +28,7 @@ pub struct StampedAction {
 /// A match is a recording of actions taken in it together with a unique
 /// identifier that can be used to connect to the game.
 /// It also takes care of tracking the timing and ensures actions are legal.
-pub struct SyncronizedMatch {
+pub struct SynchronizedMatch {
     // TODO: Stop leaking private members by implementing stringify & parse in here.
     pub key: String,
     pub actions: Vec<StampedAction>,
@@ -62,7 +62,7 @@ impl TryFrom<&str> for ClientMatchMessage {
 async fn _load_from_db(
     key: &str,
     mut conn: db::Connection,
-) -> Result<SyncronizedMatch, anyhow::Error> {
+) -> Result<SynchronizedMatch, anyhow::Error> {
     if let Some(game) = db::game::select(key.parse()?, &mut conn).await? {
         Ok(game)
     } else {
@@ -71,7 +71,7 @@ async fn _load_from_db(
 }
 
 async fn _store_to_db(
-    game: &SyncronizedMatch,
+    game: &SynchronizedMatch,
     mut conn: db::Connection,
 ) -> Result<(), anyhow::Error> {
     db::game::update(game, &mut conn).await?;
@@ -94,10 +94,10 @@ pub struct CurrentMatchState {
 }
 
 impl CurrentMatchState {
-    /// Tries to create a new match state out of a syncronized match and an
+    /// Tries to create a new match state out of a synchronized match and an
     /// already projected board.
     fn try_new(
-        sync_match: &SyncronizedMatch,
+        sync_match: &SynchronizedMatch,
         board: &pacosako::DenseBoard,
     ) -> Result<Self, PacoError> {
         let victory_state = Self::victory_state(board, &sync_match.timer);
@@ -130,9 +130,9 @@ impl CurrentMatchState {
 }
 
 /// This implementation contains most of the "Business Logic" of the match.
-impl SyncronizedMatch {
+impl SynchronizedMatch {
     pub fn new_with_key(key: &str, params: MatchParameters) -> Self {
-        SyncronizedMatch {
+        SynchronizedMatch {
             key: key.to_owned(),
             actions: Vec::default(),
             timer: params.timer.map(|t| t.into()),
@@ -174,7 +174,7 @@ impl SyncronizedMatch {
             timestamp: Utc::now(),
         });
 
-        // Check if controll changed. That would indicate that we need to add a
+        // Check if control changed. That would indicate that we need to add a
         // timer increment for the player that just finished their turn.
         if board.controlling_player() != controlling_player {
             if let Some(ref mut timer) = &mut self.timer {
@@ -257,7 +257,7 @@ mod test {
     /// Does a move and mostly just checks that it does not crash.
     #[test]
     fn test_legal_moves_are_ok() {
-        let mut game = SyncronizedMatch::new_with_key(
+        let mut game = SynchronizedMatch::new_with_key(
             "Game1",
             MatchParameters {
                 timer: None,

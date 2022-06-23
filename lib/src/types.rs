@@ -109,12 +109,13 @@ impl TryFrom<&str> for BoardPosition {
         if string.len() != 2 {
             Err(ERROR_TEXT)
         } else {
-            let x = "abcdefgh".find(string.chars().nth(0).unwrap());
+            // Unwrapping here is save because I am checking the length first.
+            let x = "abcdefgh".find(string.chars().next().unwrap());
             let y = "12345678".find(string.chars().nth(1).unwrap());
-            if x.is_none() || y.is_none() {
-                Err(ERROR_TEXT)
+            if let (Some(x), Some(y)) = (x, y) {
+                Self::new_checked(x as i8, y as i8).ok_or(ERROR_TEXT)
             } else {
-                Self::new_checked(x.unwrap() as i8, y.unwrap() as i8).ok_or(ERROR_TEXT)
+                Err(ERROR_TEXT)
             }
         }
     }
@@ -128,7 +129,7 @@ mod tests {
     /// This test verifies the TryFrom<&str> implementation for BoardPosition.
     #[test]
     fn string_to_board_position() {
-        // Spot check a handfull of positions, note the offset due to 0 based indexing.
+        // Spot check a handful of positions, note the offset due to 0 based indexing.
         assert_eq!(BoardPosition::try_from("g7"), Ok(BoardPosition::new(6, 6)));
         assert_eq!(BoardPosition::try_from("c4"), Ok(BoardPosition::new(2, 3)));
         assert_eq!(BoardPosition::try_from("a1"), Ok(BoardPosition::new(0, 0)));
@@ -155,7 +156,7 @@ mod tests {
         }
     }
 
-    /// This test verifies that the TryFrom<&str> implementation for BoardPosition correcty
+    /// This test verifies that the TryFrom<&str> implementation for BoardPosition correctly
     /// decodes the debug output for a BoardPosition.
     #[quickcheck]
     fn board_position_string_roundtrip(index: u8) -> TestResult {
