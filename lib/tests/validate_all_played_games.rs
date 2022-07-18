@@ -28,7 +28,7 @@ const SLOW_GAMES: &'static [usize] = &[4102, 2038, 4097, 2265, 2534, 3428, 3995,
 #[test]
 fn regression_run() {
     println!("Testing the whole regression database...");
-    let games = load_regression_database();
+    let games: Vec<RegressionValidation> = load_regression_database();
 
     for game in games {
         // Skip all slow games. We don't want to spend too much time on them.
@@ -38,10 +38,11 @@ fn regression_run() {
 
         // For each game in games, time how long it takes to validate it.
         let start = std::time::Instant::now();
-        let recomputed_game = map_input_to_validation(RegressionInput {
+        let input = RegressionInput {
             id: game.id,
             history: game.history.clone(),
-        });
+        };
+        let recomputed_game = map_input_to_validation(input);
         assert_eq!(game, recomputed_game);
         let end = start.elapsed();
         // Print time in microseconds.
@@ -62,7 +63,7 @@ const FILTERED_OUT: &'static [usize] = &[218, 219];
 #[ignore = "This is not a real test, but rather the utility used to build the regression database"]
 #[test]
 fn build_regression_file() {
-    let input = load_game_database();
+    let input: Vec<RegressionInput> = load_game_database("tests/all_non_empty_games.json");
 
     // Remove games where the engine now does something else.
     let input: Vec<RegressionInput> = input
@@ -72,12 +73,17 @@ fn build_regression_file() {
         .collect();
 
     // Map each input to an output given the current logic
-    let output = input
+    let output: Vec<RegressionValidation> = input
         .into_iter()
         .map(map_input_to_validation)
         .collect::<Vec<_>>();
+
     // Write the output to a file
-    let mut file = File::create("tests/regression_database.json").unwrap();
+    write_regression_database(output, "tests/regression_database.json");
+}
+
+fn write_regression_database(output: Vec<RegressionValidation>, path: &str) {
+    let mut file = File::create(path).unwrap();
     serde_json::to_writer(&mut file, &output).unwrap();
 }
 
@@ -104,9 +110,9 @@ fn map_input_to_validation(input: RegressionInput) -> RegressionValidation {
     result
 }
 
-fn load_game_database() -> Vec<RegressionInput> {
+fn load_game_database(path: &str) -> Vec<RegressionInput> {
     // Open the file all_non_empty_games.json
-    let mut file = File::open("tests/all_non_empty_games.json").unwrap();
+    let mut file = File::open(path).unwrap();
     // Use serde json to deserialize the file into a Vec<RegressionData>
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
