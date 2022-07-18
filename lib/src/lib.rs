@@ -505,9 +505,20 @@ impl DenseBoard {
             let is_pair = self.opponent_present(p);
             let piece = *self.active_pieces().get(p.0 as usize).unwrap();
             if let Some(piece) = piece {
-                let targets = self.place_targets(p, piece, is_pair)?;
-                if !targets.is_empty() {
-                    result.push(PacoAction::Lift(p));
+                // For the King we need a special case, otherwise we would be
+                // checking castling options which is expensive.
+                // Since a castling option implies a move option, there is no
+                // need to check for castling options.
+                if piece == PieceType::King {
+                    let targets = self.place_targets_king_without_castling(p);
+                    if !targets.is_empty() {
+                        result.push(PacoAction::Lift(p));
+                    }
+                } else {
+                    let targets = self.place_targets(p, piece, is_pair)?;
+                    if !targets.is_empty() {
+                        result.push(PacoAction::Lift(p));
+                    }
                 }
             }
         }
@@ -1065,23 +1076,7 @@ impl DenseBoard {
     }
     /// Calculates all possible placement targets for a king at the given position.
     fn place_targets_king(&self, position: BoardPosition) -> Result<Vec<BoardPosition>, PacoError> {
-        let offsets = vec![
-            (0, 1),
-            (1, 1),
-            (1, 0),
-            (1, -1),
-            (0, -1),
-            (-1, -1),
-            (-1, 0),
-            (-1, 1),
-        ];
-        let mut targets_on_board: Vec<BoardPosition> = offsets
-            .iter()
-            .filter_map(|d| position.add(*d))
-            // Placing the king works like placing a pair, as he can only be
-            // placed on empty squares.
-            .filter(|p| self.is_empty(*p))
-            .collect();
+        let mut targets_on_board = self.place_targets_king_without_castling(position);
 
         // Threat computation is expensive so we need to make sure we only do it once.
         let mut lazy_threats: Option<[IsThreatened; 64]> = None;
@@ -1155,6 +1150,28 @@ impl DenseBoard {
 
         Ok(targets_on_board)
     }
+
+    fn place_targets_king_without_castling(&self, position: BoardPosition) -> Vec<BoardPosition> {
+        let offsets = vec![
+            (0, 1),
+            (1, 1),
+            (1, 0),
+            (1, -1),
+            (0, -1),
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+        ];
+        let mut targets_on_board: Vec<BoardPosition> = offsets
+            .iter()
+            .filter_map(|d| position.add(*d))
+            // Placing the king works like placing a pair, as he can only be
+            // placed on empty squares.
+            .filter(|p| self.is_empty(*p))
+            .collect();
+        targets_on_board
+    }
+
     /// Decide whether the current player may place a single lifted piece at the indicated position.
     ///
     /// This is only forbidden when the target position holds a piece of the own color
