@@ -1,15 +1,172 @@
 use std::fmt::Display;
 
-use crate::{static_include, DenseBoard, PacoAction, PacoBoard, PieceType, PlayerColor};
+use crate::{
+    static_include, BoardPosition, Castling, DenseBoard, PacoAction, PacoBoard, PieceType,
+    PlayerColor,
+};
 
 pub fn print_all() {
     println!("{:?}", static_include::ZOBRIST[0]);
 }
 
+/// See https://en.wikipedia.org/wiki/Zobrist_hashing for an introduction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ZobristHash(u64);
+pub struct Zobrist(u64);
 
-impl Display for ZobristHash {
+impl Zobrist {
+    pub(crate) fn piece_on_square(
+        piece_type: PieceType,
+        square: BoardPosition,
+        color: PlayerColor,
+        is_lifted: bool,
+    ) -> Zobrist {
+        let total_index = Zobrist::square_index(square)
+            + Zobrist::type_index(piece_type) * 64
+            + Zobrist::color_index(color) * 64 * 6
+            + Zobrist::lift_index(is_lifted) * 64 * 12;
+        Zobrist(static_include::ZOBRIST[total_index])
+    }
+    fn piece_on_square_opt(
+        piece_type: Option<PieceType>,
+        square: BoardPosition,
+        color: PlayerColor,
+        is_lifted: bool,
+    ) -> Zobrist {
+        match piece_type {
+            Some(piece_type) => Zobrist::piece_on_square(piece_type, square, color, is_lifted),
+            None => Zobrist(0),
+        }
+    }
+    pub(crate) fn color(color: PlayerColor) -> Zobrist {
+        match color {
+            PlayerColor::White => Zobrist(static_include::IS_WHITE),
+            PlayerColor::Black => Zobrist(0),
+        }
+    }
+    pub(crate) fn castling(castle_rights: Castling) -> Zobrist {
+        let mut sum = 0;
+        if castle_rights.white_queen_side {
+            sum ^= static_include::CASTLING[0];
+        }
+        if castle_rights.white_king_side {
+            sum ^= static_include::CASTLING[1];
+        }
+        if castle_rights.black_queen_side {
+            sum ^= static_include::CASTLING[2];
+        }
+        if castle_rights.black_king_side {
+            sum ^= static_include::CASTLING[3];
+        }
+        Zobrist(sum)
+    }
+    pub(crate) fn en_passant(en_passant_square: Option<(BoardPosition, PlayerColor)>) -> Zobrist {
+        if let Some((pos, _)) = en_passant_square {
+            Zobrist(static_include::EN_PASSANT[pos.0 as usize])
+        } else {
+            Zobrist(0)
+        }
+    }
+
+    /// For a given board, takes all the pieces that are placed on the board and
+    /// returns a Zobrist hash for those only. This ignores a lot of the the
+    /// other input. But we'll feed that in on demand instead.
+    pub fn for_placed_pieces(board: &DenseBoard) -> Zobrist {
+        let mut sum = 0;
+
+        for position in 0..64 {
+            if let Some(piece_type) = board.white.get(position).unwrap() {
+                sum ^= Zobrist::piece_on_square(
+                    *piece_type,
+                    BoardPosition(position as u8),
+                    PlayerColor::White,
+                    false,
+                )
+                .0;
+            }
+            if let Some(piece_type) = board.black.get(position).unwrap() {
+                sum ^= Zobrist::piece_on_square(
+                    *piece_type,
+                    BoardPosition(position as u8),
+                    PlayerColor::Black,
+                    false,
+                )
+                .0;
+            }
+        }
+
+        Zobrist(sum)
+    }
+
+    pub fn for_lifted_pieces(board: &DenseBoard) -> Zobrist {
+        match board.lifted_piece {
+            crate::Hand::Empty => Zobrist(0),
+            crate::Hand::Single { piece, position } => {
+                Zobrist::piece_on_square(piece, position, board.controlling_player(), true)
+            }
+            crate::Hand::Pair {
+                piece,
+                partner,
+                position,
+            } => {
+                Zobrist::piece_on_square(piece, position, board.controlling_player(), true)
+                    ^ Zobrist::piece_on_square(
+                        partner,
+                        position,
+                        board.controlling_player().other(),
+                        true,
+                    )
+            }
+        }
+    }
+
+    fn square_index(square: BoardPosition) -> usize {
+        square.0 as usize
+    }
+    fn type_index(piece_type: PieceType) -> usize {
+        match piece_type {
+            PieceType::Pawn => 0,
+            PieceType::Rook => 1,
+            PieceType::Knight => 2,
+            PieceType::Bishop => 3,
+            PieceType::Queen => 4,
+            PieceType::King => 5,
+        }
+    }
+    fn color_index(color: PlayerColor) -> usize {
+        match color {
+            PlayerColor::White => 0,
+            PlayerColor::Black => 1,
+        }
+    }
+    fn lift_index(is_lifted: bool) -> usize {
+        match is_lifted {
+            true => 1,
+            false => 0,
+        }
+    }
+}
+
+fn piece_type_index(piece_type: PieceType, color: PlayerColor) -> usize {
+    let a = Zobrist::type_index(piece_type);
+    let b = Zobrist::color_index(color);
+    a + 6 * b
+}
+
+impl std::ops::BitXor for Zobrist {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0)
+    }
+}
+
+impl std::ops::BitXorAssign for Zobrist {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.0 ^= rhs.0;
+    }
+}
+
+impl Display for Zobrist {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Z({})", self.0)
     }
@@ -17,134 +174,85 @@ impl Display for ZobristHash {
 
 /// Freshly calculates the zobrist hash without relying on any stored value in
 /// the board.
-pub fn fresh_zobrist(board: &DenseBoard) -> ZobristHash {
-    let mut sum = 0;
-    let is_white = board.controlling_player() == PlayerColor::White;
+pub fn fresh_zobrist(board: &DenseBoard) -> Zobrist {
+    let mut sum = Zobrist::for_placed_pieces(board);
 
-    for position in 0..64 {
-        if let Some(piece_type) = board.white.get(position).unwrap() {
-            sum ^= static_include::ZOBRIST
-                [position + 64 * piece_type_index(*piece_type, PlayerColor::White)];
-        }
-        if let Some(piece_type) = board.black.get(position).unwrap() {
-            sum ^= static_include::ZOBRIST
-                [position + 64 * piece_type_index(*piece_type, PlayerColor::Black)];
-        }
-    }
+    sum ^= Zobrist::for_lifted_pieces(board);
+    sum ^= Zobrist::castling(board.castling);
+    sum ^= Zobrist::color(board.controlling_player());
+    sum ^= Zobrist::en_passant(board.en_passant);
 
-    match board.lifted_piece {
-        crate::Hand::Empty => {}
-        crate::Hand::Single { piece, position } => {
-            sum ^= static_include::ZOBRIST[position.0 as usize
-                + 64 * piece_type_index(piece, board.controlling_player())
-                + 12 * 64];
-        }
-        crate::Hand::Pair {
-            piece,
-            partner,
-            position,
-        } => {
-            sum ^= static_include::ZOBRIST[position.0 as usize
-                + 64 * piece_type_index(piece, board.controlling_player())
-                + 12 * 64];
-
-            sum ^= static_include::ZOBRIST[position.0 as usize
-                + 64 * piece_type_index(partner, board.controlling_player().other())
-                + 12 * 64];
-        }
-    }
-
-    if board.castling.white_queen_side {
-        sum ^= static_include::CASTLING[0];
-    }
-    if board.castling.white_king_side {
-        sum ^= static_include::CASTLING[1];
-    }
-    if board.castling.black_queen_side {
-        sum ^= static_include::CASTLING[2];
-    }
-    if board.castling.black_king_side {
-        sum ^= static_include::CASTLING[3];
-    }
-
-    if is_white {
-        sum ^= static_include::IS_WHITE;
-    }
-
-    if let Some((pos, _)) = board.en_passant {
-        sum ^= static_include::EN_PASSANT[pos.0 as usize];
-    }
-
-    ZobristHash(sum)
+    sum
 }
 
-fn piece_type_index(piece_type: PieceType, color: PlayerColor) -> usize {
-    let a = match piece_type {
-        PieceType::Pawn => 0,
-        PieceType::Rook => 1,
-        PieceType::Knight => 2,
-        PieceType::Bishop => 3,
-        PieceType::Queen => 4,
-        PieceType::King => 5,
-    };
-    let b = match color {
-        PlayerColor::White => 0,
-        PlayerColor::Black => 6,
-    };
-    a + b
-}
-
-/// Given a board and an action, this computes the hash after executing the
-/// action without actually doing it on the board.
+/// Given a board and an action, computes the zobrist XOR that would result from
+/// executing this action. The resulting Zobrist is a "differential Zobrist",
+/// not a full hash.
 ///
-/// It holds, that fresh_zobrist(board.execute(action)) == zobrist_step(board, action)
-/// for all legal actions on a board state.
+/// This only considers "placed" pieces. That is, pieces that are on the board.
 ///
-/// This function does not check if the action is legal. Behaviour is undefined
+/// This function does not check if the action is legal. Behavior is undefined
 /// for illegal moves. Infinite loops are considered legal for this restriction.
-pub fn zobrist_step(board: &DenseBoard, action: PacoAction) -> ZobristHash {
-    // TODO: Once the zobrist hash is stored in the board, this should just
-    // look at the current board.
-    let mut sum = fresh_zobrist(board).0;
-
+pub fn zobrist_step_for_placed_pieces(board: &DenseBoard, action: PacoAction) -> Zobrist {
     match action {
         PacoAction::Lift(pos) => {
-            let position = pos.0 as usize;
-            // Remove all pieces sitting at the board position from the sum
-            // Add them to the lifted layer.
-            if let Some(piece_type) = board.white.get(position).unwrap() {
-                sum ^= static_include::ZOBRIST
-                    [position + 64 * piece_type_index(*piece_type, PlayerColor::White)];
-                sum ^= static_include::ZOBRIST
-                    [position + 64 * piece_type_index(*piece_type, PlayerColor::White) + 12 * 64];
-            }
-            if let Some(piece_type) = board.black.get(position).unwrap() {
-                sum ^= static_include::ZOBRIST
-                    [position + 64 * piece_type_index(*piece_type, PlayerColor::Black)];
-                sum ^= static_include::ZOBRIST
-                    [position + 64 * piece_type_index(*piece_type, PlayerColor::Black) + 12 * 64];
-            }
-            // Figure out if any castling rights are lost.
-
-            // White Queenside
-            if pos.0 == 0 && board.castling.white_queen_side {
-                sum ^= static_include::CASTLING[0];
-            }
-            if pos.0 == 7 && board.castling.white_king_side {
-                sum ^= static_include::CASTLING[1];
-            }
-            if pos.0 == 56 && board.castling.black_queen_side {
-                sum ^= static_include::CASTLING[2];
-            }
-            if pos.0 == 63 && board.castling.black_king_side {
-                sum ^= static_include::CASTLING[3];
-            }
+            // Get all the pieces that are on the board at pos and then xor their
+            // hashes together.
+            let pieces = board.get_at(pos);
+            Zobrist::piece_on_square_opt(pieces.0, pos, PlayerColor::White, false)
+                ^ Zobrist::piece_on_square_opt(pieces.1, pos, PlayerColor::Black, false)
         }
-        PacoAction::Place(_) => todo!(),
-        PacoAction::Promote(_) => todo!(),
-    }
+        PacoAction::Place(pos) => {
+            // Now this is a bit harder, because we need to differentiate
+            // between ending the chain (paired / unpaired) and continuing the
+            // chain.
 
-    ZobristHash(sum)
+            // Is there a white piece in hand? If so, then we put it down and take up the optional white piece at that position.
+            // Same for black.
+
+            let hand_pieces = board
+                .lifted_piece
+                .colored_optional_pair(board.controlling_player());
+
+            let board_pieces = board.get_at(pos);
+
+            let mut sum = Zobrist(0);
+
+            if let Some(piece_type) = hand_pieces.0 {
+                // We have a white piece in hand. Put it down.
+                sum ^= Zobrist::piece_on_square(piece_type, pos, PlayerColor::White, false);
+                // Take up the optional white piece at that position.
+                sum ^= Zobrist::piece_on_square_opt(board_pieces.0, pos, PlayerColor::White, false);
+            }
+            if let Some(piece_type) = hand_pieces.1 {
+                // We have a black piece in hand. Put it down.
+                sum ^= Zobrist::piece_on_square(piece_type, pos, PlayerColor::Black, false);
+                // Take up the optional black piece at that position.
+                sum ^= Zobrist::piece_on_square_opt(board_pieces.1, pos, PlayerColor::Black, false);
+            }
+
+            // TODO: If this is castling, we need to xor the rooks.
+            // As well as the potential partner piece.
+            // TODO: If this is en passant, we need to xor the pawn.
+            // As well as the potential partner piece.
+
+            sum
+        }
+        PacoAction::Promote(target_type) => {
+            // First, we need to figure out the color of the piece we're promoting.
+            let color = board.controlling_player();
+            let position = board.promotion.unwrap_or(BoardPosition(0));
+            // let pieces = board.active_pieces().get(position.0 as usize).unwrap();
+
+            let mut sum = Zobrist(0);
+            // Remove the pawn.
+            sum ^= Zobrist::piece_on_square(PieceType::Pawn, position, color, false);
+            // Add the new piece.
+            sum ^= Zobrist::piece_on_square(target_type, position, color, false);
+
+            todo!()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -187,23 +295,33 @@ mod tests {
     /// Generates a random (settled) board and lifts a piece. Evaluates if the
     /// Zobrist hash works properly. This is done 100 times.
     #[test]
-    fn test_single_lift_action() {
+    fn test_simple_action() {
         let mut rng = rand::thread_rng();
-        for i in 0..100 {
+        for iteration_count in 0..100 {
             let board: DenseBoard = rng.gen();
-            for action in board.actions().expect("Random board is broken.") {
-                let mut board_copy = board.clone();
-                board_copy
-                    .execute(action)
-                    .expect("Can't execute legal action on board.");
-                assert_eq!(
-                    fresh_zobrist(&board_copy),
-                    zobrist_step(&board, action),
-                    "\nIteration: {},\nAction: {:?},\nBoard: \n{}",
-                    i,
-                    action,
-                    board
-                );
+            verify_each_action(&board, iteration_count, 2);
+        }
+    }
+
+    fn verify_each_action(board: &DenseBoard, iteration_count: i32, depth: usize) {
+        for action in board.actions().expect("Random board is broken.") {
+            let mut board_copy = board.clone();
+            board_copy
+                .execute(action)
+                .expect("Can't execute legal action on board.");
+
+            let fresh_recalculation = Zobrist::for_placed_pieces(&board_copy);
+            let incremental =
+                Zobrist::for_placed_pieces(board) ^ zobrist_step_for_placed_pieces(board, action);
+
+            assert_eq!(
+                fresh_recalculation, incremental,
+                "\nIteration: {},\nAction: {:?},\nBoard: \n{}",
+                iteration_count, action, board
+            );
+
+            if depth > 1 {
+                verify_each_action(&board_copy, iteration_count, depth - 1);
             }
         }
     }

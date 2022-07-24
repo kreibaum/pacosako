@@ -9,6 +9,7 @@ use rand::distributions::{Distribution, Standard};
 use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::cmp::{max, min};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -41,7 +42,7 @@ pub enum PacoError {
     #[error("You can not 'Promote' a pawn to a king.")]
     PromoteToKing,
     #[error("You need to have some free space to castle or to move the king.")]
-    NoSpaceToMoveTheKing,
+    NoSpaceToMoveTheKing(BoardPosition),
     #[error("The input JSON is malformed.")]
     InputJsonMalformed,
     #[error("You are trying to execute an illegal action.")]
@@ -120,7 +121,7 @@ pub struct DenseBoard {
     pub current_player: PlayerColor,
     lifted_piece: Hand,
     /// When a pawn is moved two squares forward, the square in between is used to check en passant.
-    en_passant: Option<(BoardPosition, PlayerColor)>,
+    pub en_passant: Option<(BoardPosition, PlayerColor)>,
     /// When a pawn is moved on the opponents home row, you may promote it to any other piece.
     promotion: Option<BoardPosition>,
     /// Stores castling information
@@ -324,6 +325,19 @@ impl Castling {
             black_king_side: true,
         }
     }
+
+    fn remove_rights_for_color(&mut self, current_player: PlayerColor) {
+        match current_player {
+            PlayerColor::White => {
+                self.white_queen_side = false;
+                self.white_king_side = false;
+            }
+            PlayerColor::Black => {
+                self.black_queen_side = false;
+                self.black_king_side = false;
+            }
+        }
+    }
 }
 
 /// Represents zero to two lifted pieces
@@ -349,6 +363,23 @@ impl Hand {
             Empty => None,
             Single { position, .. } => Some(*position),
             Pair { position, .. } => Some(*position),
+        }
+    }
+    fn colored_optional_pair(
+        &self,
+        as_player: PlayerColor,
+    ) -> (Option<PieceType>, Option<PieceType>) {
+        use Hand::*;
+        match self {
+            Empty => (None, None),
+            Single { piece, .. } => match as_player {
+                PlayerColor::White => (Some(*piece), None),
+                PlayerColor::Black => (None, Some(*piece)),
+            },
+            Pair { piece, partner, .. } => match as_player {
+                PlayerColor::White => (Some(*piece), Some(*partner)),
+                PlayerColor::Black => (Some(*partner), Some(*piece)),
+            },
         }
     }
 }
@@ -604,23 +635,8 @@ impl DenseBoard {
         match self.lifted_piece {
             Hand::Empty => Err(PacoError::PlaceEmptyHand),
             Hand::Single { piece, position } => {
-                // If the target position is the current en passant square, pull back the opponent pawn.
-                // We can't just assume that a pawn placed on the en passant square is striking
-                // en passant, as the current player may also free their own pawn from a union.
-                if self.en_passant == Some((target, self.current_player.other()))
-                    && piece == PieceType::Pawn
-                    && position.advance_pawn(self.current_player) != Some(target)
-                {
-                    let en_passant_source_square = target
-                        .advance_pawn(self.current_player().other())
-                        .unwrap()
-                        .0 as usize;
-                    self.white.swap(target.0 as usize, en_passant_source_square);
-                    self.black.swap(target.0 as usize, en_passant_source_square);
-                    // Now we don't need the en_passant information anymore
-                    // This prevents us from seeing it multiple times in a
-                    // single chain.
-                    self.en_passant = None;
+                if self.is_place_using_en_passant(target, piece, position) {
+                    self.do_en_passant_auxiliary_move(target);
                 }
 
                 // If a pawn is moved onto the opponents home row, track promotion.
@@ -657,10 +673,7 @@ impl DenseBoard {
                         // This is slightly incorrect if you are promoting a
                         // pawn in the same chain, but I think that is a detail
                         // we can fix in the board rewrite.
-                        self.no_progress_half_moves += 1;
-                        if self.no_progress_half_moves == 100 {
-                            self.victory_state = VictoryState::NoProgressDraw;
-                        }
+                        self.do_add_half_move_and_check_draw();
                     }
 
                     // If a pawn is advanced two steps from the home row, store en passant information.
@@ -741,86 +754,102 @@ impl DenseBoard {
                     self.current_player = self.current_player.other();
 
                     // Moving a pair never gets any progress.
-                    self.no_progress_half_moves += 1;
-                    if self.no_progress_half_moves == 100 {
-                        self.victory_state = VictoryState::NoProgressDraw;
-                    }
+                    self.do_add_half_move_and_check_draw();
                     Ok(self)
                 }
             }
         }
     }
 
-    fn place_king(
-        &mut self,
-        position: BoardPosition,
-        target: BoardPosition,
-    ) -> Result<&mut Self, PacoError> {
-        // Moving the king does never progress the game and even
-        // castling or forfeiting castling does not count as
-        // progress according to FIDE rules.
+    /// Increases the half move counter. If the game is drawn, then it is set to
+    /// a NoProgressDraw.
+    fn do_add_half_move_and_check_draw(&mut self) {
         self.no_progress_half_moves += 1;
         if self.no_progress_half_moves == 100 {
             self.victory_state = VictoryState::NoProgressDraw;
         }
+    }
 
-        if self.current_player == PlayerColor::White {
-            // White queen side castling
-            if position == BoardPosition(4) && target == BoardPosition(2) {
-                // Some extra safety checks to make sure we don't overwrite pieces.
-                if !self.is_empty(BoardPosition(2)) || !self.is_empty(BoardPosition(3)) {
-                    return Err(PacoError::NoSpaceToMoveTheKing);
-                }
-                // Swap the rook (and possibly the partner) into place
-                self.white.swap(0, 3);
-                self.black.swap(0, 3);
-            }
-            // White king side castling
-            else if position == BoardPosition(4) && target == BoardPosition(6) {
-                // Some extra safety checks to make sure we don't overwrite pieces.
-                if !self.is_empty(BoardPosition(5)) || !self.is_empty(BoardPosition(6)) {
-                    return Err(PacoError::NoSpaceToMoveTheKing);
-                }
-                // Swap the rook (and possibly the partner) into place
-                self.white.swap(5, 7);
-                self.black.swap(5, 7);
-            }
-            *self.white.get_mut(target.0 as usize).unwrap() = Some(PieceType::King);
-            self.lifted_piece = Hand::Empty;
-            // Any move of the king forfeits castling rights.
-            self.castling.white_king_side = false;
-            self.castling.white_queen_side = false;
-            self.current_player = self.current_player.other();
-            Ok(self)
-        } else {
-            // Black queen side castling
-            if position == BoardPosition(60) && target == BoardPosition(58) {
-                // Some extra safety checks to make sure we don't overwrite pieces.
-                if !self.is_empty(BoardPosition(58)) || !self.is_empty(BoardPosition(59)) {
-                    return Err(PacoError::NoSpaceToMoveTheKing);
-                }
-                // Swap the rook (and possibly the partner) into place
-                self.white.swap(56, 59);
-                self.black.swap(56, 59);
-            }
-            // Black king side castling
-            else if position == BoardPosition(60) && target == BoardPosition(62) {
-                // Some extra safety checks to make sure we don't overwrite pieces.
-                if !self.is_empty(BoardPosition(61)) || !self.is_empty(BoardPosition(62)) {
-                    return Err(PacoError::NoSpaceToMoveTheKing);
-                }
-                // Swap the rook (and possibly the partner) into place
-                self.white.swap(61, 63);
-                self.black.swap(61, 63);
-            }
-            *self.black.get_mut(target.0 as usize).unwrap() = Some(PieceType::King);
-            self.lifted_piece = Hand::Empty;
-            // Any move of the king forfeits castling rights.
-            self.castling.black_king_side = false;
-            self.castling.black_queen_side = false;
-            self.current_player = self.current_player.other();
-            Ok(self)
+    /// Detects if the given place action is using en passant.
+    fn is_place_using_en_passant(
+        &mut self,
+        target_square: BoardPosition,
+        piece: PieceType,
+        source_square: BoardPosition,
+    ) -> bool {
+        // En passant only triggers for pawns.
+        piece == PieceType::Pawn
+            // And only if their target square is the en passant target.
+            && self.en_passant == Some((target_square, self.current_player.other()))
+            // And if the pawn is actually capturing, and not just chaining out
+            // of a pair into the empty en passant square.
+            && source_square.advance_pawn(self.current_player) != Some(target_square)
+    }
+
+    // Swaps the content of two squares. Does not touch lifted pieces.
+    // Usually done for auxiliary movement like en passant or castling.
+    fn swap(&mut self, pos1: BoardPosition, pos2: BoardPosition) {
+        self.white.swap(pos1.0 as usize, pos2.0 as usize);
+        self.black.swap(pos1.0 as usize, pos2.0 as usize);
+    }
+
+    /// Moves back the pawn to the en passant square, including the partner.
+    /// This consumes the information about the en passant square so we don't
+    /// see it twice in a chain.
+    fn do_en_passant_auxiliary_move(&mut self, target: BoardPosition) {
+        let en_passant_source_square = target.advance_pawn(self.current_player().other()).unwrap();
+        // Move back pair
+        self.swap(target, en_passant_source_square);
+
+        self.en_passant = None;
+    }
+
+    fn place_king(
+        &mut self,
+        king_source: BoardPosition,
+        king_target: BoardPosition,
+    ) -> Result<&mut Self, PacoError> {
+        // Moving the king does never progress the game and even
+        // castling or forfeiting castling does not count as
+        // progress according to FIDE rules.
+        self.do_add_half_move_and_check_draw();
+
+        if let Some((rook_source, rook_target)) =
+            get_castling_auxiliary_move(king_source, king_target)
+        {
+            self.ensure_board_clean(king_source, king_target)?;
+
+            // Swap rooks
+            self.swap(rook_source, rook_target);
         }
+
+        // Place down the king
+        self.active_pieces_mut()
+            .get_mut(king_target.0 as usize)
+            .unwrap()
+            .replace(PieceType::King);
+        self.lifted_piece = Hand::Empty;
+
+        // Forfeit castling rights.
+        self.castling.remove_rights_for_color(self.current_player);
+        self.current_player = self.current_player.other();
+        Ok(self)
+    }
+
+    /// Some extra safety checks to make sure we don't overwrite pieces when castling.
+    fn ensure_board_clean(
+        &mut self,
+        king_source: BoardPosition,
+        king_target: BoardPosition,
+    ) -> Result<(), PacoError> {
+        let king_min = min(king_source.0, king_target.0);
+        let king_max = max(king_source.0, king_target.0);
+        for i in (king_min + 1)..king_max {
+            if !self.is_empty(BoardPosition(i)) {
+                return Err(PacoError::NoSpaceToMoveTheKing(BoardPosition(i)));
+            }
+        }
+        Ok(())
     }
 
     /// Promotes the current promotion target to the given type.
@@ -1162,7 +1191,7 @@ impl DenseBoard {
             (-1, 0),
             (-1, 1),
         ];
-        let mut targets_on_board: Vec<BoardPosition> = offsets
+        let targets_on_board: Vec<BoardPosition> = offsets
             .iter()
             .filter_map(|d| position.add(*d))
             // Placing the king works like placing a pair, as he can only be
@@ -1279,6 +1308,26 @@ impl DenseBoard {
                 }
             }
         }
+    }
+}
+
+/// For a given move of the king, determines if this would trigger a castling.
+/// If so, the corresponding rook swap is returned. First square is "source",
+/// the second is "target".
+fn get_castling_auxiliary_move(
+    king_source: BoardPosition,
+    king_target: BoardPosition,
+) -> Option<(BoardPosition, BoardPosition)> {
+    if king_source == BoardPosition(4) && king_target == BoardPosition(2) {
+        Some((BoardPosition(0), BoardPosition(3)))
+    } else if king_source == BoardPosition(4) && king_target == BoardPosition(6) {
+        Some((BoardPosition(7), BoardPosition(5)))
+    } else if king_source == BoardPosition(60) && king_target == BoardPosition(58) {
+        Some((BoardPosition(56), BoardPosition(59)))
+    } else if king_source == BoardPosition(60) && king_target == BoardPosition(62) {
+        Some((BoardPosition(63), BoardPosition(61)))
+    } else {
+        None
     }
 }
 

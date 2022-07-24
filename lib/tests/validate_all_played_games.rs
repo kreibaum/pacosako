@@ -1,6 +1,10 @@
 use std::fs::File;
 
-use pacosako::{self, PacoAction, PacoBoard};
+use pacosako::{
+    self,
+    zobrist::{self, Zobrist},
+    DenseBoard, PacoAction, PacoBoard,
+};
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 
@@ -47,6 +51,31 @@ fn regression_run() {
         let end = start.elapsed();
         // Print time in microseconds.
         println!("Game {} took {} microseconds", game.id, end.as_micros());
+    }
+}
+
+/// Validates that the zobrist hash never breaks for any game in the database.
+/// We do this in addition to fuzzing the engine, to make sure we cover also
+/// the likely cases very well.
+#[ignore = "Does not work yet."]
+#[test]
+fn validate_zobrist_integrity() {
+    let games: Vec<RegressionValidation> = load_regression_database();
+    for game in games {
+        let mut board = DenseBoard::new();
+        let mut hash = Zobrist::for_placed_pieces(&board);
+        println!("Initial hash: {}", hash);
+
+        for action in game.history {
+            hash ^= zobrist::zobrist_step_for_placed_pieces(&board, action);
+            board.execute(action);
+            let recomputed_hash = Zobrist::for_placed_pieces(&board);
+            assert_eq!(
+                recomputed_hash, hash,
+                "Hash broken for game {} after action {:?}",
+                game.id, action
+            );
+        }
     }
 }
 
