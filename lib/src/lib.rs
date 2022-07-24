@@ -772,7 +772,7 @@ impl DenseBoard {
 
     /// Detects if the given place action is using en passant.
     fn is_place_using_en_passant(
-        &mut self,
+        &self,
         target_square: BoardPosition,
         piece: PieceType,
         source_square: BoardPosition,
@@ -797,9 +797,9 @@ impl DenseBoard {
     /// This consumes the information about the en passant square so we don't
     /// see it twice in a chain.
     fn do_en_passant_auxiliary_move(&mut self, target: BoardPosition) {
-        let en_passant_source_square = target.advance_pawn(self.current_player().other()).unwrap();
+        let en_passant_reset_from = target.advance_pawn(self.current_player().other()).unwrap();
         // Move back pair
-        self.swap(target, en_passant_source_square);
+        self.swap(target, en_passant_reset_from);
 
         self.en_passant = None;
     }
@@ -1314,7 +1314,7 @@ impl DenseBoard {
 /// For a given move of the king, determines if this would trigger a castling.
 /// If so, the corresponding rook swap is returned. First square is "source",
 /// the second is "target".
-fn get_castling_auxiliary_move(
+pub fn get_castling_auxiliary_move(
     king_source: BoardPosition,
     king_target: BoardPosition,
 ) -> Option<(BoardPosition, BoardPosition)> {

@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
 use crate::{
-    static_include, BoardPosition, Castling, DenseBoard, PacoAction, PacoBoard, PieceType,
-    PlayerColor,
+    get_castling_auxiliary_move, static_include, BoardPosition, Castling, DenseBoard, Hand,
+    PacoAction, PacoBoard, PieceType, PlayerColor,
 };
 
 pub fn print_all() {
@@ -146,12 +146,6 @@ impl Zobrist {
     }
 }
 
-fn piece_type_index(piece_type: PieceType, color: PlayerColor) -> usize {
-    let a = Zobrist::type_index(piece_type);
-    let b = Zobrist::color_index(color);
-    a + 6 * b
-}
-
 impl std::ops::BitXor for Zobrist {
     type Output = Self;
 
@@ -202,7 +196,7 @@ pub fn zobrist_step_for_placed_pieces(board: &DenseBoard, action: PacoAction) ->
             Zobrist::piece_on_square_opt(pieces.0, pos, PlayerColor::White, false)
                 ^ Zobrist::piece_on_square_opt(pieces.1, pos, PlayerColor::Black, false)
         }
-        PacoAction::Place(pos) => {
+        PacoAction::Place(target) => {
             // Now this is a bit harder, because we need to differentiate
             // between ending the chain (paired / unpaired) and continuing the
             // chain.
@@ -214,27 +208,64 @@ pub fn zobrist_step_for_placed_pieces(board: &DenseBoard, action: PacoAction) ->
                 .lifted_piece
                 .colored_optional_pair(board.controlling_player());
 
-            let board_pieces = board.get_at(pos);
+            let board_pieces = board.get_at(target);
 
             let mut sum = Zobrist(0);
 
             if let Some(piece_type) = hand_pieces.0 {
                 // We have a white piece in hand. Put it down.
-                sum ^= Zobrist::piece_on_square(piece_type, pos, PlayerColor::White, false);
+                sum ^= Zobrist::piece_on_square(piece_type, target, PlayerColor::White, false);
                 // Take up the optional white piece at that position.
-                sum ^= Zobrist::piece_on_square_opt(board_pieces.0, pos, PlayerColor::White, false);
+                sum ^=
+                    Zobrist::piece_on_square_opt(board_pieces.0, target, PlayerColor::White, false);
             }
             if let Some(piece_type) = hand_pieces.1 {
                 // We have a black piece in hand. Put it down.
-                sum ^= Zobrist::piece_on_square(piece_type, pos, PlayerColor::Black, false);
+                sum ^= Zobrist::piece_on_square(piece_type, target, PlayerColor::Black, false);
                 // Take up the optional black piece at that position.
-                sum ^= Zobrist::piece_on_square_opt(board_pieces.1, pos, PlayerColor::Black, false);
+                sum ^=
+                    Zobrist::piece_on_square_opt(board_pieces.1, target, PlayerColor::Black, false);
             }
 
-            // TODO: If this is castling, we need to xor the rooks.
+            // If the king castles, then we need to xor the rook move.
             // As well as the potential partner piece.
-            // TODO: If this is en passant, we need to xor the pawn.
+            if let Hand::Single {
+                piece: PieceType::King,
+                position,
+            } = board.lifted_piece
+            {
+                if let Some((rook_source, rook_target)) =
+                    get_castling_auxiliary_move(position, target)
+                {
+                    // Remove all pieces from the rook source
+                    sum ^= auxiliary_move(board, rook_source, rook_target);
+                }
+            }
+            // If this is en passant, we need to xor the pawn.
             // As well as the potential partner piece.
+            else if let Hand::Single {
+                piece: PieceType::Pawn,
+                position,
+            } = board.lifted_piece
+            {
+                if board.is_place_using_en_passant(target, PieceType::Pawn, position) {
+                    let en_passant_reset_from =
+                        target.advance_pawn(board.current_player().other()).unwrap();
+                    sum ^= auxiliary_move(board, en_passant_reset_from, target);
+
+                    // If we moved back a pair, then the own piece gets lifted and
+                    // can chain.
+                    sum ^= Zobrist::piece_on_square_opt(
+                        *board
+                            .active_pieces()
+                            .get(en_passant_reset_from.0 as usize)
+                            .unwrap(),
+                        target,
+                        board.controlling_player(),
+                        false,
+                    );
+                }
+            }
 
             sum
         }
@@ -244,15 +275,23 @@ pub fn zobrist_step_for_placed_pieces(board: &DenseBoard, action: PacoAction) ->
             let position = board.promotion.unwrap_or(BoardPosition(0));
             // let pieces = board.active_pieces().get(position.0 as usize).unwrap();
 
-            let mut sum = Zobrist(0);
             // Remove the pawn.
-            sum ^= Zobrist::piece_on_square(PieceType::Pawn, position, color, false);
+            Zobrist::piece_on_square(PieceType::Pawn, position, color, false)
             // Add the new piece.
-            sum ^= Zobrist::piece_on_square(target_type, position, color, false);
-
-            todo!()
+            ^ Zobrist::piece_on_square(target_type, position, color, false)
         }
     }
+}
+
+fn auxiliary_move(board: &DenseBoard, source: BoardPosition, target: BoardPosition) -> Zobrist {
+    let pieces = board.get_at(source);
+
+    // Remove from source square
+    Zobrist::piece_on_square_opt(pieces.0, source, PlayerColor::White, false)
+    ^ Zobrist::piece_on_square_opt(pieces.1, source, PlayerColor::Black, false)
+    // Place them back at the target.
+    ^ Zobrist::piece_on_square_opt(pieces.0, target, PlayerColor::White, false)
+    ^ Zobrist::piece_on_square_opt(pieces.1, target, PlayerColor::Black, false)
 }
 
 #[cfg(test)]
