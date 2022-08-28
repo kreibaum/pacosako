@@ -21,6 +21,21 @@ pub enum PlayerColor {
     Black,
 }
 
+impl PlayerColor {
+    pub fn forward_direction(self) -> i8 {
+        match self {
+            PlayerColor::White => 1,
+            PlayerColor::Black => -1,
+        }
+    }
+    pub fn home_row(self) -> u8 {
+        match self {
+            PlayerColor::White => 0,
+            PlayerColor::Black => 7,
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BoardPosition(pub u8);
 

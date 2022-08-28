@@ -47,6 +47,20 @@ fn regression_run() {
             history: game.history.clone(),
         };
         let recomputed_game = map_input_to_validation(input);
+        if game != recomputed_game {
+            println!("Regression in game {}", game.id);
+            for i in 0..game.legal_moves.len() {
+                let expected_actions = game.legal_moves[i].clone();
+                let actual_actions = recomputed_game.legal_moves[i].clone();
+                if expected_actions != actual_actions {
+                    println!("First difference in legal actions on index {i}.");
+                    println!("Action taken: {:?}", game.history[i]);
+                    println!("Expected: {:?}", expected_actions);
+                    println!("Actual: {:?}", actual_actions);
+                    panic!();
+                }
+            }
+        }
         assert_eq!(game, recomputed_game);
         let end = start.elapsed();
         // Print time in microseconds.
@@ -67,7 +81,7 @@ fn validate_zobrist_integrity() {
 
         for action in game.history {
             hash ^= zobrist::zobrist_step_for_placed_pieces(&board, action);
-            board.execute(action);
+            board.execute(action).expect("Error executing action");
             let recomputed_hash = Zobrist::for_placed_pieces(&board);
             assert_eq!(
                 recomputed_hash, hash,

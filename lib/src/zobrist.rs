@@ -249,8 +249,9 @@ pub fn zobrist_step_for_placed_pieces(board: &DenseBoard, action: PacoAction) ->
             } = board.lifted_piece
             {
                 if board.is_place_using_en_passant(target, PieceType::Pawn, position) {
-                    let en_passant_reset_from =
-                        target.advance_pawn(board.current_player().other()).unwrap();
+                    let en_passant_reset_from = target
+                        .advance_pawn(board.controlling_player().other())
+                        .unwrap();
                     sum ^= auxiliary_move(board, en_passant_reset_from, target);
 
                     // If we moved back a pair, then the own piece gets lifted and
@@ -319,7 +320,7 @@ mod tests {
         board.castling.black_queen_side = false;
         board.castling.black_king_side = false;
 
-        board.current_player = PlayerColor::Black;
+        board.controlling_player = PlayerColor::Black;
 
         assert_eq!(fresh_zobrist(&board).0, 0)
     }

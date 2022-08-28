@@ -447,7 +447,7 @@ pub extern "C" fn find_sako_sequences(
         let mut actions = vec![];
         // Is there a state where the black king is dancing?
         for board in explored.settled {
-            if board.king_in_union(ps.current_player.other()) {
+            if board.king_in_union(ps.controlling_player.other()) {
                 if let Some(trace) = crate::trace_first_move(&board, &explored.found_via) {
                     actions.push(trace);
                 }
