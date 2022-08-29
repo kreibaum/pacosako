@@ -356,7 +356,7 @@ mod tests {
 
             assert_eq!(
                 fresh_recalculation, incremental,
-                "\nIteration: {},\nAction: {:?},\nBoard: \n{}",
+                "\nIteration: {},\nAction: {:?},\nBoard: \n{:?}",
                 iteration_count, action, board
             );
 

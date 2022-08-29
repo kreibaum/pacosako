@@ -2,7 +2,7 @@
 name = "pacosako-rust"
 version = "0.1.0"
 authors = ["rolf"]
-edition = "2018"
+edition = "2021"
 default-run = "pacosako-example"
 
 [lib]
@@ -15,12 +15,12 @@ name = "pacosako-example"
 path = "src/main.rs"
 
 [dependencies]
-colored = "1.8.0"
 rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"] }
 nom = "7.1.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-wasm-bindgen = "0.2"
+wasm-bindgen = "0.2.82"
 thiserror = "1.0"
 bincode = "1.3"
 

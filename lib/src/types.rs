@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::Add;
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -13,6 +14,21 @@ pub enum PieceType {
     Bishop,
     Queen,
     King,
+}
+
+impl PieceType {
+    pub fn to_char(self) -> &'static str {
+        use PieceType::*;
+
+        match self {
+            Pawn => "P",
+            Rook => "R",
+            Knight => "N",
+            Bishop => "B",
+            Queen => "Q",
+            King => "K",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -34,10 +50,31 @@ impl PlayerColor {
             PlayerColor::Black => 7,
         }
     }
+    pub fn other(self) -> Self {
+        use PlayerColor::*;
+        match self {
+            White => Black,
+            Black => White,
+        }
+    }
+    pub fn initial(self) -> char {
+        match self {
+            Self::White => 'W',
+            Self::Black => 'B',
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BoardPosition(pub u8);
+
+impl Add<(i8, i8)> for BoardPosition {
+    type Output = Option<Self>;
+
+    fn add(self, rhs: (i8, i8)) -> Self::Output {
+        Self::new_checked(self.x() as i8 + rhs.0, self.y() as i8 + rhs.1)
+    }
+}
 
 impl BoardPosition {
     pub fn x(self) -> u8 {
@@ -55,9 +92,6 @@ impl BoardPosition {
         } else {
             None
         }
-    }
-    pub fn add(self, other: (i8, i8)) -> Option<Self> {
-        Self::new_checked(self.x() as i8 + other.0, self.y() as i8 + other.1)
     }
 
     /// Indicates whether the given position in on the pawn row of the `player` parameter.

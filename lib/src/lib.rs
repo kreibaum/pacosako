@@ -1,12 +1,11 @@
 pub mod export;
 pub mod parser;
+pub mod random;
 mod static_include;
 pub mod types;
 pub mod zobrist;
 
-use colored::*;
-use rand::distributions::{Distribution, Standard};
-use rand::seq::SliceRandom;
+use rand::distributions::Distribution;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
@@ -15,8 +14,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
-use std::fmt;
-use std::fmt::Display;
+use std::ops::Add;
 pub use types::{BoardPosition, PieceType, PlayerColor};
 use wasm_bindgen::prelude::*;
 #[cfg(test)]
@@ -57,38 +55,6 @@ pub enum PacoError {
     LiftingWhenNotAllowed(RequiredAction),
     #[error("Tried to promote, required action is:")]
     PromotingWhenNotAllowed(RequiredAction),
-}
-
-impl PlayerColor {
-    pub fn other(self) -> Self {
-        use PlayerColor::*;
-        match self {
-            White => Black,
-            Black => White,
-        }
-    }
-    fn paint_string(self, input: &str) -> colored::ColoredString {
-        use PlayerColor::*;
-        match self {
-            White => input.red(),
-            Black => input.blue(),
-        }
-    }
-}
-
-impl PieceType {
-    fn to_char(self) -> &'static str {
-        use PieceType::*;
-
-        match self {
-            Pawn => "P",
-            Rook => "R",
-            Knight => "N",
-            Bishop => "B",
-            Queen => "Q",
-            King => "K",
-        }
-    }
 }
 
 /// Possible states a board of Paco Ŝako can be in. The pacosako library only
@@ -164,105 +130,6 @@ impl RequiredAction {
         }
     }
 }
-
-/// Defines a random generator for Paco Ŝako games that are not over yet.
-/// I.e. where both kings are still free. This works by placing the pieces
-/// randomly on the board.
-impl Distribution<DenseBoard> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> DenseBoard {
-        let mut board = DenseBoard::new();
-
-        // Shuffle white and black pieces around
-        board.white.shuffle(rng);
-        board.black.shuffle(rng);
-
-        // Check all positions for violations
-        // No pawns on the enemy home row
-        for i in 0..64 {
-            if i < 8 && board.black[i] == Some(PieceType::Pawn) {
-                let free_index = loop {
-                    let candidate = board.random_position_without_black(rng);
-                    if candidate >= 8 {
-                        break candidate;
-                    }
-                };
-                board.black.swap(i, free_index);
-            }
-            if i >= 56 && board.white[i] == Some(PieceType::Pawn) {
-                let free_index = loop {
-                    let candidate = board.random_position_without_white(rng);
-                    if candidate < 56 {
-                        break candidate;
-                    }
-                };
-                board.white.swap(i, free_index);
-            }
-        }
-
-        // No single pawns on the own home row
-        for i in 0..64 {
-            if i < 8
-                && board.white[i] == Some(PieceType::Pawn)
-                && (board.black[i] == None || board.black[i] == Some(PieceType::King))
-            {
-                let free_index = loop {
-                    let candidate = board.random_position_without_white(rng);
-                    if (8..56).contains(&candidate) {
-                        break candidate;
-                    }
-                };
-                board.white.swap(i, free_index);
-            }
-            if i >= 56
-                && board.black[i] == Some(PieceType::Pawn)
-                && (board.white[i] == None || board.white[i] == Some(PieceType::King))
-            {
-                let free_index = loop {
-                    let candidate = board.random_position_without_black(rng);
-                    if (8..56).contains(&candidate) {
-                        break candidate;
-                    }
-                };
-                board.black.swap(i, free_index);
-            }
-        }
-
-        // Ensure, that the king is single. (Done after all other pieces are moved).
-        for i in 0..64 {
-            if board.white[i] == Some(PieceType::King) && board.black[i] != None {
-                let free_index = board.random_empty_position(rng);
-                board.white.swap(i, free_index);
-            }
-            if board.black[i] == Some(PieceType::King) && board.white[i] != None {
-                let free_index = board.random_empty_position(rng);
-                board.black.swap(i, free_index);
-            }
-        }
-
-        // Randomize current player
-        board.controlling_player = if rng.gen() {
-            PlayerColor::White
-        } else {
-            PlayerColor::Black
-        };
-
-        // Figure out if any castling permissions remain
-        let white_king_in_position = board.white[4] == Some(PieceType::King);
-        let black_king_in_position = board.black[60] == Some(PieceType::King);
-
-        board.castling.white_queen_side =
-            white_king_in_position && board.white[0] == Some(PieceType::Rook);
-        board.castling.white_king_side =
-            white_king_in_position && board.white[7] == Some(PieceType::Rook);
-        board.castling.black_queen_side =
-            black_king_in_position && board.black[56] == Some(PieceType::Rook);
-        board.castling.black_king_side =
-            black_king_in_position && board.black[63] == Some(PieceType::Rook);
-
-        board
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct EditorBoard {
     pieces: Vec<RestingPiece>,
@@ -393,14 +260,6 @@ pub enum Hand {
 }
 
 impl Hand {
-    fn position(&self) -> Option<BoardPosition> {
-        use Hand::*;
-        match self {
-            Empty => None,
-            Single { position, .. } => Some(*position),
-            Pair { position, .. } => Some(*position),
-        }
-    }
     fn colored_optional_pair(
         &self,
         as_player: PlayerColor,
@@ -446,7 +305,7 @@ impl PacoAction {
 }
 
 /// The PacoBoard trait encapsulates arbitrary Board implementations.
-pub trait PacoBoard: Clone + Eq + std::hash::Hash + Display {
+pub trait PacoBoard: Clone + Eq + std::hash::Hash {
     /// Check if a PacoAction is legal and execute it. Otherwise return an error.
     fn execute(&mut self, action: PacoAction) -> Result<&mut Self, PacoError>;
     /// Executes a PacoAction. This call may assume that the action is legal
@@ -1355,42 +1214,6 @@ impl DenseBoard {
         possible_moves
     }
 
-    /// Used for random board generation
-    /// This will not terminate if the board is full.
-    /// The runtime of this function is not deterministic. (Geometric distribution)
-    fn random_empty_position<R: Rng + ?Sized>(&self, rng: &mut R) -> usize {
-        loop {
-            let candidate = rng.gen_range(0..64);
-            if self.white[candidate] == None && self.black[candidate] == None {
-                return candidate;
-            }
-        }
-    }
-
-    /// Used for random board generation
-    /// This will not terminate if the board is full.
-    /// The runtime of this function is not deterministic. (Geometric distribution)
-    fn random_position_without_white<R: Rng + ?Sized>(&self, rng: &mut R) -> usize {
-        loop {
-            let candidate = rng.gen_range(0..64);
-            if self.white[candidate] == None {
-                return candidate;
-            }
-        }
-    }
-
-    /// Used for random board generation
-    /// This will not terminate if the board is full.
-    /// The runtime of this function is not deterministic. (Geometric distribution)
-    fn random_position_without_black<R: Rng + ?Sized>(&self, rng: &mut R) -> usize {
-        loop {
-            let candidate = rng.gen_range(0..64);
-            if self.black[candidate] == None {
-                return candidate;
-            }
-        }
-    }
-
     // TODO: This is a good candidate to get simplified.
     fn remove_en_passant_info(&mut self) {
         if self.is_settled() {
@@ -1643,105 +1466,6 @@ impl TryFrom<&ExchangeNotation> for DenseBoard {
             Err(())
         }
     }
-}
-
-impl Display for DenseBoard {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use PlayerColor::*;
-        writeln!(f, "╔═══════════════════════════╗")?;
-        let mut trailing_bracket = false;
-        let highlighted_position = self.lifted_piece.position().map(|p| p.0 as usize);
-        for y in (0..8).rev() {
-            write!(f, "║ {}", y + 1)?;
-            for x in 0..8 {
-                let coord = BoardPosition::new(x, y).0 as usize;
-                let w = self.white.get(coord).unwrap();
-                let b = self.black.get(coord).unwrap();
-
-                if trailing_bracket {
-                    write!(f, ")")?;
-                    trailing_bracket = false;
-                } else if Some(coord) == highlighted_position {
-                    write!(f, "(")?;
-                    trailing_bracket = true;
-                } else {
-                    write!(f, " ")?;
-                }
-
-                match w {
-                    Some(piece) => {
-                        write!(f, "{}", White.paint_string(piece.to_char()))?;
-                    }
-                    None => {
-                        write!(f, ".")?;
-                    }
-                };
-
-                match b {
-                    Some(piece) => {
-                        write!(f, "{}", Black.paint_string(piece.to_char()))?;
-                    }
-                    None => {
-                        write!(f, ".")?;
-                    }
-                };
-            }
-            writeln!(f, " ║")?;
-        }
-
-        match self.lifted_piece {
-            Hand::Empty => writeln!(
-                f,
-                "║ {} A  B  C  D  E  F  G  H  ║",
-                self.controlling_player.paint_string("*")
-            )?,
-            Hand::Single { piece, .. } => {
-                writeln!(
-                    f,
-                    "║ {} A  B  C  D  E  F  G  H  ║",
-                    self.controlling_player.paint_string(piece.to_char())
-                )?;
-            }
-            Hand::Pair { piece, partner, .. } => {
-                let (w, b) = match self.controlling_player {
-                    PlayerColor::White => (piece, partner),
-                    PlayerColor::Black => (partner, piece),
-                };
-                writeln!(
-                    f,
-                    "║{}{} A  B  C  D  E  F  G  H  ║",
-                    White.paint_string(w.to_char()),
-                    Black.paint_string(b.to_char())
-                )?;
-            }
-        }
-        write!(f, "╚═══════════════════════════╝")?;
-        Ok(())
-    }
-}
-
-/// Given a board state, this function finds all possible end states where a piece dances with the
-/// opponent's king.
-pub fn analyse_sako(board: impl PacoBoard) -> Result<(), PacoError> {
-    println!("The input board position is");
-    println!("{}", board);
-
-    let explored = determine_all_moves(board)?;
-    println!(
-        "I found {} possible resulting states in total.",
-        explored.settled.len()
-    );
-
-    println!("I found the following ŝako sequences:");
-    // Is there a state where the black king is dancing?
-    for board in explored.settled {
-        if board.king_in_union(board.controlling_player()) {
-            println!("{}", board);
-            println!("{:?}", trace_first_move(&board, &explored.found_via));
-        }
-    }
-
-    Ok(())
 }
 
 struct ExploredState<T: PacoBoard> {
@@ -2792,74 +2516,6 @@ mod tests {
             .actions()
             .unwrap()
             .contains(&PacoAction::Place(pos("c1"))));
-    }
-
-    #[test]
-    fn random_dense_board_consistent() {
-        use rand::{thread_rng, Rng};
-
-        let mut rng = thread_rng();
-        for _ in 0..1000 {
-            let board: DenseBoard = rng.gen();
-
-            let mut whites_found = 0;
-            let mut blacks_found = 0;
-
-            // Check all positions for violations
-            for i in 0..64 {
-                // Count pieces
-                if board.white[i].is_some() {
-                    whites_found += 1;
-                }
-                if board.black[i].is_some() {
-                    blacks_found += 1;
-                }
-
-                // The king should be single
-                if board.white[i] == Some(PieceType::King) {
-                    assert_eq!(board.black[i], None, "The white king is united.\n{}", board);
-                }
-                if board.black[i] == Some(PieceType::King) {
-                    assert_eq!(board.white[i], None, "The black king is united.\n{}", board);
-                }
-                // No pawns on the enemy home row
-                // No single pawns on the own home row
-                if i < 8 {
-                    assert_ne!(
-                        board.black[i],
-                        Some(PieceType::Pawn),
-                        "There is a black pawn on the white home row\n{}",
-                        board
-                    );
-                    if board.black[i] == None {
-                        assert_ne!(
-                            board.white[i],
-                            Some(PieceType::Pawn),
-                            "There is a single white pawn on the white home row\n{}",
-                            board
-                        );
-                    }
-                }
-                if i >= 56 {
-                    assert_ne!(
-                        board.white[i],
-                        Some(PieceType::Pawn),
-                        "There is a white pawn on the black home row\n{}",
-                        board
-                    );
-                    if board.white[i] == None {
-                        assert_ne!(
-                            board.black[i],
-                            Some(PieceType::Pawn),
-                            "There is a single black pawn on the black home row\n{}",
-                            board
-                        );
-                    }
-                }
-            }
-            assert_eq!(whites_found, 16);
-            assert_eq!(blacks_found, 16);
-        }
     }
 
     /// Tests rollback on the initial position. I expect nothing to happen.

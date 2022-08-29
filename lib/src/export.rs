@@ -26,7 +26,7 @@ pub extern "C" fn drop(ps: *mut DenseBoard) {
 #[no_mangle]
 pub extern "C" fn print(ps: *mut DenseBoard) {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
-    println!("{}", ps);
+    println!("{:?}", ps);
 }
 
 #[no_mangle]

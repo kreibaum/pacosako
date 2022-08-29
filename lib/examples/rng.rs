@@ -50,7 +50,7 @@ fn main() -> Result<(), PacoError> {
 
         if let Some(info) = long_chains_for_discord(&sequences) {
             println!("{}", info);
-            println!("{}", board);
+            println!("{:?}", board);
         }
 
         // if let Some(info) = many_start_positions(&sequences) {
