@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 
 use std::collections::HashMap;
 
-use crate::{parser::Square, Castling, DenseBoard, PacoError, PlayerColor};
+use crate::{parser::Square, BoardPosition, Castling, DenseBoard, PacoError, PlayerColor};
 use lazy_regex::regex_captures;
 
 /// This module implements an extension of X-Fen that can represent settled Paco
@@ -95,14 +95,14 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
         }
 
         // Set other metadata
-        result.no_progress_half_moves = move_count.parse().unwrap();
-        result.castling = Castling::from_string(castling);
-
         result.controlling_player = match player {
             "w" => PlayerColor::White,
             "b" => PlayerColor::Black,
             _ => unreachable!("Regex restricts input to 'w' and 'b'."),
         };
+        result.no_progress_half_moves = move_count.parse().unwrap();
+        result.castling = Castling::from_string(castling);
+        result.en_passant = BoardPosition::try_from(en_passant).ok();
 
         Ok(result)
     } else {
@@ -146,14 +146,18 @@ pub fn write_fen(input: &DenseBoard) -> String {
 
     write!(
         result,
-        " {} {} {} - -",
+        " {} {} {} {} -",
         if input.controlling_player == PlayerColor::White {
             'w'
         } else {
             'b'
         },
         input.no_progress_half_moves,
-        input.castling
+        input.castling,
+        input
+            .en_passant
+            .map(|sq| sq.to_string())
+            .unwrap_or_else(|| "-".to_owned()),
     )
     .unwrap();
 
@@ -199,6 +203,27 @@ fn lowercase_char_to_square() -> HashMap<char, Square> {
 mod tests {
     use super::*;
     use crate::DenseBoard;
+    use crate::PacoAction;
+    use crate::PacoBoard;
+
+    /// Helper macro to execute moves in unit tests.
+    macro_rules! execute_action {
+        ($board:expr, lift, $square:expr) => {{
+            $board
+                .execute_trusted(PacoAction::Lift($square.try_into().unwrap()))
+                .unwrap();
+        }};
+        ($board:expr, place, $square:expr) => {{
+            $board
+                .execute_trusted(PacoAction::Place($square.try_into().unwrap()))
+                .unwrap();
+        }};
+        ($board:expr, promote, $pieceType:expr) => {{
+            $board
+                .execute_trusted(PacoAction::Promote($pieceType))
+                .unwrap();
+        }};
+    }
 
     /// Test that the new empty is properly serialized and deserialized.
     #[test]
@@ -216,6 +241,28 @@ mod tests {
         let board = parse_fen(fen_string).unwrap();
         assert_eq!(board, DenseBoard::new());
         assert_eq!(write_fen(&board), fen_string);
+    }
+
+    #[test]
+    fn en_passant() {
+        let mut board = DenseBoard::new();
+        // Advance a white pawn.
+        execute_action!(board, lift, "d2");
+        execute_action!(board, place, "d4");
+        assert_eq!(board.en_passant.unwrap().to_string(), "d3");
+
+        let fen_string = "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b 1 AHah d3 -";
+        assert_eq!(write_fen(&board), fen_string);
+        assert_eq!(board, parse_fen(fen_string).unwrap());
+
+        // Advance a black pawn.
+        execute_action!(board, lift, "f7");
+        execute_action!(board, place, "f5");
+        assert_eq!(board.en_passant.unwrap().to_string(), "f6");
+
+        let fen_string = "rnbqkbnr/ppppp1pp/8/5p2/3P4/8/PPP1PPPP/RNBQKBNR w 2 AHah f6 -";
+        assert_eq!(write_fen(&board), fen_string);
+        assert_eq!(board, parse_fen(fen_string).unwrap());
     }
 
     /// Generate some random boards and roundtrip them through the serialization
