@@ -14,7 +14,7 @@ Fen looks like this:
 
 The extension by vchess are:
 
-  - A bitstring with 16 entries, one for each pawn column and color if the player
+  - A bit string with 16 entries, one for each pawn column and color if the player
     already moved their pawn in this column. (Only allowed once on vchess)
   - The last pair move (if any), as undoing the same move directly is forbidden.
 
@@ -236,7 +236,7 @@ remains at some default values for now.
 -}
 writeFen : Sako.Position -> String
 writeFen position =
-    writeRows position.pieces ++ " w 0 ahah - -"
+    writeRows position.pieces ++ " w 0 AHah - -"
 
 
 writeRows : List Sako.Piece -> String

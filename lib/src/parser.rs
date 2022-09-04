@@ -20,7 +20,7 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct Matrix(pub HashMap<BoardPosition, Square>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Square {
     pub white: Option<PieceType>,
     pub black: Option<PieceType>,
@@ -44,6 +44,16 @@ impl Square {
             white: None,
             black: Some(black),
         }
+    }
+
+    pub fn flip(&self) -> Square {
+        Square {
+            black: self.white,
+            white: self.black,
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.white.is_none() && self.black.is_none()
     }
 }
 

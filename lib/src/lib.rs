@@ -1,12 +1,11 @@
 pub mod export;
+pub mod fen;
 pub mod parser;
 pub mod random;
 mod static_include;
 pub mod types;
 pub mod zobrist;
 
-use rand::distributions::Distribution;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
 use std::collections::hash_map::Entry;
@@ -14,9 +13,12 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
+use std::fmt::Display;
 use std::ops::Add;
 pub use types::{BoardPosition, PieceType, PlayerColor};
 use wasm_bindgen::prelude::*;
+#[macro_use]
+extern crate lazy_static;
 #[cfg(test)]
 extern crate quickcheck;
 #[cfg(test)]
@@ -43,6 +45,8 @@ pub enum PacoError {
     NoSpaceToMoveTheKing(BoardPosition),
     #[error("The input JSON is malformed.")]
     InputJsonMalformed,
+    #[error("The input FEN is malformed:")]
+    InputFenMalformed(String),
     #[error("You are trying to execute an illegal action.")]
     ActionNotLegal,
     #[error("You are trying to execute an action sequence with zero actions.")]
@@ -240,6 +244,41 @@ impl Castling {
                 self.black_king_side = false;
             }
         }
+    }
+
+    fn from_string(input: &str) -> Self {
+        Castling {
+            white_queen_side: input.contains('A'),
+            white_king_side: input.contains('H'),
+            black_queen_side: input.contains('a'),
+            black_king_side: input.contains('h'),
+        }
+    }
+}
+
+impl Display for Castling {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut any_char = false;
+        if self.white_queen_side {
+            write!(f, "A")?;
+            any_char = true;
+        }
+        if self.white_king_side {
+            write!(f, "H")?;
+            any_char = true;
+        }
+        if self.black_queen_side {
+            write!(f, "a")?;
+            any_char = true;
+        }
+        if self.black_king_side {
+            write!(f, "h")?;
+            any_char = true;
+        }
+        if !any_char {
+            write!(f, "-")?;
+        }
+        Ok(())
     }
 }
 
