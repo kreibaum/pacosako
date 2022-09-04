@@ -59,8 +59,8 @@ impl Zobrist {
         }
         Zobrist(sum)
     }
-    pub(crate) fn en_passant(en_passant_square: Option<(BoardPosition, PlayerColor)>) -> Zobrist {
-        if let Some((pos, _)) = en_passant_square {
+    pub(crate) fn en_passant(en_passant_square: Option<BoardPosition>) -> Zobrist {
+        if let Some(pos) = en_passant_square {
             Zobrist(static_include::EN_PASSANT[pos.0 as usize])
         } else {
             Zobrist(0)

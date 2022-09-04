@@ -315,17 +315,15 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
     }
 
     // Layer that shows the en-passant square
-    if let Some((t, c)) = ps.en_passant {
-        if c != ps.controlling_player() {
-            let mirror_t = if ps.controlling_player() == PlayerColor::White {
-                t.0 as isize
-            } else {
-                mirror_paco_position(BoardPosition(t.0 as u8)).0 as isize
-            };
-            unsafe {
-                let cell = out.offset(mirror_t + 64 * 28);
-                *cell = 1.0
-            }
+    if let Some(t) = ps.en_passant {
+        let mirror_t = if ps.controlling_player() == PlayerColor::White {
+            t.0 as isize
+        } else {
+            mirror_paco_position(BoardPosition(t.0 as u8)).0 as isize
+        };
+        unsafe {
+            let cell = out.offset(mirror_t + 64 * 28);
+            *cell = 1.0
         }
     }
 

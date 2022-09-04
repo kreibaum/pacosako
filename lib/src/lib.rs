@@ -96,7 +96,7 @@ pub struct DenseBoard {
     required_action: RequiredAction,
     lifted_piece: Hand,
     /// When a pawn is moved two squares forward, the square in between is used to check en passant.
-    pub en_passant: Option<(BoardPosition, PlayerColor)>,
+    pub en_passant: Option<BoardPosition>,
     /// When a pawn is moved on the opponents home row, you may promote it to any other piece.
     promotion: Option<BoardPosition>,
     /// Stores castling information
@@ -595,6 +595,7 @@ impl DenseBoard {
 
                 // Special case to handle castling
                 if piece == PieceType::King {
+                    self.en_passant = None;
                     return self.place_king(position, target);
                 }
 
@@ -629,6 +630,7 @@ impl DenseBoard {
                         self.do_add_half_move_and_check_draw();
                     }
 
+                    self.en_passant = None;
                     self.check_and_mark_en_passant(piece, position, target);
 
                     self.lifted_piece = Hand::Empty;
@@ -666,6 +668,7 @@ impl DenseBoard {
                 if board_piece.is_some() || board_partner.is_some() {
                     Err(PacoError::PlacePairFullPosition)
                 } else {
+                    self.en_passant = None;
                     self.check_and_mark_en_passant(piece, position, target);
 
                     *self.active_pieces_mut().get_mut(target.0 as usize).unwrap() = Some(piece);
@@ -715,10 +718,7 @@ impl DenseBoard {
             // Note that the meaning of `None` changes from "could not advance pawn"
             // to "capture en passant is not possible". This is fine as we checked
             // `in_pawn_row` first and are sure this won't happen.
-            self.en_passant = Some((
-                position.advance_pawn(self.controlling_player).unwrap(),
-                self.controlling_player,
-            ));
+            self.en_passant = Some(position.advance_pawn(self.controlling_player).unwrap());
         }
     }
 
@@ -741,7 +741,7 @@ impl DenseBoard {
         // En passant only triggers for pawns.
         piece == PieceType::Pawn
             // And only if their target square is the en passant target.
-            && self.en_passant == Some((target_square, self.controlling_player.other()))
+            && self.en_passant == Some(target_square)
             // And if the pawn is actually capturing, and not just chaining out
             // of a pair into the empty en passant square.
             && source_square.advance_pawn(self.controlling_player) != Some(target_square)
@@ -967,7 +967,7 @@ impl DenseBoard {
             let strike_directions = [(-1, forward), (1, forward)];
             let targets_on_board = strike_directions.iter().filter_map(|d| position.add(*d));
 
-            let en_passant_square = self.en_passant.map(|(p, _)| p);
+            let en_passant_square = self.en_passant;
 
             targets_on_board
                 .filter(|p| self.opponent_present(*p) || en_passant_square == Some(*p))
@@ -1253,20 +1253,6 @@ impl DenseBoard {
         possible_moves
     }
 
-    // TODO: This is a good candidate to get simplified.
-    fn remove_en_passant_info(&mut self) {
-        if self.is_settled() {
-            if let Some((_, player)) = self.en_passant {
-                if player == self.controlling_player {
-                    // We may use the en_passant information after a chain has
-                    // been running for a while. This extra if wrapper prevents
-                    // losing the information with the first place.
-                    self.en_passant = None;
-                }
-            }
-        }
-    }
-
     fn place_actions(&self) -> Result<Vec<PacoAction>, PacoError> {
         match self.lifted_piece {
             Hand::Empty => {
@@ -1331,7 +1317,6 @@ impl PacoBoard for DenseBoard {
             Lift(position) => self.lift(position),
             Place(position) => {
                 self.place(position)?;
-                self.remove_en_passant_info();
                 Ok(self)
             }
             Promote(new_type) => self.promote(new_type),
@@ -1419,7 +1404,7 @@ impl PacoBoard for DenseBoard {
             position,
         } = self.lifted_piece
         {
-            if let Some((target_position, _)) = self.en_passant {
+            if let Some(target_position) = self.en_passant {
                 let forward = self.controlling_player.forward_direction();
 
                 position.add((-1, forward)) == Some(target_position)
@@ -1808,7 +1793,7 @@ mod tests {
         execute_action!(board, lift, "e4");
 
         // Check if the correct legal moves are returned
-        assert_eq!(pos("d3"), board.en_passant.unwrap().0);
+        assert_eq!(pos("d3"), board.en_passant.unwrap());
         assert!(board
             .actions()
             .unwrap()
@@ -1836,7 +1821,7 @@ mod tests {
         execute_action!(board, lift, "d2");
         execute_action!(board, place, "d4");
 
-        assert_eq!(pos("d3"), board.en_passant.unwrap().0);
+        assert_eq!(pos("d3"), board.en_passant.unwrap());
 
         let sako_states = find_sako_states(board).unwrap();
 
@@ -1906,25 +1891,25 @@ mod tests {
         execute_action!(board, lift, "c2");
         execute_action!(board, place, "c4");
 
-        assert_eq!(pos("c3"), board.en_passant.unwrap().0);
+        assert_eq!(pos("c3"), board.en_passant.unwrap());
 
         // Check that white can be captured en passant
         execute_action!(board, lift, "c7");
         execute_action!(board, place, "c5");
 
-        assert_eq!(pos("c6"), board.en_passant.unwrap().0);
+        assert_eq!(pos("c6"), board.en_passant.unwrap());
 
         // Check that white can be captured en passant when they move a pair
         execute_action!(board, lift, "e2");
         execute_action!(board, place, "e4");
 
-        assert_eq!(pos("e3"), board.en_passant.unwrap().0);
+        assert_eq!(pos("e3"), board.en_passant.unwrap());
 
         // Check that black can be captured en passant when they move a pair
         execute_action!(board, lift, "e7");
         execute_action!(board, place, "e5");
 
-        assert_eq!(pos("e6"), board.en_passant.unwrap().0);
+        assert_eq!(pos("e6"), board.en_passant.unwrap());
     }
 
     /// Checks that en_passant information is correctly recorded.
@@ -1944,7 +1929,7 @@ mod tests {
         execute_action!(board, lift, "e7");
         execute_action!(board, place, "e5");
 
-        assert_eq!(pos("e6"), board.en_passant.unwrap().0);
+        assert_eq!(pos("e6"), board.en_passant.unwrap());
 
         // White move
         execute_action!(board, lift, "c5");
@@ -2077,7 +2062,7 @@ mod tests {
 
     /// It is possible to do a threat chain with en passant capture
     #[test]
-    fn test_threat_enpassant() {
+    fn test_threat_en_passant() {
         use PieceType::*;
 
         let mut squares = HashMap::new();
@@ -2089,7 +2074,7 @@ mod tests {
         execute_action!(board, lift, "f7");
         execute_action!(board, place, "f5");
 
-        assert_eq!(pos("f6"), board.en_passant.unwrap().0);
+        assert_eq!(pos("f6"), board.en_passant.unwrap());
 
         let received_threats = determine_all_threats(&board).unwrap();
         let mut expected_threats = [IsThreatened(false); 64];
