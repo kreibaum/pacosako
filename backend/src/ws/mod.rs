@@ -1,5 +1,6 @@
 /// Handles all the websocket client logic.
 pub mod client_connector;
+mod legal_move_oracle;
 pub mod timeout_connector;
 
 use crate::{
@@ -188,13 +189,30 @@ struct GameRoom {
 /// All allowed messages that may be send by the client to the server.
 #[derive(Deserialize)]
 enum ClientMessage {
-    SubscribeToMatch { key: String },
-    DoAction { key: String, action: PacoAction },
-    Rollback { key: String },
-    TimeDriftCheck { send: DateTime<Utc> },
-    SetUUID { uuid: String },
+    SubscribeToMatch {
+        key: String,
+    },
+    DoAction {
+        key: String,
+        action: PacoAction,
+    },
+    Rollback {
+        key: String,
+    },
+    TimeDriftCheck {
+        send: DateTime<Utc>,
+    },
+    SetUUID {
+        uuid: String,
+    },
     // Ask for the socket uuid by sending "GetUUID" as json. For debugging.
     GetUUID,
+    LegalMoveOracle {
+        fen: String,
+        actions: Vec<PacoAction>,
+        /// We use a token to make sure request and response can be matched.
+        token: String,
+    },
 }
 
 /// Messages that may be send by the server to the client.
@@ -213,6 +231,10 @@ pub enum ServerMessage {
     /// Returns the socket uuid. For debugging.
     SocketUUID {
         uuid: String,
+    },
+    LegalMoveOracleResponse {
+        legal_actions: Vec<PacoAction>,
+        token: String,
     },
 }
 
@@ -426,6 +448,30 @@ async fn handle_client_message(
             let uuid: String = server_state.get_uuid(sender);
             let msg = ServerMessage::SocketUUID { uuid };
             send_msg(msg, &sender, ws).await?;
+        }
+        ClientMessage::LegalMoveOracle {
+            fen,
+            actions,
+            token,
+        } => {
+            let legal_actions = legal_move_oracle::legal_moves(&fen, &actions);
+            match legal_actions {
+                Ok(legal_actions) => {
+                    send_msg(
+                        ServerMessage::LegalMoveOracleResponse {
+                            legal_actions,
+                            token,
+                        },
+                        &sender,
+                        ws,
+                    )
+                    .await?;
+                }
+                Err(e) => warn!(
+                    "Client made illegal oracle request. Fen={}, actions={:?}, error={:?}",
+                    fen, actions, e
+                ),
+            }
         }
     }
     Ok(())
