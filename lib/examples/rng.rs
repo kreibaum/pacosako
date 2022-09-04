@@ -1,7 +1,7 @@
 /// This example shows you how to randomly generate board positions to
 /// find interesting positions.
 use pacosako::types::BoardPosition;
-use pacosako::{DenseBoard, PacoAction, PacoError, SakoSearchResult};
+use pacosako::{DenseBoard, PacoAction, PacoError, PlayerColor, SakoSearchResult};
 use std::collections::HashSet;
 
 // use rand::distributions::{Distribution, Standard};
@@ -15,7 +15,7 @@ fn main() -> Result<(), PacoError> {
 
     loop {
         counter += 1;
-        let board: DenseBoard = rng.gen();
+        let mut board: DenseBoard = rng.gen();
         let sequences = pacosako::find_sako_sequences(&((&board).into()))?;
         // let max_white: usize = sequences
         //     .white
@@ -48,9 +48,9 @@ fn main() -> Result<(), PacoError> {
         //     println!("{}", board);
         // }
 
-        if let Some(info) = long_chains_for_discord(&sequences) {
-            println!("{}", info);
-            println!("{:?}", board);
+        if let Some(player_color) = example_puzzles(&sequences) {
+            board.controlling_player = player_color;
+            println!("{}", pacosako::fen::write_fen(&board));
         }
 
         // if let Some(info) = many_start_positions(&sequences) {
@@ -64,18 +64,22 @@ fn main() -> Result<(), PacoError> {
     }
 }
 
-fn long_chains_for_discord(sequences: &SakoSearchResult) -> Option<String> {
+fn example_puzzles(sequences: &SakoSearchResult) -> Option<PlayerColor> {
     let shortest_sequence_white = sequences.white.iter().map(|o| o.len()).min().unwrap_or(0);
     let shortest_sequence_black = sequences.black.iter().map(|o| o.len()).min().unwrap_or(0);
 
     let no_promotion = !sequences.white.iter().any(chain_contains_promotion)
         && !sequences.black.iter().any(chain_contains_promotion);
 
-    if (shortest_sequence_white >= 15 || shortest_sequence_black >= 15) && no_promotion {
-        Some(format!(
-            "w: {}, b: {}",
-            shortest_sequence_white, shortest_sequence_black
-        ))
+    // We only want a single player to have a paco sequence.
+    if shortest_sequence_white > 0 && shortest_sequence_black > 0 {
+        None
+    } else if !no_promotion {
+        None
+    } else if shortest_sequence_white >= 8 {
+        Some(PlayerColor::White)
+    } else if shortest_sequence_black >= 8 {
+        Some(PlayerColor::Black)
     } else {
         None
     }

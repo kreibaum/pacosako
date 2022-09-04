@@ -138,6 +138,15 @@ impl<'r> rocket::response::Responder<'r, 'static> for ServerError {
     }
 }
 
+#[get("/puzzle/<id>")]
+async fn puzzle_get(id: i64, pool: &State<Pool>) -> Result<String, ServerError> {
+    if let Some(puzzle) = db::puzzle::get(id, &mut pool.0.acquire().await?).await? {
+        Ok(puzzle)
+    } else {
+        Err(ServerError::NotFound)
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Saved Position Management - CRUD ////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -607,7 +616,8 @@ fn rocket() -> _ {
                 language::user_language,
                 language::set_user_language,
                 discord_client_id,
-                authorize_discord_oauth_code
+                authorize_discord_oauth_code,
+                puzzle_get,
             ],
         )
         .mount("/", routes![index_fallback])

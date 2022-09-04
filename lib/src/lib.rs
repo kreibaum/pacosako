@@ -92,7 +92,7 @@ impl VictoryState {
 pub struct DenseBoard {
     white: Vec<Option<PieceType>>,
     black: Vec<Option<PieceType>>,
-    controlling_player: PlayerColor,
+    pub controlling_player: PlayerColor,
     required_action: RequiredAction,
     lifted_piece: Hand,
     /// When a pawn is moved two squares forward, the square in between is used to check en passant.

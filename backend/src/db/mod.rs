@@ -1,5 +1,6 @@
 /// Everything related to the play page.
 pub mod game;
+pub(crate) mod puzzle;
 
 use super::{Position, SavePositionRequest, SavePositionResponse, ServerError, User};
 use sqlx::pool::PoolConnection;
