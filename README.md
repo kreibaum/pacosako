@@ -1,10 +1,19 @@
 # Pacosako
 
 [![CI](https://github.com/kreibaum/pacosako/actions/workflows/main.yml/badge.svg)](https://github.com/kreibaum/pacosako/actions/workflows/main.yml)
+<a href="https://hosted.weblate.org/engage/pacoplay/">
+<img src="https://hosted.weblate.org/widgets/pacoplay/-/main-website/svg-badge.svg" alt="Translation status" />
+</a>
 
 This is the codebase for the [pacoplay.com website](http://pacoplay.com). It has a frontend written in
 [Elm](https://elm-lang.org) and a backend written in [Rust](https://rust-lang.org) based on the
 Rocket server framework.
+
+If you want to help with the translation you can do so on our [Weblate](https://hosted.weblate.org/engage/pacoplay/) project:
+
+<a href="https://hosted.weblate.org/engage/pacoplay/">
+<img src="https://hosted.weblate.org/widgets/pacoplay/-/main-website/multi-auto.svg" alt="Translation status" />
+</a>
 
 If you want to help with development or are just interested in how the
 website is build you can start a ready to code development environment in
@@ -47,7 +56,12 @@ To build the webassembler file from the library run `wasm-pack build`.
 
 See https://rustwasm.github.io/docs/book/game-of-life/hello-world.html for details on wasm.
 
+Note: WASM is a thing I want to use in the future but have not implemented
+anything for yet. Having this in the readme is just a note to myself.
+
 ## Working on translations
+
+Remember: if you just want to help with translations, use [Weblate](https://hosted.weblate.org/engage/pacoplay/). This is switching the used language when programming.
 
 Currently the translations are not integrated into the live reloading
 development server. You can set the language you see the UI in by going into
