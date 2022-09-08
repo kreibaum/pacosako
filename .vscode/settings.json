@@ -7,5 +7,12 @@
         ".vscode",
         ".vscode-insiders",
         "**/Cargo.lock"
+    ],
+    "cSpell.words": [
+        "Atle",
+        "Førre",
+        "svgdown",
+        "svgmove",
+        "svgup"
     ]
 }

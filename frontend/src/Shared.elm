@@ -9,13 +9,14 @@ module Shared exposing
     )
 
 import Api.Backend
-import Api.LocalStorage as LocalStorage exposing (Permission(..))
+import Api.LocalStorage as LocalStorage exposing (CustomTimer, Permission(..))
 import Api.Ports
 import Browser.Events
 import Browser.Navigation exposing (Key)
 import Http
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Encode exposing (Value)
+import List.Extra as List
 import Request exposing (Request)
 import Time exposing (Posix)
 import Translations exposing (Language(..))
@@ -35,6 +36,7 @@ type alias Model =
     -- Even when not logged in, you can set a username that is shown to other
     -- people sharing a game with you.
     , username : String
+    , recentCustomTimes : List CustomTimer
     , permissions : List LocalStorage.Permission
     , now : Posix
     , oAuthState : String
@@ -57,6 +59,7 @@ type Msg
     | SetLanguage Language
     | WindowResize Int Int
     | UpdateNow Posix
+    | AddRecentCustomTimer CustomTimer
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
@@ -75,6 +78,7 @@ init { url, key } flags =
       , windowSize = parseWindowSize flags
       , user = Nothing
       , username = ls.data.username
+      , recentCustomTimes = ls.data.recentCustomTimes
       , permissions = ls.permissions
       , now = parseNow flags
       , oAuthState = oAuthState
@@ -140,6 +144,31 @@ update _ msg model =
         TriggerReload ->
             ( model, Browser.Navigation.reload )
 
+        AddRecentCustomTimer data ->
+            addRecentCustomTimer data model
+
+
+{-| Adds a custom timer to the history and trigges a "save to local storage" event.
+-}
+addRecentCustomTimer : CustomTimer -> Model -> ( Model, Cmd Msg )
+addRecentCustomTimer data model =
+    let
+        newModel =
+            { model | recentCustomTimes = addTimerToList data model.recentCustomTimes }
+    in
+    ( newModel, triggerSaveLocalStorage newModel )
+
+
+{-| Takes a custom timer and adds it to a list of timers. If it is already in
+this list, it is pulled to the front. If the list contains more than two entries,
+old entries are dropped.
+-}
+addTimerToList : CustomTimer -> List CustomTimer -> List CustomTimer
+addTimerToList data oldList =
+    (data :: oldList)
+        |> List.unique
+        |> List.take 2
+
 
 setLanguage : Language -> Model -> ( Model, Cmd Msg )
 setLanguage lang model =
@@ -160,7 +189,7 @@ userHidesGamesArePublicHint model =
 triggerSaveLocalStorage : Model -> Cmd msg
 triggerSaveLocalStorage model =
     LocalStorage.store
-        { data = { username = model.username }
+        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes }
         , permissions = model.permissions
         }
 

@@ -2,6 +2,7 @@ module Pages.Home_ exposing (Model, Msg, Params, page)
 
 import Api.Backend
 import Api.Decoders exposing (CurrentMatchState)
+import Api.LocalStorage exposing (CustomTimer)
 import Api.Ports as Ports
 import Browser.Navigation exposing (pushUrl)
 import Custom.Element exposing (icon)
@@ -53,7 +54,7 @@ view shared model =
             { isRouteHighlighted = \r -> r == Route.Home_
             , isWithBackground = True
             }
-            (matchSetupUi model)
+            (matchSetupUi shared model)
     }
 
 
@@ -289,11 +290,20 @@ joinMatch model =
 createMatch : Model -> ( Model, Effect Msg )
 createMatch model =
     ( model
-    , Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting)
-        model.safeMode
-        HttpError
-        MatchCreatedOnServer
-        |> Effect.fromCmd
+    , Effect.batch
+        [ Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting)
+            model.safeMode
+            HttpError
+            MatchCreatedOnServer
+            |> Effect.fromCmd
+        , case model.speedSetting of
+            Custom data ->
+                Effect.fromShared
+                    (Shared.AddRecentCustomTimer data)
+
+            _ ->
+                Effect.none
+        ]
     )
 
 
@@ -303,22 +313,22 @@ createMatch model =
 --------------------------------------------------------------------------------
 
 
-matchSetupUi : Model -> Element Msg
-matchSetupUi model =
+matchSetupUi : Shared.Model -> Model -> Element Msg
+matchSetupUi shared model =
     Element.column
         [ width fill
         , height fill
         , scrollbarY
         ]
-        [ matchSetupUiInner model
+        [ matchSetupUiInner shared model
         ]
 
 
-matchSetupUiInner : Model -> Element Msg
-matchSetupUiInner model =
+matchSetupUiInner : Shared.Model -> Model -> Element Msg
+matchSetupUiInner shared model =
     Element.column [ width (fill |> Element.maximum 1120), spacing 40, centerX, paddingXY 10 40 ]
         [ Element.row [ width fill, spacing 15, centerX ]
-            [ setupOnlineMatchUi model
+            [ setupOnlineMatchUi shared model
             , joinOnlineMatchUi model
             ]
         , recentGamesList model.recentGames
@@ -333,8 +343,8 @@ box color content =
         )
 
 
-setupOnlineMatchUi : Model -> Element Msg
-setupOnlineMatchUi model =
+setupOnlineMatchUi : Shared.Model -> Model -> Element Msg
+setupOnlineMatchUi shared model =
     box (Element.rgba255 255 255 255 0.6)
         [ Element.el
             [ centerX
@@ -390,6 +400,7 @@ setupOnlineMatchUi model =
                 , selected = model.speedSetting == NoTimer
                 }
             ]
+        , recentTimerSettings model shared.recentCustomTimes
         , el [ centerX ] (timeLimitInputLabel model)
         , el [ centerX ] (safeModeToggle model)
         , Input.button
@@ -411,6 +422,35 @@ setupOnlineMatchUi model =
                     ]
             }
         ]
+
+
+{-| If the user has previously used a custom timer, they probably want to use it
+again. So we present the last two timers they used as choices to play again.
+-}
+recentTimerSettings : Model -> List CustomTimer -> Element Msg
+recentTimerSettings model recentCustomTimes =
+    if List.isEmpty recentCustomTimes then
+        Element.none
+
+    else
+        Element.row [ width fill, spacing 7 ]
+            (List.map (oneRecentTimerSetting model) recentCustomTimes)
+
+
+oneRecentTimerSetting : Model -> CustomTimer -> Element Msg
+oneRecentTimerSetting model data =
+    speedButton
+        { buttonIcon = Solid.userClock
+        , caption =
+            String.fromInt data.minutes
+                ++ "m "
+                ++ String.fromInt data.seconds
+                ++ "s +"
+                ++ String.fromInt data.increment
+                ++ "s"
+        , event = SetSpeedSetting (Custom data)
+        , selected = model.speedSetting == Custom data
+        }
 
 
 speedButton : { buttonIcon : Icon, caption : String, event : Msg, selected : Bool } -> Element Msg

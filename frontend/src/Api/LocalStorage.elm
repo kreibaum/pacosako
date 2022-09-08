@@ -1,5 +1,6 @@
 port module Api.LocalStorage exposing
-    ( Data
+    ( CustomTimer
+    , Data
     , LocalStorage
     , Permission(..)
     , load
@@ -26,6 +27,7 @@ The format is:
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
+import Maybe
 
 
 {-| Usable Local Storage object with all the migration details taken care of.
@@ -155,7 +157,9 @@ type alias Data =
 
 defaultData : Data
 defaultData =
-    { username = "" }
+    { username = ""
+    , recentCustomTimes = []
+    }
 
 
 latestVersion : Int
@@ -169,6 +173,7 @@ encodeData : Data -> Value
 encodeData data =
     Encode.object
         [ ( "username", Encode.string data.username )
+        , ( "recentCustomTimes", Encode.list encodeCustomTimer data.recentCustomTimes )
         ]
 
 
@@ -199,7 +204,15 @@ censor permissions data =
 
 type alias DataV1 =
     { username : String
+    , recentCustomTimes : List CustomTimer
     }
+
+
+{-| A timer setting the user can define themself. This is in LocalStorage because
+we persist it.
+-}
+type alias CustomTimer =
+    { minutes : Int, seconds : Int, increment : Int }
 
 
 migrateDataV1 : DataV1 -> Data
@@ -218,8 +231,28 @@ censorUser permissions data =
 
 decodeDataV1 : Decoder DataV1
 decodeDataV1 =
-    Decode.map DataV1
+    Decode.map2 DataV1
         (Decode.field "username" Decode.string)
+        (Decode.maybe (Decode.field "recentCustomTimes" (Decode.list decodeCustomTimer))
+            |> Decode.map (Maybe.withDefault [])
+        )
+
+
+decodeCustomTimer : Decoder CustomTimer
+decodeCustomTimer =
+    Decode.map3 CustomTimer
+        (Decode.field "minutes" Decode.int)
+        (Decode.field "seconds" Decode.int)
+        (Decode.field "increment" Decode.int)
+
+
+encodeCustomTimer : CustomTimer -> Value
+encodeCustomTimer record =
+    Encode.object
+        [ ( "minutes", Encode.int <| record.minutes )
+        , ( "seconds", Encode.int <| record.seconds )
+        , ( "increment", Encode.int <| record.increment )
+        ]
 
 
 
