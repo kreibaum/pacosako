@@ -2,7 +2,7 @@
 
 /// Type Declaration to make the typescript compiler stop complaining about elm.
 /// This could be more precise listing also the ports that we have for better
-/// controll.
+/// type checking.
 declare var Elm: any;
 
 // Set up a new mutation observer, that will fire custom events for all
@@ -89,7 +89,7 @@ function setOAuthStateInSessionCookie(): string {
     return state;
 }
 
-// Retrive local storage
+// Retrieve local storage
 let localStorageData = JSON.parse(localStorage.getItem('localStorage'));
 
 // Pass the window size to elm on init. This way we already know it on startup.
@@ -160,7 +160,7 @@ app.ports.triggerPngDownload.subscribe(function (request) {
     }
 });
 
-/** Canvas Donwload from https://codepen.io/joseluisq/pen/mnkLu */
+/** Canvas download from https://codepen.io/joseluisq/pen/mnkLu */
 function download(canvas, filename) {
     /// create an "off-screen" anchor tag
     var lnk = document.createElement("a");
@@ -249,7 +249,7 @@ function getUUID(): string {
  * - Registering to the elm port
  * - Forwarding messages that were send before the websocket could be created
  * - Trying multiple ways to connect.
- * - Eventually, I'll want some reconnection behaviour in here as well.
+ * - Reconnection behavior with exponential back-off.
  */
 class WebsocketWrapper {
 
@@ -378,12 +378,12 @@ class WebsocketWrapper {
     }
 
     private static readonly INITIAL_RECONNECT_DELAY: number = 200;
-    private static readonly BACKOFF_FACTOR: number = 1.2;
+    private static readonly BACK_OFF_FACTOR: number = 1.2;
     private reconnect_delay_ms: number = 200;
 
     /**
      * Notifies the elm app of the socket problem and tries to reconnect using
-     * an exponential backoff strategy.
+     * an exponential back-off strategy.
      */
     private connection_closed() {
         this.sendStatusToElm("Disconnected")
@@ -398,7 +398,7 @@ class WebsocketWrapper {
         try {
             await this.connect();
         } catch (error) {
-            this.reconnect_delay_ms *= WebsocketWrapper.BACKOFF_FACTOR;
+            this.reconnect_delay_ms *= WebsocketWrapper.BACK_OFF_FACTOR;
             console.log(`reconnect failed, will retry in: ${Math.round(this.reconnect_delay_ms)}ms.`)
             setTimeout(() => this.try_reconnect(), this.reconnect_delay_ms)
             return;
