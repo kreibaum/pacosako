@@ -845,7 +845,11 @@ impl DenseBoard {
             *promoted_pawn = Some(new_type);
             self.promotion = None;
 
+            // Promotion counts as progress. However, the promotion can happen
+            // as part of a chain. In that case we also need to remember that we
+            // just promoted until the chain is complete.
             self.no_progress_half_moves = 0;
+            // TODO: Actually remember the half-promotion until it is used.
 
             match self.required_action {
                 RequiredAction::PromoteThenLift => {
@@ -2807,6 +2811,100 @@ mod tests {
         assert_eq!(board.no_progress_half_moves, 0);
 
         Ok(())
+    }
+
+    /// Here we check that chaining without increasing the amount of pairs does
+    /// increase the no-progress counter.
+    #[test]
+    fn test_half_move_count_during_unproductive_chain() {
+        let mut board = DenseBoard::new();
+
+        execute_action!(board, lift, "e2");
+        execute_action!(board, place, "e4");
+        assert_eq!(board.no_progress_half_moves, 1);
+        execute_action!(board, lift, "d7");
+        execute_action!(board, place, "d5");
+        assert_eq!(board.no_progress_half_moves, 2);
+        execute_action!(board, lift, "e4");
+        execute_action!(board, place, "d5");
+        assert_eq!(board.no_progress_half_moves, 0);
+        execute_action!(board, lift, "e7");
+        execute_action!(board, place, "e6");
+        assert_eq!(board.no_progress_half_moves, 1);
+        execute_action!(board, lift, "c2");
+        execute_action!(board, place, "c4");
+        assert_eq!(board.no_progress_half_moves, 2);
+        execute_action!(board, lift, "e6");
+        execute_action!(board, place, "d5");
+        execute_action!(board, place, "d4");
+        assert_eq!(board.no_progress_half_moves, 3);
+    }
+
+    #[test]
+    #[ignore = "Test for #52, but this bug is still open."]
+    fn test_half_move_count_during_chain_promotion() {
+        let mut board = DenseBoard::new();
+
+        execute_action!(board, lift, "f2");
+        execute_action!(board, place, "f4");
+        assert_eq!(board.no_progress_half_moves, 1);
+        execute_action!(board, lift, "g7");
+        execute_action!(board, place, "g5");
+        assert_eq!(board.no_progress_half_moves, 2);
+        execute_action!(board, lift, "f4");
+        execute_action!(board, place, "g5");
+        assert_eq!(board.no_progress_half_moves, 0);
+        execute_action!(board, lift, "e7");
+        execute_action!(board, place, "e5");
+        assert_eq!(board.no_progress_half_moves, 1);
+        execute_action!(board, lift, "g5");
+        execute_action!(board, place, "g6");
+        assert_eq!(board.no_progress_half_moves, 2);
+        execute_action!(board, lift, "a7");
+        execute_action!(board, place, "a5");
+        assert_eq!(board.no_progress_half_moves, 3);
+        execute_action!(board, lift, "d2");
+        execute_action!(board, place, "d4");
+        assert_eq!(board.no_progress_half_moves, 4);
+        execute_action!(board, lift, "e5");
+        execute_action!(board, place, "d4");
+        assert_eq!(board.no_progress_half_moves, 0);
+        execute_action!(board, lift, "c1");
+        execute_action!(board, place, "h6");
+        assert_eq!(board.no_progress_half_moves, 1);
+        execute_action!(board, lift, "a5");
+        execute_action!(board, place, "a4");
+        assert_eq!(board.no_progress_half_moves, 2);
+        execute_action!(board, lift, "h6");
+        execute_action!(board, place, "f8");
+        assert_eq!(board.no_progress_half_moves, 0);
+        execute_action!(board, lift, "a8");
+        execute_action!(board, place, "a5");
+        assert_eq!(board.no_progress_half_moves, 1);
+        execute_action!(board, lift, "g6");
+        execute_action!(board, place, "g7");
+        assert_eq!(board.no_progress_half_moves, 2);
+        execute_action!(board, lift, "b8");
+        execute_action!(board, place, "a6");
+        assert_eq!(board.no_progress_half_moves, 3);
+        execute_action!(board, lift, "d1");
+        execute_action!(board, place, "d2");
+        assert_eq!(board.no_progress_half_moves, 4);
+        execute_action!(board, lift, "a5");
+        execute_action!(board, place, "h5");
+        assert_eq!(board.no_progress_half_moves, 5);
+        execute_action!(board, lift, "d2");
+        execute_action!(board, place, "g5");
+        assert_eq!(board.no_progress_half_moves, 6);
+        execute_action!(board, lift, "d8");
+        execute_action!(board, place, "f6");
+        assert_eq!(board.no_progress_half_moves, 7);
+        execute_action!(board, lift, "g5");
+        execute_action!(board, place, "g7");
+        execute_action!(board, place, "f8");
+        execute_action!(board, promote, PieceType::Queen);
+        execute_action!(board, place, "d6");
+        assert_eq!(board.no_progress_half_moves, 0); // This tests #52
     }
 }
 
