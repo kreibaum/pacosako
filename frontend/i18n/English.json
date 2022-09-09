@@ -20,11 +20,11 @@
     "matchId": "Match Id",
     "joinGame": "Join Game",
     "recentSearchNotAsked": "Search for recent games",
-    "recentSearchLoading": "Searching for recent games...",
+    "recentSearchLoading": "Searching for recent games…",
     "recentSearchError": "Error while searching for games! Try again?",
     "recentSearchNoGames": "There were no games recently started. Check again?",
     "recentSearchRefresh": "Refresh",
-    "watchLatestMatches" : "Watch the latest played matches",
+    "watchLatestMatches": "Watch the latest played matches",
     "match": "Match",
     "pageNotFoundReturn": "Page not found. Return to start page.",
     "gameTitle": "Play Paco Ŝako - pacoplay.com",
@@ -57,5 +57,5 @@
     "gamesArePublicHint": "All games you play are stored indefinitely and publicly available!",
     "hideGamesArePublicHint": "Hide message.",
     "tutorialPageTitle": "Learn Paco Ŝako - pacoplay.com",
-    "enableGameProtection": "Enable Game Protection (Experimental)"
+    "enableGameProtection": "Enable Game Protection"
 }
