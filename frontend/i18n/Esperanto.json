@@ -54,5 +54,8 @@
     "headerLogin": "Ensaluti",
     "gamesArePublicHint": "Ĉiuj ludoj, kiujn vi ludas, estas konservitaj senfine kaj publike haveblaj!",
     "hideGamesArePublicHint": "Kaŝi mesaĝon.",
-    "tutorialPageTitle": "Lernu Paco Ŝakon - pacoplay.com"
+    "tutorialPageTitle": "Lernu Paco Ŝakon - pacoplay.com",
+    "watchLatestMatches": "Rigardu la lastajn luditajn matĉojn",
+    "pageNotFoundReturn": "Paĝo ne trovita. Reiru al ĉefpaĝo.",
+    "enableGameProtection": "Enŝaltu ludo-protektilon"
 }
