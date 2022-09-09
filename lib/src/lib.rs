@@ -102,6 +102,13 @@ pub struct DenseBoard {
     /// Stores castling information
     castling: Castling,
     victory_state: VictoryState,
+    /// The half move counter counts up for every move that is done in the game.
+    /// If the move made progress, then it is reset to 0 after the move.
+    /// Progress is:
+    ///  - Increasing the amount of dancing pieces by forming a pair.
+    ///  - Promoting a pawn.
+    /// Unlike regular chess moving a pawn forward does not count as progress.
+    /// Castling does not count as progress either, just like in regular chess.
     no_progress_half_moves: u8,
 }
 
@@ -2780,7 +2787,7 @@ mod tests {
     }
 
     #[test]
-    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_their_turn(
+    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_this_turn(
     ) -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
 
