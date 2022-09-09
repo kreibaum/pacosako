@@ -61,7 +61,16 @@ anything for yet. Having this in the readme is just a note to myself.
 
 ## Working on translations
 
-Remember: if you just want to help with translations, use [Weblate](https://hosted.weblate.org/engage/pacoplay/). This is switching the used language when programming.
+Remember: if you just want to help with translations, use
+[Weblate](https://hosted.weblate.org/engage/pacoplay/).
+
+This part is for development. is switching the used language when programming.
+
+If you want to merge translations that were done with weblate, use
+
+    git remote add weblate https://hosted.weblate.org/git/pacoplay/main-website/
+    git remote update weblate
+    git merge weblate/main
 
 Currently the translations are not integrated into the live reloading
 development server. You can set the language you see the UI in by going into
