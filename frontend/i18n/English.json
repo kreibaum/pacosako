@@ -59,13 +59,13 @@
     "tutorialPageTitle": "Learn Paco Ŝako - pacoplay.com",
     "enableGameProtection": "Enable Game Protection",
     "watchReplayPageTitle": "Watch Replay - pacoplay.com",
-    "loadingReplayData": "Loading replay data ...",
+    "loadingReplayData": "Loading replay data…",
     "orUseArrows": "(or use arrow keys)",
-    "replayPreviousMove":"Previous move",
-    "replayPreviousAction":"Previous action",
-    "replayPlayAll":"Play all",
-    "replayNextMove":"Next move",
-    "replayNextAction":"Next action",
+    "replayPreviousMove": "Previous move",
+    "replayPreviousAction": "Previous action",
+    "replayPlayAll": "Play all",
+    "replayNextMove": "Next move",
+    "replayNextAction": "Next action",
     "replayRestart": "Restart",
-    "showMovementIndicators":"Show movement indicators"
+    "showMovementIndicators": "Show movement indicators"
 }
