@@ -505,6 +505,9 @@ impl DenseBoard {
         }
         // Lifting is always followed by a place.
         self.required_action = RequiredAction::Place;
+        // Lifting already increases the "no progress" counter. If we do it at
+        // the end of the move, then in-chain promotions are a problem.
+        self.no_progress_half_moves += 1;
 
         if self.lifted_piece != Hand::Empty {
             return Err(PacoError::LiftFullHand);
@@ -625,17 +628,12 @@ impl DenseBoard {
                 } else {
                     // Not a chain.
 
-                    // Check if the half move counter goes up or down.
+                    // Check if the half move counter gets reset.
                     // Is there a new union we are creating?
                     if let Some(Some(_)) = self.opponent_pieces().get(target.0 as usize) {
                         self.no_progress_half_moves = 0;
-                    } else {
-                        // No new union -> no progress
-                        // This is slightly incorrect if you are promoting a
-                        // pawn in the same chain, but I think that is a detail
-                        // we can fix in the board rewrite.
-                        self.do_add_half_move_and_check_draw();
                     }
+                    self.check_draw();
 
                     self.en_passant = None;
                     self.check_and_mark_en_passant(piece, position, target);
@@ -703,7 +701,7 @@ impl DenseBoard {
                     }
 
                     // Moving a pair never gets any progress.
-                    self.do_add_half_move_and_check_draw();
+                    self.check_draw();
                     Ok(self)
                 }
             }
@@ -731,8 +729,7 @@ impl DenseBoard {
 
     /// Increases the half move counter. If the game is drawn, then it is set to
     /// a NoProgressDraw.
-    fn do_add_half_move_and_check_draw(&mut self) {
-        self.no_progress_half_moves += 1;
+    fn check_draw(&mut self) {
         if self.no_progress_half_moves == 100 {
             self.victory_state = VictoryState::NoProgressDraw;
         }
@@ -782,7 +779,7 @@ impl DenseBoard {
         // Moving the king does never progress the game and even
         // castling or forfeiting castling does not count as
         // progress according to FIDE rules.
-        self.do_add_half_move_and_check_draw();
+        self.check_draw();
 
         if let Some((rook_source, rook_target)) =
             get_castling_auxiliary_move(king_source, king_target)
@@ -852,11 +849,8 @@ impl DenseBoard {
             *promoted_pawn = Some(new_type);
             self.promotion = None;
 
-            // Promotion counts as progress. However, the promotion can happen
-            // as part of a chain. In that case we also need to remember that we
-            // just promoted until the chain is complete.
+            // Promotion counts as progress. No need to check draw.
             self.no_progress_half_moves = 0;
-            // TODO: Actually remember the half-promotion until it is used.
 
             match self.required_action {
                 RequiredAction::PromoteThenLift => {
@@ -2848,7 +2842,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Test for #52, but this bug is still open."]
     fn test_half_move_count_during_chain_promotion() {
         let mut board = DenseBoard::new();
 
