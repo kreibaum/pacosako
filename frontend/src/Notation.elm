@@ -311,10 +311,10 @@ renderAtom atom =
             letter type_ ++ Sako.tileToIdentifier tile
 
         StartMoveUnion typeA typeB tile ->
-            letter typeA ++ letter typeB ++ Sako.tileToIdentifier tile
+            forceLetter typeA ++ forceLetter typeB ++ Sako.tileToIdentifier tile
 
         ContinueChain type_ tile ->
-            ">" ++ letter type_ ++ Sako.tileToIdentifier tile
+            ">" ++ forceLetter type_ ++ Sako.tileToIdentifier tile
 
         EndMoveCalm tile ->
             ">" ++ Sako.tileToIdentifier tile
@@ -329,6 +329,8 @@ renderAtom atom =
             "=" ++ letter type_
 
 
+{-| Turns a piece type into a letter, where Pawn is left out.
+-}
 letter : Sako.Type -> String
 letter type_ =
     case type_ of
@@ -349,3 +351,16 @@ letter type_ =
 
         Sako.King ->
             "K"
+
+
+{-| Turns a piece type into a letter, where Pawn is printed as "P".
+I'm calling it "force" because it feels like the "-f" variant of letter.
+-}
+forceLetter : Sako.Type -> String
+forceLetter type_ =
+    case type_ of
+        Sako.Pawn ->
+            "P"
+
+        _ ->
+            letter type_

@@ -39,11 +39,11 @@ suite =
         , test "Writing the initial board position as FEN." <|
             \() ->
                 Fen.writeFen Sako.initialPosition
-                    |> Expect.equal "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 0 ahah - -"
+                    |> Expect.equal "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 0 AHah - -"
         , testPositionRoundTrip "Round trip the initial board position via FEN. 2" Sako.initialPosition
-        , testFenRoundTrip "FEN -> Sako -> FEN round trip test 1" "bqnrkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/NRBKRBNQ w 0 ahah - -"
-        , testFenRoundTrip "FEN -> Sako -> FEN round trip test 2" "bqrknbr1/ppeppp1p/8/6p1/2PPn3/3Q4/PP2PPPP/NBR2KNR w 0 ahah - -"
-        , testFenRoundTrip "FEN -> Sako -> FEN round trip test 3" "bqrknb2/ppe2p1p/8/4A1dC/2Pf4/2R1P3/PP3PP1/Ns3K1R w 0 ahah - -"
+        , testFenRoundTrip "FEN -> Sako -> FEN round trip test 1" "bqnrkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/NRBKRBNQ w 0 AHah - -"
+        , testFenRoundTrip "FEN -> Sako -> FEN round trip test 2" "bqrknbr1/ppeppp1p/8/6p1/2PPn3/3Q4/PP2PPPP/NBR2KNR w 0 AHah - -"
+        , testFenRoundTrip "FEN -> Sako -> FEN round trip test 3" "bqrknb2/ppe2p1p/8/4A1dC/2Pf4/2R1P3/PP3PP1/Ns3K1R w 0 AHah - -"
         ]
 
 

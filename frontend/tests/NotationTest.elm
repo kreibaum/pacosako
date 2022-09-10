@@ -50,7 +50,7 @@ suite =
                     , Notation.ContinueChain Knight (Tile 5 3)
                     , Notation.EndMoveCalm (Tile 6 5)
                     ]
-                    |> Expect.equal "f2>e3>Nf4>g6"
+                    |> Expect.equal "f2>Pe3>Nf4>g6"
         , test "Compiled Notation for a single pawn moving forward" <|
             \() ->
                 Notation.compile
