@@ -57,5 +57,15 @@
     "gamesArePublicHint": "All games you play are stored indefinitely and publicly available!",
     "hideGamesArePublicHint": "Hide message.",
     "tutorialPageTitle": "Learn Paco Ŝako - pacoplay.com",
-    "enableGameProtection": "Enable Game Protection"
+    "enableGameProtection": "Enable Game Protection",
+    "watchReplayPageTitle": "Watch Replay - pacoplay.com",
+    "loadingReplayData": "Loading replay data ...",
+    "orUseArrows": "(or use arrow keys)",
+    "replayPreviousMove":"Previous move",
+    "replayPreviousAction":"Previous action",
+    "replayPlayAll":"Play all",
+    "replayNextMove":"Next move",
+    "replayNextAction":"Next action",
+    "replayRestart": "Restart",
+    "showMovementIndicators":"Show movement indicators"
 }

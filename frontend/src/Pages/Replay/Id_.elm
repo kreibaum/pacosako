@@ -322,7 +322,7 @@ keybindings =
 
 view : Shared.Model -> Model -> View Msg
 view shared model =
-    { title = "Watch Replay - pacoplay.com"
+    { title = T.watchReplayPageTitle
     , element =
         Header.wrapWithHeaderV2 shared
             ToShared
@@ -352,7 +352,7 @@ body shared model =
             Pages.NotFound.body
 
         RemoteData.Loading ->
-            Element.text "Loading replay data ..."
+            Element.text T.loadingReplayData
 
         RemoteData.Failure _ ->
             Pages.NotFound.body
@@ -516,7 +516,7 @@ sidebar shared model =
             (CopyToClipboard (Url.toString shared.url))
             model.key
         , arrowButtons
-        , Element.text "(or use arrow keys)"
+        , Element.text T.orUseArrows
         , enableMovementIndicators model.showMovementIndicators
         , editorLink model
         , rematchLink model
@@ -534,11 +534,11 @@ sidebar shared model =
 arrowButtons : Element Msg
 arrowButtons =
     Element.row [ spacing 10 ]
-        [ Components.iconButton "Previous move." Solid.arrowLeft (Just PreviousMove)
-        , Components.iconButton "Previous action." Solid.chevronLeft (Just PreviousAction)
-        , Components.iconButton "Play all." Solid.play (Just PlayAll)
-        , Components.iconButton "Next action." Solid.chevronRight (Just NextAction)
-        , Components.iconButton "Next move." Solid.arrowRight (Just NextMove)
+        [ Components.iconButton T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
+        , Components.iconButton T.replayPreviousAction Solid.chevronLeft (Just PreviousAction)
+        , Components.iconButton T.replayPlayAll Solid.play (Just PlayAll)
+        , Components.iconButton T.replayNextAction Solid.chevronRight (Just NextAction)
+        , Components.iconButton T.replayNextMove Solid.arrowRight (Just NextMove)
         ]
 
 
@@ -550,7 +550,7 @@ enableMovementIndicators showMovementIndicators =
     else
         Element.row [ spacing 10 ]
             [ Components.iconButton "" Solid.eye (Just EnableMovementIndicators)
-            , Element.text "Show movement indicators"
+            , Element.text T.showMovementIndicators
             ]
 
 
@@ -600,7 +600,7 @@ setupButton model =
     in
     Input.button attrs
         { onPress = Just (GoToActionCount 0)
-        , label = Element.text "Restart"
+        , label = Element.text T.replayRestart
         }
 
 
