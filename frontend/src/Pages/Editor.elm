@@ -998,7 +998,7 @@ addHistoryState newState p =
 
 view : Shared.Model -> Model -> View Msg
 view shared model =
-    { title = "Design Puzzles - pacoplay.com"
+    { title = T.editorPageTitle
     , element =
         Header.wrapWithHeaderV2 shared
             ToShared
@@ -1048,7 +1048,7 @@ sharingHeader model =
     in
     [ Element.text urlString
         |> el [ Element.clip, width fill ]
-    , btn "Copy" |> withSmallIcon Regular.clipboard |> withMsg (Copy urlString) |> viewButton
+    , btn T.copy |> withSmallIcon Regular.clipboard |> withMsg (Copy urlString) |> viewButton
 
     --, buttonWithIcon Nothing Solid.fileImport "Export"
     ]
@@ -1264,8 +1264,8 @@ sidebar model =
         exportOptions =
             if model.showExportOptions then
                 [ hideExportOptions
-                , Input.button [] { onPress = Just DownloadSvg, label = Element.text "Download as Svg" }
-                , Input.button [] { onPress = Just DownloadPng, label = Element.text "Download as Png" }
+                , Input.button [] { onPress = Just DownloadSvg, label = Element.text T.editorDownloadAsSvg }
+                , Input.button [] { onPress = Just DownloadPng, label = Element.text T.editorDownloadAsPng }
                 , markdownCopyPaste model
                 ]
 
@@ -1274,9 +1274,9 @@ sidebar model =
     in
     column [ width (px 250), height fill, spacing 10, padding 10, Element.alignRight ]
         ([ sidebarActionButtons model.game
-         , Element.text "Add piece:"
-         , addPieceButtons Sako.White "W:" model.smartTool
-         , addPieceButtons Sako.Black "B:" model.smartTool
+         , Element.text T.editorAddPiece
+         , addPieceButtons Sako.White T.editorWhiteShort model.smartTool
+         , addPieceButtons Sako.Black T.editorBlackShort model.smartTool
          , colorSchemeConfig model
          , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
          , analysisResult model
@@ -1295,12 +1295,12 @@ castingDecoMessages =
 
 hideExportOptions : Element Msg
 hideExportOptions =
-    Input.button [] { onPress = Just (SetExportOptionsVisible False), label = Element.text "Hide Export Options" }
+    Input.button [] { onPress = Just (SetExportOptionsVisible False), label = Element.text T.editorExportOptionsHide }
 
 
 showExportOptions : Element Msg
 showExportOptions =
-    Input.button [] { onPress = Just (SetExportOptionsVisible True), label = Element.text "Show Export Options" }
+    Input.button [] { onPress = Just (SetExportOptionsVisible True), label = Element.text T.editorExportOptionsShow }
 
 
 sidebarActionButtons : Pivot Sako.Position -> Element Msg
@@ -1430,7 +1430,7 @@ colorPicker msg currentColor newColor =
 colorSchemeConfig : Model -> Element Msg
 colorSchemeConfig taco =
     column [ width fill, spacing 5 ]
-        [ Element.text "Piece colors"
+        [ Element.text T.editorPieceColors
         , colorSchemeConfigWhite taco
         , colorSchemeConfigBlack taco
         ]
@@ -1469,20 +1469,12 @@ colorSchemeConfigBlack taco =
 markdownCopyPaste : Model -> Element Msg
 markdownCopyPaste model =
     column [ spacing 5 ]
-        [ Element.text "Text notation you can store"
-        , Input.multiline [ Font.family [ Font.monospace ] ]
-            { onChange = \_ -> EditorMsgNoOp
-            , text = Sako.exportExchangeNotation (P.getC model.game)
-            , placeholder = Nothing
-            , label = Input.labelHidden "Copy this to a text document for later use."
-            , spellcheck = False
-            }
-        , Element.text "Recover state from notation"
+        [ Element.text T.editorLegacyNotationRecover
         , Input.multiline [ Font.family [ Font.monospace ] ]
             { onChange = UpdateUserPaste
             , text = model.userPaste
-            , placeholder = Just (Input.placeholder [] (Element.text "Paste level notation."))
-            , label = Input.labelHidden "Paste level notation as you see above."
+            , placeholder = Just (Input.placeholder [] (Element.text T.editorLegacyNotationPaste))
+            , label = Input.labelHidden T.editorLegacyNotationPaste
             , spellcheck = False
             }
         , parsedMarkdownPaste model
@@ -1517,7 +1509,7 @@ parsedMarkdownPaste model =
                                 , additionalSvg = Nothing
                                 , replaceViewport = Nothing
                                 }
-                        , Element.text "Load"
+                        , Element.text T.editorLegacyNotationLoad
                         ]
                         |> Element.map (\_ -> EditorMsgNoOp)
                 }
