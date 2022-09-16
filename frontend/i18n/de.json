@@ -52,8 +52,7 @@
     "gameWhite": "Weiß",
     "gameTimeout": "(Zeit vorüber)",
     "gameWatchReplay": "Wiedergabe ansehen",
-    "gameCopyToClipboard": "URL für einen Freund kopieren",
-    "gameBlackPlayerName": "Name des schwarzen Spielers",
+    "gameCopyToClipboard": "URL zum einladen kopieren",
     "replayRematchFromHere": "Rückspiel von hier",
     "headerLogin": "Anmelden"
 }
