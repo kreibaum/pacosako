@@ -53,9 +53,7 @@
     "gameTimeout": "(Zeit vorüber)",
     "gameWatchReplay": "Wiedergabe ansehen",
     "gameCopyToClipboard": "URL für einen Freund kopieren",
-    "gameWhitePlayerName": "Name des weißen Spielers",
     "gameBlackPlayerName": "Name des schwarzen Spielers",
-    "gamePlayerNamesForStreaming": "Spielernamen für Streaming",
     "replayRematchFromHere": "Rückspiel von hier",
     "headerLogin": "Anmelden"
 }
