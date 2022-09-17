@@ -75,6 +75,10 @@ view shared _ =
             Esperanto ->
                 textPageWrapper
                     [ text "Beda\u{00AD}ŭrinde ĉi tiu paĝo ne haveblas en Esperanto :-(" ]
+
+            German ->
+                textPageWrapper
+                    [ text "Wir haben leider noch keine deutsche Anleitung :-(" ]
         )
             |> Header.wrapWithHeader shared ToShared
     }

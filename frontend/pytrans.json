@@ -1,9 +1,33 @@
 {
-    "mainLanguage": "English",
+    "mainLanguage": {
+        "filename": "English.json",
+        "name": "English",
+        "locale": "en"
+    },
     "inputFolder": "i18n",
-    "output" : ".elm-i18n/Translations.elm",
+    "output": ".elm-i18n/Translations.elm",
     "translatedTo": [
-        "Dutch",
-        "Esperanto"
-    ]
+        {
+            "filename": "Dutch.json",
+            "name": "Dutch",
+            "locale": "nl"
+        },
+        {
+            "filename": "Esperanto.json",
+            "name": "Esperanto",
+            "locale": "eo"
+        },
+        {
+            "filename": "de.json",
+            "name": "German",
+            "locale": "de"
+        }
+    ],
+    "scripts": {
+        "compile": [
+            "pytrans.py {name}",
+            "elm make src/Main.elm --output=../target/elm.{locale}.js",
+            "uglifyjs ../target/elm.{locale}.js -o ../target/elm.{locale}.min.js --mangle --compress"
+        ]
+    }
 }

@@ -677,3 +677,6 @@ i18nChoosenTimeLimit =
 
         T.Esperanto ->
             ( " minutoj, ", " sekundoj kun ", " sekundoj aldonata." )
+
+        T.German ->
+            ( " Minuten, ", " Sekunden und ", " Sekunden Inkrement." )

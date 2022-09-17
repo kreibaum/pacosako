@@ -310,13 +310,10 @@ fetchHeaderSize =
             (\res ->
                 case res of
                     Ok data ->
-                        Debug.log "data" data
-                            |> (\_ ->
-                                    SetVisibleHeaderSize
-                                        { header = max (round (data.element.y - data.viewport.y)) 0
-                                        , elementHeight = round data.element.height
-                                        }
-                               )
+                        SetVisibleHeaderSize
+                            { header = max (round (data.element.y - data.viewport.y)) 0
+                            , elementHeight = round data.element.height
+                            }
 
                     Err _ ->
                         SetVisibleHeaderSize { header = 0, elementHeight = 0 }
