@@ -1,4 +1,4 @@
-module Svg.Custom exposing (BoardRotation(..), Coord(..), Rect, addCoord, coordinateOfTile, flagEn, flagEo, flagNl, makeViewBox, safeTileCoordinate, translate)
+module Svg.Custom exposing (BoardRotation(..), Coord(..), Rect, addCoord, coordinateOfTile, flagDe, flagEn, flagEo, flagNl, flagSv, makeViewBox, safeTileCoordinate, translate)
 
 {-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in
 both directions but additional objects are rendered outside.
@@ -133,4 +133,26 @@ flagEo =
     Svg.svg [ SvgA.viewBox "0 0 600 400", SvgA.width "30px", SvgA.height "20px" ]
         [ Svg.path [ SvgA.fill "#FFF", SvgA.d "m0,0h202v202H0" ] []
         , Svg.path [ SvgA.fill "#090", SvgA.d "m0,200H200V0H600V400H0m58-243 41-126 41,126-107-78h133" ] []
+        ]
+
+
+{-| Svg of the flag of Germany.
+-}
+flagDe : Html a
+flagDe =
+    Svg.svg [ SvgA.viewBox "0 0 9 6", SvgA.width "30px", SvgA.height "20px" ]
+        [ Svg.rect [ SvgA.fill "#FFCC00", SvgA.width "9", SvgA.height "6" ] []
+        , Svg.rect [ SvgA.fill "#FF0000", SvgA.width "9", SvgA.height "4" ] []
+        , Svg.rect [ SvgA.fill "#000000", SvgA.width "9", SvgA.height "2" ] []
+        ]
+
+
+{-| Svg of the flag of Sweden.
+-}
+flagSv : Html a
+flagSv =
+    Svg.svg [ SvgA.viewBox "0 0 16 10", SvgA.width "30px", SvgA.height "20px" ]
+        [ Svg.rect [ SvgA.fill "#006aa7", SvgA.width "16", SvgA.height "10" ] []
+        , Svg.rect [ SvgA.fill "#fecc00", SvgA.width "2", SvgA.height "10", SvgA.x "5" ] []
+        , Svg.rect [ SvgA.fill "#fecc00", SvgA.width "16", SvgA.height "2", SvgA.y "4" ] []
         ]

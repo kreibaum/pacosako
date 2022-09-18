@@ -680,3 +680,6 @@ i18nChoosenTimeLimit =
 
         T.German ->
             ( " Minuten, ", " Sekunden und ", " Sekunden Inkrement." )
+
+        T.Swedish ->
+            ( " minuter, ", " sekunder med ", " sekunders steg." )

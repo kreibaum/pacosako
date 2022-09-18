@@ -123,6 +123,9 @@ postLanguage lang errMsg okMsg =
 
                     German ->
                         "de"
+
+                    Swedish ->
+                        "sv"
                 )
         , expect = Http.expectWhatever (handle errMsg okMsg)
         }

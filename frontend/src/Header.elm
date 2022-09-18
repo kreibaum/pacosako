@@ -231,4 +231,12 @@ languageChoiceV2 =
             { onPress = Just (SetLanguage Esperanto)
             , label = Svg.Custom.flagEo |> Element.html
             }
+        , Input.button [ padding 2 ]
+            { onPress = Just (SetLanguage Swedish)
+            , label = Svg.Custom.flagSv |> Element.html
+            }
+        , Input.button [ padding 2 ]
+            { onPress = Just (SetLanguage German)
+            , label = Svg.Custom.flagDe |> Element.html
+            }
         ]

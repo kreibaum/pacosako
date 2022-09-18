@@ -79,6 +79,10 @@ view shared _ =
             German ->
                 textPageWrapper
                     [ text "Wir haben leider noch keine deutsche Anleitung :-(" ]
+
+            Swedish ->
+                textPageWrapper
+                    [ text "Tyvärr har vi ingen svensk manual än :-(" ]
         )
             |> Header.wrapWithHeader shared ToShared
     }
