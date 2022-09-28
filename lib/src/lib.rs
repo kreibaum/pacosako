@@ -90,8 +90,8 @@ impl VictoryState {
 /// In a DenseBoard we reserve memory for all positions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DenseBoard {
-    white: Vec<Option<PieceType>>,
-    black: Vec<Option<PieceType>>,
+    pub white: Vec<Option<PieceType>>,
+    pub black: Vec<Option<PieceType>>,
     pub controlling_player: PlayerColor,
     required_action: RequiredAction,
     lifted_piece: Hand,
@@ -1497,9 +1497,9 @@ impl TryFrom<&ExchangeNotation> for DenseBoard {
     }
 }
 
-struct ExploredState<T: PacoBoard> {
-    settled: HashSet<T>,
-    found_via: HashMap<T, Vec<(PacoAction, Option<T>)>>,
+pub struct ExploredState<T: PacoBoard> {
+    pub settled: HashSet<T>,
+    pub found_via: HashMap<T, Vec<(PacoAction, Option<T>)>>,
 }
 
 /// Defines an algorithm that determines all moves.
@@ -1509,7 +1509,7 @@ struct ExploredState<T: PacoBoard> {
 /// Essentially I am investigating a finite, possibly cyclic, directed graph where some nodes
 /// are marked (settled boards) and I wish to find all acyclic paths from the root to these
 /// marked (settled) nodes.
-fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, PacoError> {
+pub fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, PacoError> {
     let mut todo_list: VecDeque<T> = VecDeque::new();
     let mut settled: HashSet<T> = HashSet::new();
     let mut found_via: HashMap<T, Vec<(PacoAction, Option<T>)>> = HashMap::new();
@@ -1560,7 +1560,7 @@ fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, PacoE
 /// depends on the order in which actions were determined.
 /// Termination of this function depends on implementation details of `determine_all_moves`.
 /// Returns None when no path can be found.
-fn trace_first_move<T: PacoBoard>(
+pub fn trace_first_move<T: PacoBoard>(
     target: &T,
     found_via: &HashMap<T, Vec<(PacoAction, Option<T>)>>,
 ) -> Option<Vec<PacoAction>> {
