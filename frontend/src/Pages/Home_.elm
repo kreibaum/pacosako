@@ -26,6 +26,7 @@ import Request
 import Sako exposing (Tile(..))
 import Shared
 import Svg.Custom exposing (BoardRotation(..))
+import Svg.Discord
 import Timer
 import Translations as T
 import View exposing (View)
@@ -331,11 +332,12 @@ matchSetupUiInner shared model =
             [ setupOnlineMatchUi shared model
             , joinOnlineMatchUi model
             ]
+        , communityLinksUi
         , recentGamesList model.recentGames
         ]
 
 
-box : Element.Color -> List (Element Msg) -> Element Msg
+box : Element.Color -> List (Element msg) -> Element msg
 box color content =
     Element.el [ width fill, centerX, padding 10, Background.color color, Border.rounded 5, Element.alignTop ]
         (Element.column [ width fill, centerX, spacing 7 ]
@@ -575,6 +577,42 @@ joinOnlineMatchUi model =
                     , Element.text T.joinGame
                     ]
             }
+        ]
+
+
+communityLinksUi : Element msg
+communityLinksUi =
+    row [ width fill, spacing 10 ]
+        [ Element.el [ width fill, height fill ]
+            (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
+                { url = "https://discord.gg/tFgD5Qf8jB"
+                , label =
+                    Element.column [ width fill, centerX, spacing 7 ]
+                        [ el [ width (px 400), padding 10, centerX ] Svg.Discord.discordLogo
+                        , el
+                            [ Font.color (Element.rgb255 88 101 242)
+                            , Font.size 25
+                            , centerX
+                            ]
+                            (Element.text T.communityJoinOnDiscord)
+                        ]
+                }
+            )
+        , Element.el [ width fill, height fill ]
+            (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
+                { url = T.communityOfficialWebsiteLink
+                , label =
+                    Element.column [ width fill, centerX, spacing 7 ]
+                        [ Element.image [ width (px 400), centerX ]
+                            { src = "/pacosako-logo.png", description = "PacoŜako logo" }
+                        , el
+                            [ Font.size 25
+                            , centerX
+                            ]
+                            (Element.paragraph [] [ Element.text T.communityOfficialWebsite ])
+                        ]
+                }
+            )
         ]
 
 
