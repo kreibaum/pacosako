@@ -23,6 +23,7 @@ use rocket::{
     request::{self, FromRequest, Request},
     Build,
 };
+use rocket_cache_response::CacheResponse;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use sync_match::SynchronizedMatch;
@@ -46,18 +47,27 @@ async fn index_fallback(_path: std::path::PathBuf) -> Result<NamedFile, ServerEr
 }
 
 #[get("/favicon.svg")]
-async fn favicon() -> Result<NamedFile, ServerError> {
-    static_file("../target/favicon.svg").await
+async fn favicon() -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Private {
+        responder: static_file("../target/favicon.svg").await,
+        max_age: 24 * 3600,
+    }
 }
 
 #[get("/pacosako-logo.png")]
-async fn logo() -> Result<NamedFile, ServerError> {
-    static_file("../target/pacosako-logo.png").await
+async fn logo() -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Private {
+        responder: static_file("../target/pacosako-logo.png").await,
+        max_age: 24 * 3600,
+    }
 }
 
 #[get("/bg.jpg")]
-async fn bg() -> Result<NamedFile, ServerError> {
-    static_file("../target/bg.jpg").await
+async fn bg() -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Private {
+        responder: static_file("../target/bg.jpg").await,
+        max_age: 24 * 3600,
+    }
 }
 
 #[derive(Deserialize)]
@@ -100,14 +110,12 @@ async fn ai_worker() -> Result<NamedFile, ServerError> {
     static_file("../target/ai_worker.js").await
 }
 
-#[get("/static/examples.txt")]
-async fn examples() -> Result<NamedFile, ServerError> {
-    static_file("../target/examples.js").await
-}
-
 #[get("/static/place_piece.mp3")]
-async fn place_piece() -> Result<NamedFile, ServerError> {
-    static_file("../target/place_piece.mp3").await
+async fn place_piece() -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Private {
+        responder: static_file("../target/place_piece.mp3").await,
+        max_age: 24 * 3600,
+    }
 }
 
 /// This enum holds all errors that can be returned by the API.
@@ -590,7 +598,6 @@ fn rocket() -> _ {
                 favicon,
                 logo,
                 bg,
-                examples,
                 place_piece,
                 main_js,
                 ai_worker

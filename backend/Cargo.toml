@@ -28,3 +28,4 @@ regex = "1"
 lazy_static = "1.4.0"
 reqwest = "0.11.10"
 rocket = { version = "0.5.0-rc.2", features = ["secrets", "json"] }
+rocket-cache-response = "0.6.2"
