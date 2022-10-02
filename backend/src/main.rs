@@ -1,3 +1,4 @@
+mod caching;
 mod db;
 mod discord;
 mod language;
@@ -24,6 +25,7 @@ use rocket::{
     Build,
 };
 use rocket_cache_response::CacheResponse;
+use rocket_dyn_templates::{context, Template};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use sync_match::SynchronizedMatch;
@@ -37,13 +39,39 @@ async fn static_file(path: &'static str) -> Result<NamedFile, ServerError> {
 }
 
 #[get("/")]
-async fn index() -> Result<NamedFile, ServerError> {
-    static_file("../target/index.html").await
+async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguage) -> Template {
+    // Print what the hashes of elm.min.js and main.js are.
+    // This is useful for debugging cache busting.
+    let elm_filename = elm_filename(lang.0.clone(), config.use_min_js);
+    debug!(
+        "File {} has hash: {}",
+        elm_filename,
+        caching::hash_file(elm_filename, true)
+    );
+    let main_filename = main_filename(config.use_min_js);
+    debug!(
+        "File {} has hash: {}",
+        main_filename,
+        caching::hash_file(main_filename, true)
+    );
+
+    Template::render(
+        "index",
+        context! {
+            lang: lang.0,
+            elm_hash: caching::hash_file(elm_filename, config.cache_js_hashes),
+            main_hash: caching::hash_file(main_filename, config.cache_js_hashes),
+        },
+    )
 }
 
 #[get("/<_path..>", rank = 2)]
-async fn index_fallback(_path: std::path::PathBuf) -> Result<NamedFile, ServerError> {
-    index().await
+async fn index_fallback(
+    _path: std::path::PathBuf,
+    config: &State<DevEnvironmentConfig>,
+    lang: language::UserLanguage,
+) -> Template {
+    index(config, lang).await
 }
 
 #[get("/favicon.svg")]
@@ -70,39 +98,67 @@ async fn bg() -> CacheResponse<Result<NamedFile, ServerError>> {
     }
 }
 
+/// Various settings that differentiate the development environment from the
+/// production environment.
 #[derive(Deserialize)]
-struct UseMinJs {
+struct DevEnvironmentConfig {
     use_min_js: bool,
+    cache_js_hashes: bool,
 }
 
 /// If the server is running in development mode, we are returning the regular
 /// elm.js file. In staging and production we are returning the minified
 /// version of it. Here we also need to make sure that we pick the correct
 /// language version.
-#[get("/elm.min.js")]
-async fn elm(
-    config: &State<UseMinJs>,
-    lang: language::UserLanguage,
-) -> Result<NamedFile, ServerError> {
-    if config.use_min_js {
-        let filename =
-            language::get_static_language_file(&lang.0).unwrap_or("../target/elm.en.min.js");
-        static_file(filename).await
+fn elm_filename(lang: String, use_min_js: bool) -> &'static str {
+    if use_min_js {
+        language::get_static_language_file(&lang).unwrap_or("../target/elm.en.min.js")
     } else {
-        static_file("../target/elm.js").await
+        "../target/elm.js"
     }
+}
+
+// If the server is running in development mode, we are returning the regular
+// main.js file. In staging and production we are returning the minified
+// version of it.
+fn main_filename(use_min_js: bool) -> &'static str {
+    if use_min_js {
+        "../target/main.min.js"
+    } else {
+        "../target/main.js"
+    }
+}
+
+/// A cache-able elm.min.js where cache busting happens via a url parameter.
+/// The index.html is generated dynamically to point to the current hash and
+/// this endpoint does not check the hash.
+/// The language is also a parameter here so caching doesn't break the language
+/// selection.
+#[get("/cache/elm.min.js?<hash>&<lang>")]
+async fn elm_cached(
+    config: &State<DevEnvironmentConfig>,
+    hash: String,
+    lang: String,
+) -> Result<CacheResponse<NamedFile>, ServerError> {
+    info!("elm_cached: {} for language {}", hash, lang);
+    Ok(CacheResponse::Private {
+        responder: static_file(elm_filename(lang, config.use_min_js)).await?,
+        max_age: 356 * 24 * 3600,
+    })
 }
 
 /// If the server is running in development mode, we are returning the regular
 /// main.js file. In staging and production we are returning the minified
 /// version of it.
-#[get("/main.min.js")]
-async fn main_js(config: &State<UseMinJs>) -> Result<NamedFile, ServerError> {
-    if config.use_min_js {
-        static_file("../target/main.min.js").await
-    } else {
-        static_file("../target/main.js").await
-    }
+#[get("/cache/main.min.js?<hash>")]
+async fn main_js_cached(
+    config: &State<DevEnvironmentConfig>,
+    hash: &str,
+) -> Result<CacheResponse<NamedFile>, ServerError> {
+    Ok(CacheResponse::Private {
+        responder: static_file(main_filename(config.use_min_js)).await?,
+        max_age: 356 * 24 * 3600,
+    })
 }
 
 #[get("/ai_worker.js")]
@@ -588,18 +644,19 @@ fn rocket() -> _ {
         .attach(AdHoc::on_ignite("Websocket Server", |rocket| {
             Box::pin(async move { init_new_websocket_server(rocket) })
         }))
-        .attach(AdHoc::config::<UseMinJs>())
+        .attach(AdHoc::config::<DevEnvironmentConfig>())
         .attach(AdHoc::config::<CustomConfig>())
+        .attach(Template::fairing())
         .mount(
             "/",
             routes![
                 index,
-                elm,
+                elm_cached,
                 favicon,
                 logo,
                 bg,
                 place_piece,
-                main_js,
+                main_js_cached,
                 ai_worker
             ],
         )
