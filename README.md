@@ -27,17 +27,17 @@ you make changes to rust code. The frontend is already recompiled automatically.
 ## Running without Gitpod
 
 If you want to run the development environment locally, you will need to have
-Rust, Elm and [elm-live](https://elm-live.com) installed.
-You also need the lastest version of [pytrans.py](https://github.com/kreibaum/pytrans.py/releases) on your path.
+Rust, Elm and [elm-watch](https://github.com/lydell/elm-watch) installed.
+You also need the latest version of [pytrans.py](https://github.com/kreibaum/pytrans.py/releases) on your path.
 
 Then you run
 
     # Initialize target directory, copy static files
     ./gitpod-init.sh
 
-    # Run elm-live which keeps the frontend up to date
+    # Run elm-watch which keeps the frontend up to date & hot reloads
     cd frontend
-    elm-live src/Main.elm --no-server -- --output=../target/elm.js
+    elm-watch hot
 
     # (In a second terminal) run the backend server:
     cd backend
@@ -47,12 +47,12 @@ Then you run
 
 Besides the server frontend in Elm and the backend in Rust, we also have a Rust
 library which implements the rules of the game and provides some analysis
-functions. Eventuall this library will also be included in the frontend via
-Webassembler and Elm ports.
+functions. Eventually this library will also be included in the frontend via
+webassembly and Elm ports.
 
 To run an example, just execute `cargo run`.
 
-To build the webassembler file from the library run `wasm-pack build`.
+To build the webassembly file from the library run `wasm-pack build`.
 
 See https://rustwasm.github.io/docs/book/game-of-life/hello-world.html for details on wasm.
 
@@ -82,7 +82,7 @@ the `frontend` folder and copying the right language version into position:
     pytrans.py Dutch
     # Esperanto
     pytrans.py Esperanto
-    # Once you have choosen a language it is remembered any you can rebuild using
+    # Once you have chosen a language it is remembered any you can rebuild using
     pytrans.py
 
 Once you copy this the dev server should pick up the change and recompile the
