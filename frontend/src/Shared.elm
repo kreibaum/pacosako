@@ -3,6 +3,7 @@ module Shared exposing
     , Model
     , Msg(..)
     , User
+    , collapseHeader
     , init
     , subscriptions
     , update
@@ -40,7 +41,13 @@ type alias Model =
     , permissions : List LocalStorage.Permission
     , now : Posix
     , oAuthState : String
+    , isHeaderOpen : Bool
     }
+
+
+collapseHeader : Model -> Model
+collapseHeader model =
+    { model | isHeaderOpen = False }
 
 
 type alias User =
@@ -60,6 +67,7 @@ type Msg
     | WindowResize Int Int
     | UpdateNow Posix
     | AddRecentCustomTimer CustomTimer
+    | SetHeaderOpen Bool
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
@@ -82,6 +90,7 @@ init { url, key } flags =
       , permissions = ls.permissions
       , now = parseNow flags
       , oAuthState = oAuthState
+      , isHeaderOpen = False
       }
     , Api.Backend.getCurrentLogin HttpError
         (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
@@ -146,6 +155,9 @@ update _ msg model =
 
         AddRecentCustomTimer data ->
             addRecentCustomTimer data model
+
+        SetHeaderOpen state ->
+            ( { model | isHeaderOpen = state }, Cmd.none )
 
 
 {-| Adds a custom timer to the history and trigges a "save to local storage" event.

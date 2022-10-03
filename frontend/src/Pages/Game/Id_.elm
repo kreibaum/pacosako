@@ -29,7 +29,7 @@ import Maybe.Extra as Maybe
 import Page
 import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
 import Process
-import Reactive exposing (Device(..))
+import Reactive exposing (DeviceOrientation(..))
 import Request
 import Sako exposing (Tile(..))
 import SaveState exposing (SaveState(..))
@@ -688,8 +688,8 @@ view shared model =
 
 playUi : Shared.Model -> Model -> Element Msg
 playUi shared model =
-    case Reactive.classify shared.windowSize of
-        LandscapeDevice ->
+    case Reactive.orientation shared.windowSize of
+        Reactive.Landscape ->
             Element.column [ width fill, height fill ]
                 [ playUiLandscape shared model
                 , Element.el
@@ -703,7 +703,7 @@ playUi shared model =
                     Element.none
                 ]
 
-        PortraitDevice ->
+        Reactive.Portrait ->
             playUiPortrait shared model
 
 

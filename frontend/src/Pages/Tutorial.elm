@@ -1,12 +1,14 @@
 module Pages.Tutorial exposing (Model, Msg, page)
 
 import Effect exposing (Effect)
-import Element exposing (Element, centerX, el, fill, height, maximum, padding, paragraph, scrollbarY, spacing, text, width)
+import Element exposing (Element, centerX, el, fill, height, maximum, padding, paddingXY, paragraph, spacing, text, width)
 import Element.Background as Background
 import Element.Font as Font
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
+import Gen.Route as Route
 import Header
+import Layout
 import Page
 import Request exposing (Request)
 import Shared
@@ -65,77 +67,88 @@ view : Shared.Model -> Model -> View Msg
 view shared _ =
     { title = T.tutorialPageTitle
     , element =
-        (case T.compiledLanguage of
-            English ->
-                textPageWrapper englishTutorial
+        Header.wrapWithHeaderV2 shared
+            ToShared
+            { isRouteHighlighted = \r -> r == Route.Tutorial
+            , isWithBackground = True
+            }
+            (case T.compiledLanguage of
+                English ->
+                    textPageWrapper (englishTutorial shared.windowSize)
 
-            Dutch ->
-                dutchTutorial
+                Dutch ->
+                    dutchTutorial shared
 
-            Esperanto ->
-                textPageWrapper
-                    [ text "Beda\u{00AD}ŭrinde ĉi tiu paĝo ne haveblas en Esperanto :-(" ]
+                Esperanto ->
+                    textPageWrapper
+                        [ paragraph [] [ text "Beda\u{00AD}ŭrinde ĉi tiu paĝo ne haveblas en Esperanto :-(" ] ]
 
-            German ->
-                textPageWrapper
-                    [ text "Wir haben leider noch keine deutsche Anleitung :-(" ]
+                German ->
+                    textPageWrapper
+                        [ paragraph [] [ text "Wir haben leider noch keine deutsche Anleitung :-(" ] ]
 
-            Swedish ->
-                textPageWrapper
-                    [ text "Tyvärr har vi ingen svensk manual än :-(" ]
-        )
-            |> Header.wrapWithHeader shared ToShared
+                Swedish ->
+                    textPageWrapper
+                        [ paragraph [] [ text "Tyvärr har vi ingen svensk manual än :-(" ] ]
+            )
     }
 
 
 textPageWrapper : List (Element msg) -> Element msg
 textPageWrapper content =
-    Element.el [ width fill, height fill, scrollbarY ]
-        (Element.column [ width (fill |> maximum 1000), centerX, padding 30, spacing 10 ]
+    Layout.vScollBox
+        [ Element.column [ width (fill |> maximum 1000), centerX, padding 10, spacing 10 ]
             content
-        )
+        ]
 
 
 {-| The tutorial needs only a language and this is stored outside. It contains
 the language toggle for now, so it needs to be taught to send language messages.
 -}
-dutchTutorial : Element msg
-dutchTutorial =
-    Element.el [ width fill, height fill, scrollbarY ]
-        tutorialPageInner
-
-
-tutorialPageInner : Element msg
-tutorialPageInner =
-    Element.column [ width (fill |> maximum 1000), centerX, padding 30, spacing 10 ]
-        [ "Leer Paco Ŝako"
-            |> text
-            |> el [ Font.size 40, centerX ]
-        , paragraph []
-            [ "Felix bereidt een reeks video-instructies over Paco Ŝako voor. Je kunt ze hier en op zijn YouTube-kanaal vinden." |> text ]
-        , oneVideo ( "Opstelling", Just "1jybatEtdPo" )
-        , oneVideo ( "Beweging van de stukken", Just "mCoara3xUlk" )
-        , oneVideo ( "4 Paco Ŝako Regles", Just "zEq1fqBoL9M" )
-        , oneVideo ( "Doel Van Het Spel", Nothing )
-        , oneVideo ( "Combo's, Loop, Ketting", Nothing )
-        , oneVideo ( "Strategie", Nothing )
-        , oneVideo ( "Opening, Middenspel, Eindspel", Nothing )
-        , oneVideo ( "Rokeren, Promoveren, En Passant", Nothing )
-        , oneVideo ( "Creatieve Speelwijze", Nothing )
-        , oneVideo ( "Spel Plezier & Schoonheid", Nothing )
+dutchTutorial : Shared.Model -> Element msg
+dutchTutorial shared =
+    Layout.vScollBox
+        [ Element.column [ width (fill |> maximum 1000), centerX, paddingXY 10 20, spacing 10 ]
+            [ "Leer Paco Ŝako"
+                |> text
+                |> el [ Font.size 40, centerX ]
+            , paragraph []
+                [ "Felix bereidt een reeks video-instructies over Paco Ŝako voor. Je kunt ze hier en op zijn YouTube-kanaal vinden." |> text ]
+            , oneVideo shared.windowSize ( "Opstelling", Just "1jybatEtdPo" )
+            , oneVideo shared.windowSize ( "Beweging van de stukken", Just "mCoara3xUlk" )
+            , oneVideo shared.windowSize ( "4 Paco Ŝako Regles", Just "zEq1fqBoL9M" )
+            , oneVideo shared.windowSize ( "Doel Van Het Spel", Nothing )
+            , oneVideo shared.windowSize ( "Combo's, Loop, Ketting", Nothing )
+            , oneVideo shared.windowSize ( "Strategie", Nothing )
+            , oneVideo shared.windowSize ( "Opening, Middenspel, Eindspel", Nothing )
+            , oneVideo shared.windowSize ( "Rokeren, Promoveren, En Passant", Nothing )
+            , oneVideo shared.windowSize ( "Creatieve Speelwijze", Nothing )
+            , oneVideo shared.windowSize ( "Spel Plezier & Schoonheid", Nothing )
+            ]
         ]
 
 
-oneVideo : ( String, Maybe String ) -> Element msg
-oneVideo ( caption, link ) =
-    grayBox
-        [ text caption |> el [ Font.size 25 ]
+oneVideo : ( Int, Int ) -> ( String, Maybe String ) -> Element msg
+oneVideo ( w, _ ) ( caption, link ) =
+    let
+        videoWidth =
+            min 640 (w - 20)
+
+        videoHeight =
+            videoWidth * 9 // 16
+    in
+    Element.column
+        [ width fill
+        , height fill
+        , Background.color (Element.rgb 0.9 0.9 0.9)
+        ]
+        [ paragraph [ padding 10 ] [ text caption |> el [ Font.size 25 ] ]
         , case link of
             Just videoKey ->
                 Youtube.fromString videoKey
                     |> Youtube.attributes
-                        [ YoutubeA.width 640
-                        , YoutubeA.height 400
+                        [ YoutubeA.width videoWidth
+                        , YoutubeA.height videoHeight
                         ]
                     |> Youtube.toHtml
                     |> Element.html
@@ -152,44 +165,49 @@ grayBox content =
     Element.column
         [ width fill
         , height fill
-        , spacing 10
-        , padding 10
         , Background.color (Element.rgb 0.9 0.9 0.9)
         ]
         content
 
 
-englishTutorial : List (Element msg)
-englishTutorial =
+englishTutorial : ( Int, Int ) -> List (Element msg)
+englishTutorial ( w, _ ) =
+    let
+        videoWidth =
+            min 640 (w - 20)
+
+        videoHeight =
+            videoWidth * 9 // 16
+    in
     [ grayBox
-        [ text "A short introduction to Paco Ŝako" |> el [ Font.size 25 ]
-        , paragraph [] [ text """Paco Ŝako pieces move just like traditional chess pieces.
+        [ paragraph [ padding 10 ] [ text "A short introduction to Paco Ŝako" |> el [ Font.size 25 ] ]
+        , paragraph [ padding 10 ] [ text """Paco Ŝako pieces move just like traditional chess pieces.
             But instead of removing the opponents pieces you form unions. This video shows you
             how to create and move a union and how you can then take over existing unions
             to play with chain reactions.""" ]
         , Youtube.fromString "yJVcQK2gTdM"
             |> Youtube.attributes
-                [ YoutubeA.width 640
-                , YoutubeA.height 400
+                [ YoutubeA.width videoWidth
+                , YoutubeA.height videoHeight
                 ]
             |> Youtube.toHtml
             |> Element.html
             |> Element.el []
         ]
     , grayBox
-        [ text "Learn more about Chains from Felix" |> el [ Font.size 25 ]
-        , paragraph [] [ text "Learn more about chains and loop from Felix Albers, the creator Paco Ŝako." ]
+        [ paragraph [ padding 10 ] [ text "Learn more about Chains from Felix" |> el [ Font.size 25 ] ]
+        , paragraph [ padding 10 ] [ text "Learn more about chains and loop from Felix Albers, the creator Paco Ŝako." ]
         , Youtube.fromString "tQ2JLsFvfxI"
             |> Youtube.attributes
-                [ YoutubeA.width 640
-                , YoutubeA.height 400
+                [ YoutubeA.width videoWidth
+                , YoutubeA.height videoHeight
                 ]
             |> Youtube.toHtml
             |> Element.html
             |> Element.el []
         ]
     , grayBox
-        [ paragraph []
+        [ paragraph [ padding 10 ]
             [ text "Paco Ŝako is a game about Peace created by the Dutch Artist Felix Albers. On the "
             , Element.newTabLink [ Font.underline, Font.color (Element.rgb 0 0 1) ]
                 { url = "http://pacosako.com/en"

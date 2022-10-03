@@ -10,7 +10,7 @@ import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey, withCtrl)
 import Dict exposing (Dict)
 import Effect exposing (Effect)
-import Element exposing (Element, centerX, column, el, fill, height, padding, paddingXY, px, row, shrink, spacing, width)
+import Element exposing (Element, centerX, column, el, fill, height, padding, paddingXY, px, row, scrollbarY, shrink, spacing, width)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
@@ -28,6 +28,7 @@ import Page
 import Pieces
 import Pivot as P exposing (Pivot)
 import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData, nextHighlight)
+import Reactive
 import Request exposing (Request)
 import Result.Extra as Result
 import Sako exposing (Piece, Tile(..))
@@ -1003,35 +1004,62 @@ view shared model =
         Header.wrapWithHeaderV2 shared
             ToShared
             { isRouteHighlighted = \r -> r == Route.Editor
-            , isWithBackground = False
+            , isWithBackground = True
             }
-            (maybeEditorUi model)
+            (maybeEditorUi shared model)
     }
 
 
 {-| Check if the query parameter are actually an a good state, otherwise show
 error page.
 -}
-maybeEditorUi : Model -> Element Msg
-maybeEditorUi model =
+maybeEditorUi : Shared.Model -> Model -> Element Msg
+maybeEditorUi shared model =
     case model.query of
         QueryError ->
             Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
                 { url = Route.toHref Route.Editor, label = Element.text T.editorPageNotFound }
 
         _ ->
-            editorUi model
+            editorUi shared model
 
 
-editorUi : Model -> Element Msg
-editorUi model =
+editorUi : Shared.Model -> Model -> Element Msg
+editorUi shared model =
+    case Reactive.classify shared.windowSize of
+        Reactive.Phone ->
+            editorUiPhone model
+
+        Reactive.Tablet ->
+            editorUiDesktop model
+
+        Reactive.Desktop ->
+            editorUiDesktop model
+
+
+editorUiPhone : Model -> Element Msg
+editorUiPhone model =
+    el [ centerX, width fill, height fill, scrollbarY ]
+        (column
+            [ width fill, height fill, spacing 10 ]
+            [ Element.paragraph [] [ sharingHeader model ]
+            , positionViewInner model
+            , column [ width fill, height fill, spacing 10, padding 10, Element.alignRight ]
+                (sidebarContent model)
+            ]
+        )
+
+
+editorUiDesktop : Model -> Element Msg
+editorUiDesktop model =
     el [ centerX, height fill, width (Element.maximum 1120 fill) ]
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
             [ column [ width fill, height fill ]
                 [ positionView model
                 ]
-            , sidebar model
+            , column [ width (px 250), height fill, spacing 10, padding 10, Element.alignRight ]
+                (sidebarContent model)
             ]
         )
 
@@ -1049,8 +1077,6 @@ sharingHeader model =
     [ Element.text urlString
         |> el [ Element.clip, width fill ]
     , btn T.copy |> withSmallIcon Regular.clipboard |> withMsg (Copy urlString) |> viewButton
-
-    --, buttonWithIcon Nothing Solid.fileImport "Export"
     ]
         |> row
             [ width (shrink |> Element.maximum 600)
@@ -1258,8 +1284,8 @@ sakoEditorId =
 --------------------------------------------------------------------------------
 
 
-sidebar : Model -> Element Msg
-sidebar model =
+sidebarContent : Model -> List (Element Msg)
+sidebarContent model =
     let
         exportOptions =
             if model.showExportOptions then
@@ -1272,17 +1298,15 @@ sidebar model =
             else
                 [ showExportOptions ]
     in
-    column [ width (px 250), height fill, spacing 10, padding 10, Element.alignRight ]
-        ([ sidebarActionButtons model.game
-         , Element.text T.editorAddPiece
-         , addPieceButtons Sako.White T.editorWhiteShort model.smartTool
-         , addPieceButtons Sako.Black T.editorBlackShort model.smartTool
-         , colorSchemeConfig model
-         , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
-         , analysisResult model
-         ]
-            ++ exportOptions
-        )
+    [ sidebarActionButtons model.game
+    , Element.text T.editorAddPiece
+    , addPieceButtons Sako.White T.editorWhiteShort model.smartTool
+    , addPieceButtons Sako.Black T.editorBlackShort model.smartTool
+    , colorSchemeConfig model
+    , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
+    , analysisResult model
+    ]
+        ++ exportOptions
 
 
 castingDecoMessages : CastingDeco.Messages Msg

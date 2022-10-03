@@ -68,12 +68,12 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         ClickedLink (Browser.Internal url) ->
-            ( model
+            ( { model | shared = Shared.collapseHeader model.shared }
             , Nav.pushUrl model.key (Url.toString url)
             )
 
         ClickedLink (Browser.External url) ->
-            ( model
+            ( { model | shared = Shared.collapseHeader model.shared }
             , Nav.load url
             )
 
@@ -83,7 +83,7 @@ update msg model =
                     ( page, effect ) =
                         Pages.init (Route.fromUrl url) model.shared url model.key
                 in
-                ( { model | url = url, page = page }
+                ( { model | url = url, page = page, shared = Shared.collapseHeader model.shared }
                 , Effect.toCmd ( Shared, Page ) effect
                 )
 

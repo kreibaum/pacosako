@@ -1,0 +1,10 @@
+{
+    "targets": {
+        "Pacoplay frontend": {
+            "inputs": [
+                "src/Main.elm"
+            ],
+            "output": "../target/elm.js"
+        }
+    }
+}

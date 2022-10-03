@@ -10,13 +10,17 @@ import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Colors
 import Components
+import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Custom.List as List
 import Effect exposing (Effect)
-import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingXY, px, scrollbarY, spacing, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingEach, paddingXY, px, scrollbarY, spacing, width)
 import Element.Background as Background
+import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Element.Region
+import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
@@ -26,6 +30,7 @@ import Notation
 import Page
 import Pages.NotFound
 import PositionView exposing (OpaqueRenderData)
+import Reactive
 import RemoteData exposing (WebData)
 import Request
 import Sako exposing (Color(..))
@@ -363,11 +368,55 @@ body shared model =
 
 successBody : Shared.Model -> Model -> Replay -> Element Msg
 successBody shared model replay =
+    case Reactive.classify shared.windowSize of
+        Reactive.Phone ->
+            successBodyPhone shared model replay
+
+        Reactive.Tablet ->
+            successBodyDesktop shared model replay
+
+        Reactive.Desktop ->
+            successBodyDesktop shared model replay
+
+
+successBodyPhone : Shared.Model -> Model -> Replay -> Element Msg
+successBodyPhone shared model replay =
+    el
+        [ width fill, height fill, scrollbarY ]
+        (column [ spacing 10, width fill ]
+            [ mapReplay model replay (boardViewOk model)
+            , arrowButtons
+            , Element.column
+                [ width fill, height (fill |> Element.minimum 250), scrollbarY ]
+                (setupButton model :: List.map (sidebarMove model) model.sidebarData)
+            , column
+                [ width fill, spacing 10, padding 10 ]
+                [ enableMovementIndicators model.showMovementIndicators
+                , editorLink model
+                , rematchLink model
+                , CastingDeco.configView
+                    { setInputMode = SetInputMode
+                    , clearTiles = ClearDecoTiles
+                    , clearArrows = ClearDecoArrows
+                    }
+                    model.inputMode
+                    model.castingDeco
+                , Components.gameCodeLabel
+                    (CopyToClipboard (Url.toString shared.url))
+                    model.key
+                ]
+            ]
+        )
+
+
+successBodyDesktop : Shared.Model -> Model -> Replay -> Element Msg
+successBodyDesktop shared model replay =
     el [ centerX, height fill, width (Element.maximum 1120 fill) ]
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
             [ column [ width fill, height fill ] [ boardView model replay ]
-            , sidebar shared model
+            , Element.column [ spacing 10, padding 10, alignTop, height fill, width (px 250) ]
+                (sidebarContent shared model)
             ]
         )
 
@@ -392,12 +441,26 @@ chainPauseTime =
     Animation.milliseconds 150
 
 
+mapReplay : Model -> Replay -> (List Sako.Action -> Sako.Position -> Element Msg) -> Element Msg
+mapReplay model replay okView =
+    case currentBoard model replay of
+        ReplayOk actions position ->
+            okView actions position
+
+        ReplayToShort ->
+            Element.text "Replay is corrupted, too short :-("
+
+        ReplayError ->
+            Element.text "Replay is corrupted, rule violation :-("
+
+
 {-| Show the game state at `model.actionCount`.
 -}
 boardView : Model -> Replay -> Element Msg
 boardView model replay =
-    case currentBoard model replay of
-        ReplayOk actions position ->
+    mapReplay model
+        replay
+        (\actions position ->
             Element.el
                 [ width fill
                 , height fill
@@ -405,12 +468,7 @@ boardView model replay =
                 , centerX
                 ]
                 (boardViewOk model actions position)
-
-        ReplayToShort ->
-            Element.text "Replay is corrupted, too short :-("
-
-        ReplayError ->
-            Element.text "Replay is corrupted, rule violation :-("
+        )
 
 
 {-| Given a model where the timeline does not match the actionCount, this adds
@@ -509,37 +567,49 @@ decoration model actions position =
 --------------------------------------------------------------------------------
 
 
-sidebar : Shared.Model -> Model -> Element Msg
-sidebar shared model =
-    Element.column [ spacing 10, padding 10, alignTop, height fill, width (px 250) ]
-        [ Components.gameCodeLabel
-            (CopyToClipboard (Url.toString shared.url))
-            model.key
-        , arrowButtons
-        , Element.text T.orUseArrows
-        , enableMovementIndicators model.showMovementIndicators
-        , editorLink model
-        , rematchLink model
-        , actionList model
-        , CastingDeco.configView
-            { setInputMode = SetInputMode
-            , clearTiles = ClearDecoTiles
-            , clearArrows = ClearDecoArrows
-            }
-            model.inputMode
-            model.castingDeco
-        ]
+sidebarContent : Shared.Model -> Model -> List (Element Msg)
+sidebarContent shared model =
+    [ Components.gameCodeLabel
+        (CopyToClipboard (Url.toString shared.url))
+        model.key
+    , arrowButtons
+    , Element.text T.orUseArrows
+    , enableMovementIndicators model.showMovementIndicators
+    , editorLink model
+    , rematchLink model
+    , actionList model
+    , CastingDeco.configView
+        { setInputMode = SetInputMode
+        , clearTiles = ClearDecoTiles
+        , clearArrows = ClearDecoArrows
+        }
+        model.inputMode
+        model.castingDeco
+    ]
 
 
 arrowButtons : Element Msg
 arrowButtons =
-    Element.row [ spacing 10 ]
-        [ Components.iconButton T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
-        , Components.iconButton T.replayPreviousAction Solid.chevronLeft (Just PreviousAction)
-        , Components.iconButton T.replayPlayAll Solid.play (Just PlayAll)
-        , Components.iconButton T.replayNextAction Solid.chevronRight (Just NextAction)
-        , Components.iconButton T.replayNextMove Solid.arrowRight (Just NextMove)
+    Element.row [ spacing 5, width fill, paddingXY 5 0 ]
+        [ sharedWidthControll T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
+        , sharedWidthControll T.replayPreviousAction Solid.chevronLeft (Just PreviousAction)
+        , sharedWidthControll T.replayPlayAll Solid.play (Just PlayAll)
+        , sharedWidthControll T.replayNextAction Solid.chevronRight (Just NextAction)
+        , sharedWidthControll T.replayNextMove Solid.arrowRight (Just NextMove)
         ]
+
+
+sharedWidthControll : String -> Icon -> Maybe msg -> Element msg
+sharedWidthControll altText iconType msg =
+    Input.button
+        [ width fill
+        , Background.color (Element.rgb255 240 240 240)
+        , Element.mouseOver [ Background.color (Element.rgb255 220 220 220) ]
+        , Border.rounded 5
+        ]
+        { onPress = msg
+        , label = icon [ centerX, padding 5, Element.Region.description altText ] iconType
+        }
 
 
 enableMovementIndicators : Bool -> Element Msg

@@ -19,8 +19,10 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
+import Layout
 import Page
 import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight(..))
+import Reactive
 import RemoteData exposing (WebData)
 import Request
 import Sako exposing (Tile(..))
@@ -55,7 +57,7 @@ view shared model =
             { isRouteHighlighted = \r -> r == Route.Home_
             , isWithBackground = True
             }
-            (matchSetupUi shared model)
+            (Layout.vScollBox [ matchSetupUi shared model ])
     }
 
 
@@ -316,23 +318,52 @@ createMatch model =
 
 matchSetupUi : Shared.Model -> Model -> Element Msg
 matchSetupUi shared model =
-    Element.column
-        [ width fill
-        , height fill
-        , scrollbarY
-        ]
-        [ matchSetupUiInner shared model
-        ]
+    case Reactive.classify shared.windowSize of
+        Reactive.Phone ->
+            matchSetupUiPhone shared model
+
+        Reactive.Tablet ->
+            matchSetupUiTablet shared model
+
+        Reactive.Desktop ->
+            matchSetupUiDesktop shared model
 
 
-matchSetupUiInner : Shared.Model -> Model -> Element Msg
-matchSetupUiInner shared model =
+matchSetupUiDesktop : Shared.Model -> Model -> Element Msg
+matchSetupUiDesktop shared model =
     Element.column [ width (fill |> Element.maximum 1120), spacing 40, centerX, paddingXY 10 40 ]
         [ Element.row [ width fill, spacing 15, centerX ]
             [ setupOnlineMatchUi shared model
             , joinOnlineMatchUi model
             ]
-        , communityLinksUi
+        , row [ width fill, spacing 10 ]
+            [ discordInvite
+            , officialWebsiteLink
+            ]
+        , recentGamesList model.recentGames
+        ]
+
+
+matchSetupUiTablet : Shared.Model -> Model -> Element Msg
+matchSetupUiTablet shared model =
+    Element.column [ width (fill |> Element.maximum 1120), spacing 10, centerX, paddingXY 10 40 ]
+        [ setupOnlineMatchUi shared model
+        , joinOnlineMatchUi model
+        , row [ width fill, spacing 10 ]
+            [ discordInvite
+            , officialWebsiteLink
+            ]
+        , recentGamesList model.recentGames
+        ]
+
+
+matchSetupUiPhone : Shared.Model -> Model -> Element Msg
+matchSetupUiPhone shared model =
+    Element.column [ width fill, spacing 10, centerX, paddingXY 10 20 ]
+        [ setupOnlineMatchUi shared model
+        , joinOnlineMatchUi model
+        , discordInvite
+        , officialWebsiteLink
         , recentGamesList model.recentGames
         ]
 
@@ -347,6 +378,18 @@ box color content =
 
 setupOnlineMatchUi : Shared.Model -> Model -> Element Msg
 setupOnlineMatchUi shared model =
+    let
+        fontSize =
+            case Reactive.classify shared.windowSize of
+                Reactive.Phone ->
+                    16
+
+                Reactive.Tablet ->
+                    20
+
+                Reactive.Desktop ->
+                    20
+    in
     box (Element.rgba255 255 255 255 0.6)
         [ Element.el
             [ centerX
@@ -361,12 +404,14 @@ setupOnlineMatchUi shared model =
                 , caption = T.lightspeed
                 , event = SetSpeedSetting Lightspeed
                 , selected = model.speedSetting == Lightspeed
+                , fontSize = fontSize
                 }
             , speedButton
                 { buttonIcon = Solid.bolt
                 , caption = T.blitz
                 , event = SetSpeedSetting Blitz
                 , selected = model.speedSetting == Blitz
+                , fontSize = fontSize
                 }
             ]
         , Element.row [ width fill, spacing 7 ]
@@ -375,12 +420,14 @@ setupOnlineMatchUi shared model =
                 , caption = T.rapid
                 , event = SetSpeedSetting Rapid
                 , selected = model.speedSetting == Rapid
+                , fontSize = fontSize
                 }
             , speedButton
                 { buttonIcon = Solid.couch
                 , caption = T.relaxed
                 , event = SetSpeedSetting Relaxed
                 , selected = model.speedSetting == Relaxed
+                , fontSize = fontSize
                 }
             ]
         , Element.row [ width fill, spacing 7 ]
@@ -394,22 +441,24 @@ setupOnlineMatchUi shared model =
                             |> Custom
                         )
                 , selected = isCustom model.speedSetting
+                , fontSize = fontSize
                 }
             , speedButton
                 { buttonIcon = Solid.dove
                 , caption = T.noTimer
                 , event = SetSpeedSetting NoTimer
                 , selected = model.speedSetting == NoTimer
+                , fontSize = fontSize
                 }
             ]
-        , recentTimerSettings model shared.recentCustomTimes
-        , el [ centerX ] (timeLimitInputLabel model)
-        , el [ centerX ] (safeModeToggle model)
+        , recentTimerSettings model fontSize shared.recentCustomTimes
+        , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
+        , el [ centerX ] (Element.paragraph [] [ safeModeToggle model ])
         , Input.button
             [ Background.color (Element.rgb255 41 204 57)
             , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
             , centerX
-            , Border.rounded 100
+            , Border.rounded 5
             ]
             { onPress = Just CreateMatch
             , label =
@@ -429,18 +478,18 @@ setupOnlineMatchUi shared model =
 {-| If the user has previously used a custom timer, they probably want to use it
 again. So we present the last two timers they used as choices to play again.
 -}
-recentTimerSettings : Model -> List CustomTimer -> Element Msg
-recentTimerSettings model recentCustomTimes =
+recentTimerSettings : Model -> Int -> List CustomTimer -> Element Msg
+recentTimerSettings model fontSize recentCustomTimes =
     if List.isEmpty recentCustomTimes then
         Element.none
 
     else
         Element.row [ width fill, spacing 7 ]
-            (List.map (oneRecentTimerSetting model) recentCustomTimes)
+            (List.map (oneRecentTimerSetting model fontSize) recentCustomTimes)
 
 
-oneRecentTimerSetting : Model -> CustomTimer -> Element Msg
-oneRecentTimerSetting model data =
+oneRecentTimerSetting : Model -> Int -> CustomTimer -> Element Msg
+oneRecentTimerSetting model fontSize data =
     speedButton
         { buttonIcon = Solid.userClock
         , caption =
@@ -452,10 +501,18 @@ oneRecentTimerSetting model data =
                 ++ "s"
         , event = SetSpeedSetting (Custom data)
         , selected = model.speedSetting == Custom data
+        , fontSize = fontSize
         }
 
 
-speedButton : { buttonIcon : Icon, caption : String, event : Msg, selected : Bool } -> Element Msg
+speedButton :
+    { buttonIcon : Icon
+    , caption : String
+    , event : Msg
+    , selected : Bool
+    , fontSize : Int
+    }
+    -> Element Msg
 speedButton config =
     Input.button
         [ Background.color (speedButtonColor config.selected)
@@ -468,7 +525,7 @@ speedButton config =
         , label =
             Element.row [ height fill, padding 15, spacing 10 ]
                 [ el [ width (px 30) ] (icon [ centerX ] config.buttonIcon)
-                , Element.el [] (Element.text config.caption)
+                , Element.el [ Font.size config.fontSize ] (Element.text config.caption)
                 ]
         }
 
@@ -553,67 +610,71 @@ joinOnlineMatchUi model =
             , Element.paddingXY 0 10
             ]
             (Element.text T.iGotAnInvite)
-        , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
-            { onChange = SetRawMatchId
-            , text = model.rawMatchId
-            , placeholder = Just (Input.placeholder [] (Element.text T.enterMatchId))
-            , label = Input.labelLeft [ centerY ] (Element.text T.matchId)
-            }
-        , Input.button
-            [ Background.color (Element.rgb255 51 191 255)
-            , Element.mouseOver [ Background.color (Element.rgb255 102 206 255) ]
-            , centerX
-            , Border.rounded 100
+        , row [ spacing 10, centerX ]
+            [ Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
+                { onChange = SetRawMatchId
+                , text = model.rawMatchId
+                , placeholder = Just (Input.placeholder [] (Element.text T.enterMatchId))
+                , label = Input.labelHidden T.matchId
+                }
+            , Input.button
+                [ Background.color (Element.rgb255 51 191 255)
+                , Element.mouseOver [ Background.color (Element.rgb255 102 206 255) ]
+                , centerX
+                , Border.rounded 5
+                ]
+                { onPress = Just JoinMatch
+                , label =
+                    Element.row
+                        [ height fill
+                        , centerX
+                        , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                        , spacing 5
+                        ]
+                        [ el [ width (px 20) ] (icon [ centerX ] Solid.arrowCircleRight)
+                        , Element.text T.joinGame
+                        ]
+                }
             ]
-            { onPress = Just JoinMatch
+        ]
+
+
+discordInvite : Element msg
+discordInvite =
+    Element.el [ width fill, height fill ]
+        (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
+            { url = "https://discord.gg/tFgD5Qf8jB"
             , label =
-                Element.row
-                    [ height fill
-                    , centerX
-                    , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                    , spacing 5
-                    ]
-                    [ el [ width (px 20) ] (icon [ centerX ] Solid.arrowCircleRight)
-                    , Element.text T.joinGame
+                Element.column [ width fill, centerX, spacing 7 ]
+                    [ el [ width (fill |> maximum 400), padding 10, centerX ] Svg.Discord.discordLogo
+                    , el
+                        [ Font.color (Element.rgb255 88 101 242)
+                        , Font.size 25
+                        , centerX
+                        ]
+                        (Element.paragraph [] [ Element.text T.communityJoinOnDiscord ])
                     ]
             }
-        ]
+        )
 
 
-communityLinksUi : Element msg
-communityLinksUi =
-    row [ width fill, spacing 10 ]
-        [ Element.el [ width fill, height fill ]
-            (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
-                { url = "https://discord.gg/tFgD5Qf8jB"
-                , label =
-                    Element.column [ width fill, centerX, spacing 7 ]
-                        [ el [ width (px 400), padding 10, centerX ] Svg.Discord.discordLogo
-                        , el
-                            [ Font.color (Element.rgb255 88 101 242)
-                            , Font.size 25
-                            , centerX
-                            ]
-                            (Element.text T.communityJoinOnDiscord)
+officialWebsiteLink : Element msg
+officialWebsiteLink =
+    Element.el [ width fill, height fill ]
+        (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
+            { url = T.communityOfficialWebsiteLink
+            , label =
+                Element.column [ width fill, centerX, spacing 7 ]
+                    [ Element.image [ width (fill |> maximum 400), centerX ]
+                        { src = "/pacosako-logo.png", description = "PacoŜako logo" }
+                    , el
+                        [ Font.size 25
+                        , centerX
                         ]
-                }
-            )
-        , Element.el [ width fill, height fill ]
-            (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
-                { url = T.communityOfficialWebsiteLink
-                , label =
-                    Element.column [ width fill, centerX, spacing 7 ]
-                        [ Element.image [ width (px 400), centerX ]
-                            { src = "/pacosako-logo.png", description = "PacoŜako logo" }
-                        , el
-                            [ Font.size 25
-                            , centerX
-                            ]
-                            (Element.paragraph [] [ Element.text T.communityOfficialWebsite ])
-                        ]
-                }
-            )
-        ]
+                        (Element.paragraph [] [ Element.text T.communityOfficialWebsite ])
+                    ]
+            }
+        )
 
 
 recentGamesList : WebData (List CurrentMatchState) -> Element Msg
@@ -648,7 +709,7 @@ recentGamesListSuccess games =
             , Font.color (Element.rgb255 100 100 100)
             , Element.paddingXY 0 10
             ]
-            (Element.text T.watchLatestMatches)
+            (Element.paragraph [] [ Element.text T.watchLatestMatches ])
         , if List.isEmpty games then
             refreshButton
 
