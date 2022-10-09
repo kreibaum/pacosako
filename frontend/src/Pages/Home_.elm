@@ -5,6 +5,7 @@ import Api.Decoders exposing (CurrentMatchState)
 import Api.LocalStorage exposing (CustomTimer)
 import Api.Ports as Ports
 import Browser.Navigation exposing (pushUrl)
+import Content.References
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Effect exposing (Effect)
@@ -28,7 +29,7 @@ import Request
 import Sako exposing (Tile(..))
 import Shared
 import Svg.Custom exposing (BoardRotation(..))
-import Svg.Discord
+import Svg.Twitch exposing (twitchLogo)
 import Timer
 import Translations as T
 import View exposing (View)
@@ -331,14 +332,18 @@ matchSetupUi shared model =
 
 matchSetupUiDesktop : Shared.Model -> Model -> Element Msg
 matchSetupUiDesktop shared model =
-    Element.column [ width (fill |> Element.maximum 1120), spacing 40, centerX, paddingXY 10 40 ]
-        [ Element.row [ width fill, spacing 15, centerX ]
+    Element.column [ width (fill |> Element.maximum 1120), spacing 15, centerX, paddingXY 10 40 ]
+        [ Element.row [ height fill, width fill, spacing 15, centerX ]
             [ setupOnlineMatchUi shared model
-            , joinOnlineMatchUi model
+            , column [ height fill, width fill, spacing 15 ]
+                [ joinOnlineMatchUi model
+                , Content.References.discordInvite
+                , Content.References.officialWebsiteLink
+                ]
             ]
-        , row [ width fill, spacing 10 ]
-            [ discordInvite
-            , officialWebsiteLink
+        , row [ height fill, width fill, spacing 15 ]
+            [ Content.References.twitchLink
+            , Content.References.gitHubLink
             ]
         , recentGamesList model.recentGames
         ]
@@ -350,8 +355,12 @@ matchSetupUiTablet shared model =
         [ setupOnlineMatchUi shared model
         , joinOnlineMatchUi model
         , row [ width fill, spacing 10 ]
-            [ discordInvite
-            , officialWebsiteLink
+            [ Content.References.discordInvite
+            , Content.References.officialWebsiteLink
+            ]
+        , row [ height fill, width fill, spacing 10 ]
+            [ Content.References.twitchLink
+            , Content.References.gitHubLink
             ]
         , recentGamesList model.recentGames
         ]
@@ -362,8 +371,10 @@ matchSetupUiPhone shared model =
     Element.column [ width fill, spacing 10, centerX, paddingXY 10 20 ]
         [ setupOnlineMatchUi shared model
         , joinOnlineMatchUi model
-        , discordInvite
-        , officialWebsiteLink
+        , Content.References.discordInvite
+        , Content.References.officialWebsiteLink
+        , Content.References.twitchLink
+        , Content.References.gitHubLink
         , recentGamesList model.recentGames
         ]
 
@@ -390,89 +401,91 @@ setupOnlineMatchUi shared model =
                 Reactive.Desktop ->
                     20
     in
-    box (Element.rgba255 255 255 255 0.6)
-        [ Element.el
-            [ centerX
-            , Font.size 30
-            , Font.color (Element.rgb255 100 100 100)
-            , Element.paddingXY 0 10
+    Element.el [ height fill, width fill, centerX, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5, Element.alignTop ]
+        (Element.column [ width fill, centerX, spacing 7, padding 10 ]
+            [ Element.el
+                [ centerX
+                , Font.size 30
+                , Font.color (Element.rgb255 100 100 100)
+                , Element.paddingXY 0 10
+                ]
+                (Element.text T.createNewGame)
+            , Element.row [ width fill, spacing 7 ]
+                [ speedButton
+                    { buttonIcon = Solid.spaceShuttle
+                    , caption = T.lightspeed
+                    , event = SetSpeedSetting Lightspeed
+                    , selected = model.speedSetting == Lightspeed
+                    , fontSize = fontSize
+                    }
+                , speedButton
+                    { buttonIcon = Solid.bolt
+                    , caption = T.blitz
+                    , event = SetSpeedSetting Blitz
+                    , selected = model.speedSetting == Blitz
+                    , fontSize = fontSize
+                    }
+                ]
+            , Element.row [ width fill, spacing 7 ]
+                [ speedButton
+                    { buttonIcon = Solid.frog
+                    , caption = T.rapid
+                    , event = SetSpeedSetting Rapid
+                    , selected = model.speedSetting == Rapid
+                    , fontSize = fontSize
+                    }
+                , speedButton
+                    { buttonIcon = Solid.couch
+                    , caption = T.relaxed
+                    , event = SetSpeedSetting Relaxed
+                    , selected = model.speedSetting == Relaxed
+                    , fontSize = fontSize
+                    }
+                ]
+            , Element.row [ width fill, spacing 7 ]
+                [ speedButton
+                    { buttonIcon = Solid.wrench
+                    , caption = T.custom
+                    , event =
+                        SetSpeedSetting
+                            (intoCustomSpeedSetting model.speedSetting
+                                |> Maybe.withDefault defaultCustom
+                                |> Custom
+                            )
+                    , selected = isCustom model.speedSetting
+                    , fontSize = fontSize
+                    }
+                , speedButton
+                    { buttonIcon = Solid.dove
+                    , caption = T.noTimer
+                    , event = SetSpeedSetting NoTimer
+                    , selected = model.speedSetting == NoTimer
+                    , fontSize = fontSize
+                    }
+                ]
+            , recentTimerSettings model fontSize shared.recentCustomTimes
+            , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
+            , el [ centerX ] (Element.paragraph [] [ safeModeToggle model ])
+            , Input.button
+                [ Background.color (Element.rgb255 41 204 57)
+                , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
+                , centerX
+                , Border.rounded 5
+                ]
+                { onPress = Just CreateMatch
+                , label =
+                    Element.row
+                        [ height fill
+                        , centerX
+                        , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                        , spacing 5
+                        ]
+                        [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
+                        , Element.text T.createMatch
+                        ]
+                }
             ]
-            (Element.text T.createNewGame)
-        , Element.row [ width fill, spacing 7 ]
-            [ speedButton
-                { buttonIcon = Solid.spaceShuttle
-                , caption = T.lightspeed
-                , event = SetSpeedSetting Lightspeed
-                , selected = model.speedSetting == Lightspeed
-                , fontSize = fontSize
-                }
-            , speedButton
-                { buttonIcon = Solid.bolt
-                , caption = T.blitz
-                , event = SetSpeedSetting Blitz
-                , selected = model.speedSetting == Blitz
-                , fontSize = fontSize
-                }
-            ]
-        , Element.row [ width fill, spacing 7 ]
-            [ speedButton
-                { buttonIcon = Solid.frog
-                , caption = T.rapid
-                , event = SetSpeedSetting Rapid
-                , selected = model.speedSetting == Rapid
-                , fontSize = fontSize
-                }
-            , speedButton
-                { buttonIcon = Solid.couch
-                , caption = T.relaxed
-                , event = SetSpeedSetting Relaxed
-                , selected = model.speedSetting == Relaxed
-                , fontSize = fontSize
-                }
-            ]
-        , Element.row [ width fill, spacing 7 ]
-            [ speedButton
-                { buttonIcon = Solid.wrench
-                , caption = T.custom
-                , event =
-                    SetSpeedSetting
-                        (intoCustomSpeedSetting model.speedSetting
-                            |> Maybe.withDefault defaultCustom
-                            |> Custom
-                        )
-                , selected = isCustom model.speedSetting
-                , fontSize = fontSize
-                }
-            , speedButton
-                { buttonIcon = Solid.dove
-                , caption = T.noTimer
-                , event = SetSpeedSetting NoTimer
-                , selected = model.speedSetting == NoTimer
-                , fontSize = fontSize
-                }
-            ]
-        , recentTimerSettings model fontSize shared.recentCustomTimes
-        , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
-        , el [ centerX ] (Element.paragraph [] [ safeModeToggle model ])
-        , Input.button
-            [ Background.color (Element.rgb255 41 204 57)
-            , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
-            , centerX
-            , Border.rounded 5
-            ]
-            { onPress = Just CreateMatch
-            , label =
-                Element.row
-                    [ height fill
-                    , centerX
-                    , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                    , spacing 5
-                    ]
-                    [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
-                    , Element.text T.createMatch
-                    ]
-            }
-        ]
+        )
 
 
 {-| If the user has previously used a custom timer, they probably want to use it
@@ -637,44 +650,6 @@ joinOnlineMatchUi model =
                 }
             ]
         ]
-
-
-discordInvite : Element msg
-discordInvite =
-    Element.el [ width fill, height fill ]
-        (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
-            { url = "https://discord.gg/tFgD5Qf8jB"
-            , label =
-                Element.column [ width fill, centerX, spacing 7 ]
-                    [ el [ width (fill |> maximum 400), padding 10, centerX ] Svg.Discord.discordLogo
-                    , el
-                        [ Font.color (Element.rgb255 88 101 242)
-                        , Font.size 25
-                        , centerX
-                        ]
-                        (Element.paragraph [] [ Element.text T.communityJoinOnDiscord ])
-                    ]
-            }
-        )
-
-
-officialWebsiteLink : Element msg
-officialWebsiteLink =
-    Element.el [ width fill, height fill ]
-        (Element.newTabLink [ width (fillPortion 1), height fill, centerX, padding 10, Background.color (Element.rgba255 255 255 255 0.6), Border.rounded 5 ]
-            { url = T.communityOfficialWebsiteLink
-            , label =
-                Element.column [ width fill, centerX, spacing 7 ]
-                    [ Element.image [ width (fill |> maximum 400), centerX ]
-                        { src = "/pacosako-logo.png", description = "PacoŜako logo" }
-                    , el
-                        [ Font.size 25
-                        , centerX
-                        ]
-                        (Element.paragraph [] [ Element.text T.communityOfficialWebsite ])
-                    ]
-            }
-        )
 
 
 recentGamesList : WebData (List CurrentMatchState) -> Element Msg

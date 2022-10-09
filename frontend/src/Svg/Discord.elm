@@ -1,10 +1,15 @@
-module Svg.Discord exposing (..)
+module Svg.Discord exposing (discordLogo, discordLogoColor)
 
 import Element exposing (Element)
 import Html exposing (text)
 import Html.Attributes as Attr
 import Svg exposing (path, svg)
 import Svg.Attributes as SvgAttr
+
+
+discordLogoColor : Element.Color
+discordLogoColor =
+    Element.rgb255 88 101 242
 
 
 discordLogo : Element msg
