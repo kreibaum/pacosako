@@ -29,7 +29,6 @@ import Request
 import Sako exposing (Tile(..))
 import Shared
 import Svg.Custom exposing (BoardRotation(..))
-import Svg.Twitch exposing (twitchLogo)
 import Timer
 import Translations as T
 import View exposing (View)

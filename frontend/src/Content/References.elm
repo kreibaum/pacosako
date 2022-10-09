@@ -1,6 +1,6 @@
 module Content.References exposing (discordInvite, gitHubLink, officialWebsiteLink, twitchLink)
 
-import Element exposing (Element, centerX, column, el, fill, height, image, maximum, newTabLink, padding, paragraph, px, rgb255, rgba255, row, spacing, text, width)
+import Element exposing (Element, centerX, column, el, fill, height, image, maximum, newTabLink, padding, paragraph, px, rgba255, row, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -73,6 +73,7 @@ twitchLink =
         }
 
 
+gitHubLink : Element msg
 gitHubLink =
     smallBanner
         { url = "https://github.com/kreibaum/pacosako"
