@@ -78,7 +78,7 @@ pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, Ser
     let raw_games = sqlx::query_as!(
         RawGame,
         r"select id, action_history, timer, safe_mode from game
-        order by created desc
+        order by id desc
         limit 5"
     )
     .fetch_all(conn)
