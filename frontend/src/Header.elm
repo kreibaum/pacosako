@@ -4,6 +4,7 @@ module Header exposing (..)
 -}
 
 import Api.LocalStorage exposing (Permission(..))
+import Api.Websocket
 import Custom.Element exposing (icon)
 import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, padding, paddingEach, paddingXY, paragraph, px, row, spacing, width)
 import Element.Background as Background
@@ -16,54 +17,8 @@ import Gen.Route as Route exposing (Route)
 import Reactive
 import Shared exposing (Msg(..))
 import Svg.Custom
+import Time
 import Translations as T exposing (Language(..))
-
-
-{-| Header that is shared by all pages.
--}
-pageHeader : Shared.Model -> Element Shared.Msg -> Element Shared.Msg
-pageHeader model additionalHeader =
-    Element.row [ width fill, Background.color (Element.rgb255 230 230 230) ]
-        [ pageHeaderButton Route.Home_ T.headerPlayPacoSako
-        , pageHeaderButton Route.Tutorial T.headerTutorial
-        , pageHeaderButton Route.Editor T.headerDesignPuzzles
-        , additionalHeader
-        , languageChoice
-
-        -- login header is disabled, until we get proper registration (oauth)
-        --, loginHeaderInfo model model.user
-        ]
-
-
-pageHeaderButton : Route -> String -> Element Shared.Msg
-pageHeaderButton route caption =
-    Element.link [ padding 10 ]
-        { url = Route.toHref route
-        , label = Element.text caption
-        }
-
-
-type alias User =
-    { id : Int
-    , username : String
-    }
-
-
-loginHeaderInfo : Shared.Model -> Maybe User -> Element Shared.Msg
-loginHeaderInfo model login =
-    let
-        loginCaption =
-            case login of
-                Just user ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.user, Element.text user.username ]
-
-                Nothing ->
-                    Element.row [ padding 10, spacing 10 ] [ icon [] Solid.signInAlt, Element.text T.headerLogin ]
-    in
-    Element.link [ Element.alignRight ]
-        { url = Route.toHref Route.Login
-        , label = loginCaption
-        }
 
 
 gamesArePublicHint : Shared.Model -> Element Shared.Msg
@@ -89,30 +44,6 @@ gamesArePublicHint model =
             )
 
 
-{-| Allows the user to choose the ui language.
--}
-languageChoice : Element Shared.Msg
-languageChoice =
-    Element.row [ alignRight ]
-        [ Input.button [ padding 2 ]
-            { onPress = Just (SetLanguage English)
-            , label = Svg.Custom.flagEn |> Element.html
-            }
-        , Input.button [ padding 2 ]
-            { onPress = Just (SetLanguage Dutch)
-            , label = Svg.Custom.flagNl |> Element.html
-            }
-        , Input.button [ padding 2 ]
-            { onPress = Just (SetLanguage Esperanto)
-            , label = Svg.Custom.flagEo |> Element.html
-            }
-        ]
-
-
-
----- V2
-
-
 type alias HeaderData =
     { isRouteHighlighted : Route -> Bool
     , isWithBackground : Bool
@@ -136,6 +67,7 @@ wrapWithHeaderV2 shared toMsg headerData body =
         [ Element.html FontAwesome.Styles.css
         , pageHeaderV2 shared headerData
             |> Element.map toMsg
+        , connectionIssueWarning shared
         , gamesArePublicHint shared
             |> Element.map toMsg
         , body
@@ -143,25 +75,22 @@ wrapWithHeaderV2 shared toMsg headerData body =
 
 
 {-| Header that is shared by all pages.
-
-TODO: Make this reactive for small devices and put a hamburger menu on the left.
-
 -}
 pageHeaderV2 : Shared.Model -> HeaderData -> Element Shared.Msg
 pageHeaderV2 model headerData =
     case Reactive.classify model.windowSize of
         Reactive.Phone ->
-            pageHeaderV2Phone headerData model.isHeaderOpen
+            pageHeaderV2Phone model headerData model.isHeaderOpen
 
         Reactive.Tablet ->
-            pageHeaderV2Phone headerData model.isHeaderOpen
+            pageHeaderV2Phone model headerData model.isHeaderOpen
 
         Reactive.Desktop ->
-            pageHeaderV2Desktop headerData
+            pageHeaderV2Desktop model headerData
 
 
-pageHeaderV2Phone : HeaderData -> Bool -> Element Msg
-pageHeaderV2Phone headerData isHeaderOpen =
+pageHeaderV2Phone : Shared.Model -> HeaderData -> Bool -> Element Msg
+pageHeaderV2Phone model headerData isHeaderOpen =
     column
         [ width fill
         , spacing 10
@@ -227,8 +156,8 @@ showIf condition element =
         Element.none
 
 
-pageHeaderV2Desktop : HeaderData -> Element Msg
-pageHeaderV2Desktop headerData =
+pageHeaderV2Desktop : Shared.Model -> HeaderData -> Element Msg
+pageHeaderV2Desktop model headerData =
     Element.row
         [ width fill
         , Border.solid
@@ -330,3 +259,47 @@ flagForLanguage language =
 
         German ->
             Svg.Custom.flagDe |> Element.html
+
+
+connectionIssueWarning : Shared.Model -> Element msg
+connectionIssueWarning model =
+    case model.websocketConnectionState of
+        Api.Websocket.WebsocketConnecting ->
+            connectionIssueWithSeverity model T.websocketWarningConnecting
+
+        Api.Websocket.WebsocketConnected ->
+            Element.none
+
+        Api.Websocket.WebsocketReconnecting ->
+            connectionIssueWithSeverity model T.websocketWarningReconnecting
+
+
+{-| Calculate how long the connection has been broken and wrap with
+corresponding styles & second counter.
+-}
+connectionIssueWithSeverity : Shared.Model -> String -> Element msg
+connectionIssueWithSeverity model text =
+    let
+        waitingTimeSeconds =
+            (Time.posixToMillis model.now - Time.posixToMillis model.lastWebsocketStatusUpdate) // 1000
+    in
+    if waitingTimeSeconds < 2 then
+        Element.none
+
+    else if waitingTimeSeconds < 5 then
+        Element.row
+            [ width fill
+            , Background.color (Element.rgb255 255 255 0)
+            , Font.bold
+            , paddingXY 10 10
+            ]
+            [ Element.text text ]
+
+    else
+        Element.row
+            [ width fill
+            , Background.color (Element.rgb255 255 0 0)
+            , Font.bold
+            , paddingXY 10 10
+            ]
+            [ Element.text (text ++ " (" ++ String.fromInt waitingTimeSeconds ++ "s)") ]

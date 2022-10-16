@@ -12,6 +12,7 @@ module Shared exposing
 import Api.Backend
 import Api.LocalStorage as LocalStorage exposing (CustomTimer, Permission(..))
 import Api.Ports
+import Api.Websocket exposing (WebsocketConnectionState)
 import Browser.Events
 import Browser.Navigation exposing (Key)
 import Http
@@ -42,6 +43,8 @@ type alias Model =
     , now : Posix
     , oAuthState : String
     , isHeaderOpen : Bool
+    , websocketConnectionState : WebsocketConnectionState
+    , lastWebsocketStatusUpdate : Posix
     }
 
 
@@ -68,6 +71,7 @@ type Msg
     | UpdateNow Posix
     | AddRecentCustomTimer CustomTimer
     | SetHeaderOpen Bool
+    | WebsocketStatusChange WebsocketConnectionState
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
@@ -80,6 +84,9 @@ init { url, key } flags =
             Decode.decodeValue (Decode.field "oAuthState" Decode.string) flags
                 |> Result.toMaybe
                 |> Maybe.withDefault ""
+
+        now =
+            parseNow flags
     in
     ( { url = url
       , key = key
@@ -88,9 +95,11 @@ init { url, key } flags =
       , username = ls.data.username
       , recentCustomTimes = ls.data.recentCustomTimes
       , permissions = ls.permissions
-      , now = parseNow flags
+      , now = now
       , oAuthState = oAuthState
       , isHeaderOpen = False
+      , websocketConnectionState = Api.Websocket.WebsocketConnecting
+      , lastWebsocketStatusUpdate = now
       }
     , Api.Backend.getCurrentLogin HttpError
         (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
@@ -159,6 +168,9 @@ update _ msg model =
         SetHeaderOpen state ->
             ( { model | isHeaderOpen = state }, Cmd.none )
 
+        WebsocketStatusChange state ->
+            ( { model | websocketConnectionState = state, lastWebsocketStatusUpdate = model.now }, Cmd.none )
+
 
 {-| Adds a custom timer to the history and trigges a "save to local storage" event.
 -}
@@ -211,5 +223,6 @@ subscriptions _ _ =
     Sub.batch
         [ LocalStorage.subscribeSave TriggerSaveLocalStorage
         , Browser.Events.onResize WindowResize
+        , Api.Websocket.listenToStatus WebsocketStatusChange
         , Time.every 1000 UpdateNow
         ]

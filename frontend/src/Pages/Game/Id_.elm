@@ -159,7 +159,7 @@ type Msg
     | SetWhiteName String
     | SetBlackName String
     | CopyToClipboard String
-    | WebsocketStatusChange Api.Websocket.WebsocketStaus
+    | WebsocketStatusChange Api.Websocket.WebsocketConnectionState
     | ToShared Shared.Msg
     | TimeDriftRequestTrigger { send : Posix }
     | TimeDriftResponseTriple { send : Posix, bounced : Posix, back : Posix }
@@ -248,7 +248,7 @@ update msg model =
         WebsocketStatusChange status ->
             ( model
             , case status of
-                Api.Websocket.WSConnected ->
+                Api.Websocket.WebsocketConnected ->
                     Api.Websocket.send (Api.Websocket.SubscribeToMatch model.gameKey)
                         |> Effect.fromCmd
 

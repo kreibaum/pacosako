@@ -2,7 +2,7 @@ module Api.Websocket exposing
     ( ClientMessage(..)
     , ServerMessage(..)
     , ShareStatus(..)
-    , WebsocketStaus(..)
+    , WebsocketConnectionState(..)
     , listen
     , listenToStatus
     , send
@@ -139,26 +139,29 @@ listen onSuccess onError =
         )
 
 
-type WebsocketStaus
-    = WSConnected
-    | WSDisconnected
-    | WSOther
+{-| The state of the websocket connection together with the last change that happened.
+-}
+type WebsocketConnectionState
+    = WebsocketConnecting
+    | WebsocketConnected
+    | WebsocketReconnecting
 
 
-decodeWebsocketStatus : String -> WebsocketStaus
+decodeWebsocketStatus : String -> WebsocketConnectionState
 decodeWebsocketStatus code =
     case code of
         "Connected" ->
-            WSConnected
+            WebsocketConnected
 
         "Disconnected" ->
-            WSDisconnected
+            WebsocketReconnecting
 
         _ ->
-            WSOther
+            -- Typescript says this is impossible, but elm does not know that.
+            WebsocketReconnecting
 
 
-listenToStatus : (WebsocketStaus -> msg) -> Sub msg
+listenToStatus : (WebsocketConnectionState -> msg) -> Sub msg
 listenToStatus msg =
     Ports.websocketStatus (decodeWebsocketStatus >> msg)
 

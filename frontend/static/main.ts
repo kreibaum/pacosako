@@ -340,6 +340,7 @@ class WebsocketWrapper {
             console.error("No websocket connection established.")
         }
         console.log("Websocket: Connection established.")
+        this.sendStatusToElm("Connected")
         this.ws = ws
         this.onopen(null)
         this.ws.onclose = ev => this.connection_closed()
@@ -403,7 +404,6 @@ class WebsocketWrapper {
             setTimeout(() => this.try_reconnect(), this.reconnect_delay_ms)
             return;
         }
-        this.sendStatusToElm("Connected")
     }
 
     /**

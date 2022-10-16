@@ -82,5 +82,7 @@
     "communityOfficialWebsite": "Go to the official Paco Ŝako website!",
     "communityOfficialWebsiteLink": "https://pacosako.com/en",
     "communityWatchOnTwitch": "Watch on Twitch!",
-    "communityStarOnGithub": "Star on GitHub!"
+    "communityStarOnGithub": "Star on GitHub!",
+    "websocketWarningConnecting": "Connecting…",
+    "websocketWarningReconnecting": "Reconnecting…"
 }
