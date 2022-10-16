@@ -7,9 +7,10 @@ cache_js_hashes = false
 # This secret key is published on github. Don't use it for a production instance.
 secret_key = "DZjhqgZ1fDFCnNqxCC+T6K0Y+bKvZGlvg5hc9+oj4yY="
 port = 8000
+address = "0.0.0.0"
 websocket_port = 3010
 database_path = "data/database.sqlite"
-application_url = "http://localhost:8000"
+application_url = "http://0.0.0.0:8000"
 
 [staging]
 # Staging is running on the prod server as well and is using the dev.pacoplay.com subdomain.

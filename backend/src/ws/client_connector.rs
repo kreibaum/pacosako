@@ -115,7 +115,7 @@ async fn run(
     to_logic: Sender<impl WebsocketOutMsg>,
     all_peers: PeerMap,
 ) -> Result<(), ServerError> {
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("0.0.0.0:{}", port);
     let listener = TcpListener::bind(&addr).await?;
     info!("The websocket server is listening on: {}", addr);
 
