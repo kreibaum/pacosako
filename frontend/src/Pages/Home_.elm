@@ -587,16 +587,19 @@ timeLimitInputCustom model =
         ( m, s, i ) =
             i18nChoosenTimeLimit
     in
-    Element.wrappedRow []
-        [ Input.text [ width (Element.px 60) ]
-            { onChange = SetRawMinutes, text = model.rawMinutes, placeholder = Nothing, label = Input.labelHidden "Minutes" }
-        , Element.text m
-        , Input.text [ width (Element.px 50) ]
-            { onChange = SetRawSeconds, text = model.rawSeconds, placeholder = Nothing, label = Input.labelHidden "Seconds" }
-        , Element.text s
-        , Input.text [ width (Element.px 50) ]
-            { onChange = SetRawIncrement, text = model.rawIncrement, placeholder = Nothing, label = Input.labelHidden "Increment" }
-        , Element.text i
+    column [ width fill ]
+        [ row [ spacing 5, width fill ]
+            [ Input.text [ width (Element.px 50), padding 5 ]
+                { onChange = SetRawMinutes, text = model.rawMinutes, placeholder = Nothing, label = Input.labelRight [ width fill ] (Element.text m) }
+            ]
+        , row [ spacing 5, width fill ]
+            [ Input.text [ width (Element.px 50), padding 5 ]
+                { onChange = SetRawSeconds, text = model.rawSeconds, placeholder = Nothing, label = Input.labelRight [ width fill ] (Element.text s) }
+            ]
+        , row [ spacing 5, width fill ]
+            [ Input.text [ width (Element.px 50), padding 5 ]
+                { onChange = SetRawIncrement, text = model.rawIncrement, placeholder = Nothing, label = Input.labelRight [ width fill ] (Element.text i) }
+            ]
         ]
 
 
