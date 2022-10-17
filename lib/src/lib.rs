@@ -4,6 +4,7 @@ pub mod parser;
 pub mod random;
 mod static_include;
 pub mod types;
+pub mod wasm;
 pub mod zobrist;
 
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,6 @@ use std::fmt::Display;
 use std::ops::Add;
 pub use types::{BoardPosition, PieceType, PlayerColor};
 use wasm_bindgen::prelude::*;
-#[macro_use]
 extern crate lazy_static;
 #[cfg(test)]
 extern crate quickcheck;

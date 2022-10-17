@@ -19,5 +19,15 @@
   <body>
     <canvas id="offscreen-canvas"> Canvas not supported </canvas>
     <div id="elm"></div>
+    <script type="module">
+      import init, {
+        legal_moves_fen,
+      } from "/cache/lib.min.js?hash={{ wasm_js_hash }}";
+      async function run() {
+        await init("/cache/lib.wasm?hash={{ wasm_hash }}");
+        window.legal_moves_fen = legal_moves_fen; // Is this needed?
+      }
+      run();
+    </script>
   </body>
 </html>

@@ -1,5 +1,9 @@
+# Expects to be run from the / directory of the project
 
 mkdir -p target
+
+scripts/compile-wasm.sh
+
 cp frontend/static/* target/
 cd frontend
 

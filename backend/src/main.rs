@@ -1,3 +1,4 @@
+mod assets;
 mod caching;
 mod db;
 mod discord;
@@ -15,7 +16,6 @@ use crate::ws::RocketToWsMsg;
 use db::Pool;
 use pacosako::{DenseBoard, SakoSearchResult};
 use rand::{thread_rng, Rng};
-use rocket::fs::NamedFile;
 use rocket::response::{Flash, Redirect};
 use rocket::serde::json::Json;
 use rocket::State;
@@ -24,31 +24,22 @@ use rocket::{
     request::{self, FromRequest, Request},
     Build,
 };
-use rocket_cache_response::CacheResponse;
 use rocket_dyn_templates::{context, Template};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use sync_match::SynchronizedMatch;
 
-////////////////////////////////////////////////////////////////////////////////
-// Static Files ////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-async fn static_file(path: &'static str) -> Result<NamedFile, ServerError> {
-    Ok(NamedFile::open(path).await?)
-}
-
 #[get("/")]
 async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguage) -> Template {
     // Print what the hashes of elm.min.js and main.js are.
     // This is useful for debugging cache busting.
-    let elm_filename = elm_filename(lang.0.clone(), config.use_min_js);
+    let elm_filename = assets::elm_filename(lang.0.clone(), config.use_min_js);
     debug!(
         "File {} has hash: {}",
         elm_filename,
         caching::hash_file(elm_filename, true)
     );
-    let main_filename = main_filename(config.use_min_js);
+    let main_filename = assets::main_filename(config.use_min_js);
     debug!(
         "File {} has hash: {}",
         main_filename,
@@ -61,6 +52,8 @@ async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguag
             lang: lang.0,
             elm_hash: caching::hash_file(elm_filename, config.cache_js_hashes),
             main_hash: caching::hash_file(main_filename, config.cache_js_hashes),
+            wasm_js_hash: caching::hash_file("../target/lib.min.js", config.cache_js_hashes),
+            wasm_hash: caching::hash_file("../target/lib.wasm", config.cache_js_hashes),
         },
     )
 }
@@ -74,104 +67,12 @@ async fn index_fallback(
     index(config, lang).await
 }
 
-#[get("/favicon.svg")]
-async fn favicon() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
-        responder: static_file("../target/favicon.svg").await,
-        max_age: 24 * 3600,
-    }
-}
-
-#[get("/pacosako-logo.png")]
-async fn logo() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
-        responder: static_file("../target/pacosako-logo.png").await,
-        max_age: 24 * 3600,
-    }
-}
-
-#[get("/bg.jpg")]
-async fn bg() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
-        responder: static_file("../target/bg.jpg").await,
-        max_age: 24 * 3600,
-    }
-}
-
 /// Various settings that differentiate the development environment from the
 /// production environment.
 #[derive(Deserialize)]
-struct DevEnvironmentConfig {
+pub struct DevEnvironmentConfig {
     use_min_js: bool,
     cache_js_hashes: bool,
-}
-
-/// If the server is running in development mode, we are returning the regular
-/// elm.js file. In staging and production we are returning the minified
-/// version of it. Here we also need to make sure that we pick the correct
-/// language version.
-fn elm_filename(lang: String, use_min_js: bool) -> &'static str {
-    if use_min_js {
-        language::get_static_language_file(&lang).unwrap_or("../target/elm.en.min.js")
-    } else {
-        "../target/elm.js"
-    }
-}
-
-// If the server is running in development mode, we are returning the regular
-// main.js file. In staging and production we are returning the minified
-// version of it.
-fn main_filename(use_min_js: bool) -> &'static str {
-    if use_min_js {
-        "../target/main.min.js"
-    } else {
-        "../target/main.js"
-    }
-}
-
-/// A cache-able elm.min.js where cache busting happens via a url parameter.
-/// The index.html is generated dynamically to point to the current hash and
-/// this endpoint does not check the hash.
-/// The language is also a parameter here so caching doesn't break the language
-/// selection.
-#[get("/cache/elm.min.js?<hash>&<lang>")]
-async fn elm_cached(
-    config: &State<DevEnvironmentConfig>,
-    hash: String,
-    lang: String,
-) -> Result<CacheResponse<NamedFile>, ServerError> {
-    info!("elm_cached: {} for language {}", hash, lang);
-    Ok(CacheResponse::Private {
-        responder: static_file(elm_filename(lang, config.use_min_js)).await?,
-        max_age: 356 * 24 * 3600,
-    })
-}
-
-/// If the server is running in development mode, we are returning the regular
-/// main.js file. In staging and production we are returning the minified
-/// version of it.
-#[get("/cache/main.min.js?<hash>")]
-async fn main_js_cached(
-    config: &State<DevEnvironmentConfig>,
-    hash: &str,
-) -> Result<CacheResponse<NamedFile>, ServerError> {
-    Ok(CacheResponse::Private {
-        responder: static_file(main_filename(config.use_min_js)).await?,
-        max_age: 356 * 24 * 3600,
-    })
-}
-
-#[get("/ai_worker.js")]
-async fn ai_worker() -> Result<NamedFile, ServerError> {
-    static_file("../target/ai_worker.js").await
-}
-
-#[get("/static/place_piece.mp3")]
-async fn place_piece() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
-        responder: static_file("../target/place_piece.mp3").await,
-        max_age: 24 * 3600,
-    }
 }
 
 /// This enum holds all errors that can be returned by the API.
@@ -651,13 +552,15 @@ fn rocket() -> _ {
             "/",
             routes![
                 index,
-                elm_cached,
-                favicon,
-                logo,
-                bg,
-                place_piece,
-                main_js_cached,
-                ai_worker
+                assets::elm_cached,
+                assets::favicon,
+                assets::logo,
+                assets::bg,
+                assets::place_piece,
+                assets::main_js_cached,
+                assets::ai_worker,
+                assets::lib_js,
+                assets::lib_wasm
             ],
         )
         .mount(

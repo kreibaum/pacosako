@@ -85,7 +85,7 @@ jobs:
       - uses: actions/setup-node@v2
 
       - name: Install Elm
-        run: sudo npm install -g elm elm-spa@latest typescript uglify-js --unsafe-perm=true --allow-root
+        run: sudo npm install -g elm elm-spa@latest typescript uglify-js terser --unsafe-perm=true --allow-root
 
       - name: Setup Python
         uses: actions/setup-python@v2.2.2
@@ -97,6 +97,9 @@ jobs:
           curl -L -o $GITHUB_WORKSPACE/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.2/pytrans.py
           chmod +x $GITHUB_WORKSPACE/bin/pytrans.py
           ls $GITHUB_WORKSPACE/bin
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.3.0
 
       - name: Compile Frontend
         run: |
