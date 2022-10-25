@@ -8,12 +8,12 @@ export PacoSako
 
 # export Jtac interface
 export Jtac,
-       Util,
-       Game,
-       Model,
-       Player,
-       Training,
-       Bench
+    Util,
+    Game,
+    Model,
+    Player,
+    Training,
+    Bench
 
 # To build this, run `cargo build` in ../lib
 # const DYNLIB_PATH = "../lib/target/debug/libpacosako.so"
@@ -50,7 +50,7 @@ end
 ################################################################################
 
 function Base.copy(ps::PacoSako)::PacoSako
-    @assert !Game.is_frozen(ps)
+    @assert !Pack.is_frozen(ps)
     ptr = ccall((:clone, DYNLIB_PATH), Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
     ps2 = wrap_pacosako_ptr(ptr)
     ps2.forfeit_by = ps.forfeit_by
@@ -58,7 +58,7 @@ function Base.copy(ps::PacoSako)::PacoSako
 end
 
 function Game.status(ps::PacoSako)::Int64
-    @assert !Game.is_frozen(ps)
+    @assert !Pack.is_frozen(ps)
     if ps.forfeit_by != 0
         -ps.forfeit_by
     else
@@ -69,7 +69,7 @@ end
 Game.current_player(ps::PacoSako)::Int64 = ccall((:current_player, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr)
 
 function Game.legal_actions(ps::PacoSako)
-    @assert !Game.is_frozen(ps)
+    @assert !Pack.is_frozen(ps)
     # While there are 132 possible actions (64+64+4) there can be at most 64
     # actions that are legal at any point.
     out = zeros(UInt8, 64)
@@ -78,14 +78,14 @@ function Game.legal_actions(ps::PacoSako)
 end
 
 function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
-    @assert !Game.is_frozen(ps)
+    @assert !Pack.is_frozen(ps)
     status_code = ccall((:apply_action_bang, DYNLIB_PATH), Int64, (Ptr{Nothing}, UInt8), ps.ptr, UInt8(action))
     if length(Game.legal_actions(ps)) == 0 && ccall((:status, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr) == 42
         ps.forfeit_by = Game.current_player(ps)
     end
     @assert status_code == 0 "Error during apply_action! of PacoSako game"
     ps
-    end
+end
 
 function Game.array(ps::PacoSako)::Array{Float32,3}
     size = Base.size(ps)
@@ -95,13 +95,13 @@ function Game.array(ps::PacoSako)::Array{Float32,3}
     reshape(memory, size)
 end
 
-function Base.size(:: Type{PacoSako})
+function Base.size(::Type{PacoSako})
     layer_count = ccall((:repr_layer_count, DYNLIB_PATH), Int64, ())
     @assert layer_count > 0 "Layer count must be positive"
     (8, 8, layer_count)
 end
 
-Game.policy_length(:: Type{PacoSako})::Int = 132
+Game.policy_length(::Type{PacoSako})::Int = 132
 
 # Only when a human player wants to play
 # draw(io :: IO, game :: PacoSako) :: Nothing = error("drawing $(typeof(game)) not implemented.")
@@ -114,7 +114,7 @@ Game.policy_length(:: Type{PacoSako})::Int = 132
 ################################################################################
 
 function serialize(ps::PacoSako)::Vector{UInt8}
-    @assert !Game.is_frozen(ps)
+    @assert !Pack.is_frozen(ps)
     length = ccall((:serialize_len, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr)
     out = zeros(UInt8, length)
     status_code = ccall((:serialize, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{UInt8}, Int64), ps.ptr, out, length)
@@ -130,44 +130,45 @@ function deserialize(bincode::Vector{UInt8})::PacoSako
         ps.forfeit_by = Game.current_player(ps)
     end
     ps
-    end
+end
 
-function Game.is_frozen(ps::PacoSako)::Bool
+function Pack.is_frozen(ps::PacoSako)::Bool
     !isnothing(ps.cache)
 end
 
-function Game.freeze(ps::PacoSako)::PacoSako
-    @assert !Game.is_frozen(ps)
+function Pack.freeze(ps::PacoSako)::PacoSako
+    @assert !Pack.is_frozen(ps)
     PacoSako(C_NULL, serialize(ps), ps.forfeit_by)
 end
 
-function Game.unfreeze(ps::PacoSako)::PacoSako
-    @assert Game.is_frozen(ps)
+function Pack.unfreeze(ps::PacoSako)::PacoSako
+    @assert Pack.is_frozen(ps)
     deserialize(ps.cache)
 end
+
 
 ################################################################################
 ## Helpers #####################################################################
 ################################################################################
 
 function Base.show(io::IO, game::PacoSako)
-  if Game.is_over(game)
-    print(io, "PacoSako($(Game.status(game)) won)")
-  else
-    print(io, "PacoSako($(Game.current_player(game)) moving)")
-  end
+    if Game.is_over(game)
+        print(io, "PacoSako($(Game.status(game)) won)")
+    else
+        print(io, "PacoSako($(Game.current_player(game)) moving)")
+    end
 end
 
-function Base.show(io::IO, :: MIME"text/plain", game::PacoSako)
-  if Game.is_over(game)
-    print(io, "PacoSako game with result $(Game.status(game))")
-  else
-    print(io, "PacoSako game with player $(Game.current_player(game)) moving")
-  end
+function Base.show(io::IO, ::MIME"text/plain", game::PacoSako)
+    if Game.is_over(game)
+        print(io, "PacoSako game with result $(Game.status(game))")
+    else
+        print(io, "PacoSako game with player $(Game.current_player(game)) moving")
+    end
 end
 
 function Game.draw(ps::PacoSako)
-    @assert !Game.is_frozen(ps)
+    @assert !Pack.is_frozen(ps)
     ccall((:print, DYNLIB_PATH), Nothing, (Ptr{Nothing},), ps.ptr)
 end
 
@@ -176,7 +177,7 @@ function Base.:(==)(ps1::PacoSako, ps2::PacoSako)::Bool
 end
 
 function Game.hash(ps::PacoSako)::UInt64
-    @assert !Game.is_frozen(ps)
+    @assert !Pack.is_frozen(ps)
     ccall((:hash, DYNLIB_PATH), UInt64, (Ptr{Nothing},), ps.ptr)
 end
 
@@ -201,7 +202,7 @@ not returned.
 """
 function find_sako_sequences(ps::PacoSako)::Vector{Vector{Int64}}
     memory = zeros(UInt8, 1000)
-    
+
     status_code = ccall((:find_sako_sequences, DYNLIB_PATH), Int64,
         (Ptr{Nothing}, Ptr{UInt8}, Int64),
         ps.ptr, memory, length(memory))
@@ -210,7 +211,7 @@ function find_sako_sequences(ps::PacoSako)::Vector{Vector{Int64}}
     # Now we need to split this along the 0
     out = Vector()
     chain = Vector()
-    for action in memory 
+    for action in memory
         if action != 0
             push!(chain, action)
         elseif length(chain) > 0
@@ -252,9 +253,9 @@ function find_simple_positions(; tries=100)::Training.Dataset{PacoSako}
 end
 
 function __init__()
-  # We have to register the game in order to use all functionality of Jtac
-  # (loading and saving datasets and models)
-  Game.register!(PacoSako)
+    # We have to register the game in order to use all functionality of Jtac
+    # (loading and saving datasets and models)
+    Pack.register(PacoSako) # Make this serializable
 end
 
 ################################################################################
@@ -263,10 +264,10 @@ end
 
 module PacoPlay
 
-  using ..JtacPacoSako
-  using HTTP, LazyJSON
+using ..JtacPacoSako
+using HTTP, LazyJSON
 
-  include("pacoplay.jl")
+include("pacoplay.jl")
 
 end # module PacoPlay
 

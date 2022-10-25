@@ -87,3 +87,23 @@ the `frontend` folder and copying the right language version into position:
 
 Once you copy this the dev server should pick up the change and recompile the
 frontend for you.
+
+## Working with Julia
+
+Test if everything works
+
+```
+julia> using Jtac
+julia> include("src/JtacPacoSako.jl")
+julia> G = JtacPacoSako.PacoSako;
+julia> model = Model.NeuralModel(G, Model.@chain G Dense(50, "relu"));
+julia> player = Player.MCTSPlayer(model, power = 50);
+julia> dataset = Player.record(player, 10, augment = false)
+DataSet{PacoSako} with 1258 elements and 0 features
+```
+
+Play on the website
+
+```julia
+JtacPacoSako.PacoPlay.play_match("https://dev.pacoplay.com", 212)
+```

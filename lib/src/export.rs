@@ -176,7 +176,7 @@ pub extern "C" fn serialize(ps: *mut DenseBoard, mut out: *mut u8, reserved_spac
 
     if let Ok(encoded) = bincode::serialize(ps) {
         if encoded.len() as i64 != reserved_space {
-            // If julia reserved the wrong amout of space, this could write into
+            // If julia reserved the wrong amount of space, this could write into
             // memory it is not supposed to, triggering a Segfault in the best
             // case and a vulnerability in the worst case. This is why we double
             // check the reserved space.
