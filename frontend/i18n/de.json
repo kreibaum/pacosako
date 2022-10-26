@@ -80,5 +80,8 @@
     "replayPlayAll": "Alles abspielen",
     "communityOfficialWebsiteLink": "https://pacosako.com/de",
     "communityOfficialWebsite": "Besuche die offizielle Paco Ŝako Website!",
-    "communityJoinOnDiscord": "Tritt unserer Community auf Discord bei!"
+    "communityJoinOnDiscord": "Tritt unserer Community auf Discord bei!",
+    "communityWatchOnTwitch": "Auf Twitch ansehen!",
+    "websocketWarningConnecting": "Verbindung …",
+    "websocketWarningReconnecting": "Verbindung wird wiederherstellt …"
 }
