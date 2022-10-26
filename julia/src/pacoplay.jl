@@ -119,8 +119,8 @@ function websocket_url(server_url :: String)
 end
 
 function subscribe(ws, match :: Int)
-  write(ws, subscription_string(match))
-  response = readavailable(ws)
+  HTTP.send(ws, subscription_string(match))
+  response = HTTP.receive(ws)
   json = nothing
   try
     json = LazyJSON.parse(String(response))
@@ -183,7 +183,7 @@ function play_match( server_url :: String
       # listen to pacoplay changes of the game state and fill the games channel
       @async while true
         try
-          msg = readavailable(ws)
+          msg = HTTP.receive(ws)
           json = LazyJSON.parse(String(msg))
           state = parse_game(json["CurrentMatchState"])
           put!(games, state)
@@ -218,7 +218,7 @@ function play_match( server_url :: String
           break
         end
 
-        # the following could raise acceptions when waiting on games
+        # the following could raise exceptions when waiting on games
         # or when trying to write to ws after it was closed
         try 
           if color != Game.current_player(game)
@@ -248,7 +248,7 @@ function play_match( server_url :: String
           log(match, "Submitting actions $(join(actions, ", "))")
           for action in actions
             # do action
-            write(ws, do_action_string(match, action, Game.current_player(game)))
+            HTTP.send(ws, do_action_string(match, action, Game.current_player(game)))
             Game.apply_action!(game, action)
             # wait for feedback from the server
             sleep(delay)

@@ -8,12 +8,12 @@ export PacoSako
 
 # export Jtac interface
 export Jtac,
-    Util,
-    Game,
-    Model,
-    Player,
-    Training,
-    Bench
+       Util,
+       Game,
+       Data,
+       Model,
+       Player,
+       Training
 
 # To build this, run `cargo build` in ../lib
 # const DYNLIB_PATH = "../lib/target/debug/libpacosako.so"
@@ -22,7 +22,7 @@ const DYNLIB_PATH = joinpath(dirname(@__DIR__), "../lib/target/release/libpacosa
 
 mutable struct PacoSako <: Game.AbstractGame
     ptr::Ptr{Nothing}
-    cache::Union{Nothing,Vector{UInt8}} # store serialized game when frozen
+    cache::Vector{UInt8} # store serialized game when frozen
     forfeit_by::Int64
 end
 
@@ -33,7 +33,7 @@ function PacoSako()::PacoSako
 end
 
 function wrap_pacosako_ptr(ptr::Ptr{Nothing})::PacoSako
-    ps = PacoSako(ptr, nothing, 0)
+    ps = PacoSako(ptr, UInt8[], 0)
     finalizer(destroy!, ps)
     ps
 end
@@ -133,7 +133,7 @@ function deserialize(bincode::Vector{UInt8})::PacoSako
 end
 
 function Pack.is_frozen(ps::PacoSako)::Bool
-    !isnothing(ps.cache)
+    !isempty(ps.cache)
 end
 
 function Pack.freeze(ps::PacoSako)::PacoSako
@@ -231,8 +231,8 @@ Returns a vector of positions together with a single action that is optimal
 in this situation. This may return the same position twice if there is more than
 one optimal action. (i.e. two ways to capture the king.)
 """
-function find_simple_positions(; tries=100)::Training.Dataset{PacoSako}
-    result = Training.Dataset{PacoSako}()
+function find_simple_positions(; tries=100)::Data.DataSet{PacoSako}
+    result = Data.DataSet{PacoSako}()
     for _ in 1:tries
         ps = random_position()
         solutions = find_sako_sequences(ps)
