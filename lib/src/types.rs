@@ -65,6 +65,8 @@ impl PlayerColor {
     }
 }
 
+// TODO: This should really be renamed "Tile" to match the frontend.
+// That is also less ambiguous.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BoardPosition(pub u8);
 
