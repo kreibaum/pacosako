@@ -107,3 +107,7 @@ Play on the website
 ```julia
 JtacPacoSako.PacoPlay.play_match("https://dev.pacoplay.com", 212)
 ```
+
+# Architecture
+
+![A schematic drawing of the architecture when deployed.](/doc/architecture.png)
