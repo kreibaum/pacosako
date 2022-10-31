@@ -295,7 +295,11 @@ pub fn history_to_replay_notation(
 
 fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
     let mut board = board.clone();
+    if board.required_action.is_promote() {
+        board.execute(PacoAction::Promote(PieceType::Queen))?;
+    }
     board.controlling_player = for_player;
+
     let threats = determine_all_threats(&board)?;
     for (pos, _) in threats
         .iter()
