@@ -462,21 +462,52 @@ if (app.ports.scrollTrigger) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Ports for the AI Web Worker /////////////////////////////////////////////////
+// Ports for the library Web Worker ////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-let aiWorker = new Worker('/ai_worker.js');
+// The library web worker provides the wasm library without blocking the main
+// thread. Since every port in elm is already async, we don't loose synchronicity.
 
-function decide_move(data: any) {
-    aiWorker.postMessage(data);
+// TODO: Caching & cache busting.
+
+// This worker is created asynchronously, so we can't send messages to it
+// immediately. Instead we queue them up and send them once the worker is ready.
+
+declare var lib_worker_hash: string
+
+var libWorker = new Worker(`/cache/lib_worker.js?hash=${lib_worker_hash}#${wasm_js_hash}|${wasm_hash}`);
+
+let libWorkerMessageQueue = []
+let libWorkerIsReady = false
+
+libWorker.onmessage = function (m) {
+    // The first message we get from the worker is a "ready" signal.
+    // We can then send all the messages that were queued up.
+    // This message is not send to Elm.
+    if (!libWorkerIsReady) {
+        libWorkerIsReady = true
+        libWorkerMessageQueue.forEach(msg => libWorker.postMessage(msg))
+        libWorkerMessageQueue = []
+        return
+    }
+
+    // Log messages from the worker.
+    console.log("libWorker: " + m.data);
+
+    if (app.ports.rpcResponseValue) {
+        app.ports.rpcResponseValue.send(JSON.parse(m.data))
+    }
 }
 
-function commit_actions(message: MessageEvent<any>) {
-    app.ports.subscribeMoveFromAi.send(message.data)
+function libWorkerSend(msg: any) {
+    if (libWorkerIsReady) {
+        libWorker.postMessage(JSON.stringify(msg));
+    } else {
+        console.log("Message received before libWorker was ready. Queuing message.")
+        libWorkerMessageQueue.push(JSON.stringify(msg))
+    }
 }
 
-aiWorker.onmessage = commit_actions;
-
-if (app.ports.requestMoveFromAi) {
-    app.ports.requestMoveFromAi.subscribe(decide_move)
+if (app.ports.rpcCallValue) {
+    app.ports.rpcCallValue.subscribe(libWorkerSend)
 }

@@ -1,366 +1,227 @@
 module Notation exposing
-    ( ConsensedActionKey
-    , NotationAtom(..)
-    , SidebarMoveData
-    , compile
-    , firstActionCountAfterIndex
+    ( HalfMove
+    , HalfMoveMetadata
+    , HalfMoveSection
+    , SectionIndex
+    , actionIndexForSectionIndex
+    , decodeHalfMove
+    , initialSectionIndex
     , lastAction
-    , lastActionCountBefore
-    , lastActionCountBeforeIndex
-    , lastActionCountOf
-    , moveContainingAction
-    , writeOut
+    , lastSectionIndex
+    , lastSectionIndexOfHalfMove
+    , nextAction
+    , nextMove
+    , previousAction
+    , previousMove
+    , sectionIndexDiff
+    , sectionIndexDiffIsForward
     )
 
 {-| Implements Paco Ŝako Style Notation.
 
-In our first incarnation we'll not simplify the squares and instead always give full coordinates.
+All the implementation details are in rust, this is just a wrapper around it.
 
 -}
 
-import Api.Backend as Backend
-import Custom.List as List
+import Json.Decode as Decode exposing (Decoder)
 import List.Extra as List
 import Sako
 
 
-compile : Backend.Replay -> List SidebarMoveData
-compile replay =
-    breakHistoryIntoMoves replay.actions
-        |> translateActionsToNotation Sako.initialPosition
-        |> List.map condenseMoveNotation
+
+--------------------------------------------------------------------------------
+-- New Notation we get from wasm -----------------------------------------------
+--------------------------------------------------------------------------------
 
 
-{-| A notation atom roughly corresponds to a Sako.Action but carries more metadata.
--}
-type NotationAtom
-    = StartMoveSingle Sako.Type Sako.Tile
-    | StartMoveUnion Sako.Type Sako.Type Sako.Tile
-    | ContinueChain Sako.Type Sako.Tile
-    | EndMoveCalm Sako.Tile
-    | EndMoveFormUnion Sako.Type Sako.Tile
-    | Promote Sako.Type
-    | NotationError String
-
-
-{-| Data required to show a single move in the sidebar.
--}
-type alias SidebarMoveData =
+type alias HalfMove =
     { moveNumber : Int
-    , color : Sako.Color
-    , actions : List ConsensedActionKey
+    , current_player : Sako.Color
+    , actions : List HalfMoveSection
+    , metadata : HalfMoveMetadata
     }
 
 
-lastAction : List SidebarMoveData -> Int
-lastAction moves =
-    List.last moves
-        |> Maybe.map lastActionCountOf
-        |> Maybe.withDefault 0
-
-
-{-| Given a move, returns the action count of the last action in in. If the
-move is invalid (i.e. has no actions) then -42 is returned instead.
--}
-lastActionCountOf : SidebarMoveData -> Int
-lastActionCountOf data =
-    List.last data.actions
-        |> Maybe.map .actionIndex
-        |> Maybe.withDefault -42
-
-
-{-| Given a move, returns the action count of the first action in in. If the
-move is invalid (i.e. has no actions) then -42 is returned instead.
--}
-firstActionCountOf : SidebarMoveData -> Int
-firstActionCountOf data =
-    List.head data.actions
-        |> Maybe.map .actionIndex
-        |> Maybe.withDefault -42
-
-
-{-| Given a move, returns the action count right before this move.
-This is the lastActionCountOf the previous move.
--}
-lastActionCountBefore : SidebarMoveData -> Int
-lastActionCountBefore data =
-    List.head data.actions
-        |> Maybe.map (\cak -> cak.actionIndex - List.length cak.actions)
-        |> Maybe.withDefault -42
-
-
-{-| Finds the first action count that is represented by a ConsensedActionKey
-with an action index higher than the given index.
--}
-firstActionCountAfterIndex : Int -> List SidebarMoveData -> Maybe Int
-firstActionCountAfterIndex index moves =
-    List.findMap (firstActionCountAfterInternal index) moves
-
-
-firstActionCountAfterInternal : Int -> SidebarMoveData -> Maybe Int
-firstActionCountAfterInternal index move =
-    List.find (\cak -> cak.actionIndex > index) move.actions
-        |> Maybe.map .actionIndex
-
-
-lastActionCountBeforeIndex : Int -> List SidebarMoveData -> Int
-lastActionCountBeforeIndex index move =
-    List.takeWhile (\smd -> firstActionCountOf smd < index) move
-        |> List.last
-        |> Maybe.andThen
-            (\smd ->
-                List.takeWhile (\cak -> cak.actionIndex < index) smd.actions
-                    |> List.last
-                    |> Maybe.map .actionIndex
-            )
-        |> Maybe.withDefault 0
-
-
-moveContainingAction : Int -> List SidebarMoveData -> Maybe SidebarMoveData
-moveContainingAction index moves =
-    List.dropWhile (\smd -> lastActionCountOf smd < index) moves
-        |> List.head
-
-
-{-| Combines the first two actions into a single one, so the lift and the first
-place are always combined.
-
-This is more a ui think to make the replay nicer.
-
--}
-condenseMoveNotation : NotationInOneMove -> SidebarMoveData
-condenseMoveNotation move =
-    { moveNumber = move.moveNumber
-    , color = move.color
-    , actions =
-        case move.actions of
-            [] ->
-                []
-
-            [ ( i, a ) ] ->
-                [ { actionIndex = i, actions = [ a ] } ]
-
-            ( _, a ) :: ( i, b ) :: tail ->
-                { actionIndex = i, actions = [ a, b ] } :: condenseTail tail
-    }
-
-
-condenseTail : List ( Int, NotationAtom ) -> List ConsensedActionKey
-condenseTail tuples =
-    List.map (\( i, a ) -> { actionIndex = i, actions = [ a ] }) tuples
-
-
-{-| This is one action (or two) referenced by their action index in the game
-history together with the NotationAtom(s) that shoud be shown together.
--}
-type alias ConsensedActionKey =
+type alias HalfMoveSection =
     { actionIndex : Int
-    , actions : List NotationAtom
+    , label : String
     }
 
 
-{-| Tracks the list of actions broken down into moves.
--}
-type alias ActionsInOneMove =
-    { moveNumber : Int
-    , color : Sako.Color
-    , actions : List ( Int, Sako.Action )
+type alias HalfMoveMetadata =
+    { givesSako : Bool
+    , missedPaco : Bool
     }
 
 
-{-| Tracks the list of actions broken down into moves.
+decodeHalfMove : Decoder HalfMove
+decodeHalfMove =
+    Decode.map4 HalfMove
+        (Decode.field "move_number" Decode.int)
+        (Decode.field "current_player" Sako.decodeColor)
+        (Decode.field "actions" (Decode.list decodeHalfMoveSection))
+        (Decode.field "metadata" decodeHalfMoveMetadata)
+
+
+decodeHalfMoveSection : Decoder HalfMoveSection
+decodeHalfMoveSection =
+    Decode.map2 HalfMoveSection
+        (Decode.field "action_index" Decode.int)
+        (Decode.field "label" Decode.string)
+
+
+decodeHalfMoveMetadata : Decoder HalfMoveMetadata
+decodeHalfMoveMetadata =
+    Decode.map2
+        HalfMoveMetadata
+        (Decode.field "gives_sako" Decode.bool)
+        (Decode.field "missed_paco" Decode.bool)
+
+
+{-| Since a section is what you highlight in the replay view, we also want to
+store this information in a structured way.
 -}
-type alias NotationInOneMove =
-    { moveNumber : Int
-    , color : Sako.Color
-    , actions : List ( Int, NotationAtom )
+type alias SectionIndex =
+    { halfMoveIndex : Int
+    , sectionIndex : Int
     }
 
 
-{-| Cuts the actions into moves and attaches some metadata while doing it.
-Each move starts with a Lift action so this is how we recognize them.
+{-| Calculate the pointwise difference between two SectionIndex values.
 -}
-breakHistoryIntoMoves : List ( Sako.Action, a ) -> List ActionsInOneMove
-breakHistoryIntoMoves history =
-    history
-        |> List.indexedMap (\i ( action, _ ) -> ( i + 1, action ))
-        |> List.breakAt (\( _, action ) -> Sako.isLiftAction action)
-        |> List.indexedMap
-            (\i actions ->
-                { moveNumber = i // 2 + 1
-                , color =
-                    if modBy 2 i == 0 then
-                        Sako.White
-
-                    else
-                        Sako.Black
-                , actions = actions
-                }
-            )
+sectionIndexDiff : SectionIndex -> SectionIndex -> SectionIndex
+sectionIndexDiff a b =
+    { halfMoveIndex = a.halfMoveIndex - b.halfMoveIndex
+    , sectionIndex = a.sectionIndex - b.sectionIndex
+    }
 
 
-translateActionsToNotation : Sako.Position -> List ActionsInOneMove -> List NotationInOneMove
-translateActionsToNotation position moves =
-    List.mapAccuml applyOneMove position moves |> Tuple.second
-
-
-{-| Takes a position and applies one move. While doing this, the notation for
-this move is derived and returned.
-
-You can just think of this as a state monad with Sako.Position as state.
-
+{-| To be used in conjunction with sectionIndexDiff. Indicates if the resulting
+difference is pointing forward in time.
 -}
-applyOneMove : Sako.Position -> ActionsInOneMove -> ( Sako.Position, NotationInOneMove )
-applyOneMove position move =
+sectionIndexDiffIsForward : SectionIndex -> Bool
+sectionIndexDiffIsForward diff =
+    diff.halfMoveIndex > 0 || (diff.halfMoveIndex == 0 && diff.sectionIndex > 0)
+
+
+{-| References the position before the move history, this is the initial board state.
+-}
+initialSectionIndex : SectionIndex
+initialSectionIndex =
+    { halfMoveIndex = -1
+    , sectionIndex = 0
+    }
+
+
+lastSectionIndexOfHalfMove : Int -> HalfMove -> SectionIndex
+lastSectionIndexOfHalfMove halfMoveIndex halfMove =
+    { halfMoveIndex = halfMoveIndex
+    , sectionIndex = List.length halfMove.actions - 1
+    }
+
+
+actionIndexForSectionIndex : List HalfMove -> SectionIndex -> Int
+actionIndexForSectionIndex halfMoves { halfMoveIndex, sectionIndex } =
+    if halfMoveIndex < 0 then
+        0
+
+    else
+        halfMoves
+            |> List.drop halfMoveIndex
+            |> List.head
+            |> Maybe.map .actions
+            |> Maybe.map (List.drop sectionIndex)
+            |> Maybe.andThen List.head
+            |> Maybe.map .actionIndex
+            |> Maybe.withDefault 0
+
+
+{-| This goes forward one action.
+-}
+nextAction : List HalfMove -> SectionIndex -> SectionIndex
+nextAction ctx index =
     let
-        ( nextPosition, actions ) =
-            List.mapAccuml (applyOneAction move.color) position move.actions
+        currentHalfMoveLength =
+            ctx
+                |> List.drop index.halfMoveIndex
+                |> List.head
+                |> Maybe.map .actions
+                |> Maybe.map List.length
+                |> Maybe.withDefault 0
     in
-    ( nextPosition
-    , { moveNumber = move.moveNumber
-      , color = move.color
-      , actions = actions
-      }
-    )
+    if index.sectionIndex + 1 < currentHalfMoveLength then
+        { index | sectionIndex = index.sectionIndex + 1 }
+
+    else if index.halfMoveIndex + 1 < List.length ctx then
+        { halfMoveIndex = index.halfMoveIndex + 1, sectionIndex = 0 }
+
+    else
+        index
 
 
-applyOneAction : Sako.Color -> Sako.Position -> ( Int, Sako.Action ) -> ( Sako.Position, ( Int, NotationAtom ) )
-applyOneAction color position ( i, action ) =
+{-| This goes back one action.
+-}
+previousAction : List HalfMove -> SectionIndex -> SectionIndex
+previousAction ctx index =
+    if index.sectionIndex > 0 then
+        { index | sectionIndex = index.sectionIndex - 1 }
+
+    else
+        previousMove ctx index
+
+
+lastAction : List HalfMove -> Int
+lastAction ctx =
+    List.last ctx
+        |> Maybe.andThen (\hm -> List.last hm.actions)
+        |> Maybe.map .actionIndex
+        |> Maybe.withDefault 0
+
+
+lastSectionIndex : List HalfMove -> SectionIndex
+lastSectionIndex ctx =
+    { halfMoveIndex = List.length ctx - 1
+    , sectionIndex =
+        List.last ctx
+            |> Maybe.map lastSectionOf
+            |> Maybe.withDefault 0
+    }
+
+
+{-| This jumps to the end of the next HalfMove.
+-}
+nextMove : List HalfMove -> SectionIndex -> SectionIndex
+nextMove ctx index =
     let
-        nextPosition =
-            Sako.doAction action position |> Maybe.withDefault position
+        newHalfMoveIndex =
+            min (List.length ctx - 1) (index.halfMoveIndex + 1)
+
+        newSectionIndex =
+            ctx
+                |> List.drop newHalfMoveIndex
+                |> List.head
+                |> Maybe.map lastSectionOf
+                |> Maybe.withDefault 0
     in
-    case action of
-        Sako.Lift tile ->
-            case Sako.getPiecesAt position tile |> orderFor color of
-                [ piece ] ->
-                    ( nextPosition
-                    , ( i, StartMoveSingle piece.pieceType tile )
-                    )
-
-                [ pieceA, pieceB ] ->
-                    ( nextPosition
-                    , ( i, StartMoveUnion pieceA.pieceType pieceB.pieceType tile )
-                    )
-
-                [] ->
-                    ( nextPosition, ( i, NotationError "applyOneAction: Lift: no piece" ) )
-
-                _ ->
-                    ( nextPosition, ( i, NotationError "applyOneAction: Lift: too many pieces" ) )
-
-        Sako.Place tile ->
-            ( nextPosition
-            , ( i
-              , case Sako.getPiecesAt position tile of
-                    [] ->
-                        EndMoveCalm tile
-
-                    [ piece ] ->
-                        EndMoveFormUnion piece.pieceType tile
-
-                    [ pieceA, pieceB ] ->
-                        if pieceA.color == color then
-                            ContinueChain pieceA.pieceType tile
-
-                        else
-                            ContinueChain pieceB.pieceType tile
-
-                    _ ->
-                        NotationError "applyOneAction: Place: too many pieces"
-              )
-            )
-
-        Sako.Promote type_ ->
-            ( nextPosition
-            , ( i, Promote type_ )
-            )
+    { halfMoveIndex = newHalfMoveIndex, sectionIndex = newSectionIndex }
 
 
-orderFor : Sako.Color -> List Sako.Piece -> List Sako.Piece
-orderFor color entries =
+{-| This jumps to the end of the previous HalfMove.
+-}
+previousMove : List HalfMove -> SectionIndex -> SectionIndex
+previousMove ctx index =
     let
-        whitePieces =
-            List.filter (Sako.isColor Sako.White) entries
-
-        blackPieces =
-            List.filter (Sako.isColor Sako.Black) entries
+        newHalfMoveIndex =
+            max -1 (index.halfMoveIndex - 1)
     in
-    case color of
-        Sako.White ->
-            whitePieces ++ blackPieces
-
-        Sako.Black ->
-            blackPieces ++ whitePieces
+    { halfMoveIndex = newHalfMoveIndex
+    , sectionIndex =
+        ctx |> List.drop newHalfMoveIndex |> List.head |> Maybe.map lastSectionOf |> Maybe.withDefault 0
+    }
 
 
-{-| Takes all the Notation Atoms, renders them separately and then concatenates them.
--}
-writeOut : List NotationAtom -> String
-writeOut steps =
-    List.map renderAtom steps
-        |> String.concat
-
-
-{-| Turn a list of Atoms into a String.
--}
-renderAtom : NotationAtom -> String
-renderAtom atom =
-    case atom of
-        StartMoveSingle type_ tile ->
-            letter type_ ++ Sako.tileToIdentifier tile
-
-        StartMoveUnion typeA typeB tile ->
-            forceLetter typeA ++ forceLetter typeB ++ Sako.tileToIdentifier tile
-
-        ContinueChain type_ tile ->
-            ">" ++ forceLetter type_ ++ Sako.tileToIdentifier tile
-
-        EndMoveCalm tile ->
-            ">" ++ Sako.tileToIdentifier tile
-
-        EndMoveFormUnion type_ tile ->
-            "x" ++ letter type_ ++ Sako.tileToIdentifier tile
-
-        NotationError _ ->
-            "!"
-
-        Promote type_ ->
-            "=" ++ letter type_
-
-
-{-| Turns a piece type into a letter, where Pawn is left out.
--}
-letter : Sako.Type -> String
-letter type_ =
-    case type_ of
-        Sako.Pawn ->
-            ""
-
-        Sako.Knight ->
-            "N"
-
-        Sako.Bishop ->
-            "B"
-
-        Sako.Rook ->
-            "R"
-
-        Sako.Queen ->
-            "Q"
-
-        Sako.King ->
-            "K"
-
-
-{-| Turns a piece type into a letter, where Pawn is printed as "P".
-I'm calling it "force" because it feels like the "-f" variant of letter.
--}
-forceLetter : Sako.Type -> String
-forceLetter type_ =
-    case type_ of
-        Sako.Pawn ->
-            "P"
-
-        _ ->
-            letter type_
+lastSectionOf : HalfMove -> Int
+lastSectionOf halfMove =
+    halfMove.actions
+        |> List.length
+        |> (\i -> i - 1)

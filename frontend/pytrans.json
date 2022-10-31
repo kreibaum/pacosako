@@ -32,7 +32,7 @@
         "compile": [
             "pytrans.py {name}",
             "elm make src/Main.elm --optimize --output=../target/elm.{locale}.js",
-            "uglifyjs ../target/elm.{locale}.js -o ../target/elm.{locale}.min.js --mangle --compress"
+            "terser ../target/elm.{locale}.js -o ../target/elm.{locale}.min.js --mangle --compress"
         ]
     }
 }

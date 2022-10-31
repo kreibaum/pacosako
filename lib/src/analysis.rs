@@ -31,7 +31,7 @@ pub struct HalfMoveMetadata {
 }
 
 /// A notation atom roughly corresponds to a Sako.Action but carries more metadata.
-/// TODO: Add castling atoms.
+#[derive(Debug)]
 enum NotationAtom {
     StartMoveSinge {
         mover: PieceType,
@@ -64,6 +64,13 @@ impl NotationAtom {
             NotationAtom::ContinueChain { .. } => true,
             NotationAtom::EndMoveCalm { .. } => true,
             NotationAtom::EndMoveFormUnion { .. } => true,
+            _ => false,
+        }
+    }
+    fn is_lift(&self) -> bool {
+        match self {
+            NotationAtom::StartMoveSinge { .. } => true,
+            NotationAtom::StartMoveUnion { .. } => true,
             _ => false,
         }
     }
@@ -166,14 +173,51 @@ fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<
     let mut result: Vec<HalfMoveSection> = Vec::new();
 
     let mut already_squashed = false;
+    // Stores the king's original position to detect castling.
+    let mut potentially_castling = None;
 
-    for (i, atom) in atoms.iter().enumerate() {
+    'atom_loop: for (i, atom) in atoms.iter().enumerate() {
+        if let NotationAtom::StartMoveSinge {
+            mover: PieceType::King,
+            at,
+        } = atom
+        {
+            potentially_castling = Some(*at);
+        }
+
+        if potentially_castling.is_some() && atom.is_place() {
+            if let NotationAtom::EndMoveCalm { at } = atom {
+                // This can never happen when the result is empty, so we can unwrap.
+                let last = result.last_mut().unwrap();
+
+                let from = potentially_castling.unwrap().0 as i8;
+                let to = at.0 as i8;
+                if to - from == 2 {
+                    last.label = "0-0".to_string();
+                    last.action_index = i + initial_index + 1;
+                    already_squashed = true;
+                    continue 'atom_loop;
+                }
+                if to - from == -2 {
+                    last.label = "0-0-0".to_string();
+                    last.action_index = i + initial_index + 1;
+                    already_squashed = true;
+                    continue 'atom_loop;
+                }
+            }
+            // Otherwise, we just continue, this is a regular King movement.
+        }
         if !already_squashed && atom.is_place() {
             // This can never happen when the result is empty, so we can unwrap.
             let last = result.last_mut().unwrap();
             last.label.push_str(&atom.to_string());
-            already_squashed = true;
             last.action_index = i + initial_index + 1;
+            already_squashed = true;
+        } else if atom.is_lift() && i >= 1 {
+            result.push(HalfMoveSection {
+                action_index: i + initial_index + 1,
+                label: format!(":{}", atom.to_string()),
+            });
         } else {
             result.push(HalfMoveSection {
                 action_index: i + initial_index + 1,
@@ -193,7 +237,7 @@ pub fn history_to_replay_notation(
 
     let mut initial_index = 0;
     let mut move_count = 1;
-    let mut current_player = PlayerColor::White;
+    let mut current_player = initial_board.controlling_player();
 
     let mut current_half_move = HalfMove {
         move_number: move_count,
@@ -245,7 +289,7 @@ pub fn history_to_replay_notation(
 // Test module
 #[cfg(test)]
 mod tests {
-    use crate::BoardPosition;
+    use crate::fen;
 
     use super::*;
 
@@ -361,7 +405,139 @@ mod tests {
         );
     }
 
-    // TODO: Unit test where we start the move with a promotion.
+    #[test]
+    fn start_move_with_promotion() {
+        let setup = "rnbqkbn1/pppppp2/5p2/5p2/8/8/PPPPPPPC/RNBQKBNR b 0 AHah - -";
+        let initial_board = fen::parse_fen(setup).unwrap();
+
+        let notation = history_to_replay_notation(
+            initial_board,
+            &[
+                PacoAction::Lift("h2".try_into().unwrap()),
+                PacoAction::Place("h8".try_into().unwrap()),
+                PacoAction::Promote(PieceType::Knight),
+                PacoAction::Lift("h1".try_into().unwrap()),
+                PacoAction::Place("h8".try_into().unwrap()),
+                PacoAction::Place("g6".try_into().unwrap()),
+            ],
+        )
+        .expect("Error in input data");
+
+        assert_eq!(
+            notation,
+            vec![
+                HalfMove {
+                    move_number: 1,
+                    current_player: PlayerColor::Black,
+                    actions: vec![HalfMoveSection {
+                        action_index: 2,
+                        label: "RPh2>h8".to_string(),
+                    },],
+                    metadata: HalfMoveMetadata {
+                        gives_sako: false,
+                        missed_paco: false,
+                    }
+                },
+                HalfMove {
+                    move_number: 2,
+                    current_player: PlayerColor::White,
+                    actions: vec![
+                        HalfMoveSection {
+                            action_index: 3,
+                            label: "=N".to_string(),
+                        },
+                        HalfMoveSection {
+                            action_index: 5,
+                            label: ":Rh1>Nh8".to_string(),
+                        },
+                        HalfMoveSection {
+                            action_index: 6,
+                            label: ">g6".to_string(),
+                        },
+                    ],
+                    metadata: HalfMoveMetadata {
+                        gives_sako: false,
+                        missed_paco: false,
+                    }
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn test_castling_notation() {
+        let setup = "r3kbnr/ppp2ppp/2n5/1B1pp3/1PP1P1bq/5N2/P2P1PPP/RNBQK2R w 0 AHah - -";
+        let initial_board = fen::parse_fen(setup).unwrap();
+
+        let notation = history_to_replay_notation(
+            initial_board,
+            &[
+                PacoAction::Lift("e1".try_into().unwrap()),
+                PacoAction::Place("g1".try_into().unwrap()),
+                PacoAction::Lift("e8".try_into().unwrap()),
+                PacoAction::Place("c8".try_into().unwrap()),
+                PacoAction::Lift("g1".try_into().unwrap()),
+                PacoAction::Place("h1".try_into().unwrap()),
+                PacoAction::Lift("c8".try_into().unwrap()),
+                PacoAction::Place("d7".try_into().unwrap()),
+            ],
+        )
+        .expect("Error in input data");
+
+        assert_eq!(
+            notation,
+            vec![
+                HalfMove {
+                    move_number: 1,
+                    current_player: PlayerColor::White,
+                    actions: vec![HalfMoveSection {
+                        action_index: 2,
+                        label: "0-0".to_string(),
+                    },],
+                    metadata: HalfMoveMetadata {
+                        gives_sako: false,
+                        missed_paco: false,
+                    }
+                },
+                HalfMove {
+                    move_number: 1,
+                    current_player: PlayerColor::Black,
+                    actions: vec![HalfMoveSection {
+                        action_index: 4,
+                        label: "0-0-0".to_string(),
+                    },],
+                    metadata: HalfMoveMetadata {
+                        gives_sako: false,
+                        missed_paco: false,
+                    }
+                },
+                HalfMove {
+                    move_number: 2,
+                    current_player: PlayerColor::White,
+                    actions: vec![HalfMoveSection {
+                        action_index: 6,
+                        label: "Kg1>h1".to_string(),
+                    },],
+                    metadata: HalfMoveMetadata {
+                        gives_sako: false,
+                        missed_paco: false,
+                    }
+                },
+                HalfMove {
+                    move_number: 2,
+                    current_player: PlayerColor::Black,
+                    actions: vec![HalfMoveSection {
+                        action_index: 8,
+                        label: "Kc8>d7".to_string(),
+                    },],
+                    metadata: HalfMoveMetadata {
+                        gives_sako: false,
+                        missed_paco: false,
+                    }
+                },
+            ]
+        );
+    }
 
     // TODO: Add an integration test were we test all games that were ever played.
 }

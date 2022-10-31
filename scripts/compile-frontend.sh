@@ -21,4 +21,5 @@ cd ..
 # Typescript
 tsc
 
-uglifyjs ./target/main.js -o ./target/main.min.js --mangle --compress
+terser ./target/main.js -o ./target/main.min.js --mangle --compress
+terser ./target/lib_worker.js -o ./target/lib_worker.min.js --mangle --compress

@@ -1,7 +1,6 @@
 module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
-import Api.Ai
 import Api.Decoders exposing (CurrentMatchState, getActionList)
 import Api.Ports as Ports
 import Api.Websocket
@@ -150,9 +149,6 @@ type Msg
     | ClearDecoTiles
     | ClearDecoArrows
     | ClearDecoComplete
-    | MoveFromAi Sako.Action
-    | RequestAiMove
-    | AiCrashed
     | SetRotation BoardRotation
     | WebsocketMsg Api.Websocket.ServerMessage
     | WebsocketErrorMsg Decode.Error
@@ -217,15 +213,6 @@ update msg model =
 
         ClearDecoComplete ->
             ( { model | castingDeco = CastingDeco.initModel }, Effect.none )
-
-        MoveFromAi action ->
-            updateActionInputStep action model
-
-        RequestAiMove ->
-            ( model, Api.Ai.requestMoveFromAi |> Effect.fromCmd )
-
-        AiCrashed ->
-            ( model, Ports.logToConsole "Ai Crashed" |> Effect.fromCmd )
 
         SetRotation rotation ->
             ( setRotation rotation model, Effect.none )
@@ -650,7 +637,6 @@ subscriptions model =
         [ Animation.subscription model.timeline AnimationTick
         , Api.Websocket.listen WebsocketMsg WebsocketErrorMsg
         , Api.Websocket.listenToStatus WebsocketStatusChange
-        , Api.Ai.subscribeMoveFromAi AiCrashed MoveFromAi
         , Custom.Events.onKeyUp keybindings
         , Browser.Events.onResize (\_ y -> SetWindowHeight y)
         , Ports.scrollTrigger (\_ -> FetchHeaderSize)

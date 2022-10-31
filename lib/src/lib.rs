@@ -62,6 +62,12 @@ pub enum PacoError {
     PromotingWhenNotAllowed(RequiredAction),
 }
 
+impl From<serde_json::Error> for PacoError {
+    fn from(_: serde_json::Error) -> Self {
+        Self::InputJsonMalformed
+    }
+}
+
 /// Possible states a board of Paco Ŝako can be in. The pacosako library only
 /// implements automatic transition to PacoVictory in case of a Paco Ŝako for
 /// either player.

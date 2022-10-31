@@ -52,6 +52,7 @@ async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguag
             lang: lang.0,
             elm_hash: caching::hash_file(elm_filename, config.cache_js_hashes),
             main_hash: caching::hash_file(main_filename, config.cache_js_hashes),
+            lib_worker_hash:  caching::hash_file("../target/lib_worker.min.js", config.cache_js_hashes),
             wasm_js_hash: caching::hash_file("../target/lib.min.js", config.cache_js_hashes),
             wasm_hash: caching::hash_file("../target/lib.wasm", config.cache_js_hashes),
         },
@@ -558,7 +559,7 @@ fn rocket() -> _ {
                 assets::bg,
                 assets::place_piece,
                 assets::main_js_cached,
-                assets::ai_worker,
+                assets::lib_worker,
                 assets::lib_js,
                 assets::lib_wasm
             ],

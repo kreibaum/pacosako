@@ -82,9 +82,13 @@ pub async fn main_js_cached(
     })
 }
 
-#[get("/ai_worker.js")]
-pub async fn ai_worker() -> Result<NamedFile, ServerError> {
-    static_file("../target/ai_worker.js").await
+#[allow(unused_variables)]
+#[get("/cache/lib_worker.js?<hash>")]
+pub async fn lib_worker(hash: &str) -> Result<CacheResponse<NamedFile>, ServerError> {
+    Ok(CacheResponse::Private {
+        responder: static_file("../target/lib_worker.js").await?,
+        max_age: 356 * 24 * 3600,
+    })
 }
 
 ////////////////////////////////////////////////////////////////////////////////

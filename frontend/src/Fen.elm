@@ -1,4 +1,4 @@
-module Fen exposing (parseFen, urlDecode, urlEncode, writeFen)
+module Fen exposing (initialBoardFen, parseFen, urlDecode, urlEncode, writeFen)
 
 {-| This module implements an extension of X-Fen that can represent settled Paco
 Ŝako boards (i.e. boards without an active chain) together with most state.
@@ -25,6 +25,11 @@ by the vchess page otherwise - even though we don't implement the ko rule.
 
 import List.Extra as List
 import Sako exposing (Color(..), Piece, Tile(..), Type(..))
+
+
+initialBoardFen : String
+initialBoardFen =
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 0 AHah - -"
 
 
 

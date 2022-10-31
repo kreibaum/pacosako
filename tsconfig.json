@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "target": "es5",
+        "target": "es2019",
         "lib": [
             "es2019",
             "dom"
@@ -9,6 +9,6 @@
     },
     "files": [
         "frontend/static/main.ts",
-        "frontend/static/ai_worker.ts"
+        "frontend/static/lib_worker.ts"
     ],
 }

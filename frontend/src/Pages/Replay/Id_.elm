@@ -1,11 +1,18 @@
 module Pages.Replay.Id_ exposing (Model, Msg, Params, page)
 
 {-| Watch replays of games that were played in /game/{id}
+
+A lot of the messages can only work, once we have a replay loaded in.
+This is why this page is written as two nested elm architectures, where
+the outer one is responsible for loading the replay and the inner one
+is responsible for displaying it / interacting with it.
+
 -}
 
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.Ports
+import Api.Wasm as Wasm
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Colors
@@ -14,12 +21,13 @@ import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Custom.List as List
 import Effect exposing (Effect)
-import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingEach, paddingXY, px, scrollbarY, spacing, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingXY, px, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Element.Region
+import Fen
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
@@ -31,7 +39,6 @@ import Page
 import Pages.NotFound
 import PositionView exposing (OpaqueRenderData)
 import Reactive
-import RemoteData exposing (WebData)
 import Request
 import Sako exposing (Color(..))
 import Shared
@@ -61,34 +68,62 @@ type alias Params =
 
 
 type alias Model =
-    { replay : WebData Replay
-    , sidebarData : List Notation.SidebarMoveData
+    { replay : DataLoadingWrapper
+    , actionHistory : List Sako.Action
     , key : String
     , navigationKey : Browser.Navigation.Key
-    , actionCount : Int
-    , timeline : Timeline OpaqueRenderData
     , now : Posix
+    }
+
+
+type alias InnerModel =
+    { key : String
+    , navigationKey : Browser.Navigation.Key
+    , actionHistory : List Sako.Action
+    , sidebarData : List Notation.HalfMove
+    , selected : Notation.SectionIndex
+    , timeline : Timeline OpaqueRenderData
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
     , showMovementIndicators : Bool
     }
 
 
+type DataLoadingWrapper
+    = DownloadingReplayData
+    | DownloadingReplayDataFailed Http.Error
+    | ProcessingReplayData
+    | Done InnerModel
+
+
 init : Shared.Model -> Params -> ( Model, Effect Msg )
 init shared params =
-    ( { replay = RemoteData.Loading
-      , sidebarData = []
+    ( { replay = DownloadingReplayData
+      , actionHistory = []
       , key = params.id
       , navigationKey = shared.key
-      , actionCount = 0
-      , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
       , now = Time.millisToPosix 0
-      , castingDeco = CastingDeco.initModel
-      , inputMode = Nothing
-      , showMovementIndicators = True
       }
-    , Api.Backend.getReplay params.id HttpErrorReplay GotReplay |> Effect.fromCmd
+    , Cmd.batch
+        [ Api.Backend.getReplay params.id HttpErrorReplay GotReplay ]
+        |> Effect.fromCmd
     )
+
+
+{-| Init method that is called once the replay has been processed.
+-}
+innerInit : Model -> List Notation.HalfMove -> InnerModel
+innerInit model sidebarData =
+    { key = model.key
+    , navigationKey = model.navigationKey
+    , actionHistory = model.actionHistory
+    , sidebarData = sidebarData
+    , selected = Notation.initialSectionIndex
+    , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
+    , castingDeco = CastingDeco.initModel
+    , inputMode = Nothing
+    , showMovementIndicators = True
+    }
 
 
 
@@ -98,8 +133,13 @@ init shared params =
 type Msg
     = GotReplay Replay
     | HttpErrorReplay Http.Error
-    | GoToActionCount Int
-    | SetInputMode (Maybe CastingDeco.InputMode)
+    | WasmResponse Wasm.RpcResponse
+    | ToShared Shared.Msg
+    | GotInnerMsg InnerMsg
+
+
+type InnerMsg
+    = SetInputMode (Maybe CastingDeco.InputMode)
     | ClearDecoTiles
     | ClearDecoArrows
     | ClearDecoComplete
@@ -111,13 +151,13 @@ type Msg
     | PreviousAction
     | NextMove
     | PreviousMove
+    | GoToSelection Notation.SectionIndex
     | PlayAll
     | EnableMovementIndicators
     | AnimationTick Posix
     | RematchFromActionIndex String Int
     | HttpErrorBranch Http.Error
     | GotBranchKey String
-    | ToShared Shared.Msg
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -125,18 +165,47 @@ update msg model =
     case msg of
         GotReplay replay ->
             ( { model
-                | replay = RemoteData.Success replay
-                , sidebarData = Notation.compile replay
+                | replay = ProcessingReplayData
+                , actionHistory = removeTimestamps replay.actions
               }
-            , Effect.none
+            , Wasm.rpcCall (stripDownReplay replay)
+                |> Effect.fromCmd
             )
 
+        WasmResponse response ->
+            case response of
+                Wasm.HistoryToReplayNotationResponse notation ->
+                    ( { model
+                        | replay = Done (innerInit model notation)
+                      }
+                    , Effect.none
+                    )
+
+                _ ->
+                    ( model, Effect.none )
+
         HttpErrorReplay error ->
-            ( { model | replay = RemoteData.Failure error }, Effect.none )
+            ( { model | replay = DownloadingReplayDataFailed error }, Effect.none )
 
-        GoToActionCount actionCount ->
-            ( setAndAnimateActionCount actionCount model, Effect.none )
+        ToShared outMsg ->
+            ( model, Effect.fromShared outMsg )
 
+        GotInnerMsg innerMsg ->
+            case model.replay of
+                Done innerModel ->
+                    let
+                        ( newInnerModel, innerEffect ) =
+                            innerUpdate innerMsg innerModel
+                    in
+                    ( { model | replay = Done newInnerModel }, innerEffect |> Effect.map GotInnerMsg )
+
+                _ ->
+                    ( model, Effect.none )
+
+
+innerUpdate : InnerMsg -> InnerModel -> ( InnerModel, Effect InnerMsg )
+innerUpdate msg model =
+    case msg of
         SetInputMode inputMode ->
             ( { model | inputMode = inputMode }, Effect.none )
 
@@ -162,21 +231,24 @@ update msg model =
             ( model, Api.Ports.copy text |> Effect.fromCmd )
 
         NextAction ->
-            ( setAndAnimateActionCount (nextAction model) model, Effect.none )
+            ( setAndAnimateActionCount (Notation.nextAction model.sidebarData model.selected) model, Effect.none )
 
         PreviousAction ->
-            ( setAndAnimateActionCount (previousAction model) model, Effect.none )
+            ( setAndAnimateActionCount (Notation.previousAction model.sidebarData model.selected) model, Effect.none )
 
         NextMove ->
-            ( setAndAnimateActionCount (nextMove model) model, Effect.none )
+            ( setAndAnimateActionCount (Notation.nextMove model.sidebarData model.selected) model, Effect.none )
 
         PreviousMove ->
-            ( setAndAnimateActionCount (previousMove model) model, Effect.none )
+            ( setAndAnimateActionCount (Notation.previousMove model.sidebarData model.selected) model, Effect.none )
+
+        GoToSelection newSelection ->
+            ( setAndAnimateActionCount newSelection model, Effect.none )
 
         PlayAll ->
             ( { model | showMovementIndicators = False }
-                |> setAndAnimateActionCount 0
-                |> animateStepByStep (Notation.lastAction model.sidebarData)
+                |> setAndAnimateActionCount Notation.initialSectionIndex
+                |> animateStepByStep (Notation.lastSectionIndex model.sidebarData)
             , Effect.none
             )
 
@@ -195,8 +267,20 @@ update msg model =
         GotBranchKey newKey ->
             ( model, pushUrl model.navigationKey (Route.toHref (Route.Game__Id_ { id = newKey })) |> Effect.fromCmd )
 
-        ToShared outMsg ->
-            ( model, Effect.fromShared outMsg )
+
+{-| Remove all the timestamps from the replay and turn it into an RpcCall.
+-}
+stripDownReplay : Replay -> Wasm.RpcCall
+stripDownReplay replay =
+    Wasm.HistoryToReplayNotation
+        { board_fen = Fen.initialBoardFen
+        , action_history = removeTimestamps replay.actions
+        }
+
+
+removeTimestamps : List ( Sako.Action, Posix ) -> List Sako.Action
+removeTimestamps actions =
+    List.map Tuple.first actions
 
 
 {-| Sets the action count to the given value and decides how to animate this.
@@ -210,104 +294,57 @@ Note that we can't just put in this information from the place where we are
 calling, because you can jump to any move at any time.
 
 -}
-setAndAnimateActionCount : Int -> Model -> Model
-setAndAnimateActionCount actionCount model =
+setAndAnimateActionCount : Notation.SectionIndex -> InnerModel -> InnerModel
+setAndAnimateActionCount newSelection model =
     let
-        currentMoveNumber =
-            Notation.moveContainingAction model.actionCount model.sidebarData
-                |> Maybe.map .moveNumber
-                |> Maybe.withDefault -42
-
-        targetMoveNumber =
-            Notation.moveContainingAction actionCount model.sidebarData
-                |> Maybe.map .moveNumber
-                |> Maybe.withDefault -1337
+        difference =
+            Notation.sectionIndexDiff newSelection model.selected
     in
-    if actionCount < model.actionCount then
-        -- we jumped backwards
-        animateDirect { model | actionCount = actionCount }
+    if newSelection == model.selected then
+        model
 
-    else if currentMoveNumber + 1 < targetMoveNumber then
+    else if not (Notation.sectionIndexDiffIsForward difference) then
+        -- we jumped backwards
+        animateDirect { model | selected = newSelection }
+
+    else if difference.halfMoveIndex > 1 then
         -- This would jump too far ahead.
-        animateDirect { model | actionCount = actionCount }
+        animateDirect { model | selected = newSelection }
 
     else
-        animateStepByStep actionCount model
+        animateStepByStep newSelection model
 
 
 {-| Tail recursive animation function that steps the timeline forward step by step.
 -}
-animateStepByStep : Int -> Model -> Model
-animateStepByStep actionCount model =
-    if model.actionCount >= actionCount then
-        model
+animateStepByStep : Notation.SectionIndex -> InnerModel -> InnerModel
+animateStepByStep newSelection model =
+    if Notation.sectionIndexDiff newSelection model.selected |> Notation.sectionIndexDiffIsForward then
+        animateDirect { model | selected = Notation.nextAction model.sidebarData model.selected }
+            |> (\m -> { m | timeline = Animation.pause chainPauseTime m.timeline })
+            |> animateStepByStep newSelection
 
     else
-        animateDirect { model | actionCount = nextAction model }
-            |> (\m -> { m | timeline = Animation.pause chainPauseTime m.timeline })
-            |> animateStepByStep actionCount
-
-
-{-| Just increases the actionCount by one and makes sure not to go above the
-limit.
--}
-nextAction : Model -> Int
-nextAction model =
-    Notation.firstActionCountAfterIndex model.actionCount model.sidebarData
-        |> Maybe.withDefault model.actionCount
-
-
-{-| Just decreases the actionCount by one and makes sure it does not go below
-zero.
--}
-previousAction : Model -> Int
-previousAction model =
-    Notation.lastActionCountBeforeIndex model.actionCount model.sidebarData
-
-
-{-| Finds the first move that is not already completely shown by the current
-actionCount and then goes to the last action of this move.
--}
-nextMove : Model -> Int
-nextMove model =
-    let
-        actionCount =
-            model.sidebarData
-                |> List.find (\move -> Notation.lastActionCountOf move > model.actionCount)
-                |> Maybe.map Notation.lastActionCountOf
-                |> Maybe.withDefault model.actionCount
-    in
-    actionCount
-
-
-{-| Finds the first move that is not already partially shown by the current
-actionCount and then goes to the last action of this move.
-If the first move is already partially shown, then this goes back to the start
-which is actionCount 0.
--}
-previousMove : Model -> Int
-previousMove model =
-    let
-        actionCount =
-            model.sidebarData
-                |> List.find (\move -> Notation.lastActionCountOf move >= model.actionCount)
-                |> Maybe.map (\move -> Notation.lastActionCountBefore move)
-                |> Maybe.withDefault 0
-    in
-    actionCount
+        model
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ Custom.Events.onKeyUp keybindings
-        , Animation.subscription model.timeline AnimationTick
+        [ Custom.Events.onKeyUp keybindings |> Sub.map GotInnerMsg
+        , case model.replay of
+            Done innerModel ->
+                Animation.subscription innerModel.timeline AnimationTick |> Sub.map GotInnerMsg
+
+            _ ->
+                Sub.none
+        , Wasm.rpcRespone WasmResponse
         ]
 
 
 {-| The central pace to register all page wide shortcuts.
 -}
-keybindings : List (KeyBinding Msg)
+keybindings : List (KeyBinding InnerMsg)
 keybindings =
     [ forKey "1" |> fireMsg (SetInputMode Nothing)
     , forKey "2" |> fireMsg (SetInputMode (Just CastingDeco.InputTiles))
@@ -353,42 +390,44 @@ bg =
 body : Shared.Model -> Model -> Element Msg
 body shared model =
     case model.replay of
-        RemoteData.NotAsked ->
-            Pages.NotFound.body
-
-        RemoteData.Loading ->
+        DownloadingReplayData ->
             Element.text T.loadingReplayData
 
-        RemoteData.Failure _ ->
+        DownloadingReplayDataFailed _ ->
             Pages.NotFound.body
 
-        RemoteData.Success replay ->
-            successBody shared model replay
+        ProcessingReplayData ->
+            Element.text T.loadingReplayData
+
+        -- TODO: ProcessingReplayData
+        Done innerModel ->
+            successBody shared innerModel
+                |> Element.map GotInnerMsg
 
 
-successBody : Shared.Model -> Model -> Replay -> Element Msg
-successBody shared model replay =
+successBody : Shared.Model -> InnerModel -> Element InnerMsg
+successBody shared model =
     case Reactive.classify shared.windowSize of
         Reactive.Phone ->
-            successBodyPhone shared model replay
+            successBodyPhone shared model
 
         Reactive.Tablet ->
-            successBodyDesktop shared model replay
+            successBodyDesktop shared model
 
         Reactive.Desktop ->
-            successBodyDesktop shared model replay
+            successBodyDesktop shared model
 
 
-successBodyPhone : Shared.Model -> Model -> Replay -> Element Msg
-successBodyPhone shared model replay =
+successBodyPhone : Shared.Model -> InnerModel -> Element InnerMsg
+successBodyPhone shared model =
     el
         [ width fill, height fill, scrollbarY ]
         (column [ spacing 10, width fill ]
-            [ mapReplay model replay (boardViewOk model)
+            [ boardView model
             , arrowButtons
             , Element.column
                 [ width fill, height (fill |> Element.minimum 250), scrollbarY ]
-                (setupButton model :: List.map (sidebarMove model) model.sidebarData)
+                (setupButton model :: List.indexedMap (halfMoveRow model.selected) model.sidebarData)
             , column
                 [ width fill, spacing 10, padding 10 ]
                 [ enableMovementIndicators model.showMovementIndicators
@@ -409,12 +448,12 @@ successBodyPhone shared model replay =
         )
 
 
-successBodyDesktop : Shared.Model -> Model -> Replay -> Element Msg
-successBodyDesktop shared model replay =
+successBodyDesktop : Shared.Model -> InnerModel -> Element InnerMsg
+successBodyDesktop shared model =
     el [ centerX, height fill, width (Element.maximum 1120 fill) ]
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
-            [ column [ width fill, height fill ] [ boardView model replay ]
+            [ column [ width fill, height fill ] [ boardView model ]
             , Element.column [ spacing 10, padding 10, alignTop, height fill, width (px 250) ]
                 (sidebarContent shared model)
             ]
@@ -441,36 +480,6 @@ chainPauseTime =
     Animation.milliseconds 150
 
 
-mapReplay : Model -> Replay -> (List Sako.Action -> Sako.Position -> Element Msg) -> Element Msg
-mapReplay model replay okView =
-    case currentBoard model replay of
-        ReplayOk actions position ->
-            okView actions position
-
-        ReplayToShort ->
-            Element.text "Replay is corrupted, too short :-("
-
-        ReplayError ->
-            Element.text "Replay is corrupted, rule violation :-("
-
-
-{-| Show the game state at `model.actionCount`.
--}
-boardView : Model -> Replay -> Element Msg
-boardView model replay =
-    mapReplay model
-        replay
-        (\actions position ->
-            Element.el
-                [ width fill
-                , height fill
-                , Element.scrollbarY
-                , centerX
-                ]
-                (boardViewOk model actions position)
-        )
-
-
 {-| Given a model where the timeline does not match the actionCount, this adds
 an animation to the timeline which transitions to the correct actionCount view.
 
@@ -478,23 +487,21 @@ While this is technically an update function, it is closely related to the board
 view so I am putting it in this section.
 
 -}
-animateDirect : Model -> Model
+animateDirect : InnerModel -> InnerModel
 animateDirect model =
-    model.replay
-        |> RemoteData.toMaybe
-        |> Maybe.andThen (animateDirectR model)
+    animateDirectR model
         |> Maybe.map (\renderData -> { model | timeline = Animation.queue ( motionTime, renderData ) model.timeline })
         |> Maybe.withDefault model
 
 
-animateDirectR : Model -> Replay -> Maybe OpaqueRenderData
-animateDirectR model replay =
+animateDirectR : InnerModel -> Maybe OpaqueRenderData
+animateDirectR model =
     let
         board =
-            currentBoard model replay
+            currentBoard model
     in
     case board of
-        ReplayOk _ boardOk ->
+        ReplayOk boardOk _ ->
             Just (PositionView.renderStatic Svg.WhiteBottom boardOk)
 
         ReplayToShort ->
@@ -504,35 +511,58 @@ animateDirectR model replay =
             Nothing
 
 
+{-| Show the game state at `model.actionCount`.
+-}
+boardView : InnerModel -> Element InnerMsg
+boardView model =
+    case currentBoard model of
+        ReplayOk position partialActionHistory ->
+            Element.el
+                [ width fill
+                , height fill
+                , Element.scrollbarY
+                , centerX
+                ]
+                (boardViewOk model position partialActionHistory)
+
+        ReplayToShort ->
+            Element.text "Replay is corrupted, too short :-("
+
+        ReplayError ->
+            Element.text "Replay is corrupted, rule violation :-("
+
+
 type BoardReplayState
-    = ReplayOk (List Sako.Action) Sako.Position
+    = ReplayOk Sako.Position (List Sako.Action)
     | ReplayToShort
     | ReplayError
 
 
-currentBoard : Model -> Replay -> BoardReplayState
-currentBoard model replay =
+currentBoard : InnerModel -> BoardReplayState
+currentBoard model =
     let
+        actionIndex =
+            Notation.actionIndexForSectionIndex model.sidebarData model.selected
+
         actions =
-            List.take model.actionCount replay.actions
-                |> List.map (\( action, _ ) -> action)
+            List.take actionIndex model.actionHistory
     in
-    if List.length actions == model.actionCount then
+    if List.length actions == actionIndex then
         Sako.doActionsList actions Sako.initialPosition
-            |> Maybe.map (ReplayOk actions)
+            |> Maybe.map (\x -> ReplayOk x actions)
             |> Maybe.withDefault ReplayError
 
     else
         ReplayToShort
 
 
-boardViewOk : Model -> List Sako.Action -> Sako.Position -> Element Msg
-boardViewOk model actions position =
+boardViewOk : InnerModel -> Sako.Position -> List Sako.Action -> Element InnerMsg
+boardViewOk model position partialActionHistory =
     PositionView.viewTimeline
         { colorScheme =
             Colors.configToOptions Colors.defaultBoardColors
         , nodeId = Nothing
-        , decoration = decoration model actions position
+        , decoration = decoration model position partialActionHistory
         , dragPieceData = []
         , mouseDown = Maybe.map MouseDown model.inputMode
         , mouseUp = Maybe.map MouseUp model.inputMode
@@ -549,11 +579,11 @@ boardViewOk model actions position =
         model.timeline
 
 
-decoration : Model -> List Sako.Action -> Sako.Position -> List PositionView.BoardDecoration
-decoration model actions position =
+decoration : InnerModel -> Sako.Position -> List Sako.Action -> List PositionView.BoardDecoration
+decoration model position partialActionHistory =
     if model.showMovementIndicators then
         CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
-            ++ (PositionView.pastMovementIndicatorList position actions
+            ++ (PositionView.pastMovementIndicatorList position partialActionHistory
                     |> List.map PositionView.PastMovementIndicator
                )
 
@@ -567,7 +597,7 @@ decoration model actions position =
 --------------------------------------------------------------------------------
 
 
-sidebarContent : Shared.Model -> Model -> List (Element Msg)
+sidebarContent : Shared.Model -> InnerModel -> List (Element InnerMsg)
 sidebarContent shared model =
     [ Components.gameCodeLabel
         (CopyToClipboard (Url.toString shared.url))
@@ -588,7 +618,7 @@ sidebarContent shared model =
     ]
 
 
-arrowButtons : Element Msg
+arrowButtons : Element InnerMsg
 arrowButtons =
     Element.row [ spacing 5, width fill, paddingXY 5 0 ]
         [ sharedWidthControll T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
@@ -612,7 +642,7 @@ sharedWidthControll altText iconType msg =
         }
 
 
-enableMovementIndicators : Bool -> Element Msg
+enableMovementIndicators : Bool -> Element InnerMsg
 enableMovementIndicators showMovementIndicators =
     if showMovementIndicators then
         Element.none
@@ -624,18 +654,31 @@ enableMovementIndicators showMovementIndicators =
             ]
 
 
-editorLink : Model -> Element msg
+editorLink : InnerModel -> Element msg
 editorLink model =
+    let
+        actionIndex =
+            Notation.actionIndexForSectionIndex model.sidebarData model.selected
+    in
     Element.link [ Font.underline, Font.color (Element.rgb 0 0 1) ]
-        { url = Route.toHref Route.Editor ++ "?game=" ++ model.key ++ "&action=" ++ String.fromInt model.actionCount
+        { url =
+            Route.toHref Route.Editor
+                ++ "?game="
+                ++ model.key
+                ++ "&action="
+                ++ String.fromInt actionIndex
         , label = Element.text T.replayShowInEditor
         }
 
 
-rematchLink : Model -> Element Msg
+rematchLink : InnerModel -> Element InnerMsg
 rematchLink model =
+    let
+        actionIndex =
+            Notation.actionIndexForSectionIndex model.sidebarData model.selected
+    in
     Input.button [ Font.underline, Font.color (Element.rgb 0 0 1) ]
-        { onPress = Just <| RematchFromActionIndex model.key model.actionCount
+        { onPress = Just <| RematchFromActionIndex model.key actionIndex
         , label = Element.text T.replayRematchFromHere
         }
 
@@ -643,19 +686,19 @@ rematchLink model =
 {-| The interactive list of all action that happened in the game. You can click
 on one action go to to that position.
 -}
-actionList : Model -> Element Msg
+actionList : InnerModel -> Element InnerMsg
 actionList model =
     Element.column [ width fill, height fill, scrollbarY ]
-        (setupButton model :: List.map (sidebarMove model) model.sidebarData)
+        (setupButton model :: List.indexedMap (halfMoveRow model.selected) model.sidebarData)
 
 
 {-| Button that brings you to actionCount == 0, i.e. an inital board state.
 -}
-setupButton : Model -> Element Msg
+setupButton : InnerModel -> Element InnerMsg
 setupButton model =
     let
         attrs =
-            if model.actionCount == 0 then
+            if model.selected == Notation.initialSectionIndex then
                 [ Background.color (Element.rgb255 51 191 255), padding 5, width fill ]
 
             else
@@ -669,35 +712,36 @@ setupButton model =
                 ]
     in
     Input.button attrs
-        { onPress = Just (GoToActionCount 0)
+        { onPress = Just (GoToSelection Notation.initialSectionIndex)
         , label = Element.text T.replayRestart
         }
 
 
-sidebarMove : Model -> Notation.SidebarMoveData -> Element Msg
-sidebarMove model moveData =
-    Element.row [ width fill, moveBackground moveData.color ]
-        [ sidebarMoveComlete moveData
-        , Element.wrappedRow [ width (fillPortion 4) ] (List.map (sidebarAction model) moveData.actions)
+{-| Renders one half move like:
+
+9 e7>Nf6>Bd7>b5
+
+-}
+halfMoveRow : Notation.SectionIndex -> Int -> Notation.HalfMove -> Element InnerMsg
+halfMoveRow currentlySelected halfMoveIndex moveData =
+    Element.row [ width fill, moveBackground moveData.current_player ]
+        [ halfMoveRowMainLabel halfMoveIndex moveData
+        , Element.wrappedRow [ width (fillPortion 4) ] (List.indexedMap (sidebarAction currentlySelected halfMoveIndex) moveData.actions)
         ]
 
 
 {-| Left side, summarizes all action of a move into a single block.
 You can click this block to go to the end of the whole move block.
 -}
-sidebarMoveComlete : Notation.SidebarMoveData -> Element Msg
-sidebarMoveComlete moveData =
+halfMoveRowMainLabel : Int -> Notation.HalfMove -> Element InnerMsg
+halfMoveRowMainLabel halfMoveIndex halfMove =
     Input.button [ height fill, width (fillPortion 1), paddingXY 5 0 ]
-        { onPress = goToLastAction moveData
-        , label = Element.text (String.fromInt moveData.moveNumber)
+        { onPress =
+            Notation.lastSectionIndexOfHalfMove halfMoveIndex halfMove
+                |> GoToSelection
+                |> Just
+        , label = Element.text (String.fromInt halfMove.moveNumber)
         }
-
-
-goToLastAction : Notation.SidebarMoveData -> Maybe Msg
-goToLastAction moveData =
-    moveData.actions
-        |> List.last
-        |> Maybe.map (\cak -> GoToActionCount cak.actionIndex)
 
 
 {-| Tells the user if the move was done by white or by black.
@@ -714,11 +758,14 @@ moveBackground color =
 
 {-| Shows a single action and will take you to it.
 -}
-sidebarAction : Model -> Notation.ConsensedActionKey -> Element Msg
-sidebarAction model cak =
+sidebarAction : Notation.SectionIndex -> Int -> Int -> Notation.HalfMoveSection -> Element InnerMsg
+sidebarAction currentlySelected halfMoveIndex sectionIndex halfMoveSection =
     let
+        newSelection =
+            { halfMoveIndex = halfMoveIndex, sectionIndex = sectionIndex }
+
         attrs =
-            if model.actionCount == cak.actionIndex then
+            if currentlySelected == newSelection then
                 [ Background.color (Element.rgb255 51 191 255), paddingXY 0 5 ]
 
             else
@@ -727,6 +774,6 @@ sidebarAction model cak =
                 ]
     in
     Input.button attrs
-        { onPress = Just (GoToActionCount cak.actionIndex)
-        , label = Element.text (Notation.writeOut cak.actions)
+        { onPress = Just (GoToSelection newSelection)
+        , label = Element.text halfMoveSection.label
         }
