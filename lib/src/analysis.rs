@@ -3,7 +3,8 @@
 use serde::Serialize;
 
 use crate::{
-    BoardPosition, DenseBoard, Hand, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
+    determine_all_threats, BoardPosition, DenseBoard, Hand, PacoAction, PacoBoard, PacoError,
+    PieceType, PlayerColor,
 };
 
 /// Represents a single line in the sidebar, like "g2>Pf3>Pe4>Pd5>d6".
@@ -249,6 +250,7 @@ pub fn history_to_replay_notation(
     };
 
     let mut board = initial_board;
+    let mut was_sako = is_sako(&board, board.controlling_player())?;
 
     // Pick moves off the stack and add them to the current half move.
 
@@ -258,7 +260,12 @@ pub fn history_to_replay_notation(
         notations.push(notation);
 
         if board.controlling_player() != current_player {
-            // finalize half move, change color
+            // analyze situation, finalize half move, change color
+            current_half_move.metadata = HalfMoveMetadata {
+                gives_sako: is_sako(&board, current_player)?,
+                missed_paco: was_sako && !board.victory_state().is_over(),
+            };
+
             current_half_move.actions =
                 squash_notation_atoms(initial_index, std::mem::take(&mut notations));
 
@@ -279,10 +286,30 @@ pub fn history_to_replay_notation(
                     missed_paco: false,
                 },
             };
+            was_sako = is_sako(&board, board.controlling_player())?;
         }
     }
 
     Ok(half_moves)
+}
+
+fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
+    let mut board = board.clone();
+    board.controlling_player = for_player;
+    let threats = determine_all_threats(&board)?;
+    for (pos, _) in threats
+        .iter()
+        .enumerate()
+        .filter(|(_, is_threatened)| is_threatened.0)
+    {
+        // Check if the opponents king is on this square.
+        let piece = board.opponent_pieces().get(pos).unwrap();
+        if piece == &Some(PieceType::King) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 // Test module

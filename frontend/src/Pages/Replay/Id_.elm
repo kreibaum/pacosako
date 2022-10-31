@@ -726,8 +726,29 @@ halfMoveRow : Notation.SectionIndex -> Int -> Notation.HalfMove -> Element Inner
 halfMoveRow currentlySelected halfMoveIndex moveData =
     Element.row [ width fill, moveBackground moveData.current_player ]
         [ halfMoveRowMainLabel halfMoveIndex moveData
-        , Element.wrappedRow [ width (fillPortion 4) ] (List.indexedMap (sidebarAction currentlySelected halfMoveIndex) moveData.actions)
+        , Element.wrappedRow [ width (fillPortion 4) ]
+            (List.indexedMap (sidebarAction currentlySelected halfMoveIndex) moveData.actions
+                ++ [ missedPacoLabel moveData, givesSakoLabel moveData ]
+            )
         ]
+
+
+givesSakoLabel : Notation.HalfMove -> Element msg
+givesSakoLabel moveData =
+    if moveData.metadata.givesSako then
+        el [ Element.alignRight, paddingXY 2 0, Font.bold, Font.color (Element.rgb255 85 153 85) ] (Element.text "Ŝ")
+
+    else
+        Element.none
+
+
+missedPacoLabel : Notation.HalfMove -> Element msg
+missedPacoLabel moveData =
+    if moveData.metadata.missedPaco then
+        el [ Element.alignRight, paddingXY 2 0, Font.bold, Font.color (Element.rgb255 153 86 86) ] (Element.text "P")
+
+    else
+        Element.none
 
 
 {-| Left side, summarizes all action of a move into a single block.
