@@ -83,10 +83,10 @@ pub async fn main_js_cached(
 }
 
 #[allow(unused_variables)]
-#[get("/cache/lib_worker.js?<hash>")]
+#[get("/cache/lib_worker.min.js?<hash>")]
 pub async fn lib_worker(hash: &str) -> Result<CacheResponse<NamedFile>, ServerError> {
     Ok(CacheResponse::Private {
-        responder: static_file("../target/lib_worker.js").await?,
+        responder: static_file("../target/lib_worker.min.js").await?,
         max_age: 356 * 24 * 3600,
     })
 }

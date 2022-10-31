@@ -475,7 +475,7 @@ if (app.ports.scrollTrigger) {
 
 declare var lib_worker_hash: string
 
-var libWorker = new Worker(`/cache/lib_worker.js?hash=${lib_worker_hash}#${wasm_js_hash}|${wasm_hash}`);
+var libWorker = new Worker(`/cache/lib_worker.min.js?hash=${lib_worker_hash}#${wasm_js_hash}|${wasm_hash}`);
 
 let libWorkerMessageQueue = []
 let libWorkerIsReady = false

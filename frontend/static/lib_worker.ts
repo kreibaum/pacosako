@@ -2,7 +2,7 @@
 
 declare function importScripts(...urls: string[]): void;
 
-let [wasm_js_hash, wasm_hash] = location.hash.split("|");
+let [wasm_js_hash, wasm_hash] = location.hash.replace("#", "").split("|");
 
 console.log('Initializing worker')
 console.log('Hashes are: ', wasm_js_hash, wasm_hash);
