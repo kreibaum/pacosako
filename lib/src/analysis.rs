@@ -60,19 +60,18 @@ enum NotationAtom {
 
 impl NotationAtom {
     fn is_place(&self) -> bool {
-        match self {
-            NotationAtom::ContinueChain { .. } => true,
-            NotationAtom::EndMoveCalm { .. } => true,
-            NotationAtom::EndMoveFormUnion { .. } => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            NotationAtom::ContinueChain { .. }
+                | NotationAtom::EndMoveCalm { .. }
+                | NotationAtom::EndMoveFormUnion { .. }
+        )
     }
     fn is_lift(&self) -> bool {
-        match self {
-            NotationAtom::StartMoveSinge { .. } => true,
-            NotationAtom::StartMoveUnion { .. } => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            NotationAtom::StartMoveSinge { .. } | NotationAtom::StartMoveUnion { .. }
+        )
     }
 }
 
@@ -84,11 +83,11 @@ impl ToString for NotationAtom {
                 format!("{}{}{}", force_letter(mover), force_letter(partner), at)
             }
             NotationAtom::ContinueChain { exchanged, at } => {
-                format!(">{}{}", force_letter(exchanged), at.to_string())
+                format!(">{}{}", force_letter(exchanged), at)
             }
-            NotationAtom::EndMoveCalm { at } => format!(">{}", at.to_string()),
+            NotationAtom::EndMoveCalm { at } => format!(">{}", at),
             NotationAtom::EndMoveFormUnion { partner, at } => {
-                format!("x{}{}", letter(partner), at.to_string())
+                format!("x{}{}", letter(partner), at)
             }
             NotationAtom::Promote { to } => format!("={}", letter(to)),
         }
@@ -261,7 +260,7 @@ pub fn history_to_replay_notation(
         if board.controlling_player() != current_player {
             // finalize half move, change color
             current_half_move.actions =
-                squash_notation_atoms(initial_index, std::mem::replace(&mut notations, Vec::new()));
+                squash_notation_atoms(initial_index, std::mem::take(&mut notations));
 
             half_moves.push(current_half_move);
 
