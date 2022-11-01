@@ -16,6 +16,18 @@ pub struct MatchParameters {
     safe_mode: Option<bool>,
 }
 
+impl MatchParameters {
+    /// Ensure that all values of the timer config are below 1000000. This
+    /// ensures we don't trigger an overflow. See #85.
+    pub fn sanitize(self) -> Self {
+        let timer = self.timer.map(|timer| timer.sanitize());
+        Self {
+            timer,
+            safe_mode: self.safe_mode,
+        }
+    }
+}
+
 /// A paco sako action together with a timestamp that remembers when it was done.
 /// This timestamp is important for replays.
 #[derive(Deserialize, Serialize, Clone, Debug)]

@@ -26,6 +26,26 @@ pub struct TimerConfig {
     )]
     pub increment: Option<Duration>,
 }
+impl TimerConfig {
+    /// Ensure that all values of the timer config are below 1000000. This
+    /// ensures we don't trigger an overflow. See #85.
+    pub fn sanitize(&self) -> Self {
+        let time_budget_white = limit_for_safety(self.time_budget_white);
+        let time_budget_black = limit_for_safety(self.time_budget_black);
+        let increment = self.increment.map(limit_for_safety);
+        Self {
+            time_budget_white,
+            time_budget_black,
+            increment,
+        }
+    }
+}
+
+/// Ensure that all values of the timer config are below 1000000. This
+/// ensures we don't trigger an overflow. See #85.
+fn limit_for_safety(to_limit: Duration) -> Duration {
+    to_limit.min(Duration::seconds(1000000))
+}
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Timer {
@@ -83,7 +103,8 @@ fn deserialize_seconds_optional<'de, D: serde::Deserializer<'de>>(
 }
 
 impl Timer {
-    // Start a timer. This does nothing when the Timer is alread running or already timed out.
+    /// Start a timer. This does nothing when the Timer is already running or
+    /// already timed out.
     pub fn start(&mut self, start_time: DateTime<Utc>) {
         if self.timer_state == TimerState::NotStarted {
             self.last_timestamp = start_time;
@@ -132,10 +153,10 @@ impl Timer {
         if let Some(increment) = self.config.increment {
             match player {
                 PlayerColor::White => {
-                    self.time_left_white = self.time_left_white + increment;
+                    self.time_left_white = limit_for_safety(self.time_left_white + increment);
                 }
                 PlayerColor::Black => {
-                    self.time_left_black = self.time_left_black + increment;
+                    self.time_left_black = limit_for_safety(self.time_left_black + increment);
                 }
             }
         }
@@ -146,7 +167,7 @@ impl Timer {
     }
 
     /// Returns the time at which the timer would run out if the given player
-    /// retains controll until then.
+    /// retains control until then.
     pub fn timeout(&self, player: PlayerColor) -> DateTime<Utc> {
         let time_left = match player {
             PlayerColor::White => self.time_left_white,
@@ -161,6 +182,18 @@ impl Timer {
         };
 
         fake_now + time_left
+    }
+
+    /// Ensure that all values of the timer config are below 1000000. This
+    /// ensures we don't trigger an overflow. See #85.
+    pub fn sanitize(self) -> Self {
+        Self {
+            last_timestamp: self.last_timestamp,
+            time_left_white: limit_for_safety(self.time_left_white),
+            time_left_black: limit_for_safety(self.time_left_black),
+            timer_state: self.timer_state,
+            config: self.config.sanitize(),
+        }
     }
 }
 

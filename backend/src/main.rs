@@ -351,7 +351,7 @@ async fn create_game(
 
     info!("Creating a new game on client request.");
     let mut conn = pool.conn().await?;
-    let mut game = SynchronizedMatch::new_with_key("0", game_parameters.0);
+    let mut game = SynchronizedMatch::new_with_key("0", game_parameters.0.sanitize());
     db::game::insert(&mut game, &mut conn).await?;
 
     info!("Game created with id {}.", game.key);

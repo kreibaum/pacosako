@@ -1,4 +1,5 @@
 use crate::db::Connection;
+use crate::timer::Timer;
 use crate::{sync_match::SynchronizedMatch, ServerError};
 
 /// Stores the game in the database as a new entry and updates the id
@@ -104,7 +105,8 @@ struct RawGame {
 impl RawGame {
     fn to_match(self) -> Result<SynchronizedMatch, ServerError> {
         let timer = if let Some(ref timer) = self.timer {
-            Some(serde_json::from_str(timer)?)
+            let timer: Timer = serde_json::from_str(timer)?;
+            Some(timer.sanitize())
         } else {
             None
         };
