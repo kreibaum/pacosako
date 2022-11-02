@@ -13,16 +13,28 @@ This model returns the value from the rating function and a uniform distribution
 """
 struct RatingModel <: AbstractModel{PacoSako,false} end
 
-function luna_rating(game::PacoSako)
+function Model.apply(model::RatingModel, game::PacoSako)
+    value = 0
+    policy = uniform_policy(policy_length(game))
+
     if Game.is_over(game)
-        return Game.status(game)
+        value = Game.status(game)
+        return (; value, policy)
     end
 
-    return 0
-end
+    # Check if we can Paco the opponent
+    seq = find_sako_sequences(game)
+    if length(seq) > 0
+        value = 1
+        action = seq[1][1]
 
-function Model.apply(model::RatingModel, game::PacoSako)
-    (value=luna_rating(game), policy=uniform_policy(policy_length(game)))
+        policy = zeros(Game.policy_length(game))
+        policy[action] = 1
+
+        return (; value, policy)
+    end
+
+    return (; value, policy)
 end
 
 Base.copy(m::RatingModel) = m

@@ -242,7 +242,8 @@ function find_simple_positions(; tries=100)::Data.DataSet{PacoSako}
             ps2 = copy(ps)
             for action in chain
                 push!(result.games, copy(ps2))
-                label = Util.one_hot(1 + 132, 1 + action)
+                label = zeros(Game.policy_length(ps2) + 1)
+                label[1+action] = 1
                 label[1] = 1
                 push!(result.label, label)
                 push!(result.flabel, Vector())
