@@ -90,13 +90,15 @@ frontend for you.
 
 ## Working with Julia
 
+To compile the shared library run `cargo build --release` in ./lib
+
 Test if everything works
 
 ```
 julia> using JtacPacoSako
 julia> G = JtacPacoSako.PacoSako;
 julia> model = Model.NeuralModel(G, Model.@chain G Dense(50, "relu"));
-julia> player = Player.MCTSPlayer(model, power = 50);
+julia> player = Player.MCTSPlayer(model, power = 50, temperature=0);
 julia> dataset = Player.record(player, 10, augment = false)
 DataSet{PacoSako} with 1258 elements and 0 features
 ```
@@ -104,7 +106,7 @@ DataSet{PacoSako} with 1258 elements and 0 features
 Play on the website
 
 ```julia
-JtacPacoSako.PacoPlay.play_match("https://dev.pacoplay.com", 212)
+JtacPacoSako.PacoPlay.play_match("https://dev.pacoplay.com", 212; player)
 ```
 
 This assumes you have installed JtacPacoSako as a development package using

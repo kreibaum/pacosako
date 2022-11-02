@@ -293,7 +293,7 @@ pub fn history_to_replay_notation(
     Ok(half_moves)
 }
 
-fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
+pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
     let mut board = board.clone();
     if board.required_action.is_promote() {
         board.execute(PacoAction::Promote(PieceType::Queen))?;

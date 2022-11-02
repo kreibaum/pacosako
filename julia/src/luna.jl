@@ -34,6 +34,12 @@ function Model.apply(model::RatingModel, game::PacoSako)
         return (; value, policy)
     end
 
+    # Check if we are in Ŝako
+    if is_sako_for_other_player(game)
+        value = -0.3
+        return (; value, policy)
+    end
+
     return (; value, policy)
 end
 

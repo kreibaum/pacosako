@@ -224,6 +224,15 @@ function find_sako_sequences(ps::PacoSako)::Vector{Vector{Int64}}
     out
 end
 
+"""
+Given a Paco Ŝako position, this finds out if the current player is in Ŝako and
+needs to defend.
+"""
+function is_sako_for_other_player(ps::PacoSako)::Bool
+    ccall((:is_sako_for_other_player, DYNLIB_PATH), Bool, (Ptr{Nothing},), ps.ptr)
+end
+
+
 ################################################################################
 ## Generates states where the best policy is known. ############################
 ################################################################################

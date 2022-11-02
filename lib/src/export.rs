@@ -3,7 +3,7 @@
 
 use std::collections::hash_map::DefaultHasher;
 
-use crate::{BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType, PlayerColor};
+use crate::{analysis, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType, PlayerColor};
 
 #[no_mangle]
 pub extern "C" fn new() -> *mut DenseBoard {
@@ -423,6 +423,12 @@ pub extern "C" fn random_position() -> *mut DenseBoard {
     let mut rng = rand::thread_rng();
     let board: DenseBoard = rng.gen();
     leak_to_julia(board)
+}
+
+#[no_mangle]
+pub extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
+    let ps: &DenseBoard = unsafe { &*ps };
+    analysis::is_sako(ps, ps.controlling_player.other()).unwrap()
 }
 
 // status_code = ccall((:find_sako_sequences, DYNLIB_PATH), Int64,
