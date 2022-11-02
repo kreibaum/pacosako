@@ -4,16 +4,18 @@ module JtacPacoSako
 using Jtac
 
 # PacoSako game type
-export PacoSako
+export PacoSako,
+    RatingModel
 
 # export Jtac interface
 export Jtac,
-       Util,
-       Game,
-       Data,
-       Model,
-       Player,
-       Training
+    Util,
+    Pack,
+    Game,
+    Data,
+    Model,
+    Player,
+    Training
 
 # To build this, run `cargo build` in ../lib
 # const DYNLIB_PATH = "../lib/target/debug/libpacosako.so"
@@ -38,7 +40,7 @@ function wrap_pacosako_ptr(ptr::Ptr{Nothing})::PacoSako
     ps
 end
 
-"""Destructor. Never call that manually, or you'll double free / use after free."""
+"""Destructor. Never call that manually, or you'll double free use after free."""
 function destroy!(ps::PacoSako)
     # ccall to rust to tell it to release the object.
     ccall((:drop, DYNLIB_PATH), Nothing, (Ptr{Nothing},), ps.ptr)
@@ -252,10 +254,13 @@ function find_simple_positions(; tries=100)::Data.DataSet{PacoSako}
     result
 end
 
+include("luna.jl")
+
 function __init__()
     # We have to register the game in order to use all functionality of Jtac
     # (loading and saving datasets and models)
     Pack.register(PacoSako) # Make this serializable
+    Pack.register(RatingModel)
 end
 
 ################################################################################

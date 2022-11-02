@@ -93,8 +93,7 @@ frontend for you.
 Test if everything works
 
 ```
-julia> using Jtac
-julia> include("src/JtacPacoSako.jl")
+julia> using JtacPacoSako
 julia> G = JtacPacoSako.PacoSako;
 julia> model = Model.NeuralModel(G, Model.@chain G Dense(50, "relu"));
 julia> player = Player.MCTSPlayer(model, power = 50);
@@ -107,6 +106,10 @@ Play on the website
 ```julia
 JtacPacoSako.PacoPlay.play_match("https://dev.pacoplay.com", 212)
 ```
+
+This assumes you have installed JtacPacoSako as a development package using
+
+    ]dev ..../pacosako/julia
 
 # Architecture
 
