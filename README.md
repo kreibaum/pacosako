@@ -106,7 +106,7 @@ DataSet{PacoSako} with 1258 elements and 0 features
 Play on the website
 
 ```julia
-JtacPacoSako.PacoPlay.play_match("https://dev.pacoplay.com", 212; player)
+PacoPlay.play_match("https://dev.pacoplay.com", 212; player)
 ```
 
 This assumes you have installed JtacPacoSako as a development package using
