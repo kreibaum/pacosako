@@ -3,7 +3,10 @@
 
 use std::collections::hash_map::DefaultHasher;
 
-use crate::{analysis, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType, PlayerColor};
+use crate::{
+    analysis, determine_all_threats, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
+    PlayerColor,
+};
 
 #[no_mangle]
 pub extern "C" fn new() -> *mut DenseBoard {
@@ -429,6 +432,20 @@ pub extern "C" fn random_position() -> *mut DenseBoard {
 pub extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
     let ps: &DenseBoard = unsafe { &*ps };
     analysis::is_sako(ps, ps.controlling_player.other()).unwrap()
+}
+
+/// Returns a number between 0 and 64 that counts how many squares are threatened
+/// by the current player.
+#[no_mangle]
+pub extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
+    let ps: &DenseBoard = unsafe { &*ps };
+    let threats = determine_all_threats(ps)
+        .unwrap()
+        .iter()
+        .filter(|t| t.0)
+        .count() as i64;
+
+    threats
 }
 
 // status_code = ccall((:find_sako_sequences, DYNLIB_PATH), Int64,

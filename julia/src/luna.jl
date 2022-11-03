@@ -36,9 +36,12 @@ function Model.apply(model::RatingModel, game::PacoSako)
 
     # Check if we are in Ŝako
     if is_sako_for_other_player(game)
-        value = -0.3
-        return (; value, policy)
+        value += -0.3
     end
+
+    # See how many tiles we can attack
+    # Doesn't seem to help at all.
+    # value += 0.4 * my_threat_count(game) / 64.0
 
     return (; value, policy)
 end

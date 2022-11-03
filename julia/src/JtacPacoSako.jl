@@ -232,6 +232,12 @@ function is_sako_for_other_player(ps::PacoSako)::Bool
     ccall((:is_sako_for_other_player, DYNLIB_PATH), Bool, (Ptr{Nothing},), ps.ptr)
 end
 
+""" Given a Paco Ŝako position, this counts how many tile can be attacked by the
+current player. """
+function my_threat_count(ps::PacoSako)::Int64
+    ccall((:my_threat_count, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr)
+end
+
 
 ################################################################################
 ## Generates states where the best policy is known. ############################
