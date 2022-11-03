@@ -1714,6 +1714,8 @@ pub fn find_last_checkpoint_index<'a>(
 
 #[cfg(test)]
 mod tests {
+    use crate::analysis::is_sako;
+
     use super::*;
     use parser::Square;
     use std::convert::{TryFrom, TryInto};
@@ -2913,6 +2915,19 @@ mod tests {
         execute_action!(board, promote, PieceType::Queen);
         execute_action!(board, place, "d6");
         assert_eq!(board.no_progress_half_moves, 0); // This tests #52
+    }
+
+    /// A chain involving the same pawn of the opponent twice but on different
+    /// squares. This is mostly a puzzle, but I wanted to be sure that it works.
+    #[test]
+    fn double_en_passant_chaining() {
+        let mut board =
+            fen::parse_fen("1lb1k3/8/1tApS3/2p2p2/1A2P1A1/1p1Ps1P1/2C1T2p/R1B1K2R w 0 AHah - -")
+                .unwrap();
+        assert!(!is_sako(&board, board.controlling_player).unwrap());
+        execute_action!(board, lift, "c2");
+        execute_action!(board, place, "c4");
+        assert!(is_sako(&board, board.controlling_player).unwrap());
     }
 }
 
