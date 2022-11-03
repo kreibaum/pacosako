@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     analysis::{self, HalfMove},
-    fen, PacoAction, PacoBoard, PacoError,
+    editor, fen, PacoAction, PacoBoard, PacoError,
 };
 
 /// This module provides all the methods that should be available on the wasm
@@ -24,6 +24,9 @@ pub enum RpcCall {
         board_fen: String,
         action_history: Vec<PacoAction>,
     },
+    RandomPosition {
+        tries: usize,
+    },
 }
 
 /// Represents a message that is send from the wasm library to elm via ports.
@@ -33,6 +36,7 @@ pub enum RpcCall {
 pub enum RpcResponse {
     HistoryToReplayNotation { notation: Vec<HalfMove> },
     LegalActions { legal_actions: Vec<PacoAction> },
+    RandomPosition { board_fen: String },
     RpcError(String),
 }
 
@@ -64,6 +68,12 @@ pub fn rpc_call_internal(call: RpcCall) -> RpcResponse {
             .unwrap_or_else(|e| {
                 RpcResponse::RpcError(format!("Failed to get legal actions: {:?}", e))
             }),
+        RpcCall::RandomPosition { tries } => match editor::random_position(tries) {
+            Ok(board) => RpcResponse::RandomPosition {
+                board_fen: fen::write_fen(&board),
+            },
+            Err(e) => RpcResponse::RpcError(format!("Failed to get random position: {:?}", e)),
+        },
     }
 }
 

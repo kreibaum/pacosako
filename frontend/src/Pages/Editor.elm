@@ -3,6 +3,7 @@ module Pages.Editor exposing (Model, Msg, page)
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.Ports
+import Api.Wasm as Wasm exposing (RpcResponse, rpcCall)
 import CastingDeco
 import Colors
 import Components exposing (btn, viewButton, withMsg, withSmallIcon)
@@ -210,7 +211,7 @@ type Msg
     | UpdateUserPaste String
     | UseUserPaste Sako.Position
     | RequestRandomPosition
-    | GotRandomPosition Sako.Position
+    | WasmResponse RpcResponse
     | RequestAnalysePosition Sako.Position
     | GotAnalysePosition AnalysisReport
     | ToolAddPiece Sako.Color Sako.Type
@@ -234,6 +235,7 @@ subscriptions model =
         [ Custom.Events.onKeyUp keybindings
         , Api.Ports.responseSvgNodeContent SvgReadyForDownload
         , Animation.subscription model.timeline AnimationTick
+        , Wasm.rpcRespone WasmResponse
         ]
 
 
@@ -381,13 +383,25 @@ update msg model =
             )
 
         RequestRandomPosition ->
-            ( model, Api.Backend.getRandomPosition HttpError GotRandomPosition |> Effect.fromCmd )
+            ( model, Wasm.RandomPosition 300 |> rpcCall |> Effect.fromCmd )
 
-        GotRandomPosition newPosition ->
-            ( { model | game = addHistoryState newPosition model.game }
-                |> animateToCurrentPosition
-            , Effect.none
-            )
+        WasmResponse response ->
+            case response of
+                Wasm.RandomPositionResponse fen ->
+                    let
+                        newPosition =
+                            Fen.parseFen fen
+                                |> Maybe.withDefault Sako.initialPosition
+                    in
+                    ( { model
+                        | game = addHistoryState newPosition model.game
+                      }
+                        |> animateToCurrentPosition
+                    , Effect.none
+                    )
+
+                _ ->
+                    ( model, Effect.none )
 
         RequestAnalysePosition position ->
             ( model, Api.Backend.postAnalysePosition position HttpError GotAnalysePosition |> Effect.fromCmd )

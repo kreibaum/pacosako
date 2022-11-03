@@ -294,24 +294,14 @@ struct PositionData {
     notation: String,
 }
 
-#[get("/random")]
-fn random_position() -> Json<PositionData> {
-    let mut rng = thread_rng();
-    let board: DenseBoard = rng.gen();
-
-    let notation: pacosako::ExchangeNotation = (&board).into();
-
-    Json(PositionData {
-        notation: notation.0,
-    })
-}
-
 #[derive(Serialize)]
 struct AnalysisReport {
     text_summary: String,
     search_result: SakoSearchResult,
 }
 
+/// This should move into the webclient eventually.
+/// And also, it should return pretty move notation.
 #[post("/analyse", data = "<position>")]
 fn analyze_position(
     position: Json<SavePositionRequest>,
@@ -574,7 +564,6 @@ fn rocket() -> _ {
                 position_get_list,
                 position_get,
                 post_action_to_game,
-                random_position,
                 analyze_position,
                 create_game,
                 branch_game,

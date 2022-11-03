@@ -32,6 +32,7 @@ rpcCall =
 type RpcCall
     = HistoryToReplayNotation { board_fen : String, action_history : List Action }
     | LegalAction { board_fen : String, action_history : List Action }
+    | RandomPosition Int
 
 
 {-| The message received from the wasm worker
@@ -39,6 +40,7 @@ type RpcCall
 type RpcResponse
     = HistoryToReplayNotationResponse (List HalfMove)
     | LegalActionResponse (List Action)
+    | RandomPositionResponse String
     | RpcError String
 
 
@@ -64,6 +66,10 @@ encodeRpcCall msg =
                 ]
                 |> encodeObjectWithOneKey "LegalActions"
 
+        RandomPosition tries ->
+            Encode.object [ ( "tries", Encode.int tries ) ]
+                |> encodeObjectWithOneKey "RandomPosition"
+
 
 decodeHistoryToReplayNotationResponse : Decoder RpcResponse
 decodeHistoryToReplayNotationResponse =
@@ -81,6 +87,14 @@ decodeLegalActionResponse =
         )
 
 
+decodeRandomPositionResponse : Decoder RpcResponse
+decodeRandomPositionResponse =
+    Decode.map RandomPositionResponse
+        (Decode.field "RandomPosition"
+            (Decode.field "board_fen" Decode.string)
+        )
+
+
 decodeRpcError : Decoder RpcResponse
 decodeRpcError =
     Decode.map RpcError (Decode.field "RpcError" Decode.string)
@@ -91,6 +105,7 @@ decodeRpcCall =
     Decode.oneOf
         [ decodeHistoryToReplayNotationResponse
         , decodeLegalActionResponse
+        , decodeRandomPositionResponse
         , decodeRpcError
         ]
 

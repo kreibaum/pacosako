@@ -6,7 +6,6 @@ module Api.Backend exposing
     , getCurrentLogin
     , getDiscordApplicationId
     , getLogout
-    , getRandomPosition
     , getRecentGameKeys
     , getReplay
     , postAnalysePosition
@@ -257,37 +256,6 @@ encodeCreatePosition position =
                 }
           )
         ]
-
-
-type alias StoredPositionData =
-    { notation : String
-    }
-
-
-decodeStoredPositionData : Decoder StoredPositionData
-decodeStoredPositionData =
-    Decode.map StoredPositionData
-        (Decode.field "notation" Decode.string)
-
-
-decodePacoPositionData : Decoder Sako.Position
-decodePacoPositionData =
-    Decode.andThen
-        (\json ->
-            json.notation
-                |> Sako.importExchangeNotation
-                |> Result.map Decode.succeed
-                |> Result.withDefault (Decode.fail "Data has wrong shape.")
-        )
-        decodeStoredPositionData
-
-
-getRandomPosition : Api Sako.Position msg
-getRandomPosition =
-    getJson
-        { url = "/api/random"
-        , decoder = decodePacoPositionData
-        }
 
 
 type alias AnalysisReport =

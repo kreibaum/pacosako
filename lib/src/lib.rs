@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod editor;
 pub mod export;
 pub mod fen;
 pub mod parser;
