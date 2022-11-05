@@ -741,9 +741,18 @@ halfMoveRow currentlySelected halfMoveIndex moveData =
         [ halfMoveRowMainLabel halfMoveIndex moveData
         , Element.wrappedRow [ width (fillPortion 4) ]
             (List.indexedMap (sidebarAction currentlySelected halfMoveIndex) moveData.actions
-                ++ [ missedPacoLabel moveData, givesSakoLabel moveData ]
+                ++ [ givesOpponentPacoOpportunityLabel moveData, missedPacoLabel moveData, givesSakoLabel moveData ]
             )
         ]
+
+
+givesOpponentPacoOpportunityLabel : Notation.HalfMove -> Element msg
+givesOpponentPacoOpportunityLabel moveData =
+    if moveData.metadata.givesOpponentPacoOpportunity then
+        el [ Element.alignRight, paddingXY 2 0, Font.bold, Font.color (Element.rgb255 0 0 0) ] (Element.text "??")
+
+    else
+        Element.none
 
 
 givesSakoLabel : Notation.HalfMove -> Element msg

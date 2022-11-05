@@ -36,6 +36,8 @@ pub struct HalfMoveSection {
 pub struct HalfMoveMetadata {
     gives_sako: bool,
     missed_paco: bool,
+    /// If you make a move that ends with yourself in Ŝako even if you didn't start there.
+    gives_opponent_paco_opportunity: bool,
 }
 
 /// A notation atom roughly corresponds to a Sako.Action but carries more metadata.
@@ -253,11 +255,13 @@ pub fn history_to_replay_notation(
         metadata: HalfMoveMetadata {
             gives_sako: false,
             missed_paco: false,
+            gives_opponent_paco_opportunity: false,
         },
     };
 
     let mut board = initial_board.clone();
-    let mut was_sako = is_sako(&board, board.controlling_player())?;
+    let mut giving_sako_before_move = is_sako(&board, board.controlling_player())?;
+    let mut in_sako_before_move = is_sako(&board, board.controlling_player().other())?;
 
     // Pick moves off the stack and add them to the current half move.
 
@@ -272,9 +276,12 @@ pub fn history_to_replay_notation(
 
         if board.controlling_player() != current_player {
             // analyze situation, finalize half move, change color
+            let giving_sako_after_move = is_sako(&board, current_player)?;
+            let in_sako_after_move = is_sako(&board, current_player.other())?;
             current_half_move.metadata = HalfMoveMetadata {
-                gives_sako: is_sako(&board, current_player)?,
-                missed_paco: was_sako && !board.victory_state().is_over(),
+                gives_sako: giving_sako_after_move,
+                missed_paco: giving_sako_before_move && !board.victory_state().is_over(),
+                gives_opponent_paco_opportunity: !in_sako_before_move && in_sako_after_move,
             };
 
             current_half_move.actions =
@@ -295,9 +302,11 @@ pub fn history_to_replay_notation(
                 metadata: HalfMoveMetadata {
                     gives_sako: false,
                     missed_paco: false,
+                    gives_opponent_paco_opportunity: false,
                 },
             };
-            was_sako = is_sako(&board, board.controlling_player())?;
+            giving_sako_before_move = in_sako_after_move;
+            in_sako_before_move = giving_sako_after_move
         }
     }
 
@@ -366,6 +375,7 @@ mod tests {
                 metadata: HalfMoveMetadata {
                     gives_sako: false,
                     missed_paco: false,
+                    gives_opponent_paco_opportunity: false,
                 }
             }]
         );
@@ -401,6 +411,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
                 HalfMove {
@@ -413,6 +424,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
                 HalfMove {
@@ -425,6 +437,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
                 HalfMove {
@@ -443,6 +456,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 }
             ]
@@ -480,6 +494,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
                 HalfMove {
@@ -502,6 +517,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
             ]
@@ -541,6 +557,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
                 HalfMove {
@@ -553,6 +570,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
                 HalfMove {
@@ -565,6 +583,7 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
                 HalfMove {
@@ -577,9 +596,43 @@ mod tests {
                     metadata: HalfMoveMetadata {
                         gives_sako: false,
                         missed_paco: false,
+                        gives_opponent_paco_opportunity: false,
                     }
                 },
             ]
+        );
+    }
+
+    // Moves a pinned piece out of the way, giving the opponent a chance to paco.
+    #[test]
+    fn gives_opponent_paco_opportunity() {
+        let setup = "r1bqkbnr/ppp1pppp/2n5/1B1p4/3PP3/8/PPP2PPP/RNBQK1NR b 0 AHah - -";
+        let initial_board = fen::parse_fen(setup).unwrap();
+
+        let replay = history_to_replay_notation(
+            initial_board,
+            &[
+                PacoAction::Lift("c6".try_into().unwrap()),
+                PacoAction::Place("d4".try_into().unwrap()),
+            ],
+        )
+        .expect("Error in input data");
+
+        assert_eq!(
+            replay.notation,
+            vec![HalfMove {
+                move_number: 1,
+                current_player: PlayerColor::Black,
+                actions: vec![HalfMoveSection {
+                    action_index: 2,
+                    label: "Nc6xd4".to_string(),
+                },],
+                metadata: HalfMoveMetadata {
+                    gives_sako: false,
+                    missed_paco: false,
+                    gives_opponent_paco_opportunity: true,
+                }
+            },]
         );
     }
 

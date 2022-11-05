@@ -51,6 +51,7 @@ type alias HalfMoveSection =
 type alias HalfMoveMetadata =
     { givesSako : Bool
     , missedPaco : Bool
+    , givesOpponentPacoOpportunity : Bool
     }
 
 
@@ -72,10 +73,11 @@ decodeHalfMoveSection =
 
 decodeHalfMoveMetadata : Decoder HalfMoveMetadata
 decodeHalfMoveMetadata =
-    Decode.map2
+    Decode.map3
         HalfMoveMetadata
         (Decode.field "gives_sako" Decode.bool)
         (Decode.field "missed_paco" Decode.bool)
+        (Decode.field "gives_opponent_paco_opportunity" Decode.bool)
 
 
 {-| Since a section is what you highlight in the replay view, we also want to
