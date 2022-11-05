@@ -1,3 +1,5 @@
+mod opening;
+
 /// Analysis methods for paco sako. This can be used to analyze a game and
 /// give information about interesting moments. E.g. missed opportunities.
 use serde::Serialize;
@@ -6,6 +8,11 @@ use crate::{
     determine_all_threats, BoardPosition, DenseBoard, Hand, PacoAction, PacoBoard, PacoError,
     PieceType, PlayerColor,
 };
+#[derive(Serialize, PartialEq, Eq, Debug)]
+pub struct ReplayData {
+    notation: Vec<HalfMove>,
+    opening: String,
+}
 
 /// Represents a single line in the sidebar, like "g2>Pf3>Pe4>Pd5>d6".
 /// This would be represented as [g2>Pf3][>Pe4][>Pd5][>d6].
@@ -32,8 +39,8 @@ pub struct HalfMoveMetadata {
 }
 
 /// A notation atom roughly corresponds to a Sako.Action but carries more metadata.
-#[derive(Debug)]
-enum NotationAtom {
+#[derive(Debug, Clone)]
+pub(crate) enum NotationAtom {
     StartMoveSinge {
         mover: PieceType,
         at: BoardPosition,
@@ -232,7 +239,7 @@ fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<
 pub fn history_to_replay_notation(
     initial_board: DenseBoard,
     actions: &[PacoAction],
-) -> Result<Vec<HalfMove>, PacoError> {
+) -> Result<ReplayData, PacoError> {
     let mut half_moves = Vec::with_capacity(actions.len() / 2);
 
     let mut initial_index = 0;
@@ -249,14 +256,18 @@ pub fn history_to_replay_notation(
         },
     };
 
-    let mut board = initial_board;
+    let mut board = initial_board.clone();
     let mut was_sako = is_sako(&board, board.controlling_player())?;
 
     // Pick moves off the stack and add them to the current half move.
 
+    // This one just gets added to.
+    let mut all_notations = Vec::new();
+    // This one gets added to during one move and then turned into a HalfMove.
     let mut notations = Vec::new();
     for (action_index, &action) in actions.iter().enumerate() {
         let notation = apply_action_semantically(&mut board, action)?;
+        all_notations.push(notation.clone());
         notations.push(notation);
 
         if board.controlling_player() != current_player {
@@ -290,7 +301,10 @@ pub fn history_to_replay_notation(
         }
     }
 
-    Ok(half_moves)
+    Ok(ReplayData {
+        notation: half_moves,
+        opening: opening::classify_opening(&initial_board, actions)?,
+    })
 }
 
 pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
@@ -325,14 +339,14 @@ mod tests {
 
     #[test]
     fn empty_list() {
-        let notation =
+        let replay =
             history_to_replay_notation(DenseBoard::new(), &[]).expect("Error in input data");
-        assert_eq!(notation, vec![]);
+        assert_eq!(replay.notation, vec![]);
     }
 
     #[test]
     fn notation_compile_simple_move() {
-        let notation = history_to_replay_notation(
+        let replay = history_to_replay_notation(
             DenseBoard::new(),
             &[
                 PacoAction::Lift("d2".try_into().unwrap()),
@@ -341,7 +355,7 @@ mod tests {
         )
         .expect("Error in input data");
         assert_eq!(
-            notation,
+            replay.notation,
             vec![HalfMove {
                 move_number: 1,
                 current_player: PlayerColor::White,
@@ -359,7 +373,7 @@ mod tests {
 
     #[test]
     fn chain_and_union_move() {
-        let notation = history_to_replay_notation(
+        let replay = history_to_replay_notation(
             DenseBoard::new(),
             &[
                 PacoAction::Lift("e2".try_into().unwrap()),
@@ -375,7 +389,7 @@ mod tests {
         )
         .expect("Error in input data");
         assert_eq!(
-            notation,
+            replay.notation,
             vec![
                 HalfMove {
                     move_number: 1,
@@ -440,7 +454,7 @@ mod tests {
         let setup = "rnbqkbn1/pppppp2/5p2/5p2/8/8/PPPPPPPC/RNBQKBNR b 0 AHah - -";
         let initial_board = fen::parse_fen(setup).unwrap();
 
-        let notation = history_to_replay_notation(
+        let replay = history_to_replay_notation(
             initial_board,
             &[
                 PacoAction::Lift("h2".try_into().unwrap()),
@@ -454,7 +468,7 @@ mod tests {
         .expect("Error in input data");
 
         assert_eq!(
-            notation,
+            replay.notation,
             vec![
                 HalfMove {
                     move_number: 1,
@@ -499,7 +513,7 @@ mod tests {
         let setup = "r3kbnr/ppp2ppp/2n5/1B1pp3/1PP1P1bq/5N2/P2P1PPP/RNBQK2R w 0 AHah - -";
         let initial_board = fen::parse_fen(setup).unwrap();
 
-        let notation = history_to_replay_notation(
+        let replay = history_to_replay_notation(
             initial_board,
             &[
                 PacoAction::Lift("e1".try_into().unwrap()),
@@ -515,7 +529,7 @@ mod tests {
         .expect("Error in input data");
 
         assert_eq!(
-            notation,
+            replay.notation,
             vec![
                 HalfMove {
                     move_number: 1,

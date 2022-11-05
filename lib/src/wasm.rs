@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
-    analysis::{self, HalfMove},
+    analysis::{self, ReplayData},
     editor, fen, PacoAction, PacoBoard, PacoError,
 };
 
@@ -34,7 +34,7 @@ pub enum RpcCall {
 /// Values in here are still rust types and need encoding.
 #[derive(Serialize)]
 pub enum RpcResponse {
-    HistoryToReplayNotation { notation: Vec<HalfMove> },
+    HistoryToReplayNotation(ReplayData),
     LegalActions { legal_actions: Vec<PacoAction> },
     RandomPosition { board_fen: String },
     RpcError(String),
@@ -56,7 +56,7 @@ pub fn rpc_call_internal(call: RpcCall) -> RpcResponse {
             board_fen,
             action_history,
         } => history_to_replay_notation(&board_fen, &action_history)
-            .map(|notation| RpcResponse::HistoryToReplayNotation { notation })
+            .map(RpcResponse::HistoryToReplayNotation)
             .unwrap_or_else(|e| {
                 RpcResponse::RpcError(format!("Failed to convert history: {:?}", e))
             }),
@@ -95,7 +95,7 @@ pub fn legal_actions(
 fn history_to_replay_notation(
     board_fen: &str,
     action_history: &[PacoAction],
-) -> Result<Vec<HalfMove>, PacoError> {
+) -> Result<ReplayData, PacoError> {
     let initial_board = fen::parse_fen(board_fen)?;
 
     analysis::history_to_replay_notation(initial_board, action_history)

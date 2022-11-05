@@ -1,4 +1,4 @@
-port module Api.Wasm exposing (RpcCall(..), RpcResponse(..), rpcCall, rpcRespone)
+port module Api.Wasm exposing (ReplayData, RpcCall(..), RpcResponse(..), rpcCall, rpcRespone)
 
 {-| This module exposes the RPC required to interact with the pacosako library
 which has been compiled to wasm. All calls are async.
@@ -38,10 +38,14 @@ type RpcCall
 {-| The message received from the wasm worker
 -}
 type RpcResponse
-    = HistoryToReplayNotationResponse (List HalfMove)
+    = HistoryToReplayNotationResponse { notation : List HalfMove, opening : String }
     | LegalActionResponse (List Action)
     | RandomPositionResponse String
     | RpcError String
+
+
+type alias ReplayData =
+    { notation : List HalfMove, opening : String }
 
 
 encodeObjectWithOneKey : String -> Value -> Value
@@ -73,10 +77,10 @@ encodeRpcCall msg =
 
 decodeHistoryToReplayNotationResponse : Decoder RpcResponse
 decodeHistoryToReplayNotationResponse =
-    Decode.map HistoryToReplayNotationResponse
-        (Decode.field "HistoryToReplayNotation"
-            (Decode.field "notation" (Decode.list decodeHalfMove))
-        )
+    Decode.map2 ReplayData
+        (Decode.at [ "HistoryToReplayNotation", "notation" ] (Decode.list decodeHalfMove))
+        (Decode.at [ "HistoryToReplayNotation", "opening" ] Decode.string)
+        |> Decode.map HistoryToReplayNotationResponse
 
 
 decodeLegalActionResponse : Decoder RpcResponse

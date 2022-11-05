@@ -85,7 +85,7 @@ impl BoardPosition {
     pub fn y(self) -> u8 {
         self.0 / 8
     }
-    pub fn new(x: u8, y: u8) -> Self {
+    pub const fn new(x: u8, y: u8) -> Self {
         Self(x + 8 * y)
     }
     pub fn new_checked(x: i8, y: i8) -> Option<Self> {

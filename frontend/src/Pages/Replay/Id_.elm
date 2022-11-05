@@ -12,7 +12,7 @@ is responsible for displaying it / interacting with it.
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.Ports
-import Api.Wasm as Wasm
+import Api.Wasm as Wasm exposing (ReplayData)
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Colors
@@ -81,6 +81,7 @@ type alias InnerModel =
     , navigationKey : Browser.Navigation.Key
     , actionHistory : List Sako.Action
     , sidebarData : List Notation.HalfMove
+    , opening : String
     , selected : Notation.SectionIndex
     , timeline : Timeline OpaqueRenderData
     , castingDeco : CastingDeco.Model
@@ -112,12 +113,13 @@ init shared params =
 
 {-| Init method that is called once the replay has been processed.
 -}
-innerInit : Model -> List Notation.HalfMove -> InnerModel
+innerInit : Model -> ReplayData -> InnerModel
 innerInit model sidebarData =
     { key = model.key
     , navigationKey = model.navigationKey
     , actionHistory = model.actionHistory
-    , sidebarData = sidebarData
+    , sidebarData = sidebarData.notation
+    , opening = sidebarData.opening
     , selected = Notation.initialSectionIndex
     , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
     , castingDeco = CastingDeco.initModel
@@ -399,7 +401,6 @@ body shared model =
         ProcessingReplayData ->
             Element.text T.loadingReplayData
 
-        -- TODO: ProcessingReplayData
         Done innerModel ->
             successBody shared innerModel
                 |> Element.map GotInnerMsg
@@ -428,6 +429,7 @@ successBodyPhone shared model =
             , Element.column
                 [ width fill, height (fill |> Element.minimum 250), scrollbarY ]
                 (setupButton model :: List.indexedMap (halfMoveRow model.selected) model.sidebarData)
+            , opening model
             , column
                 [ width fill, spacing 10, padding 10 ]
                 [ enableMovementIndicators model.showMovementIndicators
@@ -606,6 +608,7 @@ sidebarContent shared model =
     , enableMovementIndicators model.showMovementIndicators
     , editorLink model
     , rematchLink model
+    , opening model
     , actionList model
     , CastingDeco.configView
         { setInputMode = SetInputMode
@@ -615,6 +618,15 @@ sidebarContent shared model =
         model.inputMode
         model.castingDeco
     ]
+
+
+opening : InnerModel -> Element InnerMsg
+opening model =
+    if String.isEmpty model.opening then
+        Element.none
+
+    else
+        Element.paragraph [] [ Element.text model.opening, Element.text " as opening." ]
 
 
 arrowButtons : Element InnerMsg
