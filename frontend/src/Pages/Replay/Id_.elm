@@ -626,7 +626,7 @@ opening model =
         Element.none
 
     else
-        Element.paragraph [] [ Element.text model.opening, Element.text " as opening." ]
+        Element.paragraph [] [ Element.text model.opening, Element.text T.replayWithOpening ]
 
 
 arrowButtons : Element InnerMsg
