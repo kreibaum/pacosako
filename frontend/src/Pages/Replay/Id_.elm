@@ -422,7 +422,7 @@ successBodyPhone : Shared.Model -> InnerModel -> Element InnerMsg
 successBodyPhone shared model =
     el
         [ width fill, height fill, scrollbarY ]
-        (column [ spacing 10, width fill ]
+        (column [ spacing 5, width fill ]
             [ boardView model
             , arrowButtons
             , Element.column
@@ -520,7 +520,6 @@ boardView model =
             Element.el
                 [ width fill
                 , height fill
-                , Element.scrollbarY
                 , centerX
                 ]
                 (boardViewOk model position partialActionHistory)
@@ -571,9 +570,9 @@ boardViewOk model position partialActionHistory =
         , replaceViewport =
             Just
                 { x = -10
-                , y = -80
+                , y = -10
                 , width = 820
-                , height = 960
+                , height = 820
                 }
         }
         model.timeline
@@ -648,10 +647,12 @@ enableMovementIndicators showMovementIndicators =
         Element.none
 
     else
-        Element.row [ spacing 10 ]
-            [ Components.iconButton "" Solid.eye (Just EnableMovementIndicators)
-            , Element.text T.showMovementIndicators
-            ]
+        Input.button []
+            { onPress = Just EnableMovementIndicators
+            , label =
+                Element.row [ spacing 10 ]
+                    [ Custom.Element.icon [] Solid.eye, Element.text T.showMovementIndicators ]
+            }
 
 
 editorLink : InnerModel -> Element msg
