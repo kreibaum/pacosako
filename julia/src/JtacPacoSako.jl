@@ -34,7 +34,15 @@ function PacoSako()::PacoSako
     wrap_pacosako_ptr(ptr)
 end
 
+function PacoSako(fen :: String) :: PacoSako
+  bytes = Vector{UInt8}(fen)
+  ptr = ccall((:parse_fen, DYNLIB_PATH), Ptr{Nothing}, (Ptr{UInt8}, Int64), bytes, length(bytes))
+  @assert ptr != C_NULL "invalid fen string"
+  wrap_pacosako_ptr(ptr)
+end
+
 function wrap_pacosako_ptr(ptr::Ptr{Nothing})::PacoSako
+    @assert ptr != C_NULL
     ps = PacoSako(ptr, UInt8[], 0)
     finalizer(destroy!, ps)
     ps
@@ -162,10 +170,11 @@ function Base.show(io::IO, game::PacoSako)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", game::PacoSako)
+    fen_string = fen(game)
     if Game.is_over(game)
-        print(io, "PacoSako game with result $(Game.status(game))")
+        print(io, "PacoSako game with result $(Game.status(game)) ($fen_string)")
     else
-        print(io, "PacoSako game with player $(Game.current_player(game)) moving")
+        print(io, "PacoSako game with player $(Game.current_player(game)) moving ($fen_string)")
     end
 end
 
@@ -202,10 +211,10 @@ A chain has type Vector{Int64}, so we return Vector{"Chain"}.
 If there are more than 30 chains or they are longer than 30 actions, these are
 not returned.
 """
-function find_sako_sequences(ps::PacoSako)::Vector{Vector{Int64}}
+function find_paco_sequences(ps::PacoSako)::Vector{Vector{Int64}}
     memory = zeros(UInt8, 1000)
 
-    status_code = ccall((:find_sako_sequences, DYNLIB_PATH), Int64,
+    status_code = ccall((:find_paco_sequences, DYNLIB_PATH), Int64,
         (Ptr{Nothing}, Ptr{UInt8}, Int64),
         ps.ptr, memory, length(memory))
     @assert status_code == 0 "Error when trying to find sequences"
@@ -239,6 +248,19 @@ function my_threat_count(ps::PacoSako)::Int64
 end
 
 
+function fen(ps::PacoSako)
+  tmp = zeros(UInt8, 100)
+  len = ccall((:write_fen, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{UInt8}, Int64), ps.ptr, tmp, length(tmp))
+  @assert len != 0 && len <= length(tmp) "fen string did not fit in allocated memory"
+  String(@view tmp[1:len])
+end
+
+function fen_url(ps::PacoSako)
+  fen_string = fen(ps)
+  "https://pacoplay.com/editor?fen=" * replace(fen_string, " " => "%20")
+end
+
+
 ################################################################################
 ## Generates states where the best policy is known. ############################
 ################################################################################
@@ -249,19 +271,19 @@ in this situation. This may return the same position twice if there is more than
 one optimal action. (i.e. two ways to capture the king.)
 """
 function find_simple_positions(; tries=100)::Data.DataSet{PacoSako}
-    result = Data.DataSet{PacoSako}()
+    result = Data.DataSet(PacoSako, Target.defaults(PacoSako))
     for _ in 1:tries
         ps = random_position()
-        solutions = find_sako_sequences(ps)
+        solutions = find_paco_sequences(ps)
         for chain in solutions
             ps2 = copy(ps)
             for action in chain
                 push!(result.games, copy(ps2))
-                label = zeros(Game.policy_length(ps2) + 1)
-                label[1+action] = 1
-                label[1] = 1
-                push!(result.label, label)
-                push!(result.flabel, Vector())
+                plabel = zeros(Float32, Game.policy_length(ps2))
+                plabel[action] = 1
+                vlabel = Float32[1]
+                push!(result.labels[1], vlabel)
+                push!(result.labels[2], plabel)
 
                 Game.apply_action!(ps2, action)
             end

@@ -2,9 +2,10 @@
 //! It is the part that can be used by Julia.
 
 use std::collections::hash_map::DefaultHasher;
+use std::str;
 
 use crate::{
-    analysis, determine_all_threats, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
+    fen, analysis, determine_all_threats, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
     PlayerColor,
 };
 
@@ -448,15 +449,11 @@ pub extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
     threats
 }
 
-// status_code = ccall((:find_sako_sequences, DYNLIB_PATH), Int64,
-// (Ptr{Nothing}, Ptr{UInt8}, Int64),
-// ps.ptr, memory, memory_length)
-
-/// Finds all the sako sequences that are possible in the given position.
+/// Finds all the paco sequences that are possible in the given position.
 /// Needs to use the output memory to returns these, so it may not return
 /// all the chains that were found.
 #[no_mangle]
-pub extern "C" fn find_sako_sequences(
+pub extern "C" fn find_paco_sequences(
     ps: *mut DenseBoard,
     out: *mut u8,
     reserved_space: i64,
@@ -509,3 +506,58 @@ pub extern "C" fn find_sako_sequences(
         -1
     }
 }
+
+#[no_mangle]
+pub extern "C" fn write_fen(
+    ps: *mut DenseBoard,
+    out: *mut u8,
+    reserved_space: i64,
+) -> i64 {
+
+    let ps: &DenseBoard = unsafe { &*ps };
+
+    let fen_string = fen::write_fen(ps);
+    let fen_string = fen_string.as_bytes();
+    if fen_string.len() as i64 > reserved_space  {
+        return 0;
+    }
+
+    for (i,c) in fen_string.iter().enumerate() {
+        unsafe {
+            let cell = out.offset(i as isize);
+            *cell = *c;
+        }
+    }
+
+    return fen_string.len() as i64
+} 
+
+
+#[no_mangle]
+pub extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
+    // Read bytes into a buffer vector
+    let mut buffer = Vec::with_capacity(reserved_space as usize);
+    for _ in 0..reserved_space {
+        let byte = unsafe {
+            let b = *fen_ptr;
+            fen_ptr = fen_ptr.offset(1);
+            b
+        };
+        buffer.push(byte);
+    }
+
+    let string_result = str::from_utf8(&buffer);
+    match string_result {
+        Err(_) => std::ptr::null_mut(),
+        Ok(string) => {
+            let board = fen::parse_fen(&string);
+            if let Ok(board) = board {
+                leak_to_julia(board)
+            } else {
+                std::ptr::null_mut()
+            }
+        }
+    }
+}
+
+

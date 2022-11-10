@@ -13,17 +13,14 @@ This model returns the value from the rating function and a uniform distribution
 """
 struct RatingModel <: AbstractModel{PacoSako,false} end
 
-function Model.apply(model::RatingModel, game::PacoSako)
-    value = 0
-    policy = uniform_policy(policy_length(game))
+function Model.assist(model::RatingModel, game::PacoSako)
 
     if Game.is_over(game)
         value = Game.status(game)
-        return (; value, policy)
+        return (; value)
     end
 
-    # Check if we can Paco the opponent
-    seq = find_sako_sequences(game)
+    seq = find_paco_sequences(game)
     if length(seq) > 0
         value = 1
         action = seq[1][1]
@@ -34,10 +31,18 @@ function Model.apply(model::RatingModel, game::PacoSako)
         return (; value, policy)
     end
 
-    # Check if we are in Ŝako
     if is_sako_for_other_player(game)
-        value += -0.3
+      return (value = -0.5, )
     end
+
+    (;)
+end
+
+function Model.apply(model::RatingModel, game::PacoSako)
+
+    res = Model.assist(model, game)
+    value = get(res, :value, 0)
+    policy = get(res, :policy, uniform_policy(policy_length(game)))
 
     # See how many tiles we can attack
     # Doesn't seem to help at all.
