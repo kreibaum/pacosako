@@ -1,32 +1,29 @@
 # A simple handwritten AI. Our first one. It is a rating function to be used
 # in the MCST algorithm.
 
-# This implements a Model.
-
-using JtacPacoSako
-
 using .Game: AbstractGame, policy_length
 using .Model: AbstractModel, uniform_policy
 
 """
-This model returns the value from the rating function and a uniform distribution on the actions.
+This model returns the value from the rating function and a uniform distribution
+on the actions (unless a paco sequence is determined).
 """
-struct RatingModel <: AbstractModel{PacoSako,false} end
+struct Luna <: AbstractModel{PacoSako,false} end
 
-function Model.assist(model::RatingModel, game::PacoSako)
+function Model.assist(model :: Luna, game :: PacoSako)
 
     if Game.is_over(game)
         value = Game.status(game)
         return (; value)
     end
 
-    seq = find_paco_sequences(game)
-    if length(seq) > 0
+    seqs = find_paco_sequences(game)
+    if length(seqs) > 0
         value = 1
-        action = seq[1][1]
+        actions = [s[1] for s in seqs]
 
-        policy = zeros(Game.policy_length(game))
-        policy[action] = 1
+        policy = zeros(policy_length(game))
+        policy[actions] .= 1 / length(actions)
 
         return (; value, policy)
     end
@@ -38,11 +35,11 @@ function Model.assist(model::RatingModel, game::PacoSako)
     (;)
 end
 
-function Model.apply(model::RatingModel, game::PacoSako)
+function Model.apply(model::Luna, game::PacoSako)
 
-    res = Model.assist(model, game)
-    value = get(res, :value, 0)
-    policy = get(res, :policy, uniform_policy(policy_length(game)))
+    hint = Model.assist(model, game)
+    value = get(hint, :value, 0)
+    policy = get(hint, :policy, uniform_policy(policy_length(game)))
 
     # See how many tiles we can attack
     # Doesn't seem to help at all.
@@ -51,6 +48,7 @@ function Model.apply(model::RatingModel, game::PacoSako)
     return (; value, policy)
 end
 
-Base.copy(m::RatingModel) = m
+Base.copy(m::Luna) = m
 
-Base.show(io::IO, m::RatingModel) = print(io, "RatingModel()")
+Base.show(io::IO, m::Luna) = print(io, "Luna()")
+

@@ -98,15 +98,15 @@ Test if everything works
 julia> using JtacPacoSako
 julia> G = JtacPacoSako.PacoSako;
 julia> model = Model.NeuralModel(G, Model.@chain G Dense(50, "relu"));
-julia> player = Player.MCTSPlayer(model, power = 50, temperature=0);
-julia> dataset = Player.record(player, 10, augment = false)
+julia> player = Player.MCTSPlayer(model, power = 50, temperature=0.1);
+julia> dataset = Player.record(player, 10)
 DataSet{PacoSako} with 1258 elements and 0 features
 ```
 
 Play on the website
 
 ```julia
-PacoPlay.play_match("https://dev.pacoplay.com", 212; player)
+PacoPlay.play(player, color = :white, domain = :dev)
 ```
 
 This assumes you have installed JtacPacoSako as a development package using

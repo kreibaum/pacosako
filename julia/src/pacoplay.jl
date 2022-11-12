@@ -1,7 +1,207 @@
 
-const PROMOTE_OPTIONS = ["Rook", "Knight", "Bishop", "Queen"]
-const COLORS = Dict(1 => "White", -1 => "Black")
+module Url
 
+  using ...JtacPacoSako
+
+  function server(; domain = :dev)
+    if domain in [:official, nothing]
+      "https://pacoplay.com"
+    else
+      "https://$domain.pacoplay.com"
+    end
+  end
+
+  editor(; domain = :dev) = server(; domain) * "/editor"
+
+  editor(fen_string :: String; domain = :dev) =
+    editor(; domain) * "?fen=" * replace(fen_string, " " => "%20")
+
+  editor(ps :: PacoSako; domain = :dev) = editor(fen(ps); domain)
+
+  game(; domain = :dev) = server(; domain) * "/game"
+  game(match :: Int; domain = :dev) = game(; domain) * "/$match"
+
+  function websocket(; domain = :dev)
+    base = server(; domain)[9:end]
+    "wss://" * base * "/websocket"
+  end
+
+end # module Url
+
+module Api
+
+  using HTTP
+
+  using ...JtacPacoSako
+  import ..PacoPlay
+
+  function create_game(; domain = :dev) :: Int
+    url = PacoPlay.Url.server(; domain)
+    body = "{\"timer\":null,\"safe_mode\":true}"
+    resp = HTTP.post(url * "/api/create_game"; body)
+
+    @assert resp.status == 200 "Creating game failed: $(resp.status)"
+    parse(Int, String(resp.body))
+  end
+
+end # module Api
+
+module Json
+
+  using ...JtacPacoSako
+  import LazyJSON
+
+  # Transform an absolute field index on the chess board (always from white's
+  # perspective) to the perspective of the current players
+  function adapt_perspective(index, current_player :: Int)
+    if current_player == 1
+      index
+    else
+      x = index % 8
+      y = div(index, 8)
+      x + 8 * (7 - y)
+    end
+  end
+
+  # Convert pacoplay action json to action index
+  # Examples would be {"Lift" : 5}, {"Place" : 7} or {"Promote" : "Bishop"}
+  """
+      parse_action(json, current_player)
+
+  Parse the action in `json` from the perspective of `current_player`.
+  """
+  function parse_action(json :: LazyJSON.Value, current_player :: Int) :: Int
+    if "Lift" in keys(json)
+      1 + adapt_perspective(json["Lift"], current_player)
+    elseif "Place" in keys(json)
+      1 + 64 + adapt_perspective(json["Place"], current_player)
+    elseif "Promote" in keys(json)
+      piece_type = json["Promote"]
+      offset = findfirst(isequal(piece_type), PROMOTE_OPTIONS)
+      if !isnothing(offset)
+        2 * 64 + offset
+      else
+        msg = "Piece type '$piece_type' in JSON is not understood (promotion)."
+        throw(ArgumentError(msg))
+      end
+    else
+      throw(ArgumentError("Action in JSON is not understood."))
+    end
+  end
+
+  function parse_action(json_str :: String, current_player :: Int)
+    try 
+      json = LazyJSON.parse(json_str)
+    catch err
+      throw(ArgumentError("Invalid json string: $err"))
+    end
+    parse_action(json, current_player)
+  end
+
+  """
+      action(action_id, current_player)
+
+  Returns a json string that corresponds to the action `action_id` from the
+  perspective of `current_player`.
+  """
+  function action(id :: Int, current_player :: Int) :: String
+    if 0 < id <= 64
+      body = "{\"Lift\":$(adapt_perspective(id - 1, current_player))}"
+    elseif 64 < id <= 128
+      body = "{\"Place\":$(adapt_perspective(id - 1 - 64, current_player))}"
+    elseif 128 < id <=132
+      body = "{\"Promote\":\"$(PROMOTE_OPTIONS[id - 128])\"}"
+    else
+      throw(ArgumentError("Action index $id is not supported"))
+    end
+  end
+
+
+  """
+      parse_game(json) -> (game, timeout)
+
+  Parses the provided json and returns a `game` instance of type `PacoSako`.
+  Additionally, it returns a `timeout` value that either has the value `0` (no
+  timeout), `-1` (black won by timeout), or `1` (white won by timeout).
+  """
+  function parse_game(state_json :: LazyJSON.Value)
+    if !("actions" in keys(state_json))
+      throw(ArgumentError("Provided JSON has no field 'actions'"))
+    end
+    game = PacoSako()
+    for pacoplay_action in state_json["actions"]
+      action = parse_action(pacoplay_action, Game.current_player(game))
+      Game.apply_action!(game, action)
+    end
+
+    if "TimeoutVictory" in keys(state_json["victory_state"])
+      winner = state_json["victory_state"]["TimeoutVictory"]
+      timeout = winner == "White" ? 1 : -1
+    else
+      timeout = 0
+    end
+
+    game, timeout
+  end
+
+  function parse_game(json_str :: String)
+    try 
+      json = LazyJSON.parse(json_str)
+    catch err
+      throw(ArgumentError("Invalid json string: $err"))
+    end
+    parse_game(json)
+  end
+
+end
+
+
+# ---------------- PacoPlay play function ------------------------------------ #
+
+
+function action_string(match, id, current_player :: Int) :: String
+  action = Json.action(id, current_player)
+  "{\"DoAction\":{\"key\":\"$match\",\"action\":$action}}"
+end
+
+function subscription_string(match :: Int) :: String
+  "{\"SubscribeToMatch\":{\"key\":\"$match\"}}"
+end
+
+function subscribe(ws, match :: Int)
+  HTTP.send(ws, subscription_string(match))
+  response = HTTP.receive(ws)
+  json = nothing
+  try
+    json = LazyJSON.parse(String(response))
+  catch _
+    logerr("Could not parse server response")
+    return nothing
+  end
+  if "MatchConnectionSuccess" in keys(json)
+    return json["MatchConnectionSuccess"]
+  else
+    logerr("Could not understand server response")
+    return nothing
+  end
+end
+
+function check_updates(games :: Channel)
+  timeout = nothing
+  state = nothing
+  while isready(games)
+    state, timeout = take!(games)
+  end
+  state, timeout
+end
+
+function wait_updates(games :: Channel)
+  wait(games)
+  check_updates(games)
+end
+
+const PROMOTE_OPTIONS = ["Rook", "Knight", "Bishop", "Queen"]
+const COLORS = Dict(1 => "white", -1 => "black")
 
 function log(msg)
   buf = IOBuffer()
@@ -27,138 +227,37 @@ function logerr(msg)
   println(stderr, String(take!(buf)) * msg)
 end
 
-gamehash(game) = "#" * string(Game.hash(game))[1:5]
+"""
+    play(player, match = -1; color = :white, domain = :dev, delay = 0.25)
 
-# transform an absolute field index on the chess board (always from white's
-# perspective) to the perspective of the current players
-function adapt_perspective(index, current_player :: Int)
-  if current_player == 1
-    index
+Let `player` play a `match` on the pacoplay website, assuming `color`. If `match < 0`, a new game
+is created and the corresponding link is printed to stdout.
+
+Setting `domain = :official` will use the production server.
+"""
+function play( player :: Player.AbstractPlayer
+             , match :: Int = -1
+             ; color = :white
+             , domain = :dev
+             , delay :: Float64 = 0.25 )
+
+  if color in [:white, :White, :w, :W, "white", "White", "w", "W", 1]
+    color = 1
+  elseif color in [:black, :Black, :b, :B, "black", "Black", "b", "B", -1]
+    color = -1
   else
-    x = index % 8
-    y = div(index, 8)
-    x + 8 * (7 - y)
+    error("color $color not understood")
   end
-end
 
-# Convert pacoplay action json to action index
-# Examples would be {"Lift" : 5}, {"Place" : 7} or {"Promote" : "Bishop"}
-function parse_action(json, current_player) :: Int
-  if "Lift" in keys(json)
-    1 + adapt_perspective(json["Lift"], current_player)
-  elseif "Place" in keys(json)
-    1 + 64 + adapt_perspective(json["Place"], current_player)
-  elseif "Promote" in keys(json)
-    piece_type = json["Promote"]
-    offset = findfirst(isequal(piece_type), PROMOTE_OPTIONS)
-    if !isnothing(offset)
-      2 * 64 + offset
-    else
-      msg = "Piece type '$piece_type' in JSON is not understood (promotion)."
-      throw(ArgumentError(msg))
-    end
-  else
-    throw(ArgumentError("Action in JSON is not understood."))
+  server_url = Url.server(; domain)
+  ws_url = Url.websocket(; domain)
+
+  if match <= 0
+    log("Requesting new game from $server_url...")
+    match = Api.create_game()
+    url = Url.game(match; domain)
+    log("Created game: $url")
   end
-end
-
-function parse_game(state_json)
-  if !("actions" in keys(state_json))
-    throw(ArgumentError("Provided JSON has no field 'actions'"))
-  end
-  game = PacoSako()
-  for pacoplay_action in state_json["actions"]
-    action = parse_action(pacoplay_action, Game.current_player(game))
-    Game.apply_action!(game, action)
-  end
-  victory_string = nothing
-  if Game.is_over(game)
-    if Game.status(game) in [-1, 1]
-      victory_string = "Winner: $(COLORS[Game.status(game)])"
-    else
-      victory_string = "Draw"
-    end
-  elseif "TimeoutVictory" in keys(state_json["victory_state"])
-    winner = state_json["victory_state"]["TimeoutVictory"]
-    victory_string = "Winner: $winner (by timeout)"
-  end
-  game, victory_string
-end
-
-# Convert action index to pacoplay action json string
-function action_string(id :: Int, current_player :: Int) :: String
-  if 0 < id <= 64
-    body = "{\"Lift\":$(adapt_perspective(id - 1, current_player))}"
-  elseif 64 < id <= 128
-    body = "{\"Place\":$(adapt_perspective(id - 1 - 64, current_player))}"
-  elseif 128 < id <=132
-    body = "{\"Promote\":\"$(PROMOTE_OPTIONS[id - 128])\"}"
-  else
-    throw(ArgumentError("Action index $id is not supported"))
-  end
-end
-
-function do_action_string(match, id, current_player :: Int) :: String
-  action = action_string(id, current_player)
-  "{\"DoAction\":{\"key\":\"$match\",\"action\":$action}}"
-end
-
-function subscription_string(match :: Int) :: String
-  "{\"SubscribeToMatch\":{\"key\":\"$match\"}}"
-end
-
-function websocket_url(server_url :: String)
-  parts = splitpath(server_url)
-  if parts[1] in ["ws:", "http:"]
-    "ws://" * joinpath(parts[2:end]..., "websocket")
-  elseif parts[1] in ["wss:", "https:"]
-    "wss://" * joinpath(parts[2:end]..., "websocket")
-  else
-    "wss://" * joinpath(parts..., "websocket")
-  end
-end
-
-function subscribe(ws, match :: Int)
-  HTTP.send(ws, subscription_string(match))
-  response = HTTP.receive(ws)
-  json = nothing
-  try
-    json = LazyJSON.parse(String(response))
-  catch _
-    logerr("Could not parse server response")
-    return nothing
-  end
-  if "MatchConnectionSuccess" in keys(json)
-    return json["MatchConnectionSuccess"]
-  else
-    logerr("Could not understand server response")
-    return nothing
-  end
-end
-
-function check_updates(games :: Channel)
-  new_victory = nothing
-  new_state = nothing
-  while isready(games)
-    new_state, new_victory = take!(games)
-  end
-  new_state, new_victory
-end
-
-function wait_updates(games :: Channel)
-  wait(games)
-  check_updates(games)
-end
-
-function play_match( server_url :: String
-                   , match :: Int
-                   , color :: Int = 1
-                   ; delay :: Float64 = 0.1
-                   , player = Player.MCTSPlayer(power = 1000))
-
-  @assert color in [-1, 1] "AI must either play as White (1) or Black (-1)"
-
-  ws_url = websocket_url(server_url)
 
   log("Connecting...")
   HTTP.WebSockets.open(ws_url) do ws
@@ -169,11 +268,12 @@ function play_match( server_url :: String
     if isnothing(json) return end
 
     # We connected successfully
-    log("Assuming color $(COLORS[color]) in match $match on $server_url")
+    url = Url.game(match; domain)
+    log("Assuming color $(COLORS[color]) in $url")
 
-    game, victory = parse_game(json["state"])
+    game, timeout = Json.parse_game(json["state"])
     games = Channel(100)
-    log(match, "Received first state $(gamehash(game))")
+    log(match, "Received first state $(fen(game))")
 
     # Now we let the player play if it has the right color
     @sync begin
@@ -185,9 +285,9 @@ function play_match( server_url :: String
         try
           msg = HTTP.receive(ws)
           json = LazyJSON.parse(String(msg))
-          state = parse_game(json["CurrentMatchState"])
+          state = Json.parse_game(json["CurrentMatchState"])
           put!(games, state)
-          log(match, "Received state $(gamehash(state[1]))")
+          log(match, "Received state $(fen(state[1]))")
         catch err
           if err isa EOFError && !exiting
             logerr("Websocket has closed")
@@ -210,8 +310,15 @@ function play_match( server_url :: String
       # think about next action(s) to take and submit them
       @async while true
 
-        if !isnothing(victory)
-          log(match, "Match is over. " * victory)
+        if timeout != 0 || Game.is_over(game)
+          if timeout != 0
+            str = "Winner: $(COLORS[timeout]) (by timeout)"
+          elseif Game.status(game) == 0
+            str = "Draw"
+          else
+            str = "Winner: $(COLORS[Game.status(game)])"
+          end
+          log(match, "Match is over. " * str)
           exiting = true
           close(ws)
           close(games)
@@ -223,7 +330,7 @@ function play_match( server_url :: String
         try 
           if color != Game.current_player(game)
             log(match, "Waiting for opponent...")
-            game, victory = wait_updates(games)
+            game, timeout = wait_updates(games)
             continue
           end
 
@@ -234,13 +341,13 @@ function play_match( server_url :: String
           # check if the game state has changed by human intervention
           # before submitting
           sleep(delay)
-          current_game, vs = check_updates(games)
+          new_game, tout = check_updates(games)
 
           # the game has changed. don't submit
-          if !isnothing(vs) || (!isnothing(current_game) && (current_game != game))
+          if (!isnothing(tout) && tout != 0) || (!isnothing(new_game) && (new_game != game))
             log(match, "Info: Game state was changed while player was thinking")
-            game = current_game
-            victory = vs
+            game = new_game
+            timeout = tout
             continue
           end
 
@@ -248,18 +355,18 @@ function play_match( server_url :: String
           log(match, "Submitting actions $(join(actions, ", "))")
           for action in actions
             # do action
-            HTTP.send(ws, do_action_string(match, action, Game.current_player(game)))
+            HTTP.send(ws, action_string(match, action, Game.current_player(game)))
             Game.apply_action!(game, action)
             # wait for feedback from the server
             sleep(delay)
-            current_game, vs = wait_updates(games)
-            if current_game != game
+            new_game, tout = wait_updates(games)
+            if new_game != game
               # manual intervention changed the game, not our submitted action
               log(match, "Info: Game state was changed while player was acting")
               break
             end
-            game = current_game
-            victory = vs
+            game = new_game
+            timeout = tout
           end
         catch err
           if err isa InvalidStateException && !exiting
