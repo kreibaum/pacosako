@@ -211,9 +211,8 @@ type Msg
     | UpdateUserPaste String
     | UseUserPaste Sako.Position
     | RequestRandomPosition
-    | WasmResponse RpcResponse
     | RequestAnalysePosition Sako.Position
-    | GotAnalysePosition AnalysisReport
+    | WasmResponse RpcResponse
     | ToolAddPiece Sako.Color Sako.Type
     | SetExportOptionsVisible Bool
     | SetInputMode (Maybe CastingDeco.InputMode)
@@ -385,6 +384,9 @@ update msg model =
         RequestRandomPosition ->
             ( model, Wasm.RandomPosition 300 |> rpcCall |> Effect.fromCmd )
 
+        RequestAnalysePosition position ->
+            ( model, Wasm.AnalyzePosition { board_fen = Fen.writeFen position, action_history = [] } |> rpcCall |> Effect.fromCmd )
+
         WasmResponse response ->
             case response of
                 Wasm.RandomPositionResponse fen ->
@@ -400,14 +402,11 @@ update msg model =
                     , Effect.none
                     )
 
+                Wasm.AnalyzePositionResponse report ->
+                    ( { model | analysis = Just report.analysis }, Effect.none )
+
                 _ ->
                     ( model, Effect.none )
-
-        RequestAnalysePosition position ->
-            ( model, Api.Backend.postAnalysePosition position HttpError GotAnalysePosition |> Effect.fromCmd )
-
-        GotAnalysePosition analysis ->
-            ( { model | analysis = Just analysis }, Effect.none )
 
         ToolAddPiece color pieceType ->
             ( updateSmartToolAdd (P.getC model.game) color pieceType

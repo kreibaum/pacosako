@@ -1,4 +1,5 @@
 mod opening;
+pub mod puzzle;
 
 /// Analysis methods for paco sako. This can be used to analyze a game and
 /// give information about interesting moments. E.g. missed opportunities.

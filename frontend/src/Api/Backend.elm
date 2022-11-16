@@ -8,7 +8,6 @@ module Api.Backend exposing
     , getLogout
     , getRecentGameKeys
     , getReplay
-    , postAnalysePosition
     , postLanguage
     , postLoginPassword
     , postMatchRequest
@@ -256,28 +255,6 @@ encodeCreatePosition position =
                 }
           )
         ]
-
-
-type alias AnalysisReport =
-    { text_summary : String
-
-    -- TODO: search_result: SakoSearchResult,
-    }
-
-
-decodeAnalysisReport : Decoder AnalysisReport
-decodeAnalysisReport =
-    Decode.map AnalysisReport
-        (Decode.field "text_summary" Decode.string)
-
-
-postAnalysePosition : Sako.Position -> Api AnalysisReport msg
-postAnalysePosition position =
-    postJson
-        { url = "/api/analyse"
-        , body = encodeCreatePosition position
-        , decoder = decodeAnalysisReport
-        }
 
 
 

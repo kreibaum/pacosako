@@ -33,6 +33,7 @@ type RpcCall
     = HistoryToReplayNotation { board_fen : String, action_history : List Action }
     | LegalAction { board_fen : String, action_history : List Action }
     | RandomPosition Int
+    | AnalyzePosition { board_fen : String, action_history : List Action }
 
 
 {-| The message received from the wasm worker
@@ -41,6 +42,7 @@ type RpcResponse
     = HistoryToReplayNotationResponse { notation : List HalfMove, opening : String }
     | LegalActionResponse (List Action)
     | RandomPositionResponse String
+    | AnalyzePositionResponse { analysis : { text_summary : String } }
     | RpcError String
 
 
@@ -74,6 +76,13 @@ encodeRpcCall msg =
             Encode.object [ ( "tries", Encode.int tries ) ]
                 |> encodeObjectWithOneKey "RandomPosition"
 
+        AnalyzePosition { board_fen, action_history } ->
+            Encode.object
+                [ ( "board_fen", Encode.string board_fen )
+                , ( "action_history", Encode.list Sako.encodeAction action_history )
+                ]
+                |> encodeObjectWithOneKey "AnalyzePosition"
+
 
 decodeHistoryToReplayNotationResponse : Decoder RpcResponse
 decodeHistoryToReplayNotationResponse =
@@ -99,6 +108,12 @@ decodeRandomPositionResponse =
         )
 
 
+decodeAnalyzePositionResponse : Decoder RpcResponse
+decodeAnalyzePositionResponse =
+    Decode.at [ "AnalyzePosition", "analysis", "text_summary" ] Decode.string
+        |> Decode.map (\str -> AnalyzePositionResponse { analysis = { text_summary = str } })
+
+
 decodeRpcError : Decoder RpcResponse
 decodeRpcError =
     Decode.map RpcError (Decode.field "RpcError" Decode.string)
@@ -110,6 +125,7 @@ decodeRpcCall =
         [ decodeHistoryToReplayNotationResponse
         , decodeLegalActionResponse
         , decodeRandomPositionResponse
+        , decodeAnalyzePositionResponse
         , decodeRpcError
         ]
 

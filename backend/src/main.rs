@@ -14,8 +14,6 @@ extern crate log;
 extern crate simplelog;
 use crate::ws::RocketToWsMsg;
 use db::Pool;
-use pacosako::{DenseBoard, SakoSearchResult};
-use rand::{thread_rng, Rng};
 use rocket::response::{Flash, Redirect};
 use rocket::serde::json::Json;
 use rocket::State;
@@ -286,46 +284,6 @@ fn logout(jar: &CookieJar<'_>) -> Flash<Redirect> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Analysis and random positions ///////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Serialize, Deserialize)]
-struct PositionData {
-    notation: String,
-}
-
-#[derive(Serialize)]
-struct AnalysisReport {
-    text_summary: String,
-    search_result: SakoSearchResult,
-}
-
-/// This should move into the webclient eventually.
-/// And also, it should return pretty move notation.
-#[post("/analyse", data = "<position>")]
-fn analyze_position(
-    position: Json<SavePositionRequest>,
-) -> Result<Json<AnalysisReport>, ServerError> {
-    use std::convert::TryInto;
-
-    // Get data out of request.
-    let position_data: PositionData = serde_json::from_value(position.0.data).unwrap();
-
-    // Interpret data as a PacoSako Board, this may fail and produces a result.
-    let board: Result<DenseBoard, ()> =
-        (&pacosako::ExchangeNotation(position_data.notation)).try_into();
-    if let Ok(board) = board {
-        let sequences = pacosako::find_sako_sequences(&((&board).into()))?;
-        Ok(Json(AnalysisReport {
-            text_summary: format!("{:?}", sequences),
-            search_result: sequences,
-        }))
-    } else {
-        Err(ServerError::DeserializationFailed)
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Game management /////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -564,7 +522,6 @@ fn rocket() -> _ {
                 position_get_list,
                 position_get,
                 post_action_to_game,
-                analyze_position,
                 create_game,
                 branch_game,
                 get_game,

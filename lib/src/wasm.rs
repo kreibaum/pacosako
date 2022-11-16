@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
-    analysis::{self, ReplayData},
+    analysis::{self, puzzle, ReplayData},
     editor, fen, PacoAction, PacoBoard, PacoError,
 };
 
@@ -14,7 +14,7 @@ use crate::{
 /// dumb and doesn't need to know about the possible messages..
 ///
 /// Values in here are already fully decoded into rust types.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub enum RpcCall {
     HistoryToReplayNotation {
         board_fen: String,
@@ -27,6 +27,10 @@ pub enum RpcCall {
     RandomPosition {
         tries: usize,
     },
+    AnalyzePosition {
+        board_fen: String,
+        action_history: Vec<PacoAction>,
+    },
 }
 
 /// Represents a message that is send from the wasm library to elm via ports.
@@ -37,43 +41,50 @@ pub enum RpcResponse {
     HistoryToReplayNotation(ReplayData),
     LegalActions { legal_actions: Vec<PacoAction> },
     RandomPosition { board_fen: String },
+    AnalyzePosition { analysis: puzzle::AnalysisReport },
     RpcError(String),
 }
 
 #[wasm_bindgen]
 pub fn rpc_call(call: String) -> String {
     let call: Result<RpcCall, _> = serde_json::from_str(&call);
-    let response: RpcResponse = match call {
-        Ok(call) => rpc_call_internal(call),
-        Err(e) => RpcResponse::RpcError(format!("Failed to decode call: {:?}", e)),
+    let response: RpcResponse = match &call {
+        Ok(call) => match rpc_call_internal(call) {
+            Ok(response) => response,
+            Err(err) => RpcResponse::RpcError(format!(
+                "Error handling rpc call: {:?} \nError: {:?}",
+                call, err
+            )),
+        },
+        Err(e) => RpcResponse::RpcError(format!("Failed to decode rpc call: {:?}", e)),
     };
     serde_json::to_string(&response).unwrap()
 }
 
-pub fn rpc_call_internal(call: RpcCall) -> RpcResponse {
+pub fn rpc_call_internal(call: &RpcCall) -> Result<RpcResponse, PacoError> {
     match call {
         RpcCall::HistoryToReplayNotation {
             board_fen,
             action_history,
-        } => history_to_replay_notation(&board_fen, &action_history)
-            .map(RpcResponse::HistoryToReplayNotation)
-            .unwrap_or_else(|e| {
-                RpcResponse::RpcError(format!("Failed to convert history: {:?}", e))
-            }),
+        } => Ok(RpcResponse::HistoryToReplayNotation(
+            history_to_replay_notation(board_fen, action_history)?,
+        )),
+
         RpcCall::LegalActions {
             board_fen,
             action_history,
-        } => legal_actions(&board_fen, &action_history)
-            .map(|legal_actions| RpcResponse::LegalActions { legal_actions })
-            .unwrap_or_else(|e| {
-                RpcResponse::RpcError(format!("Failed to get legal actions: {:?}", e))
-            }),
-        RpcCall::RandomPosition { tries } => match editor::random_position(tries) {
-            Ok(board) => RpcResponse::RandomPosition {
-                board_fen: fen::write_fen(&board),
-            },
-            Err(e) => RpcResponse::RpcError(format!("Failed to get random position: {:?}", e)),
-        },
+        } => Ok(RpcResponse::LegalActions {
+            legal_actions: legal_actions(board_fen, action_history)?,
+        }),
+        RpcCall::RandomPosition { tries } => Ok(RpcResponse::RandomPosition {
+            board_fen: fen::write_fen(&editor::random_position(*tries)?),
+        }),
+        RpcCall::AnalyzePosition {
+            board_fen,
+            action_history,
+        } => Ok(RpcResponse::AnalyzePosition {
+            analysis: puzzle::analyze_position(board_fen, action_history)?,
+        }),
     }
 }
 
