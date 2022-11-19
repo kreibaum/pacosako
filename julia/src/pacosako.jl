@@ -6,7 +6,7 @@ const DYNLIB_PATH = joinpath(dirname(@__DIR__), "../lib/target/release/libpacosa
 
 mutable struct PacoSako <: Game.AbstractGame
     ptr #::Ptr{Nothing}
-    bin :: Vector{UInt8} # store binary representation if frozen
+    bin::Vector{UInt8} # store binary representation if frozen
     forfeit_by::Int64
 end
 
@@ -16,11 +16,11 @@ function PacoSako()::PacoSako
     wrap_pacosako_ptr(ptr)
 end
 
-function PacoSako(fen :: String) :: PacoSako
-  bytes = Vector{UInt8}(fen)
-  ptr = ccall((:parse_fen, DYNLIB_PATH), Ptr{Nothing}, (Ptr{UInt8}, Int64), bytes, length(bytes))
-  @assert ptr != C_NULL "invalid fen string"
-  wrap_pacosako_ptr(ptr)
+function PacoSako(fen::String)::PacoSako
+    bytes = Vector{UInt8}(fen)
+    ptr = ccall((:parse_fen, DYNLIB_PATH), Ptr{Nothing}, (Ptr{UInt8}, Int64), bytes, length(bytes))
+    @assert ptr != C_NULL "invalid fen string"
+    wrap_pacosako_ptr(ptr)
 end
 
 function wrap_pacosako_ptr(ptr::Ptr{Nothing})::PacoSako
@@ -150,11 +150,11 @@ end
 function Base.show(io::IO, ::MIME"text/plain", game::PacoSako)
     fen_string = PacoPlay.Url.editor(game)
     if Game.is_over(game)
-      println(io, "PacoSako game with result $(Game.status(game))")
-      print(io, "  link: $fen_string")
+        println(io, "PacoSako game with result $(Game.status(game))")
+        print(io, "  link: $fen_string")
     else
-      println(io, "PacoSako game with player $(Game.current_player(game)) moving")
-      print(io, "  link: $fen_string")
+        println(io, "PacoSako game with player $(Game.current_player(game)) moving")
+        print(io, "  link: $fen_string")
     end
 end
 
@@ -197,7 +197,7 @@ function find_paco_sequences(ps::PacoSako)::Vector{Vector{Int64}}
     status_code = ccall((:find_paco_sequences, DYNLIB_PATH), Int64,
         (Ptr{Nothing}, Ptr{UInt8}, Int64),
         ps.ptr, memory, length(memory))
-    @assert status_code == 0 "Error when trying to find sequences"
+    @assert status_code == 0 "Error when trying to find sequences $(fen(ps))"
 
     # Now we need to split this along the 0
     out = Vector()
@@ -235,10 +235,10 @@ end
 Returns the fen string of the `PacoSako` game state `pacosako`.
 """
 function fen(ps::PacoSako)
-  tmp = zeros(UInt8, 100)
-  len = ccall((:write_fen, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{UInt8}, Int64), ps.ptr, tmp, length(tmp))
-  @assert len != 0 && len <= length(tmp) "fen string did not fit in allocated memory"
-  String(@view tmp[1:len])
+    tmp = zeros(UInt8, 100)
+    len = ccall((:write_fen, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{UInt8}, Int64), ps.ptr, tmp, length(tmp))
+    @assert len != 0 && len <= length(tmp) "fen string did not fit in allocated memory"
+    String(@view tmp[1:len])
 end
 
 

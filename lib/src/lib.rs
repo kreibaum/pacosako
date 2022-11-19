@@ -63,6 +63,10 @@ pub enum PacoError {
     LiftingWhenNotAllowed(RequiredAction),
     #[error("Tried to promote, required action is:")]
     PromotingWhenNotAllowed(RequiredAction),
+    #[error("There is no king on the board.")]
+    NoKingOnBoard(PlayerColor),
+    #[error("The hand is not empty when it needs to be.")]
+    BoardNotSettled,
 }
 
 impl From<serde_json::Error> for PacoError {
@@ -890,6 +894,13 @@ impl DenseBoard {
         }
     }
 
+    pub fn get(&self, color: PlayerColor, pos: BoardPosition) -> Option<PieceType> {
+        self.pieces_of_color(color)
+            .get(pos.0 as usize)
+            .cloned()
+            .expect("Indexing into board with assumed good tile.")
+    }
+
     /// The Dense Board representation containing only pieces of the given color.
     fn pieces_of_color(&self, color: PlayerColor) -> &Vec<Option<PieceType>> {
         match color {
@@ -1300,6 +1311,18 @@ impl DenseBoard {
                 .collect()),
         }
     }
+    pub fn king_position(&self, color: PlayerColor) -> Result<BoardPosition, PacoError> {
+        if let Some((king_pos, _)) = self
+            .pieces_of_color(color)
+            .iter()
+            .enumerate()
+            .find(|&(_, &p)| p == Some(PieceType::King))
+        {
+            Ok(BoardPosition(king_pos as u8))
+        } else {
+            Err(PacoError::NoKingOnBoard(color))
+        }
+    }
 }
 
 /// For a given move of the king, determines if this would trigger a castling.
@@ -1576,9 +1599,9 @@ pub fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, P
 /// depends on the order in which actions were determined.
 /// Termination of this function depends on implementation details of `determine_all_moves`.
 /// Returns None when no path can be found.
-pub fn trace_first_move<T: PacoBoard>(
+pub fn trace_first_move<T: PacoBoard, S: std::hash::BuildHasher>(
     target: &T,
-    found_via: &HashMap<T, Vec<(PacoAction, Option<T>)>>,
+    found_via: &HashMap<T, Vec<(PacoAction, Option<T>)>, S>,
 ) -> Option<Vec<PacoAction>> {
     let mut trace: Vec<PacoAction> = Vec::new();
 

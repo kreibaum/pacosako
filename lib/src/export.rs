@@ -5,7 +5,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::str;
 
 use crate::{
-    fen, analysis, determine_all_threats, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
+    analysis::{self, reverse_amazon_search},
+    determine_all_threats, fen, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
     PlayerColor,
 };
 
@@ -460,78 +461,89 @@ pub extern "C" fn find_paco_sequences(
 ) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
-    let explored = crate::determine_all_moves(ps.clone());
-    if let Ok(explored) = explored {
-        let mut actions = vec![];
-        // Is there a state where the black king is dancing?
-        for board in explored.settled {
-            if board.king_in_union(ps.controlling_player.other()) {
-                if let Some(trace) = crate::trace_first_move(&board, &explored.found_via) {
-                    actions.push(trace);
-                }
-            }
-        }
-
-        // Now we have generated a list of chains and can write this into a null
-        // separated list.
-        let mut offset = 0;
-        for chain in actions {
-            // Check if the whole action fits in the remaining memory.
-            let remaining_memory = reserved_space - offset;
-            if remaining_memory < chain.len() as i64 {
-                return 0;
-            }
-            for action in chain {
-                let a = action_to_action_index(action.align(ps.controlling_player()));
-                unsafe {
-                    let cell = out.offset(offset as isize);
-                    *cell = a;
-                }
-                offset += 1;
-            }
-            // Leave a space unwritten to terminate the chain.
-            // This is optional and does not need to be written for the last
-            // chain if there is no more space for this one byte.
-            offset += 1;
-            if reserved_space - offset > 0 {
-                unsafe {
-                    let cell = out.offset(offset as isize);
-                    *cell = 0;
-                }
-            }
-        }
-
-        0
-    } else {
-        -1
+    if ps.is_settled() && !ps.required_action.is_promote() {
+        let actions = reverse_amazon_search::find_paco_sequences(ps, ps.controlling_player());
+        let Ok(actions) = actions else {
+            println!("Error in the reverse amazon search: {:?}", actions);
+            println!("Position: {}", crate::fen::write_fen(ps));
+            return -1;
+        };
+        return write_out_chain(actions, ps, reserved_space, out);
     }
+
+    let explored = crate::determine_all_moves(ps.clone());
+
+    let Ok(explored) = explored else {
+        return -1;
+    };
+
+    let mut actions = vec![];
+    // Is there a state where the black king is dancing?
+    for board in explored.settled {
+        if board.king_in_union(ps.controlling_player.other()) {
+            if let Some(trace) = crate::trace_first_move(&board, &explored.found_via) {
+                actions.push(trace);
+            }
+        }
+    }
+
+    write_out_chain(actions, ps, reserved_space, out)
+}
+
+fn write_out_chain(
+    actions: Vec<Vec<PacoAction>>,
+    ps: &DenseBoard,
+    reserved_space: i64,
+    out: *mut u8,
+) -> i64 {
+    let mut offset = 0;
+    for chain in actions {
+        // Check if the whole action fits in the remaining memory.
+        let remaining_memory = reserved_space - offset;
+        if remaining_memory < chain.len() as i64 {
+            return 0;
+        }
+        for action in chain {
+            let a = action_to_action_index(action.align(ps.controlling_player()));
+            unsafe {
+                let cell = out.offset(offset as isize);
+                *cell = a;
+            }
+            offset += 1;
+        }
+        // Leave a space unwritten to terminate the chain.
+        // This is optional and does not need to be written for the last
+        // chain if there is no more space for this one byte.
+        offset += 1;
+        if reserved_space - offset > 0 {
+            unsafe {
+                let cell = out.offset(offset as isize);
+                *cell = 0;
+            }
+        }
+    }
+    0
 }
 
 #[no_mangle]
-pub extern "C" fn write_fen(
-    ps: *mut DenseBoard,
-    out: *mut u8,
-    reserved_space: i64,
-) -> i64 {
-
+pub extern "C" fn write_fen(ps: *mut DenseBoard, out: *mut u8, reserved_space: i64) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
     let fen_string = fen::write_fen(ps);
     let fen_string = fen_string.as_bytes();
-    if fen_string.len() as i64 > reserved_space  {
+    if fen_string.len() as i64 > reserved_space {
         return 0;
     }
 
-    for (i,c) in fen_string.iter().enumerate() {
+    for (i, c) in fen_string.iter().enumerate() {
         unsafe {
             let cell = out.offset(i as isize);
             *cell = *c;
         }
     }
 
-    return fen_string.len() as i64
-} 
-
+    return fen_string.len() as i64;
+}
 
 #[no_mangle]
 pub extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
@@ -559,5 +571,3 @@ pub extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut D
         }
     }
 }
-
-

@@ -17,10 +17,12 @@
         "fxhash",
         "jetli",
         "lightspeed",
+        "lunalearn",
         "pytrans",
         "svgdown",
         "svgmove",
         "svgup",
+        "tinyset",
         "webassembly",
         "Weblate"
     ]
