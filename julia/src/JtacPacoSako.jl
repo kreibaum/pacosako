@@ -8,6 +8,7 @@ export Jtac,
        Util,
        Pack,
        Game,
+       Target,
        Data,
        Model,
        Player,
@@ -21,7 +22,8 @@ include("luna.jl")
 export PacoSako,
        Luna
 
-export fen
+export fen,
+       random_position
 
 function __init__()
     # We have to register the game in order to use all functionality of Jtac
