@@ -11,7 +11,7 @@ module Generate
 
   using JtacPacoSako
 
-  function until_not_over(f)
+  function return_active_game(f)
     game = f()
     while Game.is_over(game)
       game = f()
@@ -20,7 +20,7 @@ module Generate
   end
 
   const INSTANCE = Dict{String, Function}(
-    "random" => () -> until_not_over() do
+    "random" => () -> return_active_game() do
       if rand() < 0.5
         game = random_position()
         Game.random_turns!(game, 1:5)
@@ -47,7 +47,7 @@ module Generate
     step, finish = Util.stepper(@sprintf("Dataset #%04d", k), n)
     tstart = time()
 
-    while isopen(ch)
+    while true
       try
         game, output = take!(ch)
         add_entry!(ds, game, output)
@@ -64,7 +64,7 @@ module Generate
 
           path = joinpath(folder, file)
           Data.save(path, ds)
-          @info "Saved dataset '$path' ($gps g/s)"
+          @info "Saving '$path' ($gps g/s)"
 
           k += 1
           ds = Data.DataSet(luna)
@@ -81,6 +81,7 @@ module Generate
           @error "received unexpected exception when handling output channel: $err"
           showerror(stdout, err)
         end
+        break
       end
     end
   end
