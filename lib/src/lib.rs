@@ -10,6 +10,7 @@ pub mod types;
 pub mod wasm;
 pub mod zobrist;
 
+use fxhash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
 use std::collections::hash_map::Entry;
@@ -94,6 +95,12 @@ impl VictoryState {
             VictoryState::NoProgressDraw => true,
         }
     }
+}
+
+pub struct VariantSettings {
+    /// How often a position must a repeated to be considered a draw.
+    /// 0 means that this never draws.
+    pub draw_after_n_repetitions: u8,
 }
 
 /// In a DenseBoard we reserve memory for all positions.
@@ -1606,7 +1613,7 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<[IsThreatened; 64], 
     // This is simpler that determining all moves, as we don't need to keep an
     // record of how we came to a specific position.
     let mut todo_list: VecDeque<T> = VecDeque::new();
-    let mut seen: HashSet<T> = HashSet::new();
+    let mut seen: FxHashSet<T> = FxHashSet::default();
     // let mut settled: HashSet<T> = HashSet::new();
     // Put all starting moves into the initialization
     for action in board.threat_actions() {

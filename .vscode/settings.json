@@ -14,6 +14,7 @@
         "ccall",
         "DYNLIB",
         "Førre",
+        "fxhash",
         "jetli",
         "lightspeed",
         "pytrans",
