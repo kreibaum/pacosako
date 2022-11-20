@@ -87,6 +87,7 @@ type alias InnerModel =
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
     , showMovementIndicators : Bool
+    , animationSpeedSetting : AnimationSpeedSetting
     }
 
 
@@ -125,6 +126,7 @@ innerInit model sidebarData =
     , castingDeco = CastingDeco.initModel
     , inputMode = Nothing
     , showMovementIndicators = True
+    , animationSpeedSetting = NormalAnimation
     }
 
 
@@ -155,6 +157,7 @@ type InnerMsg
     | PreviousMove
     | GoToSelection Notation.SectionIndex
     | PlayAll
+    | SetAnimationSpeedSetting AnimationSpeedSetting
     | EnableMovementIndicators
     | AnimationTick Posix
     | RematchFromActionIndex String Int
@@ -269,6 +272,9 @@ innerUpdate msg model =
         GotBranchKey newKey ->
             ( model, pushUrl model.navigationKey (Route.toHref (Route.Game__Id_ { id = newKey })) |> Effect.fromCmd )
 
+        SetAnimationSpeedSetting setting ->
+            ( { model | animationSpeedSetting = setting }, Effect.none )
+
 
 {-| Remove all the timestamps from the replay and turn it into an RpcCall.
 -}
@@ -323,7 +329,7 @@ animateStepByStep : Notation.SectionIndex -> InnerModel -> InnerModel
 animateStepByStep newSelection model =
     if Notation.sectionIndexDiff newSelection model.selected |> Notation.sectionIndexDiffIsForward then
         animateDirect { model | selected = Notation.nextAction model.sidebarData model.selected }
-            |> (\m -> { m | timeline = Animation.pause chainPauseTime m.timeline })
+            |> (\m -> { m | timeline = Animation.pause (chainPauseTime model.animationSpeedSetting) m.timeline })
             |> animateStepByStep newSelection
 
     else
@@ -445,6 +451,7 @@ successBodyPhone shared model =
                 , Components.gameCodeLabel
                     (CopyToClipboard (Url.toString shared.url))
                     model.key
+                , animationSpeedButtons model
                 ]
             ]
         )
@@ -468,18 +475,40 @@ successBodyDesktop shared model =
 --------------------------------------------------------------------------------
 
 
+type AnimationSpeedSetting
+    = FastAnimation
+    | NormalAnimation
+    | SlowAnimation
+
+
 {-| Time to move from one board state to the next.
 -}
-motionTime : Animation.Duration
-motionTime =
-    Animation.milliseconds 200
+motionTime : AnimationSpeedSetting -> Animation.Duration
+motionTime setting =
+    case setting of
+        FastAnimation ->
+            Animation.milliseconds 100
+
+        NormalAnimation ->
+            Animation.milliseconds 200
+
+        SlowAnimation ->
+            Animation.milliseconds 300
 
 
 {-| Pause between two actions in a chain.
 -}
-chainPauseTime : Animation.Duration
-chainPauseTime =
-    Animation.milliseconds 150
+chainPauseTime : AnimationSpeedSetting -> Animation.Duration
+chainPauseTime setting =
+    case setting of
+        FastAnimation ->
+            Animation.milliseconds 50
+
+        NormalAnimation ->
+            Animation.milliseconds 150
+
+        SlowAnimation ->
+            Animation.milliseconds 500
 
 
 {-| Given a model where the timeline does not match the actionCount, this adds
@@ -492,7 +521,7 @@ view so I am putting it in this section.
 animateDirect : InnerModel -> InnerModel
 animateDirect model =
     animateDirectR model
-        |> Maybe.map (\renderData -> { model | timeline = Animation.queue ( motionTime, renderData ) model.timeline })
+        |> Maybe.map (\renderData -> { model | timeline = Animation.queue ( motionTime model.animationSpeedSetting, renderData ) model.timeline })
         |> Maybe.withDefault model
 
 
@@ -604,6 +633,7 @@ sidebarContent shared model =
         (CopyToClipboard (Url.toString shared.url))
         model.key
     , arrowButtons
+    , animationSpeedButtons model
     , Element.text T.orUseArrows
     , enableMovementIndicators model.showMovementIndicators
     , editorLink model
@@ -632,25 +662,40 @@ opening model =
 arrowButtons : Element InnerMsg
 arrowButtons =
     Element.row [ spacing 5, width fill, paddingXY 5 0 ]
-        [ sharedWidthControll T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
-        , sharedWidthControll T.replayPreviousAction Solid.chevronLeft (Just PreviousAction)
-        , sharedWidthControll T.replayPlayAll Solid.play (Just PlayAll)
-        , sharedWidthControll T.replayNextAction Solid.chevronRight (Just NextAction)
-        , sharedWidthControll T.replayNextMove Solid.arrowRight (Just NextMove)
+        [ sharedWidthControll False T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
+        , sharedWidthControll False T.replayPreviousAction Solid.chevronLeft (Just PreviousAction)
+        , sharedWidthControll False T.replayPlayAll Solid.play (Just PlayAll)
+        , sharedWidthControll False T.replayNextAction Solid.chevronRight (Just NextAction)
+        , sharedWidthControll False T.replayNextMove Solid.arrowRight (Just NextMove)
         ]
 
 
-sharedWidthControll : String -> Icon -> Maybe msg -> Element msg
-sharedWidthControll altText iconType msg =
+sharedWidthControll : Bool -> String -> Icon -> Maybe msg -> Element msg
+sharedWidthControll isSelected altText iconType msg =
     Input.button
         [ width fill
-        , Background.color (Element.rgb255 240 240 240)
+        , Background.color
+            (if isSelected then
+                Element.rgb255 200 200 200
+
+             else
+                Element.rgb255 240 240 240
+            )
         , Element.mouseOver [ Background.color (Element.rgb255 220 220 220) ]
         , Border.rounded 5
         ]
         { onPress = msg
         , label = icon [ centerX, padding 5, Element.Region.description altText ] iconType
         }
+
+
+animationSpeedButtons : InnerModel -> Element InnerMsg
+animationSpeedButtons model =
+    Element.row [ spacing 5, width fill, paddingXY 5 0 ]
+        [ sharedWidthControll (model.animationSpeedSetting == SlowAnimation) T.replayPreviousMove Solid.snowflake (Just (SetAnimationSpeedSetting SlowAnimation))
+        , sharedWidthControll (model.animationSpeedSetting == NormalAnimation) T.replayPreviousAction Solid.frog (Just (SetAnimationSpeedSetting NormalAnimation))
+        , sharedWidthControll (model.animationSpeedSetting == FastAnimation) T.replayPlayAll Solid.spaceShuttle (Just (SetAnimationSpeedSetting FastAnimation))
+        ]
 
 
 enableMovementIndicators : Bool -> Element InnerMsg
