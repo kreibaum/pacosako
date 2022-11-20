@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 /// Support functions for the pacoplay editor.
-use crate::{find_sako_sequences, DenseBoard, PacoError, SakoSearchResult};
+use crate::{analysis::reverse_amazon_search, DenseBoard, PacoError, SakoSearchResult};
 use rand::{thread_rng, Rng};
 
 /// Find a board with a long paco chain and return it.
@@ -17,12 +17,15 @@ pub fn random_position(tries: usize) -> Result<DenseBoard, PacoError> {
     let mut best_amount_of_chains = 0;
     for _ in 0..tries {
         let board: DenseBoard = rng.gen();
-        let sequences: SakoSearchResult = find_sako_sequences(&((&board).into()))?;
+        let white_sequences =
+            reverse_amazon_search::find_paco_sequences(&board, crate::PlayerColor::White)?;
 
-        let any_chain_involves_a_promotion = sequences
-            .white
+        let black_sequences =
+            reverse_amazon_search::find_paco_sequences(&board, crate::PlayerColor::Black)?;
+
+        let any_chain_involves_a_promotion = white_sequences
             .iter()
-            .chain(sequences.black.iter())
+            .chain(black_sequences.iter())
             .any(|chain| chain.iter().any(|move_| move_.is_promotion()));
 
         // Promotions in chains are common on random boards and make the chain
@@ -32,15 +35,13 @@ pub fn random_position(tries: usize) -> Result<DenseBoard, PacoError> {
         }
 
         // Find the shortest sequence for each player
-        let shortest_sequence_length_white = sequences
-            .white
+        let shortest_sequence_length_white = white_sequences
             .iter()
             .map(|seq| seq.len())
             .min()
             .unwrap_or(0);
 
-        let shortest_sequence_length_black = sequences
-            .black
+        let shortest_sequence_length_black = black_sequences
             .iter()
             .map(|seq| seq.len())
             .min()
@@ -51,7 +52,7 @@ pub fn random_position(tries: usize) -> Result<DenseBoard, PacoError> {
             shortest_sequence_length_black,
         );
 
-        let amount_of_chains = sequences.white.len() + sequences.black.len();
+        let amount_of_chains = white_sequences.len() + black_sequences.len();
 
         // If either the longest chain is better or the amount of chains is better,
         // we'll take this board.
