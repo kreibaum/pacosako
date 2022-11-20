@@ -31,6 +31,7 @@ tinyset = "0.4.15"
 [dev-dependencies]
 quickcheck = "0.8"
 quickcheck_macros = "0.8"
+ntest = "0.9.0" # Required for timeouts to test potential infinite loops.
 
 [profile.release]
 debug = true

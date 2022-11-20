@@ -12,14 +12,13 @@ use tinyset::SetU32;
 // TODO: This can get more performance by switching from Set<u32> to Set<{0..63}>
 // and using a bit board for implementation.
 
-use crate::{
-    trace_first_move, BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType,
-    PlayerColor,
-};
+use crate::{BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor};
+
+use super::tree;
 
 pub struct ExploredStateAmazon {
     pub paco_positions: FxHashSet<DenseBoard>,
-    pub found_via: FxHashMap<DenseBoard, Vec<(PacoAction, Option<DenseBoard>)>>,
+    pub found_via: FxHashMap<DenseBoard, Vec<(PacoAction, DenseBoard)>>,
 }
 
 impl Debug for ExploredStateAmazon {
@@ -39,12 +38,13 @@ pub fn find_paco_sequences(
     board: &DenseBoard,
     attacking_player: PlayerColor,
 ) -> Result<Vec<Vec<PacoAction>>, PacoError> {
-    let tree = explore_paco_tree(board, attacking_player)?;
+    let mut tree = explore_paco_tree(board, attacking_player)?;
+    tree.found_via.remove(board);
 
     let mut result = vec![];
 
     for paco_position in tree.paco_positions.iter() {
-        if let Some(trace) = trace_first_move(paco_position, &tree.found_via) {
+        if let Some(trace) = tree::trace_first_move_redesign(paco_position, &tree.found_via) {
             result.push(trace);
         }
     }
@@ -63,8 +63,10 @@ pub fn explore_paco_tree(
     board: &DenseBoard,
     attacking_player: PlayerColor,
 ) -> Result<ExploredStateAmazon, PacoError> {
-    if !board.is_settled() {
-        return Err(PacoError::BoardNotSettled);
+    if !board.is_settled() && board.controlling_player() != attacking_player {
+        return Err(PacoError::SearchNotAllowed(
+            "Board is not settled but attacking player is not in control.".to_string(),
+        ));
     }
 
     // First, find out if we actually need to do anything.
@@ -79,34 +81,28 @@ pub fn explore_paco_tree(
     // We found some starting tiles, this means we actually need to work.
     let mut todo_list: VecDeque<DenseBoard> = VecDeque::new();
     let mut paco_positions: FxHashSet<DenseBoard> = FxHashSet::default();
-    let mut found_via: FxHashMap<DenseBoard, Vec<(PacoAction, Option<DenseBoard>)>> =
-        FxHashMap::default();
+    let mut found_via: FxHashMap<DenseBoard, Vec<(PacoAction, DenseBoard)>> = FxHashMap::default();
 
     // Clone the board and correctly set the controlling player.
     let mut board = board.clone();
     board.controlling_player = attacking_player;
 
-    // Put all starting moves into the initialization
-    for starting_tile in search.starting_tiles {
-        let action = PacoAction::Lift(BoardPosition(starting_tile as u8));
-        let mut b = board.clone();
-        b.execute_trusted(action)?;
-        found_via
-            .entry(b.clone())
-            .and_modify(|v| v.push((action, None)))
-            .or_insert_with(|| vec![(action, None)]);
-        todo_list.push_back(b);
-    }
-
     // The paco positions we are interested in are the one that end with a
     // king capture.
     let king_capture_action = PacoAction::Place(board.king_position(attacking_player.other())?);
+
+    // Add the starting positions to the todo list.
+    todo_list.push_back(board);
 
     // Pull entries from the todo_list until it is empty.
     while let Some(todo) = todo_list.pop_front() {
         // Execute all actions within the chaining_tiles.
         'action_loop: for action in todo.actions()? {
-            if let PacoAction::Place(p) = action {
+            if let PacoAction::Lift(p) = action {
+                if !search.starting_tiles.contains(p.0 as u32) {
+                    continue 'action_loop;
+                }
+            } else if let PacoAction::Place(p) = action {
                 // Skip actions that are not in the chaining_tiles.
                 // Promotions are never skipped.
                 if !search.chaining_tiles.contains(p.0 as u32) {
@@ -125,11 +121,11 @@ pub fn explore_paco_tree(
             match found_via.entry(b.clone()) {
                 // We have seen this state already and don't need to add it to the todo list.
                 Entry::Occupied(mut o_entry) => {
-                    o_entry.get_mut().push((action, Some(todo.clone())));
+                    o_entry.get_mut().push((action, todo.clone()));
                 }
                 // We encounter this state for the first time.
                 Entry::Vacant(v_entry) => {
-                    v_entry.insert(vec![(action, Some(todo.clone()))]);
+                    v_entry.insert(vec![(action, todo.clone())]);
                     if !b.is_settled() {
                         // We will look at the possible chain moves later.
                         todo_list.push_back(b);
@@ -162,6 +158,8 @@ struct AmazonContext<'a> {
     chaining_tiles: SetU32,
     en_passant_tile: Option<BoardPosition>,
     en_passant_slide_from: Option<BoardPosition>,
+    lifted_tile: Option<BoardPosition>,
+    lifted_type: Option<PieceType>,
 }
 
 impl<'a> AmazonContext<'a> {
@@ -198,6 +196,8 @@ impl<'a> AmazonContext<'a> {
             chaining_tiles: SetU32::default(),
             en_passant_tile,
             en_passant_slide_from,
+            lifted_tile: board.lifted_piece.position(),
+            lifted_type: board.lifted_piece.piece(),
         })
     }
 
@@ -239,6 +239,9 @@ impl<'a> AmazonContext<'a> {
 /// was used but not available then we redo the search with restricted piece
 /// types. This is not implemented right now. It again requires careful
 /// consideration of the en-passant square as well as in-chain promotions.
+///
+/// Another optimization in an iteration would be to prevent slide through
+/// for single attacker pieces that are not part of the starting_tiles set.
 pub fn reverse_amazon_squares(
     board: &DenseBoard,
     attacking_player: PlayerColor,
@@ -273,10 +276,12 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
     // In each direction, iterate until we hit a non-empty position.
     for (dx, dy) in directions {
         let mut current = from;
-        let mut slide_counter = 0;
-        let mut slipped_through_starter = false;
+        let mut distance = 0;
+        // If there already is a lifted piece in hand, then we can't slide
+        // through any other single attacker piece anymore.
+        let mut slipped_through_starter = ctx.lifted_tile.is_some();
         'sliding: loop {
-            slide_counter += 1;
+            distance += 1;
             let new_tile = current.add((dx, dy));
             if new_tile.is_none() {
                 break 'sliding;
@@ -292,6 +297,21 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                 // is also a chaining tile. That will take care of sliding through.
                 ctx.todo_list.insert(current.0 as u32);
                 break 'sliding;
+            }
+
+            if Some(current) == ctx.lifted_tile
+                && we_can_start_from_here(
+                    ctx,
+                    ctx.lifted_type.expect(
+                        "lifted type must always be available when lifted tile is available",
+                    ),
+                    dx,
+                    dy,
+                    distance,
+                )
+            {
+                // We can also start from the lifted square.
+                ctx.starting_tiles.insert(current.0 as u32);
             }
 
             let attacking_piece = ctx.board.get(ctx.attacking_player, current);
@@ -314,27 +334,8 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                     // Friendly piece alone, we may start from here.
                     // But we still need a plausibility check if this piece can
                     // actually move to the "from" position.
-                    let is_rook_move = dx == 0 || dy == 0;
-                    if is_rook_move {
-                        if attacker == PieceType::Rook || attacker == PieceType::Queen {
-                            ctx.starting_tiles.insert(current.0 as u32);
-                        }
-                    } else {
-                        // is_bishop_move
-                        if attacker == PieceType::Bishop || attacker == PieceType::Queen {
-                            ctx.starting_tiles.insert(current.0 as u32);
-                        } else if attacker == PieceType::Pawn && slide_counter == 1 {
-                            // Signs are flipped here, because we are doing a
-                            // reverse search.
-                            let pawn_direction = if ctx.attacking_player == PlayerColor::White {
-                                -1
-                            } else {
-                                1
-                            };
-                            if dy == pawn_direction {
-                                ctx.starting_tiles.insert(current.0 as u32);
-                            }
-                        }
+                    if we_can_start_from_here(ctx, attacker, dx, dy, distance) {
+                        ctx.starting_tiles.insert(current.0 as u32);
                     }
                     // If this is the first time this slide that we encounter a
                     // friendly piece, we can still slide through it.
@@ -352,6 +353,35 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                     break 'sliding;
                 }
             }
+        }
+    }
+}
+
+fn we_can_start_from_here(
+    ctx: &AmazonContext,
+    attacker: PieceType,
+    dx: i8,
+    dy: i8,
+    distance: i32,
+) -> bool {
+    let is_rook_action = dx == 0 || dy == 0;
+    if is_rook_action {
+        attacker == PieceType::Rook || attacker == PieceType::Queen
+    } else {
+        // is_bishop_move
+        if attacker == PieceType::Bishop || attacker == PieceType::Queen {
+            true
+        } else if attacker == PieceType::Pawn && distance == 1 {
+            // Signs are flipped here, because we are doing a
+            // reverse search.
+            let pawn_direction = if ctx.attacking_player == PlayerColor::White {
+                -1
+            } else {
+                1
+            };
+            dy == pawn_direction
+        } else {
+            false
         }
     }
 }
@@ -387,12 +417,15 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                 .is_none()
             {
                 // Only knights can start the attack with a knight move.
-                if attacker == PieceType::Knight {
+                if ctx.lifted_tile.is_none() && attacker == PieceType::Knight {
                     ctx.starting_tiles.insert(target.0 as u32);
                 }
             } else {
                 ctx.todo_list.insert(target.0 as u32);
             }
+        } else if Some(target) == ctx.lifted_tile && Some(PieceType::Knight) == ctx.lifted_type {
+            // We can also start from the lifted square.
+            ctx.starting_tiles.insert(target.0 as u32);
         }
     }
 }
@@ -401,9 +434,10 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        analysis::reverse_amazon_search::find_paco_sequences, const_tile::pos, DenseBoard,
+        analysis::reverse_amazon_search::find_paco_sequences, const_tile::pos, fen, DenseBoard,
         PacoAction, PacoBoard, PlayerColor,
     };
+    use ntest::timeout;
 
     use super::reverse_amazon_squares;
 
@@ -429,10 +463,9 @@ mod tests {
 
     #[test]
     fn g5692a93w() {
-        let board = crate::fen::parse_fen(
-            "2k1r3/ppc2ppp/3i4/3p1b2/PEtPpB1P/3L1NPB/2P1DP2/5K2 w 0 AHah - -",
-        )
-        .expect("Error in fen parsing.");
+        let board =
+            fen::parse_fen("2k1r3/ppc2ppp/3i4/3p1b2/PEtPpB1P/3L1NPB/2P1DP2/5K2 w 0 AHah - -")
+                .expect("Error in fen parsing.");
 
         let search = reverse_amazon_squares(&board, PlayerColor::White)
             .expect("Error in reverse amazon search.");
@@ -452,10 +485,9 @@ mod tests {
 
     #[test]
     fn g5692a93b() {
-        let board = crate::fen::parse_fen(
-            "2k1r3/ppc2ppp/3i4/3p1b2/PEtPpB1P/3L1NPB/2P1DP2/5K2 w 0 AHah - -",
-        )
-        .expect("Error in fen parsing.");
+        let board =
+            fen::parse_fen("2k1r3/ppc2ppp/3i4/3p1b2/PEtPpB1P/3L1NPB/2P1DP2/5K2 w 0 AHah - -")
+                .expect("Error in fen parsing.");
 
         let search = reverse_amazon_squares(&board, PlayerColor::Black)
             .expect("Error in reverse amazon search.");
@@ -478,7 +510,7 @@ mod tests {
     fn g5464a32w() {
         // Checks if the en-passant square is handled at all.
         let mut board =
-            crate::fen::parse_fen("rnbqkb1r/ppf2p1p/6p1/3D3d/2Bp4/8/PPPP1PPP/RNB1K2R b 0 AHah - -")
+            fen::parse_fen("rnbqkb1r/ppf2p1p/6p1/3D3d/2Bp4/8/PPPP1PPP/RNB1K2R b 0 AHah - -")
                 .expect("Error in fen parsing.");
 
         board.execute_trusted(PacoAction::Lift(pos("c7"))).unwrap();
@@ -502,7 +534,7 @@ mod tests {
     fn syn1() {
         // Checks if the en-passant square is pass-through.
         let mut board =
-            crate::fen::parse_fen("1n2k1n1/ppp2ppp/3p2NE/6RB/2P3PA/i6C/P2F4/REBQ3K w 0 AHah - -")
+            fen::parse_fen("1n2k1n1/ppp2ppp/3p2NE/6RB/2P3PA/i6C/P2F4/REBQ3K w 0 AHah - -")
                 .expect("Error in fen parsing.");
 
         board.execute_trusted(PacoAction::Lift(pos("d2"))).unwrap();
@@ -526,9 +558,8 @@ mod tests {
     #[test]
     fn syn2() {
         // Checks if we can slide through a single piece.
-        let board =
-            crate::fen::parse_fen("rnbqkbnr/pppp1p1p/8/5d2/4P3/4c3/PPPP1PPP/RNBQKB2 w 0 AHah - -")
-                .expect("Error in fen parsing.");
+        let board = fen::parse_fen("rnbqkbnr/pppp1p1p/8/5d2/4P3/4c3/PPPP1PPP/RNBQKB2 w 0 AHah - -")
+            .expect("Error in fen parsing.");
 
         let search = reverse_amazon_squares(&board, PlayerColor::White)
             .expect("Error in reverse amazon search.");
@@ -547,9 +578,8 @@ mod tests {
     #[test]
     fn syn3() {
         // Checks that we can't slide though two pieces.
-        let board =
-            crate::fen::parse_fen("rn1qkbnr/pppp2pp/4E3/4p3/3Pp3/8/PPP2PPP/RNBQKBNR b 0 AHah - -")
-                .expect("Error in fen parsing.");
+        let board = fen::parse_fen("rn1qkbnr/pppp2pp/4E3/4p3/3Pp3/8/PPP2PPP/RNBQKBNR b 0 AHah - -")
+            .expect("Error in fen parsing.");
 
         let search = reverse_amazon_squares(&board, PlayerColor::Black)
             .expect("Error in reverse amazon search.");
@@ -563,9 +593,8 @@ mod tests {
     #[test]
     fn syn4() {
         // Very simple test for the paco sequence search.
-        let board =
-            crate::fen::parse_fen("rnbqkbnr/pppppppp/5N2/8/8/8/PPPPPPPP/RNBQKB1R w 0 AHah - -")
-                .expect("Error in fen parsing.");
+        let board = fen::parse_fen("rnbqkbnr/pppppppp/5N2/8/8/8/PPPPPPPP/RNBQKB1R w 0 AHah - -")
+            .expect("Error in fen parsing.");
 
         let search = reverse_amazon_squares(&board, PlayerColor::White)
             .expect("Error in reverse amazon search.");
@@ -585,9 +614,8 @@ mod tests {
     #[test]
     fn g5661a88w() {
         // A puzzle from the community
-        let board =
-            crate::fen::parse_fen("5rk1/ppp2pep/8/1B1AH2D/4f1b1/2N3SP/PPP2DP1/5L1K w 0 AHah - -")
-                .expect("Error in fen parsing.");
+        let board = fen::parse_fen("5rk1/ppp2pep/8/1B1AH2D/4f1b1/2N3SP/PPP2DP1/5L1K w 0 AHah - -")
+            .expect("Error in fen parsing.");
 
         let search = reverse_amazon_squares(&board, PlayerColor::White)
             .expect("Error in reverse amazon search.");
@@ -669,5 +697,108 @@ mod tests {
         assert_eq!(sequences[2][15], PacoAction::Place(pos("e5")));
         assert_eq!(sequences[2][16], PacoAction::Place(pos("g7")));
         assert_eq!(sequences[2][17], PacoAction::Place(pos("g8")));
+    }
+
+    #[test]
+    fn g5697a74() {
+        // Test that amazon also works with a lifted piece.
+        let mut board =
+            fen::parse_fen("rn2Srkt/pp3e1p/8/8/1P1AP1bA/4ed2/P1P1F2P/R3K2R b 0 AHah - -")
+                .expect("Error in fen parsing.");
+
+        board.execute_trusted(PacoAction::Lift(pos("g4"))).unwrap();
+
+        let search = reverse_amazon_squares(&board, PlayerColor::Black)
+            .expect("Error in reverse amazon search.");
+
+        println!("{:?}", search);
+        assert_eq!(search.starting_tiles.len(), 1);
+        assert!(search.starting_tiles.contains(pos("g4").0 as u32));
+        assert_eq!(search.chaining_tiles.len(), 9);
+        assert!(search.chaining_tiles.contains(pos("e1").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("e2").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("e3").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("f3").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("d4").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("h4").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("f7").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("e8").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("h8").0 as u32));
+    }
+
+    #[test]
+    fn syn5() {
+        // After lifting one piece, you can't slide through any other pieces any more.
+        let mut board =
+            fen::parse_fen("rnb1ks2/pppp1pp1/3q4/7p/1E1p2C1/3P4/P1P1PP1P/RNBQK1NR b 0 AHah - -")
+                .expect("Error in fen parsing.");
+
+        let search = reverse_amazon_squares(&board, PlayerColor::Black)
+            .expect("Error in reverse amazon search.");
+
+        println!("{:?}", search);
+        assert_eq!(search.starting_tiles.len(), 2);
+        assert!(search.starting_tiles.contains(pos("d6").0 as u32));
+        assert!(search.starting_tiles.contains(pos("h5").0 as u32));
+        assert_eq!(search.chaining_tiles.len(), 4);
+        assert!(search.chaining_tiles.contains(pos("e1").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("b4").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("g4").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("f8").0 as u32));
+
+        board.execute_trusted(PacoAction::Lift(pos("d6"))).unwrap();
+
+        let search = reverse_amazon_squares(&board, PlayerColor::Black)
+            .expect("Error in reverse amazon search.");
+
+        println!("{:?}", search);
+        assert_eq!(search.starting_tiles.len(), 1);
+        assert!(search.starting_tiles.contains(pos("d6").0 as u32));
+        assert_eq!(search.chaining_tiles.len(), 3);
+        assert!(search.chaining_tiles.contains(pos("e1").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("b4").0 as u32));
+        assert!(search.chaining_tiles.contains(pos("f8").0 as u32));
+
+        let sequences = find_paco_sequences(&board, PlayerColor::Black)
+            .expect("Error in paco sequence search.");
+
+        println!("{:?}", sequences);
+        assert_eq!(sequences.len(), 1);
+        assert_eq!(sequences[0].len(), 2);
+        assert_eq!(sequences[0][0], PacoAction::Place(pos("b4")));
+        assert_eq!(sequences[0][1], PacoAction::Place(pos("e1")));
+    }
+
+    #[test]
+    #[timeout(100)]
+    fn syn6() {
+        // Explores loops that we can get, because starting at an in-chain
+        // position, we can loop back to the starting position. We then end
+        // up with loops in the directed graph.
+        let mut board =
+            fen::parse_fen("rn2k1nr/pppppppp/4E2q/8/2E5/8/PP1PKPPP/RNBQ1BNR b 0 AHah - -")
+                .expect("Error in fen parsing.");
+
+        board.execute_trusted(PacoAction::Lift(pos("h6"))).unwrap();
+        board.execute_trusted(PacoAction::Place(pos("e6"))).unwrap();
+
+        let mut sequences = find_paco_sequences(&board, PlayerColor::Black)
+            .expect("Error in paco sequence search.");
+
+        sequences.sort_by_key(|a| a.len());
+        println!("{:?}", sequences);
+        assert_eq!(sequences.len(), 3);
+        assert_eq!(sequences[0].len(), 2);
+        assert_eq!(sequences[0][0], PacoAction::Place(pos("c4")));
+        assert_eq!(sequences[0][1], PacoAction::Place(pos("e2")));
+        assert_eq!(sequences[1].len(), 3);
+        assert_eq!(sequences[1][0], PacoAction::Place(pos("c4")));
+        assert_eq!(sequences[1][1], PacoAction::Place(pos("e6")));
+        assert_eq!(sequences[1][2], PacoAction::Place(pos("e2")));
+        assert_eq!(sequences[2].len(), 4);
+        assert_eq!(sequences[2][0], PacoAction::Place(pos("c4")));
+        assert_eq!(sequences[2][1], PacoAction::Place(pos("e6")));
+        assert_eq!(sequences[2][2], PacoAction::Place(pos("c4")));
+        assert_eq!(sequences[2][3], PacoAction::Place(pos("e2")));
     }
 }

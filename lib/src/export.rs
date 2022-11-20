@@ -461,7 +461,7 @@ pub extern "C" fn find_paco_sequences(
 ) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
-    if ps.is_settled() && !ps.required_action.is_promote() {
+    if !ps.required_action.is_promote() {
         let actions = reverse_amazon_search::find_paco_sequences(ps, ps.controlling_player());
         let Ok(actions) = actions else {
             println!("Error in the reverse amazon search: {:?}", actions);

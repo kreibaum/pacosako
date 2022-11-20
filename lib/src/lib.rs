@@ -67,6 +67,8 @@ pub enum PacoError {
     NoKingOnBoard(PlayerColor),
     #[error("The hand is not empty when it needs to be.")]
     BoardNotSettled,
+    #[error("Search is not allowed with these parameters:")]
+    SearchNotAllowed(String),
 }
 
 impl From<serde_json::Error> for PacoError {
@@ -341,6 +343,23 @@ impl Hand {
                 PlayerColor::White => (Some(*piece), Some(*partner)),
                 PlayerColor::Black => (Some(*partner), Some(*piece)),
             },
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        matches!(self, Hand::Empty)
+    }
+    pub fn position(&self) -> Option<BoardPosition> {
+        match *self {
+            Hand::Empty => None,
+            Hand::Single { position, .. } => Some(position),
+            Hand::Pair { position, .. } => Some(position),
+        }
+    }
+    pub fn piece(&self) -> Option<PieceType> {
+        match *self {
+            Hand::Empty => None,
+            Hand::Single { piece, .. } => Some(piece),
+            Hand::Pair { piece, .. } => Some(piece),
         }
     }
 }
