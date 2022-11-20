@@ -21,7 +21,6 @@ use std::convert::TryFrom;
 use std::fmt::Display;
 use std::ops::Add;
 pub use types::{BoardPosition, PieceType, PlayerColor};
-use wasm_bindgen::prelude::*;
 extern crate lazy_static;
 #[cfg(test)]
 extern crate quickcheck;
@@ -169,12 +168,6 @@ pub struct RestingPiece {
     piece_type: PieceType,
     color: PlayerColor,
     position: BoardPosition,
-}
-
-#[derive(Serialize, Debug)]
-pub struct SakoSearchResult {
-    pub white: Vec<Vec<PacoAction>>,
-    pub black: Vec<Vec<PacoAction>>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

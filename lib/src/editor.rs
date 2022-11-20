@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 /// Support functions for the pacoplay editor.
-use crate::{analysis::reverse_amazon_search, DenseBoard, PacoError, SakoSearchResult};
+use crate::{analysis::reverse_amazon_search, DenseBoard, PacoError};
 use rand::{thread_rng, Rng};
 
 /// Find a board with a long paco chain and return it.
