@@ -152,6 +152,81 @@ pub struct ReverseAmazonSearchResult {
     pub starting_tiles: SetU32,
 }
 
+/// Tracks all the information that we need during a search.
+struct AmazonContext<'a> {
+    board: &'a DenseBoard,
+    attacking_player: PlayerColor,
+    tiles_seen: SetU32,
+    todo_list: SetU32,
+    starting_tiles: SetU32,
+    chaining_tiles: SetU32,
+    en_passant_tile: Option<BoardPosition>,
+    en_passant_slide_from: Option<BoardPosition>,
+}
+
+impl<'a> AmazonContext<'a> {
+    fn new(
+        board: &'a DenseBoard,
+        attacking_player: PlayerColor,
+    ) -> Result<AmazonContext<'a>, PacoError> {
+        // Determine if there is an en-passant square we have to care about.
+        let (en_passant_tile, en_passant_slide_from) = if let Some(pos) = board.en_passant {
+            // Find square the pawn now is on.
+            let en_passant_slide_from = pos
+                .advance_pawn(attacking_player.other())
+                .expect("The en-passant square should never be at the border.");
+            // Check if this is a pair. Otherwise we don't care.
+            if board.get(attacking_player, en_passant_slide_from).is_some() {
+                (Some(pos), Some(en_passant_slide_from))
+            } else {
+                (None, None)
+            }
+        } else {
+            (None, None)
+        };
+
+        let mut todo_list = SetU32::default();
+        let king_position = board.king_position(attacking_player.other())?;
+        todo_list.insert(king_position.0 as u32);
+
+        Ok(AmazonContext {
+            board,
+            attacking_player,
+            tiles_seen: SetU32::default(),
+            todo_list,
+            starting_tiles: SetU32::default(),
+            chaining_tiles: SetU32::default(),
+            en_passant_tile,
+            en_passant_slide_from,
+        })
+    }
+
+    /// Takes an arbitrary tile from the todo list that was not visited yet and
+    /// pops if off the todo list.
+    /// We then also track that it has been visited and can be chained through.
+    fn pop_todo(&mut self) -> Option<u32> {
+        while !self.todo_list.is_empty() {
+            // Get an entry and remove it from the todo list.
+            let p = self.todo_list.iter().next().expect("len > 0");
+            self.todo_list.remove(p);
+            // Check to see if this entry has already been seen.
+            if self.tiles_seen.insert(p) {
+                self.chaining_tiles.insert(p);
+                return Some(p);
+            }
+        }
+        None
+    }
+
+    /// Discard the intermediate search context and return the result.
+    fn result(self) -> ReverseAmazonSearchResult {
+        ReverseAmazonSearchResult {
+            chaining_tiles: self.chaining_tiles,
+            starting_tiles: self.starting_tiles,
+        }
+    }
+}
+
 /// This is the core of the amazon search. It finds all tiles that are within
 /// amazon range of the king. Or within chaining range of the king. The amazon
 /// is a fairy piece that can move like a queen and a knight.
@@ -168,88 +243,22 @@ pub fn reverse_amazon_squares(
     board: &DenseBoard,
     attacking_player: PlayerColor,
 ) -> Result<ReverseAmazonSearchResult, PacoError> {
-    // Determine if there is an en-passant square we have to care about.
-    let (en_passant_tile, en_passant_slide_from) = if let Some(pos) = board.en_passant {
-        // Find square the pawn now is on.
-        let en_passant_slide_from = pos
-            .advance_pawn(attacking_player.other())
-            .expect("En-passant square isn't at the border.");
-        // Check if this is a pair. Otherwise we don't care.
-        if board.get(attacking_player, en_passant_slide_from).is_some() {
-            (Some(pos), Some(en_passant_slide_from))
-        } else {
-            (None, None)
-        }
-    } else {
-        (None, None)
-    };
-
     // In the first phase, we start at the kings location and then find all the
     // positions that are reachable with amazon chains.
+    let mut ctx = AmazonContext::new(board, attacking_player)?;
 
-    let mut tiles_seen = SetU32::default();
-    let mut chaining_tiles = SetU32::default();
-    let mut todo_list = SetU32::default();
-    let mut starting_tiles = SetU32::default();
-    let king_position = board.king_position(attacking_player.other())?;
-    todo_list.insert(king_position.0 as u32);
-
-    while let Some(p) = pop(&mut todo_list) {
-        // let p = todo_list.iter().next().expect("len > 0");
-        // todo_list.remove(p);
-        if !tiles_seen.insert(p) {
-            // Returns false if already present.
-            continue;
-        }
-        chaining_tiles.insert(p);
+    while let Some(p) = ctx.pop_todo() {
         let from = BoardPosition(p as u8);
 
-        knight_targets(
-            board,
-            from,
-            attacking_player,
-            &mut todo_list,
-            &mut starting_tiles,
-            en_passant_tile,
-        );
+        knight_targets(&mut ctx, from);
 
-        slide_targets(
-            board,
-            from,
-            attacking_player,
-            &mut todo_list,
-            &mut starting_tiles,
-            en_passant_tile,
-            en_passant_slide_from,
-        );
+        slide_targets(&mut ctx, from);
     }
 
-    Ok(ReverseAmazonSearchResult {
-        chaining_tiles,
-        starting_tiles,
-    })
+    Ok(ctx.result())
 }
 
-/// Unfortunately this method does not exist in tinyset.
-fn pop(todo_list: &mut SetU32) -> Option<u32> {
-    if !todo_list.is_empty() {
-        let p = todo_list.iter().next().expect("len > 0");
-        todo_list.remove(p);
-        Some(p)
-    } else {
-        None
-    }
-}
-
-fn slide_targets(
-    board: &DenseBoard,
-    from: BoardPosition,
-    attacking_player: PlayerColor,
-    todo_list: &mut SetU32,
-    starting_tiles: &mut SetU32,
-    en_passant_tile: Option<BoardPosition>,
-    en_passant_slide_from: Option<BoardPosition>,
-) {
+fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
     let directions = vec![
         (0, 1),
         (1, 1),
@@ -274,19 +283,19 @@ fn slide_targets(
             }
             current = new_tile.unwrap();
 
-            if new_tile == en_passant_tile || new_tile == en_passant_slide_from {
+            if new_tile == ctx.en_passant_tile || new_tile == ctx.en_passant_slide_from {
                 // The en-passant tile counts as a potential chaining tile and
                 // we can also slide through it. This is also true for the tile
                 // the pawn (which would get pulled back) is on.
 
                 // We can still break here, because the en-passant tile
                 // is also a chaining tile. That will take care of sliding through.
-                todo_list.insert(current.0 as u32);
+                ctx.todo_list.insert(current.0 as u32);
                 break 'sliding;
             }
 
-            let attacking_piece = board.get(attacking_player, current);
-            let defending_piece = board.get(attacking_player.other(), current);
+            let attacking_piece = ctx.board.get(ctx.attacking_player, current);
+            let defending_piece = ctx.board.get(ctx.attacking_player.other(), current);
 
             match (attacking_piece, defending_piece) {
                 (None, None) => {
@@ -308,22 +317,22 @@ fn slide_targets(
                     let is_rook_move = dx == 0 || dy == 0;
                     if is_rook_move {
                         if attacker == PieceType::Rook || attacker == PieceType::Queen {
-                            starting_tiles.insert(current.0 as u32);
+                            ctx.starting_tiles.insert(current.0 as u32);
                         }
                     } else {
                         // is_bishop_move
                         if attacker == PieceType::Bishop || attacker == PieceType::Queen {
-                            starting_tiles.insert(current.0 as u32);
+                            ctx.starting_tiles.insert(current.0 as u32);
                         } else if attacker == PieceType::Pawn && slide_counter == 1 {
                             // Signs are flipped here, because we are doing a
                             // reverse search.
-                            let pawn_direction = if attacking_player == PlayerColor::White {
+                            let pawn_direction = if ctx.attacking_player == PlayerColor::White {
                                 -1
                             } else {
                                 1
                             };
                             if dy == pawn_direction {
-                                starting_tiles.insert(current.0 as u32);
+                                ctx.starting_tiles.insert(current.0 as u32);
                             }
                         }
                     }
@@ -339,7 +348,7 @@ fn slide_targets(
                     // This is a pair, we can chain from here.
                     // Since chaining can change the piece that is on here,
                     // we can't check anything based on the piece type.
-                    todo_list.insert(current.0 as u32);
+                    ctx.todo_list.insert(current.0 as u32);
                     break 'sliding;
                 }
             }
@@ -347,14 +356,9 @@ fn slide_targets(
     }
 }
 
-fn knight_targets(
-    board: &DenseBoard,
-    from: BoardPosition,
-    attacking_player: PlayerColor,
-    todo_list: &mut SetU32,
-    starting_tiles: &mut SetU32,
-    en_passant_tile: Option<BoardPosition>,
-) {
+// Knight moves and slides are substantially different, because there is no
+// inner "sliding" loop. We just check the position and then we are done.
+fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
     let offsets = vec![
         (1, 2),
         (2, 1),
@@ -371,19 +375,23 @@ fn knight_targets(
     for target in targets_on_board {
         // If en-passant is possible, the en-passant square may take part in a
         // chain. Starting from the en-passant square is not possible.
-        if en_passant_tile == Some(target) {
-            todo_list.insert(target.0 as u32);
+        if ctx.en_passant_tile == Some(target) {
+            ctx.todo_list.insert(target.0 as u32);
             continue;
         }
 
-        if let Some(attacker) = board.get(attacking_player, target) {
-            if board.get(attacking_player.other(), target).is_none() {
+        if let Some(attacker) = ctx.board.get(ctx.attacking_player, target) {
+            if ctx
+                .board
+                .get(ctx.attacking_player.other(), target)
+                .is_none()
+            {
                 // Only knights can start the attack with a knight move.
                 if attacker == PieceType::Knight {
-                    starting_tiles.insert(target.0 as u32);
+                    ctx.starting_tiles.insert(target.0 as u32);
                 }
             } else {
-                todo_list.insert(target.0 as u32);
+                ctx.todo_list.insert(target.0 as u32);
             }
         }
     }
@@ -661,22 +669,5 @@ mod tests {
         assert_eq!(sequences[2][15], PacoAction::Place(pos("e5")));
         assert_eq!(sequences[2][16], PacoAction::Place(pos("g7")));
         assert_eq!(sequences[2][17], PacoAction::Place(pos("g8")));
-    }
-
-    #[test]
-    fn julia1() {
-        // Tests a position that was failing in lunalearn.jl
-        let board =
-            crate::fen::parse_fen("k4Q2/2p4p/2a1E3/RPPN1Pbr/3nP1cr/BK1q2d1/P4p1p/1p2D2B b 2 - - -")
-                .expect("Error in fen parsing.");
-
-        let search = reverse_amazon_squares(&board, PlayerColor::Black)
-            .expect("Error in reverse amazon search.");
-
-        println!("{:?}", search);
-
-        let mut sequences = find_paco_sequences(&board, PlayerColor::White)
-            .expect("Error in paco sequence search.");
-        println!("{:?}", sequences);
     }
 }
