@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 
-use crate::{fen, find_sako_sequences, PacoAction, PacoBoard, PacoError};
+use crate::{analysis::reverse_amazon_search, fen, PacoAction, PacoBoard, PacoError};
 
 /// What to show in the sidebar after analysis.
 /// We'll want pretty move notation in the future.
@@ -20,8 +20,13 @@ pub fn analyze_position(
     for &action in action_history {
         board.execute(action)?;
     }
-    let sequences = find_sako_sequences(&((&board).into()))?;
+    let white_sequences =
+        reverse_amazon_search::find_paco_sequences(&board, crate::PlayerColor::White)?;
+
+    let black_sequences =
+        reverse_amazon_search::find_paco_sequences(&board, crate::PlayerColor::Black)?;
+
     Ok(AnalysisReport {
-        text_summary: format!("{:?}", sequences),
+        text_summary: format!("White: {:?}, Black: {:?}", white_sequences, black_sequences),
     })
 }

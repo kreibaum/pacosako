@@ -382,7 +382,7 @@ update msg model =
             )
 
         RequestRandomPosition ->
-            ( model, Wasm.RandomPosition 300 |> rpcCall |> Effect.fromCmd )
+            ( model, Wasm.RandomPosition 3000 |> rpcCall |> Effect.fromCmd )
 
         RequestAnalysePosition position ->
             ( model, Wasm.AnalyzePosition { board_fen = Fen.writeFen position, action_history = [] } |> rpcCall |> Effect.fromCmd )

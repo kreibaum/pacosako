@@ -3,16 +3,11 @@ name = "pacosako-rust"
 version = "0.1.0"
 authors = ["rolf"]
 edition = "2021"
-default-run = "pacosako-example"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 name = "pacosako"
 path = "src/lib.rs"
-
-[[bin]]
-name = "pacosako-example"
-path = "src/main.rs"
 
 [dependencies]
 rand = "0.8.5"

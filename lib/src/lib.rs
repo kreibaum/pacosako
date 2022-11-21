@@ -21,7 +21,6 @@ use std::convert::TryFrom;
 use std::fmt::Display;
 use std::ops::Add;
 pub use types::{BoardPosition, PieceType, PlayerColor};
-use wasm_bindgen::prelude::*;
 extern crate lazy_static;
 #[cfg(test)]
 extern crate quickcheck;
@@ -163,84 +162,12 @@ impl RequiredAction {
         }
     }
 }
-#[derive(Serialize, Deserialize)]
-pub struct EditorBoard {
-    pieces: Vec<RestingPiece>,
-}
-
-impl From<&DenseBoard> for EditorBoard {
-    fn from(dense: &DenseBoard) -> Self {
-        // A normal game of Paco Ŝako will have 32 pieces on the board at any time.
-        // All other boards are special and don't need to be optimized for.
-        let mut pieces = Vec::with_capacity(32);
-
-        // Iterate over all positions and construct a RestingPiece whenever we find Some(piece).
-        pieces.extend(dense.white.iter().enumerate().filter_map(|p| {
-            p.1.map(|piece_type| RestingPiece {
-                piece_type,
-                color: PlayerColor::White,
-                position: BoardPosition(p.0 as u8),
-            })
-        }));
-
-        pieces.extend(dense.black.iter().enumerate().filter_map(|p| {
-            p.1.map(|piece_type| RestingPiece {
-                piece_type,
-                color: PlayerColor::Black,
-                position: BoardPosition(p.0 as u8),
-            })
-        }));
-
-        EditorBoard { pieces }
-    }
-}
-
-impl EditorBoard {
-    pub fn new(pieces: Vec<RestingPiece>) -> Self {
-        EditorBoard { pieces }
-    }
-
-    pub fn with_active_player(&self, controlling_player: PlayerColor) -> DenseBoard {
-        let mut result: DenseBoard = DenseBoard {
-            white: vec![None; 64],
-            black: vec![None; 64],
-            controlling_player,
-            required_action: RequiredAction::Lift,
-            lifted_piece: Hand::Empty,
-            en_passant: None,
-            promotion: None,
-            castling: Castling::new(),
-            victory_state: VictoryState::Running,
-            no_progress_half_moves: 0,
-        };
-
-        // Copy piece from the `pieces` list into the dense arrays.
-        for piece in &self.pieces {
-            match piece.color {
-                PlayerColor::White => {
-                    result.white[piece.position.0 as usize] = Some(piece.piece_type)
-                }
-                PlayerColor::Black => {
-                    result.black[piece.position.0 as usize] = Some(piece.piece_type)
-                }
-            }
-        }
-
-        result
-    }
-}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct RestingPiece {
     piece_type: PieceType,
     color: PlayerColor,
     position: BoardPosition,
-}
-
-#[derive(Serialize, Debug)]
-pub struct SakoSearchResult {
-    pub white: Vec<Vec<PacoAction>>,
-    pub black: Vec<Vec<PacoAction>>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -2978,45 +2905,5 @@ mod tests {
         execute_action!(board, lift, "c2");
         execute_action!(board, place, "c4");
         assert!(is_sako(&board, board.controlling_player).unwrap());
-    }
-}
-
-pub fn find_sako_sequences(board: &EditorBoard) -> Result<SakoSearchResult, PacoError> {
-    let mut white = vec![];
-    let mut black = vec![];
-
-    let white_board = board.with_active_player(PlayerColor::White);
-    let explored = determine_all_moves(white_board)?;
-    // Is there a state where the black king is dancing?
-    for board in explored.settled {
-        if board.king_in_union(PlayerColor::Black) {
-            if let Some(trace) = trace_first_move(&board, &explored.found_via) {
-                white.push(trace);
-            }
-        }
-    }
-
-    let black_board = board.with_active_player(PlayerColor::Black);
-    let explored = determine_all_moves(black_board)?;
-    // Is there a state where the black king is dancing?
-    for board in explored.settled {
-        if board.king_in_union(PlayerColor::White) {
-            if let Some(trace) = trace_first_move(&board, &explored.found_via) {
-                black.push(trace);
-            }
-        }
-    }
-
-    Ok(SakoSearchResult { white, black })
-}
-
-#[wasm_bindgen]
-pub fn find_sako_sequences_json(board: &str) -> String {
-    let editor_board: EditorBoard = serde_json::from_str(board).unwrap();
-    let search_result = find_sako_sequences(&editor_board);
-
-    match search_result {
-        Ok(search_result) => serde_json::to_string(&search_result).unwrap(),
-        Err(error) => serde_json::to_string(&error).unwrap(),
     }
 }
