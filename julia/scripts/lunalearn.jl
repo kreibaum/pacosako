@@ -226,6 +226,9 @@ module Pretrain
   function load_model(path :: String)
     ext = splitext(path)[2]
     if ext == ".jl"
+      # evalfile and include are relative to THIS file, not to the current
+      # directory...
+      path = isabspath(path) ? path : joinpath(pwd(), path)
       evalfile(path)
     elseif ext == ".jtm"
       Model.load(path)
@@ -249,6 +252,8 @@ module Pretrain
     str = lowercase(str)
     if str in ["sgd"]
       Knet.SGD
+    elseif str in ["momentum"]
+      Knet.Momentum
     elseif str in ["adam"]
       Knet.Adam
     elseif str in ["rmsprop"]
@@ -276,9 +281,10 @@ module Pretrain
                , model
                , output
                , batchsize = 512
+               , splitsize = 500_000
                , epochs = 10
                , checkpoints = 5
-               , optimizer = "sgd"
+               , optimizer = "momentum"
                , lr = 1e-2
                , gpu = true
                , reg = ""
@@ -296,12 +302,16 @@ module Pretrain
     print("\n\n")
 
     @info "Loading dataset '$data'..."
-    try data = Data.load(data)
+    ds = nothing
+    try ds = Data.load(data)
     catch err
       @error "Loading data file failed: '$err'"
       return
     end
-    @info "Dataset of length $(length(data)) loaded"
+    @info "Dataset of length $(length(ds)) loaded"
+
+    dss = split(ds, splitsize, shuffle = false)
+    @info "Dataset split in $(length(dss)) subsets"
 
     try reg = parse_reg_targets(reg)
     catch err
@@ -325,7 +335,7 @@ module Pretrain
     @info "Training optimizer: $optimizer(lr = $lr)"
 
     if gpu
-      if isnothing(CUDA.device())
+      if !CUDA.functional()
         @info "Will run training on CPU due to lack of CUDA support"
       else
         model = Model.to_gpu(model)
@@ -344,8 +354,9 @@ module Pretrain
 
     end
 
+
     @info "Starting training session"
-    Training.train!( model, data
+    Training.train!( model, dss
                    ; batchsize
                    , epochs
                    , weights
@@ -374,6 +385,9 @@ function main()
       action = :command
     "merge"
       help = "merge jtac PacoSako datasets"
+      action = :command
+    "pretrain"
+      help = "pretrain a jtac model on a dataset"
       action = :command
   end
 
@@ -420,12 +434,52 @@ function main()
       nargs = '*'
   end
 
+  @add_arg_table s["pretrain"] begin
+    "--data", "-d"
+      help = "dataset file (.jtd) used for training. Required argument"
+    "--model", "-m"
+      help = "model file (.jtm) or julia file with model definition. Required argument"
+    "--output", "-o"
+      help = "model output file. Required argument" 
+    "--batchsize", "-b"
+      help = "batchsize used for the stochastic gradient descent"
+      arg_type = Int
+      default = 512
+    "--splitsize", "-s"
+      help = "split the dataset in smaller sets of this size in order to reduce simultaneously used memory"
+      arg_type = Int
+      default = 500_000
+    "--epochs", "-e"
+      help = "number of epochs (iterations through the dataset) of the training process"
+      arg_type = Int
+      default = 10
+    "--checkpoints", "-c"
+      help = "number of epochs between saving model checkpoints"
+      arg_type = Int
+      default = 5
+    "--optimizer", "-O"
+      help = "which optimizer to use (sgd, rmsprops, adam, ...)"
+      default = "momentum"
+    "--lr", "-l"
+      help = "learning rate for the optimizer"
+      arg_type = Float64
+      default = 1e-2
+    "--reg", "-r"
+      help = "network regularization (l1reg, l2reg, ...)"
+      default = ""
+    "--weights", "-w"
+      help = "weights of the different training targets (e.g., 'value:1,policy:0.5,l1reg:1e-3')"
+      default = ""
+  end
+
   args = parse_args(s, as_symbols = true)
 
   if args[:_COMMAND_] == :generate
     Generate.main(; args[:generate]...)
   elseif args[:_COMMAND_] == :merge
     Merge.main(; args[:merge]...)
+  elseif args[:_COMMAND_] == :pretrain
+    Pretrain.main(; args[:pretrain]...)
   else
     println("don't know what to do with $args")
   end

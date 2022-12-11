@@ -51,6 +51,8 @@ module Json
   using ...JtacPacoSako
   import LazyJSON
 
+  const PROMOTE_OPTIONS = ["Rook", "Knight", "Bishop", "Queen"]
+
   # Transform an absolute field index on the chess board (always from white's
   # perspective) to the perspective of the current players
   function adapt_perspective(index, current_player :: Int)
@@ -200,7 +202,6 @@ function wait_updates(games :: Channel)
   check_updates(games)
 end
 
-const PROMOTE_OPTIONS = ["Rook", "Knight", "Bishop", "Queen"]
 const COLORS = Dict(1 => "white", -1 => "black")
 
 function log(msg)
