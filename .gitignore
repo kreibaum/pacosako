@@ -23,6 +23,7 @@ frontend/.elm-tflt/linked/
 
 # Secrets
 /scripts/deployment-key.pem
+backend/Secrets.toml
 
 # Development Database
 /backend/data
