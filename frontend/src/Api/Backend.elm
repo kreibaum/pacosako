@@ -275,13 +275,20 @@ getRecentGameKeys =
         }
 
 
+type alias MatchParameters =
+    { timer : Maybe Timer.TimerConfig
+    , safeMode : Bool
+    , drawAfterNRepetitions : Int
+    }
+
+
 {-| Use this to call the "create game" api of the server.
 -}
-postMatchRequest : Maybe Timer.TimerConfig -> Bool -> Api String msg
-postMatchRequest config safeMode errorHandler successHandler =
+postMatchRequest : MatchParameters -> Api String msg
+postMatchRequest config errorHandler successHandler =
     Http.post
         { url = "/api/create_game"
-        , body = Http.jsonBody (encodePostMatchRequest config safeMode)
+        , body = Http.jsonBody (encodeMatchParameters config)
         , expect =
             Http.expectString
                 (\response ->
@@ -295,14 +302,15 @@ postMatchRequest config safeMode errorHandler successHandler =
         }
 
 
-encodePostMatchRequest : Maybe Timer.TimerConfig -> Bool -> Value
-encodePostMatchRequest timer safeMode =
+encodeMatchParameters : MatchParameters -> Value
+encodeMatchParameters record =
     Encode.object
         [ ( "timer"
-          , Maybe.map Timer.encodeConfig timer
+          , Maybe.map Timer.encodeConfig record.timer
                 |> Maybe.withDefault Encode.null
           )
-        , ( "safe_mode", Encode.bool safeMode )
+        , ( "safe_mode", Encode.bool record.safeMode )
+        , ( "draw_after_n_repetitions", Encode.int record.drawAfterNRepetitions )
         ]
 
 

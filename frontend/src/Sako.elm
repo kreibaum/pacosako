@@ -294,6 +294,7 @@ type VictoryState
     | PacoVictory Color
     | TimeoutVictory Color
     | NoProgressDraw
+    | RepetitionDraw
 
 
 isStateOver : VictoryState -> Bool
@@ -327,6 +328,9 @@ decodeVictoryState =
                 (\str ->
                     if str == "NoProgressDraw" then
                         Decode.succeed NoProgressDraw
+
+                    else if str == "RepetitionDraw" then
+                        Decode.succeed RepetitionDraw
 
                     else
                         Decode.fail "Expected constant string 'NoProgressDraw'."

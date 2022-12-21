@@ -151,6 +151,7 @@ pub extern "C" fn status(ps: *mut DenseBoard) -> i64 {
         crate::VictoryState::TimeoutVictory(White) => 1,
         crate::VictoryState::TimeoutVictory(Black) => -1,
         crate::VictoryState::NoProgressDraw => 0,
+        crate::VictoryState::RepetitionDraw => 0,
     }
 }
 
@@ -333,7 +334,7 @@ pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) 
     }
 
     // Layer that gives the half-move counter (normalized between 0 and 1)
-    unsafe { set_layer(29, ps.no_progress_half_moves as f32 / 100.0, out) }
+    unsafe { set_layer(29, ps.draw_state.no_progress_half_moves as f32 / 100.0, out) }
 
     // Still missing are the "repetition" layers. Doing the same move 3 times
     // leads to a draw. This is not implemented in the engine yet.

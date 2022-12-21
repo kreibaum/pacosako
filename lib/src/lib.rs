@@ -1,15 +1,18 @@
 pub mod analysis;
 pub mod const_tile;
+pub mod draw_state;
 pub mod editor;
 pub mod export;
 pub mod fen;
 pub mod parser;
 pub mod random;
+pub mod setup_options;
 mod static_include;
 pub mod types;
 pub mod wasm;
 pub mod zobrist;
 
+use draw_state::DrawState;
 use fxhash::FxHashSet;
 use serde::{Deserialize, Serialize};
 use std::cmp::{max, min};
@@ -89,6 +92,7 @@ pub enum VictoryState {
     PacoVictory(PlayerColor),
     TimeoutVictory(PlayerColor),
     NoProgressDraw,
+    RepetitionDraw,
 }
 
 impl VictoryState {
@@ -98,6 +102,7 @@ impl VictoryState {
             VictoryState::PacoVictory(_) => true,
             VictoryState::TimeoutVictory(_) => true,
             VictoryState::NoProgressDraw => true,
+            VictoryState::RepetitionDraw => true,
         }
     }
 }
@@ -114,23 +119,16 @@ pub struct DenseBoard {
     pub white: Vec<Option<PieceType>>,
     pub black: Vec<Option<PieceType>>,
     pub controlling_player: PlayerColor,
-    required_action: RequiredAction,
-    lifted_piece: Hand,
+    pub required_action: RequiredAction,
+    pub lifted_piece: Hand,
     /// When a pawn is moved two squares forward, the square in between is used to check en passant.
     pub en_passant: Option<BoardPosition>,
     /// When a pawn is moved on the opponents home row, you may promote it to any other piece.
-    promotion: Option<BoardPosition>,
+    pub promotion: Option<BoardPosition>,
     /// Stores castling information
-    castling: Castling,
-    victory_state: VictoryState,
-    /// The half move counter counts up for every move that is done in the game.
-    /// If the move made progress, then it is reset to 0 after the move.
-    /// Progress is:
-    ///  - Increasing the amount of dancing pieces by forming a pair.
-    ///  - Promoting a pawn.
-    /// Unlike regular chess moving a pawn forward does not count as progress.
-    /// Castling does not count as progress either, just like in regular chess.
-    no_progress_half_moves: u8,
+    pub castling: Castling,
+    pub victory_state: VictoryState,
+    pub draw_state: DrawState,
 }
 
 /// Promotions can happen at the start of your turn if the opponent moved a pair
@@ -171,7 +169,7 @@ pub struct RestingPiece {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-struct Castling {
+pub struct Castling {
     white_queen_side: bool,
     white_king_side: bool,
     black_queen_side: bool,
@@ -361,7 +359,7 @@ impl DenseBoard {
             promotion: None,
             castling: Castling::new(),
             victory_state: VictoryState::Running,
-            no_progress_half_moves: 0,
+            draw_state: DrawState::default(),
         };
 
         // Board structure
@@ -410,7 +408,7 @@ impl DenseBoard {
             promotion: None,
             castling: Castling::new(),
             victory_state: VictoryState::Running,
-            no_progress_half_moves: 0,
+            draw_state: DrawState::default(),
         }
     }
 
@@ -469,15 +467,15 @@ impl DenseBoard {
         if self.required_action != RequiredAction::Lift {
             return Err(PacoError::LiftingWhenNotAllowed(self.required_action));
         }
-        // Lifting is always followed by a place.
-        self.required_action = RequiredAction::Place;
-        // Lifting already increases the "no progress" counter. If we do it at
-        // the end of the move, then in-chain promotions are a problem.
-        self.no_progress_half_moves += 1;
 
         if self.lifted_piece != Hand::Empty {
             return Err(PacoError::LiftFullHand);
         }
+        // Lifting is always followed by a place.
+        self.required_action = RequiredAction::Place;
+        // Lifting already increases the "no progress" counter. If we do it at
+        // the end of the move, then in-chain promotions are a problem.
+        self.draw_state.half_move_with_no_progress();
         // We unwrap the pieces once to remove the outer Some() from the .get_mut(..) call.
         // We still receive an optional where None represents an empty square.
         let piece = *self.active_pieces().get(position.0 as usize).unwrap();
@@ -597,9 +595,8 @@ impl DenseBoard {
                     // Check if the half move counter gets reset.
                     // Is there a new union we are creating?
                     if let Some(Some(_)) = self.opponent_pieces().get(target.0 as usize) {
-                        self.no_progress_half_moves = 0;
+                        self.draw_state.reset_half_move_counter();
                     }
-                    self.check_draw();
 
                     self.en_passant = None;
                     self.check_and_mark_en_passant(piece, position, target);
@@ -624,6 +621,7 @@ impl DenseBoard {
                     } else {
                         self.required_action = RequiredAction::Lift;
                         self.controlling_player = self.controlling_player.other();
+                        draw_state::record_position(self);
                     }
                 }
                 Ok(self)
@@ -664,10 +662,9 @@ impl DenseBoard {
                     } else {
                         self.required_action = RequiredAction::Lift;
                         self.controlling_player = self.controlling_player.other();
+                        draw_state::record_position(self);
                     }
 
-                    // Moving a pair never gets any progress.
-                    self.check_draw();
                     Ok(self)
                 }
             }
@@ -690,14 +687,6 @@ impl DenseBoard {
             // to "capture en passant is not possible". This is fine as we checked
             // `in_pawn_row` first and are sure this won't happen.
             self.en_passant = Some(position.advance_pawn(self.controlling_player).unwrap());
-        }
-    }
-
-    /// Increases the half move counter. If the game is drawn, then it is set to
-    /// a NoProgressDraw.
-    fn check_draw(&mut self) {
-        if self.no_progress_half_moves == 100 {
-            self.victory_state = VictoryState::NoProgressDraw;
         }
     }
 
@@ -742,11 +731,6 @@ impl DenseBoard {
         king_source: BoardPosition,
         king_target: BoardPosition,
     ) -> Result<&mut Self, PacoError> {
-        // Moving the king does never progress the game and even
-        // castling or forfeiting castling does not count as
-        // progress according to FIDE rules.
-        self.check_draw();
-
         if let Some((rook_source, rook_target)) =
             get_castling_auxiliary_move(king_source, king_target)
         {
@@ -768,6 +752,11 @@ impl DenseBoard {
             .remove_rights_for_color(self.controlling_player);
         self.controlling_player = self.controlling_player.other();
         self.required_action = RequiredAction::Lift;
+
+        // Moving the king does never progress the game and even
+        // castling or forfeiting castling does not count as
+        // progress according to FIDE rules.
+        draw_state::record_position(self);
         Ok(self)
     }
 
@@ -815,15 +804,20 @@ impl DenseBoard {
             *promoted_pawn = Some(new_type);
             self.promotion = None;
 
-            // Promotion counts as progress. No need to check draw.
-            self.no_progress_half_moves = 0;
+            // Promotion counts as progress.
+            self.draw_state.reset_half_move_counter();
 
             match self.required_action {
                 RequiredAction::PromoteThenLift => {
                     self.required_action = RequiredAction::Lift;
+                    draw_state::record_position(self);
                 }
-                RequiredAction::Lift => panic!("promoting when lifting should be done"),
-                RequiredAction::Place => panic!("promoting when placing should be done"),
+                RequiredAction::Lift => {
+                    return Err(PacoError::PromotingWhenNotAllowed(RequiredAction::Lift))
+                }
+                RequiredAction::Place => {
+                    return Err(PacoError::PromotingWhenNotAllowed(RequiredAction::Place))
+                }
                 RequiredAction::PromoteThenPlace => {
                     self.required_action = RequiredAction::Place;
                 }
@@ -831,6 +825,7 @@ impl DenseBoard {
                     self.required_action = RequiredAction::Lift;
                     self.controlling_player = self.controlling_player.other();
                     self.en_passant = None;
+                    draw_state::record_position(self);
                 }
             }
 
@@ -2781,7 +2776,7 @@ mod tests {
         // White, capture pawn
         execute_action!(board, lift, "c3");
         execute_action!(board, place, "d5");
-        assert_eq!(board.no_progress_half_moves, 0);
+        assert_eq!(board.draw_state.no_progress_half_moves, 0);
         // Black knight
         execute_action!(board, lift, "g8");
         execute_action!(board, place, "f6");
@@ -2794,9 +2789,9 @@ mod tests {
         // White back 1
         execute_action!(board, lift, "c3");
         execute_action!(board, place, "b1");
-        assert_eq!(board.no_progress_half_moves, 4);
+        assert_eq!(board.draw_state.no_progress_half_moves, 4);
         execute_action!(board, promote, PieceType::Queen);
-        assert_eq!(board.no_progress_half_moves, 0);
+        assert_eq!(board.draw_state.no_progress_half_moves, 0);
 
         Ok(())
     }
@@ -2809,23 +2804,23 @@ mod tests {
 
         execute_action!(board, lift, "e2");
         execute_action!(board, place, "e4");
-        assert_eq!(board.no_progress_half_moves, 1);
+        assert_eq!(board.draw_state.no_progress_half_moves, 1);
         execute_action!(board, lift, "d7");
         execute_action!(board, place, "d5");
-        assert_eq!(board.no_progress_half_moves, 2);
+        assert_eq!(board.draw_state.no_progress_half_moves, 2);
         execute_action!(board, lift, "e4");
         execute_action!(board, place, "d5");
-        assert_eq!(board.no_progress_half_moves, 0);
+        assert_eq!(board.draw_state.no_progress_half_moves, 0);
         execute_action!(board, lift, "e7");
         execute_action!(board, place, "e6");
-        assert_eq!(board.no_progress_half_moves, 1);
+        assert_eq!(board.draw_state.no_progress_half_moves, 1);
         execute_action!(board, lift, "c2");
         execute_action!(board, place, "c4");
-        assert_eq!(board.no_progress_half_moves, 2);
+        assert_eq!(board.draw_state.no_progress_half_moves, 2);
         execute_action!(board, lift, "e6");
         execute_action!(board, place, "d5");
         execute_action!(board, place, "d4");
-        assert_eq!(board.no_progress_half_moves, 3);
+        assert_eq!(board.draw_state.no_progress_half_moves, 3);
     }
 
     #[test]
@@ -2834,64 +2829,64 @@ mod tests {
 
         execute_action!(board, lift, "f2");
         execute_action!(board, place, "f4");
-        assert_eq!(board.no_progress_half_moves, 1);
+        assert_eq!(board.draw_state.no_progress_half_moves, 1);
         execute_action!(board, lift, "g7");
         execute_action!(board, place, "g5");
-        assert_eq!(board.no_progress_half_moves, 2);
+        assert_eq!(board.draw_state.no_progress_half_moves, 2);
         execute_action!(board, lift, "f4");
         execute_action!(board, place, "g5");
-        assert_eq!(board.no_progress_half_moves, 0);
+        assert_eq!(board.draw_state.no_progress_half_moves, 0);
         execute_action!(board, lift, "e7");
         execute_action!(board, place, "e5");
-        assert_eq!(board.no_progress_half_moves, 1);
+        assert_eq!(board.draw_state.no_progress_half_moves, 1);
         execute_action!(board, lift, "g5");
         execute_action!(board, place, "g6");
-        assert_eq!(board.no_progress_half_moves, 2);
+        assert_eq!(board.draw_state.no_progress_half_moves, 2);
         execute_action!(board, lift, "a7");
         execute_action!(board, place, "a5");
-        assert_eq!(board.no_progress_half_moves, 3);
+        assert_eq!(board.draw_state.no_progress_half_moves, 3);
         execute_action!(board, lift, "d2");
         execute_action!(board, place, "d4");
-        assert_eq!(board.no_progress_half_moves, 4);
+        assert_eq!(board.draw_state.no_progress_half_moves, 4);
         execute_action!(board, lift, "e5");
         execute_action!(board, place, "d4");
-        assert_eq!(board.no_progress_half_moves, 0);
+        assert_eq!(board.draw_state.no_progress_half_moves, 0);
         execute_action!(board, lift, "c1");
         execute_action!(board, place, "h6");
-        assert_eq!(board.no_progress_half_moves, 1);
+        assert_eq!(board.draw_state.no_progress_half_moves, 1);
         execute_action!(board, lift, "a5");
         execute_action!(board, place, "a4");
-        assert_eq!(board.no_progress_half_moves, 2);
+        assert_eq!(board.draw_state.no_progress_half_moves, 2);
         execute_action!(board, lift, "h6");
         execute_action!(board, place, "f8");
-        assert_eq!(board.no_progress_half_moves, 0);
+        assert_eq!(board.draw_state.no_progress_half_moves, 0);
         execute_action!(board, lift, "a8");
         execute_action!(board, place, "a5");
-        assert_eq!(board.no_progress_half_moves, 1);
+        assert_eq!(board.draw_state.no_progress_half_moves, 1);
         execute_action!(board, lift, "g6");
         execute_action!(board, place, "g7");
-        assert_eq!(board.no_progress_half_moves, 2);
+        assert_eq!(board.draw_state.no_progress_half_moves, 2);
         execute_action!(board, lift, "b8");
         execute_action!(board, place, "a6");
-        assert_eq!(board.no_progress_half_moves, 3);
+        assert_eq!(board.draw_state.no_progress_half_moves, 3);
         execute_action!(board, lift, "d1");
         execute_action!(board, place, "d2");
-        assert_eq!(board.no_progress_half_moves, 4);
+        assert_eq!(board.draw_state.no_progress_half_moves, 4);
         execute_action!(board, lift, "a5");
         execute_action!(board, place, "h5");
-        assert_eq!(board.no_progress_half_moves, 5);
+        assert_eq!(board.draw_state.no_progress_half_moves, 5);
         execute_action!(board, lift, "d2");
         execute_action!(board, place, "g5");
-        assert_eq!(board.no_progress_half_moves, 6);
+        assert_eq!(board.draw_state.no_progress_half_moves, 6);
         execute_action!(board, lift, "d8");
         execute_action!(board, place, "f6");
-        assert_eq!(board.no_progress_half_moves, 7);
+        assert_eq!(board.draw_state.no_progress_half_moves, 7);
         execute_action!(board, lift, "g5");
         execute_action!(board, place, "g7");
         execute_action!(board, place, "f8");
         execute_action!(board, promote, PieceType::Queen);
         execute_action!(board, place, "d6");
-        assert_eq!(board.no_progress_half_moves, 0); // This tests #52
+        assert_eq!(board.draw_state.no_progress_half_moves, 0); // This tests #52
     }
 
     /// A chain involving the same pawn of the opponent twice but on different

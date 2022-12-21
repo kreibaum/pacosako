@@ -1,6 +1,7 @@
 use crate::db;
 use crate::timer::{Timer, TimerConfig, TimerState};
 use chrono::{DateTime, Utc};
+use pacosako::setup_options::SetupOptions;
 use pacosako::{PacoAction, PacoBoard, PacoError};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
@@ -14,6 +15,7 @@ use std::convert::TryFrom;
 pub struct MatchParameters {
     timer: Option<TimerConfig>,
     safe_mode: Option<bool>,
+    draw_after_n_repetitions: Option<u8>,
 }
 
 impl MatchParameters {
@@ -24,6 +26,7 @@ impl MatchParameters {
         Self {
             timer,
             safe_mode: self.safe_mode,
+            draw_after_n_repetitions: self.draw_after_n_repetitions,
         }
     }
 }
@@ -45,7 +48,7 @@ pub struct SynchronizedMatch {
     pub key: String,
     pub actions: Vec<StampedAction>,
     pub timer: Option<Timer>,
-    pub safe_mode: bool,
+    pub setup_options: SetupOptions,
 }
 
 /// Message that may be send by the client to the server.
@@ -144,11 +147,16 @@ impl CurrentMatchState {
 /// This implementation contains most of the "Business Logic" of the match.
 impl SynchronizedMatch {
     pub fn new_with_key(key: &str, params: MatchParameters) -> Self {
+        let setup_options = SetupOptions {
+            safe_mode: params.safe_mode.unwrap_or(true),
+            draw_after_n_repetitions: params.draw_after_n_repetitions.unwrap_or(3),
+        };
+
         SynchronizedMatch {
             key: key.to_owned(),
             actions: Vec::default(),
             timer: params.timer.map(|t| t.into()),
-            safe_mode: params.safe_mode.unwrap_or(false),
+            setup_options,
         }
     }
 
@@ -157,6 +165,7 @@ impl SynchronizedMatch {
         // Here we don't need to validate the move, this was done before they
         // have been added to the action list.
         let mut board = pacosako::DenseBoard::new();
+        board.draw_state.draw_after_n_repetitions = self.setup_options.draw_after_n_repetitions;
         for action in &self.actions {
             board.execute_trusted(action.action)?;
         }
@@ -274,6 +283,7 @@ mod test {
             MatchParameters {
                 timer: None,
                 safe_mode: Some(false),
+                draw_after_n_repetitions: None,
             },
         );
 

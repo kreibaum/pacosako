@@ -1,3 +1,5 @@
+use pacosako::setup_options::SetupOptionsAllOptional;
+
 use crate::db::Connection;
 use crate::timer::Timer;
 use crate::{sync_match::SynchronizedMatch, ServerError};
@@ -14,12 +16,13 @@ pub async fn insert(
     } else {
         None
     };
+    let setup = serde_json::to_string(&game.setup_options)?;
 
     let id = sqlx::query!(
-        "insert into game (action_history, timer, safe_mode) values (?, ?, ?)",
+        "insert into game (action_history, timer, safe_mode, setup) values (?, ?, 1, ?)",
         action_history,
         timer,
-        game.safe_mode
+        setup,
     )
     .execute(conn)
     .await?
@@ -62,7 +65,7 @@ pub async fn select(
 ) -> Result<Option<SynchronizedMatch>, ServerError> {
     let raw_game = sqlx::query_as!(
         RawGame,
-        "select id, action_history, timer, safe_mode from game where id = ?",
+        "select id, action_history, timer, setup from game where id = ?",
         id
     )
     .fetch_optional(conn)
@@ -78,7 +81,7 @@ pub async fn select(
 pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, ServerError> {
     let raw_games = sqlx::query_as!(
         RawGame,
-        r"select id, action_history, timer, safe_mode from game
+        r"select id, action_history, timer, setup from game
         order by id desc
         limit 5"
     )
@@ -99,7 +102,7 @@ struct RawGame {
     id: i64,
     action_history: String,
     timer: Option<String>,
-    safe_mode: bool,
+    setup: String,
 }
 
 impl RawGame {
@@ -111,11 +114,13 @@ impl RawGame {
             None
         };
 
+        let setup_options: SetupOptionsAllOptional = serde_json::from_str(&self.setup)?;
+
         Ok(SynchronizedMatch {
             key: format!("{}", self.id),
             actions: serde_json::from_str(&self.action_history)?,
             timer,
-            safe_mode: self.safe_mode,
+            setup_options: setup_options.into(),
         })
     }
 }

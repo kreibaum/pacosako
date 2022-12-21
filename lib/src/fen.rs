@@ -100,7 +100,7 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
             "b" => PlayerColor::Black,
             _ => unreachable!("Regex restricts input to 'w' and 'b'."),
         };
-        result.no_progress_half_moves = move_count.parse().unwrap();
+        result.draw_state.no_progress_half_moves = move_count.parse().unwrap();
         result.castling = Castling::from_string(castling);
         result.en_passant = BoardPosition::try_from(en_passant).ok();
 
@@ -152,7 +152,7 @@ pub fn write_fen(input: &DenseBoard) -> String {
         } else {
             'b'
         },
-        input.no_progress_half_moves,
+        input.draw_state.no_progress_half_moves,
         input.castling,
         input
             .en_passant

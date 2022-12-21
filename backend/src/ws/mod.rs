@@ -500,7 +500,7 @@ fn ensure_uuid_is_allowed(
     game: &SynchronizedMatch,
     uuid: String,
 ) -> Result<(), anyhow::Error> {
-    if !game.safe_mode {
+    if !game.setup_options.safe_mode {
         return Ok(());
     }
 

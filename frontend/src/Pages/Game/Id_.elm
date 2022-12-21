@@ -1130,6 +1130,11 @@ maybeVictoryStateInfo victoryState =
                 [ Element.el [ Font.size 30, centerX ] (Element.text T.gameDraw)
                 ]
 
+        Sako.RepetitionDraw ->
+            bigRoundedVictoryStateLabel (Element.rgb255 255 215 0)
+                [ Element.el [ Font.size 30, centerX ] (Element.text T.gameDraw)
+                ]
+
 
 {-| Links to the replay, but only after the game is finished.
 -}

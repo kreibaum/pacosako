@@ -76,6 +76,7 @@ init shared =
       , rawSeconds = ""
       , rawIncrement = ""
       , safeMode = True
+      , repetitionDraw = True
       , recentGames = RemoteData.Loading
       , key = shared.key
       , login = shared.user
@@ -94,6 +95,7 @@ type Msg
     | SetRawSeconds String
     | SetRawIncrement String
     | SetSafeMode Bool
+    | SetRepetitionDraw Bool
     | RefreshRecentGames
     | GotRecentGames (List CurrentMatchState)
     | ErrorRecentGames Http.Error
@@ -109,6 +111,7 @@ type alias Model =
     , rawSeconds : String
     , rawIncrement : String
     , safeMode : Bool
+    , repetitionDraw : Bool
     , recentGames : WebData (List CurrentMatchState)
     , key : Browser.Navigation.Key
     , login : Maybe User
@@ -242,6 +245,9 @@ update msg model =
         SetSafeMode safeModeEnabled ->
             ( { model | safeMode = safeModeEnabled }, Effect.none )
 
+        SetRepetitionDraw repetitionDrawEnabled ->
+            ( { model | repetitionDraw = repetitionDrawEnabled }, Effect.none )
+
 
 refreshRecentGames : Cmd Msg
 refreshRecentGames =
@@ -294,8 +300,16 @@ createMatch : Model -> ( Model, Effect Msg )
 createMatch model =
     ( model
     , Effect.batch
-        [ Api.Backend.postMatchRequest (buildTimerConfig model.speedSetting)
-            model.safeMode
+        [ Api.Backend.postMatchRequest
+            { timer = buildTimerConfig model.speedSetting
+            , safeMode = model.safeMode
+            , drawAfterNRepetitions =
+                if model.repetitionDraw then
+                    3
+
+                else
+                    0
+            }
             HttpError
             MatchCreatedOnServer
             |> Effect.fromCmd
@@ -465,6 +479,7 @@ setupOnlineMatchUi shared model =
             , recentTimerSettings model fontSize shared.recentCustomTimes
             , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
             , el [ centerX ] (Element.paragraph [] [ safeModeToggle model ])
+            , el [ centerX ] (Element.paragraph [] [ repetitionDrawToggle model ])
             , Input.button
                 [ Background.color (Element.rgb255 41 204 57)
                 , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
@@ -612,6 +627,18 @@ safeModeToggle model =
         , label =
             Input.labelRight []
                 (text T.enableGameProtection)
+        }
+
+
+repetitionDrawToggle : Model -> Element Msg
+repetitionDrawToggle model =
+    Input.checkbox []
+        { onChange = SetRepetitionDraw
+        , icon = Input.defaultCheckbox
+        , checked = model.repetitionDraw
+        , label =
+            Input.labelRight []
+                (text T.enableRepetitionDraw)
         }
 
 
