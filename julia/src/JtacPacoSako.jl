@@ -25,12 +25,12 @@ export PacoSako,
 export fen,
        random_position
 
-function __init__()
-    # We have to register the game in order to use all functionality of Jtac
-    # (loading and saving datasets and models)
-    Pack.register(PacoSako)
-    Pack.register(Luna)
-end
+#function __init__()
+#    # We have to register the game in order to use all functionality of Jtac
+#    # (loading and saving datasets and models)
+#    Pack.register(PacoSako)
+#    Pack.register(Luna)
+#end
 
 ################################################################################
 ## PacoPlay module to interact with pacoplay servers ###########################

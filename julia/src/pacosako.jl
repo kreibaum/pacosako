@@ -6,7 +6,7 @@ const DYNLIB_PATH = joinpath(dirname(@__DIR__), "../lib/target/release/libpacosa
 
 mutable struct PacoSako <: Game.AbstractGame
     ptr #::Ptr{Nothing}
-    bin::Vector{UInt8} # store binary representation if frozen
+    bin::Pack.Bytes # store binary representation if frozen
     forfeit_by::Int64
 end
 
@@ -46,13 +46,13 @@ end
 ################################################################################
 
 function Base.copy(ps::PacoSako)::PacoSako
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     ptr = ccall((:clone, DYNLIB_PATH), Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
     wrap_pacosako_ptr(ptr)
 end
 
 function Game.status(ps::PacoSako)::Int64
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     if ps.forfeit_by != 0
         -ps.forfeit_by
     else
@@ -63,7 +63,7 @@ end
 Game.current_player(ps::PacoSako)::Int64 = ccall((:current_player, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr)
 
 function Game.legal_actions(ps::PacoSako)
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     # While there are 132 possible actions (64+64+4) there can be at most 64
     # actions that are legal at any point.
     out = zeros(UInt8, 64)
@@ -72,7 +72,7 @@ function Game.legal_actions(ps::PacoSako)
 end
 
 function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     status_code = ccall((:apply_action_bang, DYNLIB_PATH), Int64, (Ptr{Nothing}, UInt8), ps.ptr, UInt8(action))
     if length(Game.legal_actions(ps)) == 0 && ccall((:status, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr) == 42
         ps.forfeit_by = Game.current_player(ps)
@@ -108,7 +108,7 @@ Game.policy_length(::Type{PacoSako})::Int = 132
 ################################################################################
 
 function serialize(ps::PacoSako)::Vector{UInt8}
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     length = ccall((:serialize_len, DYNLIB_PATH), Int64, (Ptr{Nothing},), ps.ptr)
     out = zeros(UInt8, length)
     status_code = ccall((:serialize, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{UInt8}, Int64), ps.ptr, out, length)
@@ -122,16 +122,16 @@ function deserialize(bincode::Vector{UInt8})::PacoSako
     wrap_pacosako_ptr(ptr)
 end
 
-Pack.is_frozen(ps::PacoSako)::Bool = !isempty(ps.bin)
+is_frozen(ps::PacoSako)::Bool = !isempty(ps.bin.data)
 
 function Pack.freeze(ps::PacoSako)::PacoSako
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     PacoSako(0, serialize(ps), ps.forfeit_by)
 end
 
 function Pack.unfreeze(ps::PacoSako)::PacoSako
-    @assert Pack.is_frozen(ps)
-    deserialize(ps.bin)
+    @assert is_frozen(ps)
+    deserialize(ps.bin.data)
 end
 
 
@@ -159,7 +159,7 @@ function Base.show(io::IO, ::MIME"text/plain", game::PacoSako)
 end
 
 function Game.draw(ps::PacoSako)
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     ccall((:print, DYNLIB_PATH), Nothing, (Ptr{Nothing},), ps.ptr)
 end
 
@@ -168,7 +168,7 @@ function Base.:(==)(ps1::PacoSako, ps2::PacoSako)::Bool
 end
 
 function Game.hash(ps::PacoSako)::UInt64
-    @assert !Pack.is_frozen(ps)
+    @assert !is_frozen(ps)
     ccall((:hash, DYNLIB_PATH), UInt64, (Ptr{Nothing},), ps.ptr)
 end
 
