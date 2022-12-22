@@ -2700,6 +2700,7 @@ mod tests {
     #[test]
     fn test_no_progress_draw_after_50_moves() -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
+        board.draw_state.draw_after_n_repetitions = 0;
 
         for _ in 0..25 {
             assert_eq!(board.victory_state(), VictoryState::Running);
@@ -2727,6 +2728,7 @@ mod tests {
     #[test]
     fn test_more_than_50_turns_if_there_is_progress() -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
+        board.draw_state.draw_after_n_repetitions = 0;
 
         for _ in 1..24 {
             // White

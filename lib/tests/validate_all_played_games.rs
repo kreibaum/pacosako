@@ -138,6 +138,7 @@ fn map_input_to_validation(input: RegressionInput) -> RegressionValidation {
         legal_moves: Vec::with_capacity(capacity),
     };
     let mut board = pacosako::DenseBoard::new();
+    board.draw_state.draw_after_n_repetitions = 0;
     // Iterate over the history and apply each move. Then store all the legal
     // moves in the result.
     // We can ignore the legal moves on the empty board as they are the same

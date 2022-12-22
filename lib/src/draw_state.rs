@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{DenseBoard, VictoryState};
 
 /// Combines all the drawing logic into one struct.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DrawState {
     /// The half move counter counts up for every move that is done in the game.
     /// If the move made progress, then it is reset to 0 after the move.
@@ -31,6 +31,9 @@ pub struct DrawState {
     /// the board has been seen. This risks some bugs if the hash function
     /// is not perfect, but it should be good enough for real world use.
     /// This property is included in the hash of the board.
+    ///
+    /// This property is not included in the hash of the board, nor is it
+    /// in equality checks.
     draw_check_map: FxHashMap<u64, u8>,
 }
 
@@ -112,13 +115,23 @@ fn calculate_hash(board: &mut DenseBoard) -> u64 {
 }
 
 // Hash is allowed to be more lenient than Eq.
-#[allow(clippy::derive_hash_xor_eq)]
+// #[allow(clippy::derive_hash_xor_eq)]
 impl std::hash::Hash for DrawState {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.no_progress_half_moves.hash(state);
         // self.draw_check_map.hash(state);
     }
 }
+
+// Implement custom equality check, because we don't want to compare the
+// draw_check_map.
+impl PartialEq for DrawState {
+    fn eq(&self, other: &Self) -> bool {
+        self.no_progress_half_moves == other.no_progress_half_moves
+    }
+}
+
+impl Eq for DrawState {}
 
 #[cfg(test)]
 mod tests {
