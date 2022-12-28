@@ -8,7 +8,7 @@ use std::hash::{Hash, Hasher};
 use fxhash::{FxHashMap, FxHasher};
 use serde::{Deserialize, Serialize};
 
-use crate::{DenseBoard, VictoryState};
+use crate::{setup_options::SetupOptions, DenseBoard, VictoryState};
 
 /// Combines all the drawing logic into one struct.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -52,6 +52,13 @@ impl DrawState {
     pub fn reset_half_move_counter(&mut self) {
         self.no_progress_half_moves = 0;
         self.draw_check_map.clear();
+    }
+
+    pub fn with_options(options: &SetupOptions) -> DrawState {
+        DrawState {
+            draw_after_n_repetitions: options.draw_after_n_repetitions,
+            ..Default::default()
+        }
     }
 }
 

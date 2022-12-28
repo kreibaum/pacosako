@@ -15,6 +15,7 @@ pub mod zobrist;
 use draw_state::DrawState;
 use fxhash::FxHashSet;
 use serde::{Deserialize, Serialize};
+use setup_options::SetupOptions;
 use std::cmp::{max, min};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -347,7 +348,12 @@ pub trait PacoBoard: Clone + Eq + std::hash::Hash {
 }
 
 impl DenseBoard {
+    /// Creates a new board with the current default options.
     pub fn new() -> Self {
+        Self::with_options(&SetupOptions::default())
+    }
+    /// Creates a new board with the given options.
+    pub fn with_options(options: &SetupOptions) -> Self {
         use PieceType::*;
         let mut result: Self = DenseBoard {
             white: Vec::with_capacity(64),
@@ -359,7 +365,7 @@ impl DenseBoard {
             promotion: None,
             castling: Castling::new(),
             victory_state: VictoryState::Running,
-            draw_state: DrawState::default(),
+            draw_state: DrawState::with_options(options),
         };
 
         // Board structure

@@ -2,7 +2,9 @@ module Api.Backend exposing
     ( Api
     , DiscordApplicationId(..)
     , Replay
+    , SetupOptions
     , describeError
+    , encodeSetupOptions
     , getCurrentLogin
     , getDiscordApplicationId
     , getLogout
@@ -362,15 +364,17 @@ type alias Replay =
     { actions : List ( Sako.Action, Posix )
     , timer : Maybe Timer.Timer
     , victoryState : Sako.VictoryState
+    , setupOptions : SetupOptions
     }
 
 
 decodeReplay : Decoder Replay
 decodeReplay =
-    Decode.map3 Replay
+    Decode.map4 Replay
         (Decode.field "actions" (Decode.list decodeStampedAction))
         (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
         (Decode.field "victory_state" Sako.decodeVictoryState)
+        (Decode.field "setup_options" decodeSetupOptions)
 
 
 decodeStampedAction : Decoder ( Sako.Action, Posix )
@@ -378,6 +382,27 @@ decodeStampedAction =
     Decode.map2 (\a b -> ( a, b ))
         Sako.decodeAction
         (Decode.field "timestamp" Iso8601.decoder)
+
+
+type alias SetupOptions =
+    { safe_mode : Bool
+    , draw_after_n_repetitions : Int
+    }
+
+
+encodeSetupOptions : SetupOptions -> Value
+encodeSetupOptions options =
+    Encode.object
+        [ ( "safe_mode", Encode.bool options.safe_mode )
+        , ( "draw_after_n_repetitions", Encode.int options.draw_after_n_repetitions )
+        ]
+
+
+decodeSetupOptions : Decoder SetupOptions
+decodeSetupOptions =
+    Decode.map2 SetupOptions
+        (Decode.field "safe_mode" Decode.bool)
+        (Decode.field "draw_after_n_repetitions" Decode.int)
 
 
 

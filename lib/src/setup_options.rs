@@ -23,6 +23,19 @@ impl Default for SetupOptions {
     }
 }
 
+/// Custom deserialization to be more robust against future additions to the
+/// `SetupOptions` struct. This way we can deserialize old versions from the
+/// database. Goes hand in hand with the `SetupOptionsAllOptional` struct.
+impl<'de> Deserialize<'de> for SetupOptions {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let options: SetupOptionsAllOptional = SetupOptionsAllOptional::deserialize(deserializer)?;
+        Ok(options.into())
+    }
+}
+
 impl From<SetupOptionsAllOptional> for SetupOptions {
     fn from(options: SetupOptionsAllOptional) -> Self {
         let mut result = Self::default();

@@ -106,6 +106,7 @@ pub struct CurrentMatchState {
     pub controlling_player: pacosako::PlayerColor,
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
+    pub setup_options: SetupOptions,
 }
 
 impl CurrentMatchState {
@@ -128,6 +129,7 @@ impl CurrentMatchState {
             controlling_player: board.controlling_player(),
             timer: sync_match.timer.clone(),
             victory_state,
+            setup_options: sync_match.setup_options.clone(),
         })
     }
 
@@ -164,8 +166,7 @@ impl SynchronizedMatch {
     fn project(&self) -> Result<pacosako::DenseBoard, PacoError> {
         // Here we don't need to validate the move, this was done before they
         // have been added to the action list.
-        let mut board = pacosako::DenseBoard::new();
-        board.draw_state.draw_after_n_repetitions = self.setup_options.draw_after_n_repetitions;
+        let mut board = pacosako::DenseBoard::with_options(&self.setup_options);
         for action in &self.actions {
             board.execute_trusted(action.action)?;
         }

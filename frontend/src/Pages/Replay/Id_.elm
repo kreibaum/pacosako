@@ -283,6 +283,7 @@ stripDownReplay replay =
     Wasm.HistoryToReplayNotation
         { board_fen = Fen.initialBoardFen
         , action_history = removeTimestamps replay.actions
+        , setup = replay.setupOptions
         }
 
 

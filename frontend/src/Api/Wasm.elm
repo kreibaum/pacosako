@@ -4,6 +4,7 @@ port module Api.Wasm exposing (ReplayData, RpcCall(..), RpcResponse(..), rpcCall
 which has been compiled to wasm. All calls are async.
 -}
 
+import Api.Backend
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Notation exposing (HalfMove, decodeHalfMove)
@@ -30,7 +31,7 @@ rpcCall =
 {-| The message send to the wasm worker
 -}
 type RpcCall
-    = HistoryToReplayNotation { board_fen : String, action_history : List Action }
+    = HistoryToReplayNotation { board_fen : String, action_history : List Action, setup : Api.Backend.SetupOptions }
     | LegalAction { board_fen : String, action_history : List Action }
     | RandomPosition Int
     | AnalyzePosition { board_fen : String, action_history : List Action }
@@ -39,7 +40,7 @@ type RpcCall
 {-| The message received from the wasm worker
 -}
 type RpcResponse
-    = HistoryToReplayNotationResponse { notation : List HalfMove, opening : String }
+    = HistoryToReplayNotationResponse ReplayData
     | LegalActionResponse (List Action)
     | RandomPositionResponse String
     | AnalyzePositionResponse { analysis : { text_summary : String } }
@@ -58,10 +59,11 @@ encodeObjectWithOneKey key value =
 encodeRpcCall : RpcCall -> Value
 encodeRpcCall msg =
     case msg of
-        HistoryToReplayNotation { board_fen, action_history } ->
+        HistoryToReplayNotation { board_fen, action_history, setup } ->
             Encode.object
                 [ ( "board_fen", Encode.string board_fen )
                 , ( "action_history", Encode.list Sako.encodeAction action_history )
+                , ( "setup", Api.Backend.encodeSetupOptions setup )
                 ]
                 |> encodeObjectWithOneKey "HistoryToReplayNotation"
 

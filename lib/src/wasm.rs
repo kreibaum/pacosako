@@ -3,7 +3,9 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     analysis::{self, puzzle, ReplayData},
-    editor, fen, PacoAction, PacoBoard, PacoError,
+    editor, fen,
+    setup_options::SetupOptions,
+    PacoAction, PacoBoard, PacoError,
 };
 
 /// This module provides all the methods that should be available on the wasm
@@ -19,6 +21,7 @@ pub enum RpcCall {
     HistoryToReplayNotation {
         board_fen: String,
         action_history: Vec<PacoAction>,
+        setup: SetupOptions,
     },
     LegalActions {
         board_fen: String,
@@ -66,8 +69,9 @@ pub fn rpc_call_internal(call: &RpcCall) -> Result<RpcResponse, PacoError> {
         RpcCall::HistoryToReplayNotation {
             board_fen,
             action_history,
+            setup,
         } => Ok(RpcResponse::HistoryToReplayNotation(
-            history_to_replay_notation(board_fen, action_history)?,
+            history_to_replay_notation(board_fen, action_history, setup)?,
         )),
 
         RpcCall::LegalActions {
@@ -106,8 +110,14 @@ pub fn legal_actions(
 fn history_to_replay_notation(
     board_fen: &str,
     action_history: &[PacoAction],
+    setup: &SetupOptions,
 ) -> Result<ReplayData, PacoError> {
-    let initial_board = fen::parse_fen(board_fen)?;
+    // This "initial_board" stuff really isn't great. This should be included
+    // into the setup options eventually.
+    let mut initial_board = fen::parse_fen(board_fen)?;
+
+    // Apply setup options to the initial board
+    initial_board.draw_state.draw_after_n_repetitions = setup.draw_after_n_repetitions;
 
     analysis::history_to_replay_notation(initial_board, action_history)
 }
