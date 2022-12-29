@@ -1978,7 +1978,6 @@ dependencies = [
  "log",
  "once_cell",
  "pacosako-rust",
- "rand 0.8.5",
  "regex",
  "reqwest",
  "rocket",
