@@ -1,7 +1,7 @@
 /// Handles all the websocket client logic.
 pub mod client_connector;
 mod legal_move_oracle;
-pub mod timeout_connector;
+pub mod wake_up_queue;
 
 use crate::{
     db,
@@ -9,12 +9,13 @@ use crate::{
     ServerError,
 };
 use anyhow::bail;
-use async_channel::{Receiver, Sender};
 use async_std::task;
 use async_tungstenite::tungstenite::Message;
 use chrono::{DateTime, Utc};
 use client_connector::{PeerMap, WebsocketOutMsg};
+use kanal::{Receiver, Sender};
 use log::*;
+use once_cell::sync::OnceCell;
 use pacosako::{PacoAction, PlayerColor};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
@@ -24,22 +25,31 @@ use std::{
     net::SocketAddr,
 };
 
-use self::timeout_connector::TimeoutOutMsg;
+// Everything can send messages to the logic. The logic is a singleton.
+pub static TO_LOGIC: OnceCell<Sender<LogicMsg>> = OnceCell::new();
 
-pub fn run_server(port: u16, pool: db::Pool) -> Result<Sender<RocketToWsMsg>, ServerError> {
-    let (to_logic, message_queue) = async_channel::unbounded();
+pub fn to_logic(msg: LogicMsg) {
+    if let Err(e) = TO_LOGIC.get().expect("Logic not initialized.").send(msg) {
+        warn!("Error sending message to logic: {}", e)
+    }
+}
 
-    let all_peers = client_connector::run_websocket_connector(port, to_logic.clone());
-    let to_timeout = timeout_connector::run_timeout_thread(to_logic.clone());
-    let for_rocket = run_rocket_ws_msg(to_logic);
+pub fn run_server(port: u16, pool: db::Pool) {
+    let (to_logic, message_queue) = kanal::unbounded();
+    TO_LOGIC
+        .set(to_logic)
+        .expect("Error setting up the TO_LOGIC static variable.");
 
-    run_logic_server(all_peers, to_timeout, message_queue, pool);
+    let all_peers = client_connector::run_websocket_connector(port);
 
-    Ok(for_rocket)
+    wake_up_queue::spawn_sleeper_thread();
+
+    run_logic_server(all_peers, message_queue, pool);
 }
 
 /// A message that is send to the logic where the logic has then to react.
-enum LogicMsg {
+#[derive(Debug)]
+pub enum LogicMsg {
     Websocket {
         data: Message,
         source: SocketAddr,
@@ -52,32 +62,6 @@ enum LogicMsg {
         key: String,
         action: PacoAction,
     },
-}
-
-pub enum RocketToWsMsg {
-    AiAction { key: String, action: PacoAction },
-}
-
-fn run_rocket_ws_msg(to_logic: Sender<LogicMsg>) -> Sender<RocketToWsMsg> {
-    let (for_rocket, from_rocket) = async_channel::unbounded();
-
-    std::thread::spawn(move || {
-        async_std::task::block_on(forward_rocket_messages(from_rocket, to_logic))
-    });
-
-    for_rocket
-}
-
-async fn forward_rocket_messages(from_rocket: Receiver<RocketToWsMsg>, to_logic: Sender<LogicMsg>) {
-    while let Ok(RocketToWsMsg::AiAction { key, action }) = from_rocket.recv().await {
-        if to_logic
-            .send(LogicMsg::AiAction { key, action })
-            .await
-            .is_err()
-        {
-            break;
-        }
-    }
 }
 
 impl WebsocketOutMsg for LogicMsg {
@@ -93,51 +77,22 @@ impl WebsocketOutMsg for LogicMsg {
     }
 }
 
-impl TimeoutOutMsg<String> for LogicMsg {
-    fn from_ws_message(data: String, timestamp: DateTime<Utc>) -> Option<Self> {
-        Some(LogicMsg::Timeout {
-            key: data,
-            timestamp,
-        })
-    }
-}
-
 /// Spawn a thread that handles the server logic.
-fn run_logic_server(
-    all_peers: PeerMap,
-    to_timeout: Sender<(String, DateTime<Utc>)>,
-    message_queue: Receiver<LogicMsg>,
-    pool: db::Pool,
-) {
-    std::thread::spawn(move || {
-        task::block_on(loop_logic_server(
-            all_peers,
-            to_timeout,
-            message_queue,
-            pool,
-        ))
-    });
+fn run_logic_server(all_peers: PeerMap, message_queue: Receiver<LogicMsg>, pool: db::Pool) {
+    std::thread::spawn(move || task::block_on(loop_logic_server(all_peers, message_queue, pool)));
 }
 
 /// Simple loop that reacts to all the messages.
 async fn loop_logic_server(
     all_peers: PeerMap,
-    to_timeout: Sender<(String, DateTime<Utc>)>,
     message_queue: Receiver<LogicMsg>,
     pool: db::Pool,
 ) -> Result<(), ServerError> {
     let mut server_state = ServerState::default();
 
-    while let Ok(msg) = message_queue.recv().await {
+    while let Ok(msg) = message_queue.recv() {
         let mut conn = pool.0.acquire().await?;
-        let res = handle_message(
-            msg,
-            to_timeout.clone(),
-            &all_peers,
-            &mut server_state,
-            &mut conn,
-        )
-        .await;
+        let res = handle_message(msg, &all_peers, &mut server_state, &mut conn).await;
         if let Err(e) = res {
             warn!("Error in the websocket: {:?}", e);
         }
@@ -244,7 +199,6 @@ pub enum ServerMessage {
 /// that is still open here.
 async fn handle_message(
     msg: LogicMsg,
-    to_timeout: Sender<(String, DateTime<Utc>)>,
     ws: &PeerMap,
     server_state: &mut ServerState,
     conn: &mut db::Connection,
@@ -256,15 +210,7 @@ async fn handle_message(
             match data {
                 Message::Text(ref text) => {
                     if let Ok(client_msg) = from_str(text) {
-                        handle_client_message(
-                            client_msg,
-                            source,
-                            to_timeout,
-                            ws,
-                            server_state,
-                            conn,
-                        )
-                        .await?;
+                        handle_client_message(client_msg, source, ws, server_state, conn).await?;
                     }
                 }
                 Message::Binary(payload) => {
@@ -284,7 +230,7 @@ async fn handle_message(
 
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&game.key) {
@@ -295,7 +241,7 @@ async fn handle_message(
         LogicMsg::AiAction { key, action } => {
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -317,7 +263,6 @@ async fn handle_message(
 
 async fn progress_the_timer(
     game: &mut SynchronizedMatch,
-    to_timeout: Sender<(String, DateTime<Utc>)>,
     key: String,
 ) -> Result<CurrentMatchState, anyhow::Error> {
     match game.timer_progress() {
@@ -326,10 +271,7 @@ async fn progress_the_timer(
                 return Ok(state);
             } else if let Some(timer) = &mut state.timer {
                 let next_reminder = timer.timeout(state.controlling_player);
-                to_timeout
-                    .send((key, next_reminder))
-                    .await
-                    .expect("Timeout connector quit unexpectedly.");
+                wake_up_queue::put_utc(key, next_reminder);
             }
             Ok(state)
         }
@@ -342,7 +284,6 @@ async fn progress_the_timer(
 async fn handle_client_message(
     msg: ClientMessage,
     sender: SocketAddr,
-    to_timeout: Sender<(String, DateTime<Utc>)>,
     ws: &PeerMap,
     server_state: &mut ServerState,
     conn: &mut db::Connection,
@@ -368,10 +309,7 @@ async fn handle_client_message(
             if let Some(ref timer) = state.timer {
                 if !timer.get_state().is_finished() {
                     let next_reminder = timer.timeout(state.controlling_player);
-                    to_timeout
-                        .send((key.clone(), next_reminder))
-                        .await
-                        .expect("Timeout connector quit unexpectedly.");
+                    wake_up_queue::put_utc(&key, next_reminder);
                 }
             }
 
@@ -393,7 +331,7 @@ async fn handle_client_message(
 
             ensure_uuid_is_allowed(room, &game, uuid)?;
 
-            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -418,7 +356,7 @@ async fn handle_client_message(
                 return Ok(());
             }
 
-            let state = progress_the_timer(&mut game, to_timeout, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;

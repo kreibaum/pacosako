@@ -12,7 +12,7 @@ extern crate rocket;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
-use crate::ws::RocketToWsMsg;
+use crate::ws::LogicMsg;
 use db::Pool;
 use rocket::response::{Flash, Redirect};
 use rocket::serde::json::Json;
@@ -324,23 +324,11 @@ async fn get_game(
 }
 
 #[post("/ai/game/<key>", data = "<action>")]
-async fn post_action_to_game(
-    key: String,
-    action: Json<pacosako::PacoAction>,
-    send_to_websocket: &State<async_channel::Sender<ws::RocketToWsMsg>>,
-) {
-    match send_to_websocket
-        .send(RocketToWsMsg::AiAction {
-            key,
-            action: action.0,
-        })
-        .await
-    {
-        Ok(_) => {}
-        Err(e) => {
-            error!("Error sending from rocket to the websocket server: {:?}", e)
-        }
-    }
+async fn post_action_to_game(key: String, action: Json<pacosako::PacoAction>) {
+    ws::to_logic(LogicMsg::AiAction {
+        key,
+        action: action.0,
+    });
 }
 
 #[get("/game/recent")]
@@ -460,13 +448,9 @@ fn init_new_websocket_server(rocket: rocket::Rocket<Build>) -> rocket::Rocket<Bu
         .expect("Config could not be parsed");
 
     let pool = rocket.state::<Pool>().expect("Database pool not in state!");
-    let send_to_websocket: async_channel::Sender<ws::RocketToWsMsg> =
-        ws::run_server(config.websocket_port, pool.clone())
-            .expect("Error starting websocket server!");
+    ws::run_server(config.websocket_port, pool.clone());
 
-    rocket
-        .manage(WebsocketPort(config.websocket_port))
-        .manage(send_to_websocket)
+    rocket.manage(WebsocketPort(config.websocket_port))
 }
 
 #[derive(Deserialize)]
