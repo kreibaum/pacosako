@@ -1964,6 +1964,7 @@ mod tests {
     /// Accelerating Self-Play Learning in Go
     /// https://arxiv.org/abs/1902.10565
     #[test]
+    #[allow(clippy::needless_range_loop)] // Looks a lot nicer this way
     fn test_threat_chains() {
         use PieceType::*;
 

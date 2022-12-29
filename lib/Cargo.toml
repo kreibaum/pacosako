@@ -11,6 +11,8 @@ path = "src/lib.rs"
 
 [dependencies]
 rand = "0.8.5"
+# We are not using this directly, but this is still required for wasm-bindgen to work.
+# See https://docs.rs/getrandom/#webassembly-support
 getrandom = { version = "0.2", features = ["js"] }
 nom = "7.1.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -24,9 +26,9 @@ fxhash = "0.2.1"
 tinyset = "0.4.15"
 
 [dev-dependencies]
-quickcheck = "0.8"
-quickcheck_macros = "0.8"
-ntest = "0.9.0" # Required for timeouts to test potential infinite loops.
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
+ntest = "0.9.0"             # Required for timeouts to test potential infinite loops.
 
 [profile.release]
 debug = true

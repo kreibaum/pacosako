@@ -62,7 +62,7 @@ fn matrix_transform(input: Vec<(u8, Vec<Square>)>) -> Matrix {
 
     for (row, entries) in input {
         for (x, square) in entries.iter().enumerate() {
-            if square.white != None || square.black != None {
+            if square.white.is_some() || square.black.is_some() {
                 if let Some(pos) = BoardPosition::new_checked(x as i8, row as i8 - 1) {
                     matrix.insert(pos, square.clone());
                 }

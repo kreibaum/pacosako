@@ -43,7 +43,7 @@ impl Distribution<DenseBoard> for Standard {
         for i in 0..64 {
             if i < 8
                 && board.white[i] == Some(PieceType::Pawn)
-                && (board.black[i] == None || board.black[i] == Some(PieceType::King))
+                && (board.black[i].is_none() || board.black[i] == Some(PieceType::King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_white(&board, rng);
@@ -55,7 +55,7 @@ impl Distribution<DenseBoard> for Standard {
             }
             if i >= 56
                 && board.black[i] == Some(PieceType::Pawn)
-                && (board.white[i] == None || board.white[i] == Some(PieceType::King))
+                && (board.white[i].is_none() || board.white[i] == Some(PieceType::King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_black(&board, rng);
@@ -69,11 +69,11 @@ impl Distribution<DenseBoard> for Standard {
 
         // Ensure, that the king is single. (Done after all other pieces are moved).
         for i in 0..64 {
-            if board.white[i] == Some(PieceType::King) && board.black[i] != None {
+            if board.white[i] == Some(PieceType::King) && board.black[i].is_some() {
                 let free_index = random_empty_position(&board, rng);
                 board.white.swap(i, free_index);
             }
-            if board.black[i] == Some(PieceType::King) && board.white[i] != None {
+            if board.black[i] == Some(PieceType::King) && board.white[i].is_some() {
                 let free_index = random_empty_position(&board, rng);
                 board.black.swap(i, free_index);
             }
@@ -108,7 +108,7 @@ impl Distribution<DenseBoard> for Standard {
 fn random_empty_position<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> usize {
     loop {
         let candidate = rng.gen_range(0..64);
-        if board.white[candidate] == None && board.black[candidate] == None {
+        if board.white[candidate].is_none() && board.black[candidate].is_none() {
             return candidate;
         }
     }
@@ -119,7 +119,7 @@ fn random_empty_position<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> us
 fn random_position_without_white<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> usize {
     loop {
         let candidate = rng.gen_range(0..64);
-        if board.white[candidate] == None {
+        if board.white[candidate].is_none() {
             return candidate;
         }
     }
@@ -130,7 +130,7 @@ fn random_position_without_white<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut 
 fn random_position_without_black<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> usize {
     loop {
         let candidate = rng.gen_range(0..64);
-        if board.black[candidate] == None {
+        if board.black[candidate].is_none() {
             return candidate;
         }
     }
@@ -185,7 +185,7 @@ mod tests {
                         "There is a black pawn on the white home row\n{:?}",
                         board
                     );
-                    if board.black[i] == None {
+                    if board.black[i].is_none() {
                         assert_ne!(
                             board.white[i],
                             Some(PieceType::Pawn),
@@ -201,7 +201,7 @@ mod tests {
                         "There is a white pawn on the black home row\n{:?}",
                         board
                     );
-                    if board.white[i] == None {
+                    if board.white[i].is_none() {
                         assert_ne!(
                             board.black[i],
                             Some(PieceType::Pawn),
