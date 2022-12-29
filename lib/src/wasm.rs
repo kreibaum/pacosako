@@ -8,6 +8,23 @@ use crate::{
     PacoAction, PacoBoard, PacoError,
 };
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+
+    fn ai_inference(input: f32) -> f32;
+}
+
+// Export a function that will be called in JavaScript
+// but call the "imported" console.log.
+#[wasm_bindgen]
+pub fn console_log_from_wasm() {
+    log("This console.log is from wasm!");
+
+    ai_inference(1.0);
+}
+
 /// This module provides all the methods that should be available on the wasm
 /// version of the library. Any encoding & decoding is handled in here.
 

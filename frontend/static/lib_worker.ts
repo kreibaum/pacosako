@@ -2,6 +2,11 @@
 
 declare function importScripts(...urls: string[]): void;
 
+var ai_inference = function (x) {
+    console.log('ai_inference called with: ', x);
+    return x + 1;
+}
+
 let [wasm_js_hash, wasm_hash] = location.hash.replace("#", "").split("|");
 
 console.log('Initializing worker')
@@ -10,7 +15,7 @@ console.log('Hashes are: ', wasm_js_hash, wasm_hash);
 importScripts(`/cache/lib.min.js?hash=${wasm_js_hash}`);
 declare var wasm_bindgen: any;
 
-const { rpc_call } = wasm_bindgen;
+const { rpc_call, console_log_from_wasm } = wasm_bindgen;
 
 
 /** Helps with typescript type checking. */
@@ -24,6 +29,7 @@ function handleMessage(data: any) {
 
 wasm_bindgen(`/cache/lib.wasm?hash=${wasm_hash}`).then(_ => {
     console.log('WASM loaded, worker ready.');
+    console_log_from_wasm();
     // Notify the main thread that we are ready.
     // This then tells the message queue to start processing messages.
     postMessage('ready');
