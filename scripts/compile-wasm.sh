@@ -8,6 +8,8 @@
 
 # We need to use "no-modules" because we are using this in a WebWorker.
 # Firefox does not support ES6 modules in WebWorkers yet.
+# https://bugzilla.mozilla.org/show_bug.cgi?id=1247687
+# Looks like in late 2022 they were actively working on it but hit regressions.
 
 cd lib
 wasm-pack build --target no-modules --out-name lib --out-dir ../target

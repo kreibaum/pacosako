@@ -7,6 +7,7 @@
     <title>Paco Ŝako</title>
     <script>
       var lib_worker_hash = "{{ lib_worker_hash }}";
+      var ai_worker_hash = "{{ ai_worker_hash }}";
       var wasm_js_hash = "{{ wasm_js_hash }}";
       var wasm_hash = "{{ wasm_hash }}";
     </script>

@@ -23,3 +23,4 @@ tsc
 
 terser ./target/main.js -o ./target/main.min.js --mangle --compress
 terser ./target/lib_worker.js -o ./target/lib_worker.min.js --mangle --compress
+terser ./target/ai_worker.js -o ./target/ai_worker.min.js --mangle --compress

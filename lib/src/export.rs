@@ -5,6 +5,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::str;
 
 use crate::{
+    ai::glue::action_to_action_index,
     analysis::{self, reverse_amazon_search},
     determine_all_threats, fen, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
     PlayerColor,
@@ -70,19 +71,6 @@ pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
         }
     } else {
         unsafe { *out = 0 }
-    }
-}
-
-fn action_to_action_index(action: crate::PacoAction) -> u8 {
-    use crate::PieceType::*;
-    match action {
-        crate::PacoAction::Lift(p) => 1 + p.0,
-        crate::PacoAction::Place(p) => 1 + p.0 + 64,
-        crate::PacoAction::Promote(Rook) => 129,
-        crate::PacoAction::Promote(Knight) => 130,
-        crate::PacoAction::Promote(Bishop) => 131,
-        crate::PacoAction::Promote(Queen) => 132,
-        crate::PacoAction::Promote(_) => 255,
     }
 }
 

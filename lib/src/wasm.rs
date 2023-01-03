@@ -5,7 +5,7 @@ use crate::{
     analysis::{self, puzzle, ReplayData},
     editor, fen,
     setup_options::SetupOptions,
-    PacoAction, PacoBoard, PacoError,
+    DenseBoard, PacoAction, PacoBoard, PacoError,
 };
 
 #[wasm_bindgen]
@@ -137,4 +137,34 @@ fn history_to_replay_notation(
     initial_board.draw_state.draw_after_n_repetitions = setup.draw_after_n_repetitions;
 
     analysis::history_to_replay_notation(initial_board, action_history)
+}
+
+#[wasm_bindgen]
+pub fn request_ai_action(all_actions: String) -> String {
+    use crate::{
+        ai::mcts::MctsPlayer,
+        ai::{glue::HyperParameter, luna::Luna},
+        PacoAction, PacoBoard,
+    };
+
+    let all_actions: Vec<PacoAction> = serde_json::from_str(&all_actions).unwrap();
+    let mut board = DenseBoard::new();
+    for action in all_actions {
+        board.execute(action).unwrap();
+    }
+
+    let ai_context = Luna::new(HyperParameter {
+        exploration: 0.1,
+        power: 100,
+    });
+    let mut player = MctsPlayer::new(board, ai_context).unwrap();
+    if let Err(e) = player.think_for(100) {
+        return format!("Error in think_for: {:?}", e);
+    }
+    let best_action = player.best_action();
+    if let Err(e) = best_action {
+        return format!("Error in best_action: {:?}", e);
+    }
+
+    serde_json::to_string(&best_action.unwrap()).unwrap()
 }

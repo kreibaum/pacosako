@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod analysis;
 pub mod const_tile;
 pub mod draw_state;
@@ -72,6 +73,10 @@ pub enum PacoError {
     BoardNotSettled,
     #[error("Search is not allowed with these parameters:")]
     SearchNotAllowed(String),
+    #[error("The game is over.")]
+    GameIsOver,
+    #[error("There are no legal actions.")]
+    NoLegalActions,
 }
 
 impl From<serde_json::Error> for PacoError {

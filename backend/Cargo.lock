@@ -903,6 +903,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixedbitset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
+
+[[package]]
 name = "flume"
 version = "0.10.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1954,9 +1960,11 @@ dependencies = [
  "lazy-regex",
  "lazy_static",
  "nom",
+ "petgraph",
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "smallvec",
  "thiserror",
  "tinyset",
  "wasm-bindgen",
@@ -2134,6 +2142,16 @@ dependencies = [
  "once_cell",
  "pest",
  "sha1",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6d5014253a1331579ce62aa67443b4a658c5e7dd03d4bc6d302b94474888143"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
 ]
 
 [[package]]

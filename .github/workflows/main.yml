@@ -48,7 +48,7 @@ jobs:
         run: |
           pwd
           cd lib
-          cargo test
+          cargo test --release
           cd ..
 
       - name: Run backend tests

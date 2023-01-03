@@ -91,6 +91,15 @@ pub async fn lib_worker(hash: &str) -> Result<CacheResponse<NamedFile>, ServerEr
     })
 }
 
+#[allow(unused_variables)]
+#[get("/cache/ai_worker.min.js?<hash>")]
+pub async fn ai_worker(hash: &str) -> Result<CacheResponse<NamedFile>, ServerError> {
+    Ok(CacheResponse::Private {
+        responder: static_file("../target/ai_worker.min.js").await?,
+        max_age: 356 * 24 * 3600,
+    })
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Static Files ////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@ module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 import Animation exposing (Timeline)
 import Api.Decoders exposing (CurrentMatchState, getActionList)
 import Api.Ports as Ports
+import Api.Wasm
 import Api.Websocket
 import Browser.Dom
 import Browser.Events
@@ -162,6 +163,9 @@ type Msg
     | SetWindowHeight Int
     | FetchHeaderSize
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
+    | RequestAiAction
+    | AiActionResponse Sako.Action
+    | AiActionError
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -288,6 +292,26 @@ update msg model =
                 -- Here we have to do some magic to prevent flickering.
                 -- Basically whenever we would flicker, this picks the middle of the states and becomes stable.
                 ( { model | visibleHeaderSize = header, elementHeight = elementHeight }, Effect.none )
+
+        RequestAiAction ->
+            ( model
+            , model.currentState.actionHistory
+                |> Api.Wasm.aiCall
+                |> Effect.fromCmd
+            )
+
+        AiActionResponse action ->
+            ( model
+            , Api.Websocket.DoAction
+                { key = model.gameKey
+                , action = action
+                }
+                |> Api.Websocket.send
+                |> Effect.fromCmd
+            )
+
+        AiActionError ->
+            ( model, Ports.logToConsole "AI action error" |> Effect.fromCmd )
 
 
 fetchHeaderSize : Cmd Msg
@@ -637,6 +661,7 @@ subscriptions model =
         [ Animation.subscription model.timeline AnimationTick
         , Api.Websocket.listen WebsocketMsg WebsocketErrorMsg
         , Api.Websocket.listenToStatus WebsocketStatusChange
+        , Api.Wasm.aiResponse AiActionResponse AiActionError
         , Custom.Events.onKeyUp keybindings
         , Browser.Events.onResize (\_ y -> SetWindowHeight y)
         , Ports.scrollTrigger (\_ -> FetchHeaderSize)
@@ -948,6 +973,10 @@ sidebar model =
         , rollbackButton model
         , maybePromotionButtons model.currentState.legalActions
         , maybeVictoryStateInfo model.currentState.gameState
+        , Input.button []
+            { label = Element.text "Request Ai Action"
+            , onPress = Just RequestAiAction
+            }
         , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
         , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco

@@ -468,12 +468,12 @@ if (app.ports.scrollTrigger) {
 // The library web worker provides the wasm library without blocking the main
 // thread. Since every port in elm is already async, we don't loose synchronicity.
 
-// TODO: Caching & cache busting.
-
 // This worker is created asynchronously, so we can't send messages to it
 // immediately. Instead we queue them up and send them once the worker is ready.
 
 declare var lib_worker_hash: string
+declare var wasm_js_hash: string
+declare var wasm_hash: string
 
 var libWorker = new Worker(`/cache/lib_worker.min.js?hash=${lib_worker_hash}#${wasm_js_hash}|${wasm_hash}`);
 
@@ -510,4 +510,51 @@ function libWorkerSend(msg: any) {
 
 if (app.ports.rpcCallValue) {
     app.ports.rpcCallValue.subscribe(libWorkerSend)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Ports for the AI Web Worker /////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+// The AI web worker provides the AI without blocking the main thread.
+// It uses the same wasm module as the library web worker. So we can reuse
+// the same hash values.
+
+declare var ai_worker_hash: string
+
+var aiWorker = new Worker(`/cache/ai_worker.min.js?hash=${ai_worker_hash}#${wasm_js_hash}|${wasm_hash}`);
+
+let aiWorkerMessageQueue = []
+let aiWorkerIsReady = false
+
+aiWorker.onmessage = function (m) {
+    // The first message we get from the worker is a "ready" signal.
+    // We can then send all the messages that were queued up.
+    // This message is not send to Elm.
+    if (!aiWorkerIsReady) {
+        aiWorkerIsReady = true
+        aiWorkerMessageQueue.forEach(msg => aiWorker.postMessage(msg))
+        aiWorkerMessageQueue = []
+        return
+    }
+
+    // Log messages from the worker.
+    console.log("aiWorker: " + m.data);
+
+    if (app.ports.aiResponseValue) {
+        app.ports.aiResponseValue.send(JSON.parse(m.data))
+    }
+}
+
+function aiWorkerSend(msg: any) {
+    if (aiWorkerIsReady) {
+        aiWorker.postMessage(JSON.stringify(msg));
+    } else {
+        console.log("Message received before aiWorker was ready. Queuing message.")
+        aiWorkerMessageQueue.push(JSON.stringify(msg))
+    }
+}
+
+if (app.ports.aiCallValue) {
+    app.ports.aiCallValue.subscribe(aiWorkerSend)
 }

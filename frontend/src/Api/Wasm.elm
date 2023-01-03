@@ -1,4 +1,4 @@
-port module Api.Wasm exposing (ReplayData, RpcCall(..), RpcResponse(..), rpcCall, rpcRespone)
+port module Api.Wasm exposing (ReplayData, RpcCall(..), RpcResponse(..), aiCall, aiResponse, rpcCall, rpcRespone)
 
 {-| This module exposes the RPC required to interact with the pacosako library
 which has been compiled to wasm. All calls are async.
@@ -138,3 +138,34 @@ runRpcCallDecoder : Value -> RpcResponse
 runRpcCallDecoder value =
     Decode.decodeValue decodeRpcCall value
         |> Result.extract (RpcError << Decode.errorToString)
+
+
+
+--------------------------------------------------------------------------------
+-- AI RPC, currently in a draft stage ------------------------------------------
+--------------------------------------------------------------------------------
+-- In: Vec<Action>, Out: Action
+
+
+port aiResponseValue : (Value -> msg) -> Sub msg
+
+
+aiResponse : (Action -> msg) -> msg -> Sub msg
+aiResponse msg error =
+    aiResponseValue (decodeActionIntoMsg msg error)
+
+
+decodeActionIntoMsg : (Action -> msg) -> msg -> Value -> msg
+decodeActionIntoMsg msg error value =
+    Decode.decodeValue Sako.decodeAction value
+        |> Result.map msg
+        |> Result.withDefault error
+
+
+port aiCallValue : Value -> Cmd msg
+
+
+aiCall : List Action -> Cmd msg
+aiCall actions =
+    Encode.list Sako.encodeAction actions
+        |> aiCallValue
