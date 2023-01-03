@@ -1,10 +1,12 @@
 module Pages.Home_ exposing (Model, Msg, Params, page)
 
+import AiConfig exposing (RawAiConfig)
 import Api.Backend
 import Api.Decoders exposing (CurrentMatchState)
 import Api.LocalStorage exposing (CustomTimer)
 import Api.Ports as Ports
 import Browser.Navigation exposing (pushUrl)
+import Components
 import Content.References
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
@@ -77,6 +79,7 @@ init shared =
       , rawIncrement = ""
       , safeMode = True
       , repetitionDraw = True
+      , aiConfig = Nothing
       , recentGames = RemoteData.Loading
       , key = shared.key
       , login = shared.user
@@ -101,6 +104,8 @@ type Msg
     | ErrorRecentGames Http.Error
     | HttpError Http.Error
     | ToShared Shared.Msg
+    | ConfigureAi
+    | ToAiConfig AiConfig.Msg
 
 
 type alias Model =
@@ -112,6 +117,7 @@ type alias Model =
     , rawIncrement : String
     , safeMode : Bool
     , repetitionDraw : Bool
+    , aiConfig : Maybe RawAiConfig
     , recentGames : WebData (List CurrentMatchState)
     , key : Browser.Navigation.Key
     , login : Maybe User
@@ -248,6 +254,19 @@ update msg model =
         SetRepetitionDraw repetitionDrawEnabled ->
             ( { model | repetitionDraw = repetitionDrawEnabled }, Effect.none )
 
+        ConfigureAi ->
+            if model.aiConfig == Nothing then
+                ( { model | aiConfig = Just <| AiConfig.init }, Effect.none )
+
+            else
+                ( model, Effect.none )
+
+        ToAiConfig outMsg ->
+            model.aiConfig
+                |> Maybe.map (\config -> { model | aiConfig = AiConfig.update outMsg config })
+                |> Maybe.withDefault model
+                |> (\m -> ( m, Effect.none ))
+
 
 refreshRecentGames : Cmd Msg
 refreshRecentGames =
@@ -349,7 +368,10 @@ matchSetupUiDesktop shared model =
         [ Element.row [ height fill, width fill, spacing 15, centerX ]
             [ setupOnlineMatchUi shared model
             , column [ height fill, width fill, spacing 15 ]
-                [ joinOnlineMatchUi model
+                [ model.aiConfig
+                    |> Maybe.map (AiConfig.view ToAiConfig)
+                    |> Maybe.withDefault Element.none
+                , joinOnlineMatchUi model
                 , Content.References.discordInvite
                 , Content.References.officialWebsiteLink
                 ]
@@ -366,6 +388,9 @@ matchSetupUiTablet : Shared.Model -> Model -> Element Msg
 matchSetupUiTablet shared model =
     Element.column [ width (fill |> Element.maximum 1120), spacing 10, centerX, paddingXY 10 40 ]
         [ setupOnlineMatchUi shared model
+        , model.aiConfig
+            |> Maybe.map (AiConfig.view ToAiConfig)
+            |> Maybe.withDefault Element.none
         , joinOnlineMatchUi model
         , row [ width fill, spacing 10 ]
             [ Content.References.discordInvite
@@ -383,6 +408,9 @@ matchSetupUiPhone : Shared.Model -> Model -> Element Msg
 matchSetupUiPhone shared model =
     Element.column [ width fill, spacing 10, centerX, paddingXY 10 20 ]
         [ setupOnlineMatchUi shared model
+        , model.aiConfig
+            |> Maybe.map (AiConfig.view ToAiConfig)
+            |> Maybe.withDefault Element.none
         , joinOnlineMatchUi model
         , Content.References.discordInvite
         , Content.References.officialWebsiteLink
@@ -480,24 +508,29 @@ setupOnlineMatchUi shared model =
             , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
             , el [ centerX ] (Element.paragraph [] [ safeModeToggle model ])
             , el [ centerX ] (Element.paragraph [] [ repetitionDrawToggle model ])
-            , Input.button
-                [ Background.color (Element.rgb255 41 204 57)
-                , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
-                , centerX
-                , Border.rounded 5
-                ]
-                { onPress = Just CreateMatch
-                , label =
-                    Element.row
-                        [ height fill
-                        , centerX
-                        , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                        , spacing 5
-                        ]
+            , row [ centerX, spacing 10 ]
+                [ Components.button2
+                    { colorScheme = Components.green
+                    , onPress = Components.ButtonClickable CreateMatch
+                    , contentRow =
                         [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
                         , Element.text T.createMatch
                         ]
-                }
+                    }
+                , Components.button2
+                    { colorScheme = Components.blue
+                    , onPress =
+                        if model.aiConfig == Nothing then
+                            Components.ButtonClickable ConfigureAi
+
+                        else
+                            Components.ButtonDisabled
+                    , contentRow =
+                        [ el [ width (px 20) ] (icon [ centerX ] Solid.robot)
+                        , Element.text T.configureAi
+                        ]
+                    }
+                ]
             ]
         )
 
@@ -644,38 +677,21 @@ repetitionDrawToggle model =
 
 joinOnlineMatchUi : Model -> Element Msg
 joinOnlineMatchUi model =
-    box (Element.rgba255 255 255 255 0.6)
-        [ Element.el
-            [ centerX
-            , Font.size 30
-            , Font.color (Element.rgb255 100 100 100)
-            , Element.paddingXY 0 10
-            ]
-            (Element.text T.iGotAnInvite)
-        , row [ spacing 10, centerX ]
+    Components.glassContainerWithTitle T.iGotAnInvite
+        [ row [ spacing 10, centerX ]
             [ Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg JoinMatch ] ]
                 { onChange = SetRawMatchId
                 , text = model.rawMatchId
                 , placeholder = Just (Input.placeholder [] (Element.text T.enterMatchId))
                 , label = Input.labelHidden T.matchId
                 }
-            , Input.button
-                [ Background.color (Element.rgb255 51 191 255)
-                , Element.mouseOver [ Background.color (Element.rgb255 102 206 255) ]
-                , centerX
-                , Border.rounded 5
-                ]
-                { onPress = Just JoinMatch
-                , label =
-                    Element.row
-                        [ height fill
-                        , centerX
-                        , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                        , spacing 5
-                        ]
-                        [ el [ width (px 20) ] (icon [ centerX ] Solid.arrowCircleRight)
-                        , Element.text T.joinGame
-                        ]
+            , Components.button2
+                { colorScheme = Components.blue
+                , onPress = Components.ButtonClickable JoinMatch
+                , contentRow =
+                    [ el [ width (px 20) ] (icon [ centerX ] Solid.arrowCircleRight)
+                    , Element.text T.joinGame
+                    ]
                 }
             ]
         ]

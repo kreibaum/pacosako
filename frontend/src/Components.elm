@@ -1,7 +1,13 @@
 module Components exposing
-    ( StyleableButton
+    ( ButtonState(..)
+    , StyleableButton
+    , blue
     , btn
+    , button2
     , gameCodeLabel
+    , glassContainerWithTitle
+    , gray
+    , green
     , header1
     , header2
     , header3
@@ -9,6 +15,7 @@ module Components exposing
     , isEnabledIf
     , isSelectedIf
     , paragraph
+    , red
     , viewButton
     , withMsg
     , withMsgIf
@@ -25,7 +32,7 @@ import Element exposing (Element, alignRight, centerX, el, fill, height, padding
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
-import Element.Input exposing (button)
+import Element.Input as Input exposing (button)
 import Element.Region exposing (description)
 import FontAwesome.Attributes
 import FontAwesome.Icon exposing (Icon)
@@ -210,3 +217,135 @@ gameCodeLabel copyUrlMsg gameKey =
                 , el [ width fill, Font.size 30, paddingXY 5 0 ] (icon [ alignRight ] Regular.clipboard)
                 ]
         }
+
+
+glassContainerColumn : List (Element msg) -> Element msg
+glassContainerColumn content =
+    Element.el [ width fill, centerX, padding 10, Background.color glassBg, Border.rounded 5, Element.alignTop ]
+        (Element.column [ width fill, centerX, spacing 7 ]
+            content
+        )
+
+
+{-| A box with a title and a column of elements. This is mostly used on the
+main page.
+-}
+glassContainerWithTitle : String -> List (Element msg) -> Element msg
+glassContainerWithTitle title elements =
+    glassContainerColumn
+        (Element.el
+            [ centerX
+            , Font.size 30
+            , Font.color grayText
+            , Element.paddingXY 0 10
+            ]
+            (Element.text title)
+            :: elements
+        )
+
+
+type ButtonState msg
+    = ButtonDisabled
+    | ButtonActivated
+    | ButtonClickable msg
+
+
+toMaybe : ButtonState msg -> Maybe msg
+toMaybe state =
+    case state of
+        ButtonDisabled ->
+            Nothing
+
+        ButtonActivated ->
+            Nothing
+
+        ButtonClickable msg ->
+            Just msg
+
+
+button2 :
+    { onPress : ButtonState msg
+    , contentRow : List (Element msg)
+    , colorScheme : ColorScheme
+    }
+    -> Element msg
+button2 data =
+    let
+        baseAttrs =
+            [ centerX, Border.rounded 5 ]
+
+        attrs =
+            case data.onPress of
+                ButtonDisabled ->
+                    Background.color gray.buttonBg :: baseAttrs
+
+                ButtonActivated ->
+                    Background.color data.colorScheme.buttonBgClicked :: baseAttrs
+
+                ButtonClickable _ ->
+                    [ Background.color data.colorScheme.buttonBg
+                    , Element.mouseDown [ Background.color data.colorScheme.buttonBgClicked ]
+                    , Element.mouseOver [ Background.color data.colorScheme.buttonBgHover ]
+                    ]
+                        ++ baseAttrs
+    in
+    Input.button attrs
+        { onPress = data.onPress |> toMaybe
+        , label =
+            Element.row
+                [ height fill
+                , centerX
+                , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                , spacing 5
+                ]
+                data.contentRow
+        }
+
+
+type alias ColorScheme =
+    { buttonBg : Element.Color
+    , buttonBgHover : Element.Color
+    , buttonBgClicked : Element.Color
+    }
+
+
+blue : ColorScheme
+blue =
+    { buttonBg = Element.rgb255 51 191 255
+    , buttonBgHover = Element.rgb255 102 206 255
+    , buttonBgClicked = Element.rgb255 0 153 255
+    }
+
+
+green : ColorScheme
+green =
+    { buttonBg = Element.rgb255 41 204 57
+    , buttonBgHover = Element.rgb255 68 229 84
+    , buttonBgClicked = Element.rgb255 0 153 0
+    }
+
+
+red : ColorScheme
+red =
+    { buttonBg = Element.rgb255 204 41 41
+    , buttonBgHover = Element.rgb255 229 68 68
+    , buttonBgClicked = Element.rgb255 153 0 0
+    }
+
+
+gray : ColorScheme
+gray =
+    { buttonBg = Element.rgb255 220 220 220
+    , buttonBgHover = Element.rgb255 200 200 200
+    , buttonBgClicked = Element.rgb255 180 180 180
+    }
+
+
+grayText : Element.Color
+grayText =
+    Element.rgb255 100 100 100
+
+
+glassBg : Element.Color
+glassBg =
+    Element.rgba255 255 255 255 0.6

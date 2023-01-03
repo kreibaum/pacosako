@@ -86,5 +86,7 @@
     "communityWatchOnTwitch": "Watch on Twitch!",
     "communityStarOnGithub": "Star on GitHub!",
     "websocketWarningConnecting": "Connecting…",
-    "websocketWarningReconnecting": "Reconnecting…"
+    "websocketWarningReconnecting": "Reconnecting…",
+    "configureAi": "Configure AI",
+    "aiEarlyAccessExplanation" : "The AI is partially done and missing critical pieces. Please report any bugs you find to the Paco Ŝako Discord server. Stupid moves are not bugs."
 }

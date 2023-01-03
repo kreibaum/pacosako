@@ -17,7 +17,17 @@ toBrowserDocument view =
     { title = view.title
     , body =
         [ Html.canvas [ Html.Attributes.id "offscreen-canvas" ] [ Html.text "Canvas not supported" ]
-        , Element.layout [] view.element
+        , Element.layoutWith
+            { options =
+                [ Element.focusStyle
+                    { borderColor = Nothing
+                    , backgroundColor = Nothing
+                    , shadow = Nothing
+                    }
+                ]
+            }
+            []
+            view.element
         ]
     }
 
