@@ -28,6 +28,7 @@
         "petgraph",
         "puct",
         "pytrans",
+        "repr",
         "sandboxed",
         "smallvec",
         "svgdown",

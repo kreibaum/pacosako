@@ -24,7 +24,7 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::fmt::Display;
-use std::ops::Add;
+use std::ops::{Add, Index};
 pub use types::{BoardPosition, PieceType, PlayerColor};
 extern crate lazy_static;
 #[cfg(test)]
@@ -135,6 +135,17 @@ pub struct DenseBoard {
     pub castling: Castling,
     pub victory_state: VictoryState,
     pub draw_state: DrawState,
+}
+
+impl Index<(PlayerColor, BoardPosition)> for DenseBoard {
+    type Output = Option<PieceType>;
+
+    fn index(&self, index: (PlayerColor, BoardPosition)) -> &Self::Output {
+        match index {
+            (PlayerColor::White, pos) => &self.white[pos.0 as usize],
+            (PlayerColor::Black, pos) => &self.black[pos.0 as usize],
+        }
+    }
 }
 
 /// Promotions can happen at the start of your turn if the opponent moved a pair

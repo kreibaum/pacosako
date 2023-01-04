@@ -5,10 +5,9 @@ use std::collections::hash_map::DefaultHasher;
 use std::str;
 
 use crate::{
-    ai::glue::action_to_action_index,
+    ai::{glue::action_to_action_index, repr::index_representation},
     analysis::{self, reverse_amazon_search},
-    determine_all_threats, fen, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
-    PlayerColor,
+    determine_all_threats, fen, BoardPosition, DenseBoard, PacoAction, PacoBoard, PlayerColor,
 };
 
 #[no_mangle]
@@ -224,145 +223,32 @@ pub extern "C" fn repr_layer_count() -> i64 {
     24 + 6
 }
 
-/// Generates a Tensor representation of the board state for machine learning.
-/// When the black player is playing, the white and black pieces are flipped.
-/// Both the memory blocks are switched and the top/bottom is switched.
-/// This means the AI does not really know which color it is playing.
+/// Returns the index representation of the board state.
+/// This is a lot more compressed than the Tensor representation which is very
+/// sparse.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that the out pointer
+/// points to a memory block of at least 38 u32. Additionally, you need to ensure
+/// that ps points to a valid DenseBoard.
 #[no_mangle]
-pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) -> i64 {
-    let ps: &mut DenseBoard = unsafe { &mut *ps };
-    if reserved_space != repr_layer_count() * 8 * 8 {
+pub unsafe extern "C" fn get_idxrepr(
+    ps: *mut DenseBoard,
+    out: *mut u32,
+    reserved_space: i64,
+) -> i64 {
+    // Ensure that at least 38 u32 are reserved.
+    if reserved_space < 38 {
         return -1;
     }
 
-    // How does this vector look representing the Tensor?
-    // (1 3) (5 7)
-    // (2 4) (6 8)
-    // -> 1 2 3 4 5 6 7 8
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+    let out: &mut [u32; 38] = unsafe { &mut *(out as *mut [u32; 38]) };
 
-    // Layers describing the settled pieces
-    let white_offset = color_offset(PlayerColor::White, ps.controlling_player()) as isize;
-    let black_offset = color_offset(PlayerColor::Black, ps.controlling_player()) as isize;
-    for t in 0..64 {
-        let mirror_t = if ps.controlling_player() == PlayerColor::White {
-            t
-        } else {
-            mirror_paco_position(BoardPosition(t as u8)).0 as isize
-        };
-        if let Some(&Some(piece_type)) = ps.white.get(t as usize) {
-            unsafe {
-                let cell = out.offset(mirror_t + 64 * layer_offset(piece_type) + white_offset);
-                *cell = 1.0;
-            }
-        }
-        if let Some(&Some(piece_type)) = ps.black.get(t as usize) {
-            unsafe {
-                let cell = out.offset(mirror_t + 64 * layer_offset(piece_type) + black_offset);
-                *cell = 1.0;
-            }
-        }
-    }
+    index_representation(ps, out);
 
-    // Layers describing the lifted pieces
-    match ps.lifted_piece {
-        crate::Hand::Empty => {}
-        crate::Hand::Single { piece, position } => unsafe {
-            enable_cell_at(position, piece, true, true, out);
-        },
-        crate::Hand::Pair {
-            piece,
-            partner,
-            position,
-        } => unsafe {
-            enable_cell_at(position, piece, true, true, out);
-            enable_cell_at(position, partner, false, true, out);
-        },
-    }
-
-    // Flag layers describing castling options
-    if ps.controlling_player() == PlayerColor::White {
-        if ps.castling.white_queen_side {
-            unsafe { set_layer(24, 1.0, out) };
-        }
-        if ps.castling.white_king_side {
-            unsafe { set_layer(25, 1.0, out) };
-        }
-        if ps.castling.black_queen_side {
-            unsafe { set_layer(26, 1.0, out) };
-        }
-        if ps.castling.black_king_side {
-            unsafe { set_layer(27, 1.0, out) };
-        }
-    } else {
-        if ps.castling.black_queen_side {
-            unsafe { set_layer(24, 1.0, out) };
-        }
-        if ps.castling.black_king_side {
-            unsafe { set_layer(25, 1.0, out) };
-        }
-        if ps.castling.white_queen_side {
-            unsafe { set_layer(26, 1.0, out) };
-        }
-        if ps.castling.white_king_side {
-            unsafe { set_layer(27, 1.0, out) };
-        }
-    }
-
-    // Layer that shows the en-passant square
-    if let Some(t) = ps.en_passant {
-        let mirror_t = if ps.controlling_player() == PlayerColor::White {
-            t.0 as isize
-        } else {
-            mirror_paco_position(BoardPosition(t.0 as u8)).0 as isize
-        };
-        unsafe {
-            let cell = out.offset(mirror_t + 64 * 28);
-            *cell = 1.0
-        }
-    }
-
-    // Layer that gives the half-move counter (normalized between 0 and 1)
-    unsafe { set_layer(29, ps.draw_state.no_progress_half_moves as f32 / 100.0, out) }
-
-    // Still missing are the "repetition" layers. Doing the same move 3 times
-    // leads to a draw. This is not implemented in the engine yet.
-
-    0
-}
-
-unsafe fn set_layer(layer: isize, value: f32, out: *mut f32) {
-    for i in 0..64 {
-        let cell = out.offset(64 * layer + i);
-        *cell = value;
-    }
-}
-
-unsafe fn enable_cell_at(
-    pos: BoardPosition,
-    piece_type: PieceType,
-    is_for_current_player: bool,
-    is_lifted: bool,
-    out: *mut f32,
-) {
-    let color_offset = if is_for_current_player { 0 } else { 6 * 64 };
-    let lift_offset = if is_lifted { 12 * 64 } else { 0 };
-    let pos = if is_for_current_player {
-        pos.0 as isize
-    } else {
-        mirror_paco_position(pos).0 as isize
-    };
-    let offset = pos + layer_offset(piece_type) + color_offset + lift_offset;
-
-    let cell = out.offset(offset);
-    *cell = 1.0;
-}
-
-fn color_offset(color: PlayerColor, controlling_player: PlayerColor) -> i32 {
-    if color == controlling_player {
-        0
-    } else {
-        6 * 64
-    }
+    0 // Everything went fine
 }
 
 fn mirror_paco_position(pos: BoardPosition) -> BoardPosition {
@@ -376,17 +262,6 @@ fn mirror_paco_position(pos: BoardPosition) -> BoardPosition {
     //  8  9 10 11 12 13 14 15
     //  0  1  2  3  4  5  6  7
     BoardPosition::new(pos.x(), 7 - pos.y())
-}
-
-fn layer_offset(piece_type: PieceType) -> isize {
-    match piece_type {
-        PieceType::Pawn => 0,
-        PieceType::Rook => 1,
-        PieceType::Knight => 2,
-        PieceType::Bishop => 3,
-        PieceType::Queen => 4,
-        PieceType::King => 5,
-    }
 }
 
 #[no_mangle]
@@ -526,12 +401,12 @@ pub extern "C" fn write_fen(ps: *mut DenseBoard, out: *mut u8, reserved_space: i
 
     for (i, c) in fen_string.iter().enumerate() {
         unsafe {
-            let cell = out.offset(i as isize);
+            let cell = out.add(i);
             *cell = *c;
         }
     }
 
-    return fen_string.len() as i64;
+    fen_string.len() as i64
 }
 
 #[no_mangle]
@@ -551,7 +426,7 @@ pub extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut D
     match string_result {
         Err(_) => std::ptr::null_mut(),
         Ok(string) => {
-            let board = fen::parse_fen(&string);
+            let board = fen::parse_fen(string);
             if let Ok(board) = board {
                 leak_to_julia(board)
             } else {

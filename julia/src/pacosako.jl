@@ -84,9 +84,16 @@ end
 function Game.array(ps::PacoSako)::Array{Float32,3}
     size = Base.size(ps)
     memory = zeros(Float32, prod(size))
+    ### THIS IS BROKEN, because :repr has been removed from the dynlib
     status_code = ccall((:repr, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{Float32}, Int64), ps.ptr, memory, length(memory))
     @assert status_code == 0 "Error while determining the game representation"
     reshape(memory, size)
+end
+
+function call_into_rust_to_get_idxrepr(ps::PacoSako)
+    memory = zeros(Int32, 38)
+    status_code = ccall((:get_idxrepr, DYNLIB_PATH), Int64, (Ptr{Cvoid}, Ptr{Int32}, Int64), ps.ptr, memory, length(memory))
+    @show memory, status_code
 end
 
 function Base.size(::Type{PacoSako})

@@ -63,6 +63,10 @@ impl PlayerColor {
             Self::Black => 'B',
         }
     }
+
+    pub(crate) fn all() -> impl Iterator<Item = Self> {
+        [Self::White, Self::Black].iter().copied()
+    }
 }
 
 // TODO: This should really be renamed "Tile" to match the frontend.
@@ -126,6 +130,11 @@ impl BoardPosition {
             White => Self::new_checked(self.x() as i8, self.y() as i8 + 1),
             Black => Self::new_checked(self.x() as i8, self.y() as i8 - 1),
         }
+    }
+
+    /// Returns all possible positions on the board.
+    pub fn all() -> impl Iterator<Item = Self> {
+        (0..64).map(Self)
     }
 }
 

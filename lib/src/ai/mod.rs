@@ -11,6 +11,7 @@ pub(crate) mod glue;
 pub(crate) mod ludwig;
 pub(crate) mod luna;
 pub(crate) mod mcts;
+pub mod repr;
 
 #[cfg(test)]
 mod tests {
