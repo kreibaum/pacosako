@@ -4,6 +4,7 @@
 
 use super::glue::{action_to_action_index, AiContext, HyperParameter};
 use crate::{analysis::reverse_amazon_search::find_paco_sequences, PacoBoard, PacoError};
+use async_trait::async_trait;
 
 /// Implements the Luna model.
 pub struct Luna {
@@ -16,8 +17,9 @@ impl Luna {
     }
 }
 
+#[async_trait]
 impl AiContext for Luna {
-    fn apply_model(
+    async fn apply_model(
         &self,
         board: &crate::DenseBoard,
     ) -> Result<super::glue::ModelResponse, PacoError> {

@@ -249,9 +249,9 @@ checksum = "7a40729d2133846d9ed0ea60a8b9541bccddab49cd30f0715a1da672fe9a2524"
 
 [[package]]
 name = "async-trait"
-version = "0.1.57"
+version = "0.1.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76464446b8bc32758d7e88ee1a804d9914cd9b1cb264c029899680b0be29826f"
+checksum = "677d1d8ab452a3936018a687b20e6f7cf5363d713b732b8884001317b0e48aa3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1954,9 +1954,11 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 name = "pacosako-rust"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bincode",
  "fxhash",
  "getrandom 0.2.7",
+ "js-sys",
  "lazy-regex",
  "lazy_static",
  "nom",
@@ -1968,6 +1970,7 @@ dependencies = [
  "thiserror",
  "tinyset",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

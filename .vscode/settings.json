@@ -24,6 +24,7 @@
         "lunalearn",
         "mcts",
         "ntest",
+        "onnx",
         "petgraph",
         "puct",
         "pytrans",

@@ -1,5 +1,7 @@
 //! Various glue code related to the AI.
 
+use async_trait::async_trait;
+
 use crate::{DenseBoard, PacoError};
 
 /// Maps the action to the index which represents the action in the policy
@@ -17,11 +19,12 @@ pub(crate) fn action_to_action_index(action: crate::PacoAction) -> u8 {
     }
 }
 
+#[async_trait]
 pub trait AiContext {
     /// A model is something that can be applied to a board to get a value and
     /// a policy prior. Usually this is a neural network. But we may also use
     /// the hand written Luna model.
-    fn apply_model(&self, board: &DenseBoard) -> Result<ModelResponse, PacoError>;
+    async fn apply_model(&self, board: &DenseBoard) -> Result<ModelResponse, PacoError>;
     /// The exploration parameter is used to balance between exploration and
     /// exploitation. It is usually a constant.
     fn hyper_parameter(&self) -> &HyperParameter;

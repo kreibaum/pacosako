@@ -495,7 +495,8 @@ fn rocket() -> _ {
                 assets::lib_worker,
                 assets::ai_worker,
                 assets::lib_js,
-                assets::lib_wasm
+                assets::lib_wasm,
+                assets::ludwig_1,
             ],
         )
         .mount(

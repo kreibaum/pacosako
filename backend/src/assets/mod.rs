@@ -139,3 +139,15 @@ pub async fn place_piece() -> CacheResponse<Result<NamedFile, ServerError>> {
         max_age: 24 * 3600,
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// ONNX Models /////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+#[get("/cache/models/ludwig-1.onnx")]
+pub async fn ludwig_1() -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Private {
+        responder: static_file("../target/models/ludwig-1.onnx").await,
+        max_age: 356 * 24 * 3600,
+    }
+}

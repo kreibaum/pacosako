@@ -1,5 +1,6 @@
+use js_sys::Float32Array;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
 use crate::{
     analysis::{self, puzzle, ReplayData},
@@ -13,16 +14,24 @@ extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 
-    fn ai_inference(input: f32) -> f32;
+    async fn ai_inference(input: JsValue) -> JsValue;
 }
 
 // Export a function that will be called in JavaScript
 // but call the "imported" console.log.
 #[wasm_bindgen]
-pub fn console_log_from_wasm() {
+pub async fn console_log_from_wasm() {
     log("This console.log is from wasm!");
 
-    ai_inference(1.0);
+    // Create an array with 30 * 8 * 8 = 1920 elements.
+    let array = Float32Array::new_with_length(30 * 8 * 8);
+
+    let result = Float32Array::new(&ai_inference(array.into()).await);
+
+    let mut dst: [f32; 133] = [0.0; 133];
+    result.copy_to(&mut dst);
+
+    log(&format!("Result: {:?}", dst));
 }
 
 /// This module provides all the methods that should be available on the wasm
@@ -140,7 +149,7 @@ fn history_to_replay_notation(
 }
 
 #[wasm_bindgen]
-pub fn request_ai_action(all_actions: String) -> String {
+pub async fn request_ai_action(all_actions: String) -> String {
     use crate::{
         ai::mcts::MctsPlayer,
         ai::{glue::HyperParameter, luna::Luna},
@@ -157,8 +166,8 @@ pub fn request_ai_action(all_actions: String) -> String {
         exploration: 0.1,
         power: 100,
     });
-    let mut player = MctsPlayer::new(board, ai_context).unwrap();
-    if let Err(e) = player.think_for(100) {
+    let mut player = MctsPlayer::new(board, ai_context).await.unwrap();
+    if let Err(e) = player.think_for(100).await {
         return format!("Error in think_for: {:?}", e);
     }
     let best_action = player.best_action();

@@ -24,8 +24,8 @@ pub struct MctsPlayer<Ai: AiContext> {
 }
 
 impl<Ai: AiContext> MctsPlayer<Ai> {
-    pub fn new(board: DenseBoard, ai: Ai) -> Result<Self, PacoError> {
-        let graph = init_search_graph(&board, &ai)?;
+    pub async fn new(board: DenseBoard, ai: Ai) -> Result<Self, PacoError> {
+        let graph = init_search_graph(&board, &ai).await?;
         let root = graph.node_indices().next().unwrap();
 
         Ok(Self {
@@ -38,10 +38,10 @@ impl<Ai: AiContext> MctsPlayer<Ai> {
     }
     /// Apply the MCTS algorithm for up to n iterations, or until the invested
     /// power reaches the given limit ai.hyper_parameter().power.
-    pub fn think_for(&mut self, n: usize) -> Result<usize, PacoError> {
+    pub async fn think_for(&mut self, n: usize) -> Result<usize, PacoError> {
         let n = min(n, self.ai.hyper_parameter().power - self.invested_power);
         for _ in 0..n {
-            expand_tree_by_one(&mut self.graph, self.root, &self.board, &self.ai)?;
+            expand_tree_by_one(&mut self.graph, self.root, &self.board, &self.ai).await?;
             self.invested_power += 1;
         }
         Ok(n)
@@ -68,9 +68,9 @@ impl<Ai: AiContext> MctsPlayer<Ai> {
     /// For now we just drop the search graph and start over.
     /// TODO: We should be able to reuse the search graph. That also unlocks
     /// pondering.
-    pub fn apply_action(&mut self, action: PacoAction) -> Result<(), PacoError> {
+    pub async fn apply_action(&mut self, action: PacoAction) -> Result<(), PacoError> {
         self.board.execute(action)?;
-        self.graph = init_search_graph(&self.board, &self.ai)?;
+        self.graph = init_search_graph(&self.board, &self.ai).await?;
         self.root = self.graph.node_indices().next().unwrap();
         self.invested_power = 1;
         Ok(())
@@ -113,17 +113,17 @@ struct EdgeData {
     model_policy: f32,
 }
 
-fn init_search_graph(board: &DenseBoard, ai: &impl AiContext) -> Result<Graph, PacoError> {
+async fn init_search_graph(board: &DenseBoard, ai: &impl AiContext) -> Result<Graph, PacoError> {
     let mut g = StableGraph::new();
 
     let root_node = g.add_node(NodeData::Unexpanded);
-    expand_node(&mut g, root_node, board, ai)?;
+    expand_node(&mut g, root_node, board, ai).await?;
     // TODO: At the root, we want to add logit normal noise.
 
     Ok(g)
 }
 
-fn expand_tree_by_one(
+async fn expand_tree_by_one(
     g: &mut Graph,
     root: NodeIndex,
     board: &DenseBoard,
@@ -150,7 +150,7 @@ fn expand_tree_by_one(
         board.execute_trusted(action)?;
     }
 
-    let value = expand_node(g, leaf, &board, ai)?;
+    let value = expand_node(g, leaf, &board, ai).await?;
     backpropagate(g, leaf, value);
 
     Ok(())
@@ -158,7 +158,7 @@ fn expand_tree_by_one(
 
 /// Expands a node. This means that we apply the model to the board and create
 /// all the outgoing edges.
-fn expand_node(
+async fn expand_node(
     g: &mut Graph,
     node: NodeIndex,
     board: &DenseBoard,
@@ -190,7 +190,7 @@ fn expand_node(
 
     // Handle general case with at least one action. Only this case needs to
     // evaluate the model.
-    let model_response = ai.apply_model(board)?;
+    let model_response = ai.apply_model(board).await?;
     let model_value = model_response[0];
 
     *node_data = NodeData::Expanded {
