@@ -38,6 +38,7 @@
         "svgup",
         "tinyset",
         "webassembly",
+        "webgl",
         "Weblate"
     ]
 }

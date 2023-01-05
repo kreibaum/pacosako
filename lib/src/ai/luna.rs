@@ -17,7 +17,7 @@ impl Luna {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl AiContext for Luna {
     async fn apply_model(
         &self,

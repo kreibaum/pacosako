@@ -51,6 +51,31 @@
 
 use crate::{BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor};
 
+/// Fills in the tensor representation of the board.
+/// Assumes that out is already zeroed.
+#[allow(clippy::needless_range_loop)]
+pub fn tensor_representation(board: &DenseBoard, out: &mut [f32; 8 * 8 * 30]) {
+    let mut idxrepr = [0; 38];
+    index_representation(board, &mut idxrepr);
+
+    for i in 0..=32 {
+        let idx = idxrepr[i] as usize;
+        out[idx] = 1.0;
+    }
+
+    for i in 33..=36 {
+        if idxrepr[i] == 1 {
+            for j in 0..64 {
+                out[(i - 8) * 64 + j] = 1.0;
+            }
+        }
+    }
+
+    for j in 0..64 {
+        out[29 * 64 + j] = idxrepr[37] as f32 / 100.0;
+    }
+}
+
 pub fn index_representation(board: &DenseBoard, out: &mut [u32; 38]) {
     let mut out = Output::new(out, board.controlling_player());
 
@@ -236,6 +261,12 @@ mod tests {
                 435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 64, 1, 1, 1, 1, 0
             ]
         );
+
+        // Check that the general amount of stuff in the tensor is correct.
+        let mut tensor_repr = [0f32; 1920];
+        tensor_representation(&board, &mut tensor_repr);
+        let tensor_total = tensor_repr.iter().sum::<f32>();
+        assert_eq!(tensor_total, 32.0 + 4.0 * 64.0);
     }
 
     #[test]
