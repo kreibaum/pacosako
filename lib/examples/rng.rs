@@ -76,8 +76,6 @@ fn main() -> Result<(), PacoError> {
             println!("{}", url);
         }
     }
-
-    Ok(())
 }
 
 fn white_king_in_position(board: &DenseBoard) -> bool {

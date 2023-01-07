@@ -185,6 +185,7 @@ impl TryFrom<&str> for BoardPosition {
 mod tests {
     use super::*;
     use quickcheck::TestResult;
+    use quickcheck_macros::quickcheck;
 
     /// This test verifies the TryFrom<&str> implementation for BoardPosition.
     #[test]

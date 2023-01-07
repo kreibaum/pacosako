@@ -27,11 +27,6 @@ use std::fmt::Display;
 use std::ops::{Add, Index};
 pub use types::{BoardPosition, PieceType, PlayerColor};
 extern crate lazy_static;
-#[cfg(test)]
-extern crate quickcheck;
-#[cfg(test)]
-#[macro_use(quickcheck)]
-extern crate quickcheck_macros;
 
 #[derive(thiserror::Error, Clone, Debug, Serialize)]
 pub enum PacoError {
