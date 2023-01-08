@@ -36,7 +36,7 @@ pub(crate) const fn action_index_to_action(action_index: u8) -> Option<PacoActio
     })
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait AiContext {
     /// A model is something that can be applied to a board to get a value and
     /// a policy prior. Usually this is a neural network. But we may also use

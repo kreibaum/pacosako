@@ -17,6 +17,17 @@ extern "C" {
     async fn ai_inference(input: JsValue) -> JsValue;
 }
 
+pub async fn ai_inference_typed(input: &[f32; 1920]) -> [f32; 133] {
+    let input: &[f32] = input; // Required to forget the size of the array.
+    let input = Float32Array::from(input);
+    let result = Float32Array::new(&ai_inference(input.into()).await);
+
+    let mut dst: [f32; 133] = [0.0; 133];
+    result.copy_to(&mut dst);
+
+    dst
+}
+
 // Export a function that will be called in JavaScript
 // but call the "imported" console.log.
 #[wasm_bindgen]
@@ -152,7 +163,7 @@ fn history_to_replay_notation(
 pub async fn request_ai_action(all_actions: String) -> String {
     use crate::{
         ai::mcts::MctsPlayer,
-        ai::{glue::HyperParameter, luna::Luna},
+        ai::{glue::HyperParameter, ludwig::Ludwig, luna::Luna},
         PacoAction, PacoBoard,
     };
 
@@ -162,9 +173,9 @@ pub async fn request_ai_action(all_actions: String) -> String {
         board.execute(action).unwrap();
     }
 
-    let ai_context = Luna::new(HyperParameter {
+    let ai_context = Ludwig::new(HyperParameter {
         exploration: 0.1,
-        power: 100,
+        power: 200,
     });
     let mut player = MctsPlayer::new(board, ai_context).await.unwrap();
     if let Err(e) = player.think_for(100).await {
