@@ -119,7 +119,9 @@ module Generate
     ch = Channel{Any}(100)
 
     @sync begin
-      @async Player.evaluate(luna, ch; instance = INSTANCE[instance], threads = true)
+      for _ in 1:(Threads.nthreads() - 1)
+        Threads.@spawn Player.evaluate(luna, ch; instance = INSTANCE[instance])
+      end
       @async read_output(ch, luna; n, folder)
       @async begin
         read(stdin) # this should block until ctrl-d is typed
