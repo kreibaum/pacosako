@@ -10,6 +10,7 @@ mod colored_value;
 pub(crate) mod glue;
 pub(crate) mod ludwig;
 pub(crate) mod luna;
+pub(crate) mod math;
 pub(crate) mod mcts;
 pub mod repr;
 
@@ -32,6 +33,7 @@ mod tests {
         let ai_context = Luna::new(HyperParameter {
             exploration: 0.1,
             power: 20,
+            noise: 0.0,
         });
 
         let mut player = MctsPlayer::new(board, ai_context).await.unwrap();
@@ -49,6 +51,7 @@ mod tests {
         let ai_context = Luna::new(HyperParameter {
             exploration: 0.1,
             power: 100,
+            noise: 0.0,
         });
 
         let mut player = MctsPlayer::new(board, ai_context).await.unwrap();

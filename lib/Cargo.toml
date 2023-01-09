@@ -29,6 +29,7 @@ tinyset = "0.4.15"
 js-sys = "0.3.60"
 wasm-bindgen-futures = "0.4.33"
 async-trait = "0.1.60"
+rand_distr = "0.4.3"
 
 [dev-dependencies]
 tokio = { version = "1.23.0", features = ["macros", "rt"] } # Required for tests

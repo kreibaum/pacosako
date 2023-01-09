@@ -50,6 +50,7 @@ pub trait AiContext {
 pub struct HyperParameter {
     pub exploration: f32,
     pub power: usize,
+    pub noise: f32,
 }
 
 // The model response can be an array of size 133 (value + policy).

@@ -176,6 +176,7 @@ pub async fn request_ai_action(all_actions: String) -> String {
     let ai_context = Ludwig::new(HyperParameter {
         exploration: 0.1,
         power: 200,
+        noise: 0.3,
     });
     let mut player = MctsPlayer::new(board, ai_context).await.unwrap();
     if let Err(e) = player.think_for(100).await {

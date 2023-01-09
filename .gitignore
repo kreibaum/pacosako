@@ -31,3 +31,4 @@ backend/Secrets.toml
 # Other generated files we don't want to commit.
 lib/libpacosako.h
 backend/models/*
+julia/data/dump/*

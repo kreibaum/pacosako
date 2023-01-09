@@ -6,6 +6,7 @@ use std::cmp::min;
 use super::{
     colored_value::ColoredValue,
     glue::{action_to_action_index, AiContext},
+    math::logit_normal,
 };
 use crate::{DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor};
 use petgraph::{graph::NodeIndex, stable_graph::StableGraph, Direction::Incoming};
@@ -117,8 +118,7 @@ async fn init_search_graph(board: &DenseBoard, ai: &impl AiContext) -> Result<Gr
     let mut g = StableGraph::new();
 
     let root_node = g.add_node(NodeData::Unexpanded);
-    expand_node(&mut g, root_node, board, ai).await?;
-    // TODO: At the root, we want to add logit normal noise.
+    expand_node(&mut g, root_node, board, ai, ai.hyper_parameter().noise).await?;
 
     Ok(g)
 }
@@ -150,7 +150,7 @@ async fn expand_tree_by_one(
         board.execute_trusted(action)?;
     }
 
-    let value = expand_node(g, leaf, &board, ai).await?;
+    let value = expand_node(g, leaf, &board, ai, 0.0).await?;
     backpropagate(g, leaf, value);
 
     Ok(())
@@ -163,6 +163,7 @@ async fn expand_node(
     node: NodeIndex,
     board: &DenseBoard,
     ai: &impl AiContext,
+    noise: f32,
 ) -> Result<ColoredValue, PacoError> {
     // Check that the node is unexpanded. Otherwise just return the value.
     let existing_value = g.node_weight(node).expect("Node should exist").value();
@@ -198,20 +199,23 @@ async fn expand_node(
         current_player,
     };
 
+    let logit_noise = logit_normal(all_actions.len(), noise);
+
     // Sum up the model policy to normalize it, only looking at the actions
     // that are actually possible.
     let mut model_policy_sum = MCTS_EPSILON;
-    for action in &all_actions {
+    for (i, action) in all_actions.iter().enumerate() {
         let action_index = action_to_action_index(*action);
-        model_policy_sum += model_response[action_index as usize];
+        model_policy_sum += model_response[action_index as usize] + logit_noise[i];
     }
 
-    for action in all_actions {
+    for (i, &action) in all_actions.iter().enumerate() {
         let action_index = action_to_action_index(action);
         // Add random noise for symmetry breaking.
         let noise: f32 = rand::random();
-        let model_policy =
-            model_response[action_index as usize] / model_policy_sum + noise * MCTS_EPSILON;
+        let model_policy = (model_response[action_index as usize] + logit_noise[i])
+            / model_policy_sum
+            + noise * MCTS_EPSILON;
 
         let child_node = g.add_node(NodeData::Unexpanded);
         let child_edge_data = EdgeData {
