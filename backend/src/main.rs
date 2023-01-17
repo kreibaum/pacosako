@@ -493,7 +493,8 @@ fn rocket() -> _ {
                 assets::main_js_cached,
                 assets::lib_worker,
                 assets::lib_js,
-                assets::lib_wasm
+                assets::lib_wasm,
+                assets::posterum,
             ],
         )
         .mount(

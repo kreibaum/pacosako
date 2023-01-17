@@ -130,3 +130,11 @@ pub async fn place_piece() -> CacheResponse<Result<NamedFile, ServerError>> {
         max_age: 24 * 3600,
     }
 }
+
+#[get("/static/posterum_cup_banner.jpg")]
+pub async fn posterum() -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Private {
+        responder: static_file("../target/posterum_cup_banner.jpg").await,
+        max_age: 365 * 24 * 3600,
+    }
+}
