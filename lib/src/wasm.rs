@@ -15,6 +15,8 @@ extern "C" {
     fn log(s: &str);
 
     async fn ai_inference(input: JsValue) -> JsValue;
+
+    fn report_progress(encoded: &str);
 }
 
 pub async fn ai_inference_typed(input: &[f32; 1920]) -> [f32; 133] {
@@ -161,16 +163,23 @@ fn history_to_replay_notation(
 
 #[wasm_bindgen]
 pub async fn request_ai_action(all_actions: String) -> String {
+    let action = request_ai_action_inner(all_actions).await;
+    match action {
+        Ok(action) => serde_json::to_string(&action).unwrap(),
+        Err(e) => format!("Error in request_ai_action: {:?}", e),
+    }
+}
+
+pub async fn request_ai_action_inner(all_actions: String) -> Result<PacoAction, PacoError> {
     use crate::{
         ai::mcts::MctsPlayer,
-        ai::{glue::HyperParameter, ludwig::Ludwig, luna::Luna},
-        PacoAction, PacoBoard,
+        ai::{glue::HyperParameter, ludwig::Ludwig},
     };
 
     let all_actions: Vec<PacoAction> = serde_json::from_str(&all_actions).unwrap();
     let mut board = DenseBoard::new();
     for action in all_actions {
-        board.execute(action).unwrap();
+        board.execute(action)?;
     }
 
     let ai_context = Ludwig::new(HyperParameter {
@@ -178,14 +187,16 @@ pub async fn request_ai_action(all_actions: String) -> String {
         power: 200,
         noise: 0.3,
     });
-    let mut player = MctsPlayer::new(board, ai_context).await.unwrap();
-    if let Err(e) = player.think_for(100).await {
-        return format!("Error in think_for: {:?}", e);
-    }
-    let best_action = player.best_action();
-    if let Err(e) = best_action {
-        return format!("Error in best_action: {:?}", e);
+    let mut player = MctsPlayer::new(board, ai_context).await?;
+
+    while let Ok(progress) = player.think_for(10).await {
+        if let Ok(progress) = serde_json::to_string(&progress) {
+            report_progress(&progress);
+        }
+        if progress.is_finished() {
+            break;
+        }
     }
 
-    serde_json::to_string(&best_action.unwrap()).unwrap()
+    player.best_action()
 }

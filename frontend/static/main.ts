@@ -540,9 +540,15 @@ aiWorker.onmessage = function (m) {
 
     // Log messages from the worker.
     console.log("aiWorker: " + m.data);
-
-    if (app.ports.aiResponseValue) {
-        app.ports.aiResponseValue.send(JSON.parse(m.data))
+    const data = JSON.parse(m.data);
+    // Check if this is a progress report.
+    if (data.topic) {
+        if (app.ports.progressPort) {
+            app.ports.progressPort.send(data)
+        }
+    }
+    else if (app.ports.aiResponseValue) {
+        app.ports.aiResponseValue.send(data)
     }
 }
 

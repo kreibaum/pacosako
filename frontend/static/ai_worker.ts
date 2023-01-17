@@ -16,7 +16,7 @@ let ort_session: any = null;
 
 async function load_model() {
     // Load the ONNX model.
-    ort_session = await ort.InferenceSession.create('/cache/models/ludwig-1.onnx', { executionProviders: ["webgl"] });
+    ort_session = await ort.InferenceSession.create('/cache/models/ludwig-1.0.onnx', { executionProviders: ["webgl"] });
     console.log('ONNX model loaded');
 }
 
@@ -44,6 +44,12 @@ async function ai_inference(input: Float32Array): Promise<Float32Array> {
 
     // Return the result.
     return results.OUTPUT.data;
+}
+
+/// Allows wasm code to send a progress report message to the main thread.
+/// Content is a JSON string.
+function report_progress(input: string) {
+    postMessage(input);
 }
 
 let [wasm_js_hash_ai, wasm_hash_ai] = location.hash.replace("#", "").split("|");

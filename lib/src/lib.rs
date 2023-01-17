@@ -6,6 +6,7 @@ pub mod editor;
 pub mod export;
 pub mod fen;
 pub mod parser;
+pub mod progress;
 pub mod random;
 pub mod setup_options;
 mod static_include;

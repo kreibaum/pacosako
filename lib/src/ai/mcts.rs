@@ -8,7 +8,7 @@ use super::{
     glue::{action_to_action_index, AiContext},
     math::logit_normal,
 };
-use crate::{DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor};
+use crate::{progress::Progress, DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor};
 use petgraph::{graph::NodeIndex, stable_graph::StableGraph, Direction::Incoming};
 use petgraph::{visit::EdgeRef, Direction::Outgoing};
 use smallvec::SmallVec;
@@ -39,14 +39,19 @@ impl<Ai: AiContext> MctsPlayer<Ai> {
     }
     /// Apply the MCTS algorithm for up to n iterations, or until the invested
     /// power reaches the given limit ai.hyper_parameter().power.
-    pub async fn think_for(&mut self, n: usize) -> Result<usize, PacoError> {
+    pub async fn think_for(&mut self, n: usize) -> Result<Progress, PacoError> {
         let n = min(n, self.ai.hyper_parameter().power - self.invested_power);
         for _ in 0..n {
             expand_tree_by_one(&mut self.graph, self.root, &self.board, &self.ai).await?;
             self.invested_power += 1;
         }
-        Ok(n)
+        Ok(Progress::new(
+            "MCTS",
+            self.ai.hyper_parameter().power,
+            self.invested_power,
+        ))
     }
+
     /// Get the best action for the current board.
     /// This is the action with the highest visit counter.
     /// If there are multiple actions with the same visit counter, we choose
