@@ -6,7 +6,7 @@ use chrono::Utc;
 use once_cell::sync::OnceCell;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::ws::{to_logic, LogicMsg};
@@ -24,7 +24,7 @@ pub fn spawn_sleeper_thread() {
 
 pub fn put_utc(key: impl Into<String>, wake_up: chrono::DateTime<Utc>) {
     let wake_up = wake_up - Utc::now();
-    let wake_up = std::time::Instant::now() + wake_up.to_std().unwrap();
+    let wake_up = std::time::Instant::now() + wake_up.to_std().unwrap_or(Duration::from_secs(0));
 
     put(key, wake_up);
 }
