@@ -70,7 +70,7 @@ If you want to merge translations that were done with weblate, use
 
     git remote add weblate https://hosted.weblate.org/git/pacoplay/main-website/
     git remote update weblate
-    git merge weblate/main
+    git merge weblate/master
 
 Currently the translations are not integrated into the live reloading
 development server. You can set the language you see the UI in by going into
