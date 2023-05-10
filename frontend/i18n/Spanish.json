@@ -1,0 +1,8 @@
+{
+    "pawn": "Peones",
+    "rook": "Torres",
+    "knight": "Caballos",
+    "bishop": "Alfiles",
+    "queen": "Dama",
+    "king": "Rey"
+}
