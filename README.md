@@ -158,3 +158,25 @@ Each server will update its own database schema when it starts up.
 ## Nginx Configuration
 
 The application uses nginx to reverse proxy `dev.pacoplay.com` to the staging system and `pacoplay.com` to the production system. The nginx configuration file `nginx-config` is available in the `/scripts` directory. This configuration file should be placed in the `/etc/nginx/sites-available/` directory and a symbolic link to it should be created in the `/etc/nginx/sites-enabled/` directory on your server.
+
+## Database Backups
+
+The application automatically creates daily backups of the production SQLite database. These backups are created by a script named `create-backup.sh` which is run as a nightly cron job at 2 AM.
+
+The `create-backup.sh` script performs the following actions:
+
+1. Creates a backup of the `prod.sqlite` database located in `/home/pacosako/db/`.
+2. Compresses the backup using `gzip`.
+3. Deletes all but the five most recent backups.
+
+The backups are saved in the `/home/pacosako/db/daily-backup/` directory, with each backup named as `prod-YYYYMMDDHHMM.sqlite.gz`, where `YYYYMMDDHHMM` is the date and time when the backup was created.
+
+### Set Up The Backup Cron Job
+
+To set up the backup cron job, run `crontab -e` and add the following line:
+
+```cron
+0 2 * * * /home/pacosako/create-backup.sh
+```
+
+This will run the `create-backup.sh` script every day at 2 AM.
