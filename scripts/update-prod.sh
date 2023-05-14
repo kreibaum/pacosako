@@ -1,7 +1,7 @@
 # Takes the staging server and replaces the production server.
 
 # Shut down production server
-screen -X -S prod quit
+sudo systemctl stop prod
 
 # Makes a backup of the prod server
 cp -r ~/prod ~/prod-backup
@@ -15,5 +15,5 @@ rm -r ~/prod
 # Install staging to production
 cp -r ~/stage ~/prod
 
-# Restart staging server
-screen -S prod -m -d ./run-prod.sh
+# Restart production server
+sudo systemctl start prod

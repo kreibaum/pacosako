@@ -1,13 +1,16 @@
 # Takes the deployment and replaces the staging server.
 
-# Shut down staging server
-screen -X -S stage quit
+# Stop staging server
+sudo systemctl stop stage
 
 # Remove existing deployment
 rm -r ~/stage
 
-# Install deployment to staging
-cp -r ~/deploy ~/stage
+# Ensure the directory exists
+mkdir -p ~/stage
 
-# Restart staging server
-screen -S stage -m -d ./run-stage.sh
+# Install deployment to staging
+tar -zxf deploy.tar.gz -C ~/stage
+
+# Start staging server
+sudo systemctl start stage

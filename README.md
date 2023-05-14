@@ -116,3 +116,45 @@ This assumes you have installed JtacPacoSako as a development package using
 # Architecture
 
 ![A schematic drawing of the architecture when deployed.](/doc/architecture.png)
+
+# Deployment and Server Management
+
+This application is set up to run using two systemd services, one for the staging environment and one for
+the production environment. The configuration for these services is available in the `/scripts` directory. 
+
+## Systemd Services
+
+The systemd service files are:
+
+- `stage.service`: This service runs the staging server.
+- `prod.service`: This service runs the production server.
+
+These service files should be placed in the `/etc/systemd/system/` directory on your server.
+
+To control the services, you can use the following commands:
+
+- Start the service: `sudo systemctl start servicename`
+- Stop the service: `sudo systemctl stop servicename`
+- Enable the service to start on boot: `sudo systemctl enable servicename`
+- Disable the service from starting on boot: `sudo systemctl disable servicename`
+- Check the status of the service: `sudo systemctl status servicename`
+
+Replace `servicename` with either `stage` or `prod` depending on which service you want to control.
+
+## Update Scripts
+
+There are two scripts used to update the staging and production servers:
+
+- `update-stage.sh`: This script is used to deploy a new version to the staging server.
+    It first stops the staging service, removes the existing deployment, installs the new deployment,
+    and then restarts the staging service.
+- `update-prod.sh`: This script is used to promote the staging version to production.
+    It first stops the production service, backs up the current production server and database,
+    removes the existing deployment, installs the new deployment from staging,
+    and then restarts the production service.
+
+Each server will update its own database schema when it starts up.
+
+## Nginx Configuration
+
+The application uses nginx to reverse proxy `dev.pacoplay.com` to the staging system and `pacoplay.com` to the production system. The nginx configuration file `nginx-config` is available in the `/scripts` directory. This configuration file should be placed in the `/etc/nginx/sites-available/` directory and a symbolic link to it should be created in the `/etc/nginx/sites-enabled/` directory on your server.
