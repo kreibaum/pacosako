@@ -88,6 +88,29 @@ the `frontend` folder and copying the right language version into position:
 Once you copy this the dev server should pick up the change and recompile the
 frontend for you.
 
+### Adding a new language
+
+You first need a new language file in `frontend/i18n`. This can be
+an empty dictionary `{}`. Once you sync that to weblate, weblate will allow
+translators to translate the file.
+
+When translations are available, merge changes from weblate into the main branch
+as described above.
+
+Add your language to `frontend/pytrans.json` to make it available to the Elm code.
+Then run `pytrans.py` in the frontend directory. The `Translations.elm` file
+is now updated and the Elm compiler should direct you to the next steps.
+
+Afterwards you also need to update the `languageChoiceV2` function in `Header.elm`.
+
+Note that locally switching language does't work with the buttons any instead you
+need to run `pytrans.py Esperanto` or the equivalent for your language. This is
+because the language is set at compile time so the app only has one language at a time.
+
+In the backend you need to adapt the `get_static_language_file` function to make
+sure the productive server is also able to deliver the compiled Elm in the right
+language.
+
 ## Working with Julia
 
 To compile the shared library run `cargo build --release` in ./lib

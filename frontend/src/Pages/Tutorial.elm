@@ -90,6 +90,10 @@ view shared _ =
                 Swedish ->
                     textPageWrapper
                         [ paragraph [] [ text "Tyvärr har vi ingen svensk manual än :-(" ] ]
+
+                Spanish ->
+                    textPageWrapper
+                        [ paragraph [] [ text "Lamentablemente, todavía no tenemos un manual en español :-(" ] ]
             )
     }
 

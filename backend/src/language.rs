@@ -38,6 +38,7 @@ pub fn get_static_language_file(lang: &str) -> Option<&'static str> {
         "eo" => Some("../target/elm.eo.min.js"),
         "de" => Some("../target/elm.de.min.js"),
         "sv" => Some("../target/elm.sv.min.js"),
+        "es" => Some("../target/elm.es.min.js"),
         _ => None,
     }
 }

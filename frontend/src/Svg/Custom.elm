@@ -1,4 +1,4 @@
-module Svg.Custom exposing (BoardRotation(..), Coord(..), Rect, addCoord, coordinateOfTile, flagDe, flagEn, flagEo, flagNl, flagSv, makeViewBox, safeTileCoordinate, translate)
+module Svg.Custom exposing (BoardRotation(..), Coord(..), Rect, addCoord, coordinateOfTile, flagDe, flagEn, flagEo, flagEs, flagNl, flagSv, makeViewBox, safeTileCoordinate, translate)
 
 {-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in
 both directions but additional objects are rendered outside.
@@ -155,4 +155,15 @@ flagSv =
         [ Svg.rect [ SvgA.fill "#006aa7", SvgA.width "16", SvgA.height "10" ] []
         , Svg.rect [ SvgA.fill "#fecc00", SvgA.width "2", SvgA.height "10", SvgA.x "5" ] []
         , Svg.rect [ SvgA.fill "#fecc00", SvgA.width "16", SvgA.height "2", SvgA.y "4" ] []
+        ]
+
+
+{-| Svg of the flag of Spain, simplified.
+-}
+flagEs : Html a
+flagEs =
+    Svg.svg [ SvgA.viewBox "0 0 6 4", SvgA.width "30px", SvgA.height "20px" ]
+        [ Svg.rect [ SvgA.fill "#c60b1e", SvgA.width "9", SvgA.height "4" ] []
+        , Svg.rect [ SvgA.fill "#ffc400", SvgA.width "9", SvgA.height "3" ] []
+        , Svg.rect [ SvgA.fill "#c60b1e", SvgA.width "9", SvgA.height "1" ] []
         ]

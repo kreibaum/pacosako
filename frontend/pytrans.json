@@ -26,6 +26,11 @@
             "filename": "sv.json",
             "name": "Swedish",
             "locale": "sv"
+        },
+        {
+            "filename": "Spanish.json",
+            "name": "Spanish",
+            "locale": "es"
         }
     ],
     "scripts": {

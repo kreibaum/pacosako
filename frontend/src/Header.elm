@@ -239,6 +239,10 @@ languageChoiceV2 =
         { onPress = Just (SetLanguage German)
         , label = Svg.Custom.flagDe |> Element.html
         }
+    , Input.button [ padding 2 ]
+        { onPress = Just (SetLanguage Spanish)
+        , label = Svg.Custom.flagEs |> Element.html
+        }
     ]
 
 
@@ -259,6 +263,9 @@ flagForLanguage language =
 
         German ->
             Svg.Custom.flagDe |> Element.html
+
+        Spanish ->
+            Svg.Custom.flagEs |> Element.html
 
 
 connectionIssueWarning : Shared.Model -> Element msg
