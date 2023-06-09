@@ -130,8 +130,7 @@ jobs:
           cp ./backend/templates/* ./deploy/backend/templates
           cp ./frontend/static/* ./deploy/target/
           cp ./target/* ./deploy/target/
-          cd deploy
-          tar -zcf deploy.tar.gz .
+          tar -zcf deploy.tar.gz deploy
 
       - name: Publish artifact
         uses: actions/upload-artifact@v2
