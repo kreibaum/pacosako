@@ -10,7 +10,7 @@ rm -r ~/stage
 mkdir -p ~/stage
 
 # Install deployment to staging
-tar -zxf deploy.tar.gz -C ~/stage
+tar -zxf deploy.tar.gz --strip-components=1 -C ~/stage
 
 # Start staging server
 sudo systemctl start stage
