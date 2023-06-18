@@ -32,7 +32,7 @@
     "gameNotConnected": "Ne konektita",
     "gamePacoWhite": "Paco Blanko",
     "gamePacoBlack": "Paco Nigro",
-    "gameDraw": "Sendecida",
+    "gameDraw": "Egalvenko",
     "gameTimeout": "(Tempolimo)",
     "gameWatchReplay": "Spektu Ripeton",
     "gameWhite": "Blanko",
@@ -80,5 +80,11 @@
     "replayNextMove": "Sekva movo",
     "communityJoinOnDiscord": "Aliĝu al nia komunumo ĉe Discord!",
     "communityOfficialWebsite": "Iru al la oficiala retejo de Paco Ŝako!",
-    "communityOfficialWebsiteLink": "https://pacosako.com/en"
+    "communityOfficialWebsiteLink": "https://pacosako.com/en",
+    "replayWithOpening": " kiel malfermo.",
+    "communityWatchOnTwitch": "Rigardu ĉe Twitch!",
+    "communityStarOnGithub": "Stelumu ĉe GitHub!",
+    "enableRepetitionDraw": "3-opa ripeto egalvenkas",
+    "websocketWarningConnecting": "Konektas…",
+    "websocketWarningReconnecting": "Rekonektas…"
 }
