@@ -83,5 +83,8 @@
     "communityJoinOnDiscord": "Tritt unserer Community auf Discord bei!",
     "communityWatchOnTwitch": "Auf Twitch ansehen!",
     "websocketWarningConnecting": "Verbindung …",
-    "websocketWarningReconnecting": "Verbindung wird wiederherstellt …"
+    "websocketWarningReconnecting": "Verbindung wird wiederherstellt …",
+    "enableRepetitionDraw": "Unentschieden bei 3-facher Wiederholung",
+    "replayWithOpening": " als Eröffnung.",
+    "communityStarOnGithub": "Gib uns einen GitHub Stern!"
 }
