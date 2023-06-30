@@ -1,5 +1,5 @@
 {
-    "lightspeed": "Lichtgeschwindigkeit",
+    "lightspeed": "Lichtstrahl",
     "blitz": "Blitz",
     "rapid": "Schnell",
     "relaxed": "Entspannt",
@@ -82,7 +82,7 @@
     "communityOfficialWebsite": "Besuche die offizielle Paco Ŝako Website!",
     "communityJoinOnDiscord": "Tritt unserer Community auf Discord bei!",
     "communityWatchOnTwitch": "Auf Twitch ansehen!",
-    "websocketWarningConnecting": "Verbindung …",
+    "websocketWarningConnecting": "Verbindung wird hergestellt…",
     "websocketWarningReconnecting": "Verbindung wird wiederherstellt …",
     "enableRepetitionDraw": "Unentschieden bei 3-facher Wiederholung",
     "replayWithOpening": " als Eröffnung.",
