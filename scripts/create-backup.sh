@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# This creates a timestamped backup of the SQLite database and compresses it.
+# Example name: ~/db/daily-backup/prod-202307030200.sqlite.gz
+# It also deletes all but the 5 most recent backups.
+
 # Set variables
 DATABASE="/home/pacosako/db/prod.sqlite"
 BACKUP_DIR="/home/pacosako/db/daily-backup"
