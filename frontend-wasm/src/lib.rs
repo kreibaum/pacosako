@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use crate::{
+use pacosako::{
     analysis::{self, puzzle, ReplayData},
     editor, fen,
     setup_options::SetupOptions,

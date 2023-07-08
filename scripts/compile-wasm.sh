@@ -9,11 +9,11 @@
 # We need to use "no-modules" because we are using this in a WebWorker.
 # Firefox does not support ES6 modules in WebWorkers yet.
 
-cd lib
-wasm-pack build --target no-modules --out-name lib --out-dir ../target
-mv ../target/lib_bg.wasm ../target/lib.wasm
+mkdir -p build/frontend-wasm
+
+wasm-pack build frontend-wasm --target no-modules --out-name lib --out-dir ../build/frontend-wasm
+cp build/frontend-wasm/lib_bg.wasm target/lib.wasm
 
 # Minify the javascript wrapper.
 
-cd ../target
-terser lib.js -o lib.min.js --compress --mangle
+terser build/frontend-wasm/lib.js -o target/lib.min.js --compress --mangle

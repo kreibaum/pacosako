@@ -9,7 +9,6 @@ pub mod random;
 pub mod setup_options;
 mod static_include;
 pub mod types;
-pub mod wasm;
 pub mod zobrist;
 
 use draw_state::DrawState;
