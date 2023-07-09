@@ -37,11 +37,10 @@ async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguag
         elm_filename,
         caching::hash_file(elm_filename, true)
     );
-    let main_filename = assets::main_filename(config.use_min_js);
     debug!(
         "File {} has hash: {}",
-        main_filename,
-        caching::hash_file(main_filename, true)
+        "../target/main.min.js",
+        caching::hash_file("../target/main.min.js", true)
     );
 
     Template::render(
@@ -49,7 +48,7 @@ async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguag
         context! {
             lang: lang.0,
             elm_hash: caching::hash_file(elm_filename, config.cache_js_hashes),
-            main_hash: caching::hash_file(main_filename, config.cache_js_hashes),
+            main_hash: caching::hash_file("../target/main.min.js", config.cache_js_hashes),
             lib_worker_hash:  caching::hash_file("../target/lib_worker.min.js", config.cache_js_hashes),
             wasm_js_hash: caching::hash_file("../target/lib.min.js", config.cache_js_hashes),
             wasm_hash: caching::hash_file("../target/lib.wasm", config.cache_js_hashes),

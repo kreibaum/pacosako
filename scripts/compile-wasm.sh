@@ -15,5 +15,5 @@ wasm-pack build frontend-wasm --target no-modules --out-name lib --out-dir ../bu
 cp build/frontend-wasm/lib_bg.wasm target/lib.wasm
 
 # Minify the javascript wrapper.
-
+echo "Minifying wasm wapper javascript"
 terser build/frontend-wasm/lib.js -o target/lib.min.js --compress --mangle

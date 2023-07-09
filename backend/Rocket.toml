@@ -11,6 +11,8 @@ address = "0.0.0.0"
 websocket_port = 3010
 database_path = "data/database.sqlite"
 application_url = "http://0.0.0.0:8000"
+discord_client_id = "private"
+discord_client_secret = "private"
 
 [staging]
 # Staging is running on the prod server as well and is using the dev.pacoplay.com subdomain.
@@ -21,7 +23,8 @@ database_path = "../../db/stage.sqlite"
 use_min_js = true
 cache_js_hashes = true
 application_url = "https://dev.pacoplay.com"
-
+discord_client_id = "private"
+discord_client_secret = "private"
 [release]
 port = 8000
 websocket_port = 3012
@@ -29,3 +32,5 @@ database_path = "../../db/prod.sqlite"
 use_min_js = true
 cache_js_hashes = true
 application_url = "https://pacoplay.com"
+discord_client_id = "private"
+discord_client_secret = "private"

@@ -30,22 +30,14 @@ pub async fn lib_wasm(hash: String) -> Result<CacheResponse<NamedFile>, ServerEr
 /// elm.js file. In staging and production we are returning the minified
 /// version of it. Here we also need to make sure that we pick the correct
 /// language version.
+/// This is required for hot reloading to work. For typescript we don't have
+/// hot reloading so we always use the minified version. Run
+/// ./scripts/compile-ts.sh to (re-)build.
 pub fn elm_filename(lang: String, use_min_js: bool) -> &'static str {
     if use_min_js {
         language::get_static_language_file(&lang).unwrap_or("../target/elm.en.min.js")
     } else {
         "../target/elm.js"
-    }
-}
-
-// If the server is running in development mode, we are returning the regular
-// main.js file. In staging and production we are returning the minified
-// version of it.
-pub fn main_filename(use_min_js: bool) -> &'static str {
-    if use_min_js {
-        "../target/main.min.js"
-    } else {
-        "../target/main.js"
     }
 }
 
@@ -77,7 +69,7 @@ pub async fn main_js_cached(
     hash: &str,
 ) -> Result<CacheResponse<NamedFile>, ServerError> {
     Ok(CacheResponse::Private {
-        responder: static_file(main_filename(config.use_min_js)).await?,
+        responder: static_file("../target/main.min.js").await?,
         max_age: 356 * 24 * 3600,
     })
 }

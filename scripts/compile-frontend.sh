@@ -1,4 +1,9 @@
 # Expects to be run from the / directory of the project
+# Check if the "scripts" directory exists in the current directory as a proxy.
+if [ ! -d "scripts" ]; then
+    echo "This script must be run from the project root. Please change directory with cd."
+    exit 1
+fi
 
 mkdir -p target
 
@@ -18,8 +23,6 @@ pytrans.py --run compile
 pytrans.py English
 
 cd ..
-# Typescript
-tsc
 
-terser ./target/main.js -o ./target/main.min.js --mangle --compress
-terser ./target/lib_worker.js -o ./target/lib_worker.min.js --mangle --compress
+# Typescript
+scripts/compile-ts.sh

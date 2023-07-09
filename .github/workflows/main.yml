@@ -85,7 +85,7 @@ jobs:
       - uses: actions/setup-node@v2
 
       - name: Install Elm
-        run: sudo npm install -g elm elm-spa@latest typescript uglify-js terser --unsafe-perm=true --allow-root
+        run: sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root
 
       - name: Setup Python
         uses: actions/setup-python@v2.2.2

@@ -21,7 +21,7 @@ elm make src/Main.elm --output=../target/elm.js
 cd ..
 # Supporting typescript code.
 echo Prebuild of required typescript code
-tsc
+./scripts/compile-ts.sh
 
 # Prepare database
 echo Creating development database copy

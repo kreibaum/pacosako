@@ -6,9 +6,13 @@ use std::{fs::File, io};
 /// Generate the blake3 hash of the file at the given path.
 /// Returns the hash as a string.
 fn hash_file_no_cache(path: &str) -> String {
-    let mut file = File::open(path).unwrap();
+    let Ok(mut file) = File::open(path) else {
+        panic!("Could not open static file at path: {}", path)
+    };
     let mut hasher = Hasher::new();
-    io::copy(&mut file, &mut hasher).unwrap();
+    let Ok(_) = io::copy(&mut file, &mut hasher) else {
+        panic!("Could not hash static file at path: {}", path)
+    };
     hasher.finalize().to_hex().to_string()
 }
 
