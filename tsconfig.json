@@ -9,6 +9,7 @@
     },
     "files": [
         "frontend/static/main.ts",
-        "frontend/static/lib_worker.ts"
+        "frontend/static/lib_worker.ts",
+        "frontend/static/message_gen.ts"
     ],
 }

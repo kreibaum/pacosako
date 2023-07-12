@@ -10,7 +10,7 @@ use rand::{thread_rng, Rng};
 /// If no board is found, an initial board is returned.
 /// To avoid everything involving promotions, we'll exclude boards which
 /// have promotions as part of any chain.
-pub fn random_position(tries: usize) -> Result<DenseBoard, PacoError> {
+pub fn random_position(tries: u32) -> Result<DenseBoard, PacoError> {
     let mut rng = thread_rng();
     let mut best_board = DenseBoard::new();
     let mut best_chain_length = 0;

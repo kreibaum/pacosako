@@ -492,10 +492,14 @@ libWorker.onmessage = function (m) {
     }
 
     // Log messages from the worker.
-    console.log("libWorker: " + m.data);
+    console.log("libWorker: " + JSON.stringify(m.data));
 
-    if (app.ports.rpcResponseValue) {
-        app.ports.rpcResponseValue.send(JSON.parse(m.data))
+    if (m.data && m.data.type && m.data.data) {
+        sendToElm(app, m.data.type, m.data.data)
+    } else {
+        if (app.ports.rpcResponseValue) {
+            app.ports.rpcResponseValue.send(JSON.parse(m.data))
+        }
     }
 }
 
@@ -511,3 +515,6 @@ function libWorkerSend(msg: any) {
 if (app.ports.rpcCallValue) {
     app.ports.rpcCallValue.subscribe(libWorkerSend)
 }
+
+// Connect up the generated ports.
+dockToPorts(app, libWorker);

@@ -33,7 +33,6 @@ rpcCall =
 type RpcCall
     = HistoryToReplayNotation { board_fen : String, action_history : List Action, setup : Api.Backend.SetupOptions }
     | LegalAction { board_fen : String, action_history : List Action }
-    | RandomPosition Int
     | AnalyzePosition { board_fen : String, action_history : List Action }
 
 
@@ -42,7 +41,6 @@ type RpcCall
 type RpcResponse
     = HistoryToReplayNotationResponse ReplayData
     | LegalActionResponse (List Action)
-    | RandomPositionResponse String
     | AnalyzePositionResponse { analysis : { text_summary : String } }
     | RpcError String
 
@@ -74,10 +72,6 @@ encodeRpcCall msg =
                 ]
                 |> encodeObjectWithOneKey "LegalActions"
 
-        RandomPosition tries ->
-            Encode.object [ ( "tries", Encode.int tries ) ]
-                |> encodeObjectWithOneKey "RandomPosition"
-
         AnalyzePosition { board_fen, action_history } ->
             Encode.object
                 [ ( "board_fen", Encode.string board_fen )
@@ -102,14 +96,6 @@ decodeLegalActionResponse =
         )
 
 
-decodeRandomPositionResponse : Decoder RpcResponse
-decodeRandomPositionResponse =
-    Decode.map RandomPositionResponse
-        (Decode.field "RandomPosition"
-            (Decode.field "board_fen" Decode.string)
-        )
-
-
 decodeAnalyzePositionResponse : Decoder RpcResponse
 decodeAnalyzePositionResponse =
     Decode.at [ "AnalyzePosition", "analysis", "text_summary" ] Decode.string
@@ -126,7 +112,6 @@ decodeRpcCall =
     Decode.oneOf
         [ decodeHistoryToReplayNotationResponse
         , decodeLegalActionResponse
-        , decodeRandomPositionResponse
         , decodeAnalyzePositionResponse
         , decodeRpcError
         ]

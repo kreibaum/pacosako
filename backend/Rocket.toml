@@ -26,9 +26,10 @@ application_url = "https://dev.pacoplay.com"
 discord_client_id = "private"
 discord_client_secret = "private"
 [release]
+secret_key = "DZjhqgZ1fDFCnNqxCC+T6K0Y+bKvZGlvg5hc9+oj4yY="
 port = 8000
-websocket_port = 3012
-database_path = "../../db/prod.sqlite"
+websocket_port = 3010
+database_path = "data/database.sqlite"
 use_min_js = true
 cache_js_hashes = true
 application_url = "https://pacoplay.com"

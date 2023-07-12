@@ -2,7 +2,7 @@ mod utils;
 mod websocket;
 
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
 use pacosako::{
     analysis::{self, puzzle, ReplayData},
@@ -13,6 +13,26 @@ use pacosako::{
 
 /// This module provides all the methods that should be available on the wasm
 /// version of the library. Any encoding & decoding is handled in here.
+
+#[wasm_bindgen]
+extern "C" {
+    fn forwardToMq(messageType: &str, data: &str);
+}
+
+#[wasm_bindgen(js_name = "generateRandomPosition")]
+pub fn generate_random_position(data: String) -> Result<(), JsValue> {
+    // We are expecting a json string which just encodes an integer.
+    let tries: u32 = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+
+    let fen = format!(
+        "{{ \"board_fen\": \"{}\" }}",
+        fen::write_fen(&editor::random_position(tries).map_err(|e| e.to_string())?)
+    );
+
+    forwardToMq("randomPositionGenerated", &fen);
+
+    Ok(())
+}
 
 /// Represents a message that is send from elm via ports to the wasm library.
 /// We use this wrapper to make sure the intermediate typescript layer stays
@@ -30,9 +50,6 @@ pub enum RpcCall {
         board_fen: String,
         action_history: Vec<PacoAction>,
     },
-    RandomPosition {
-        tries: usize,
-    },
     AnalyzePosition {
         board_fen: String,
         action_history: Vec<PacoAction>,
@@ -46,7 +63,6 @@ pub enum RpcCall {
 pub enum RpcResponse {
     HistoryToReplayNotation(ReplayData),
     LegalActions { legal_actions: Vec<PacoAction> },
-    RandomPosition { board_fen: String },
     AnalyzePosition { analysis: puzzle::AnalysisReport },
     RpcError(String),
 }
@@ -82,9 +98,6 @@ pub fn rpc_call_internal(call: &RpcCall) -> Result<RpcResponse, PacoError> {
             action_history,
         } => Ok(RpcResponse::LegalActions {
             legal_actions: legal_actions(board_fen, action_history)?,
-        }),
-        RpcCall::RandomPosition { tries } => Ok(RpcResponse::RandomPosition {
-            board_fen: fen::write_fen(&editor::random_position(*tries)?),
         }),
         RpcCall::AnalyzePosition {
             board_fen,

@@ -2,6 +2,8 @@ module Pages.Editor exposing (Model, Msg, page)
 
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
+import Api.DecoderGen
+import Api.MessageGen
 import Api.Ports
 import Api.Wasm as Wasm exposing (RpcResponse, rpcCall)
 import CastingDeco
@@ -213,6 +215,7 @@ type Msg
     | RequestRandomPosition
     | RequestAnalysePosition Sako.Position
     | WasmResponse RpcResponse
+    | RandomPositionResponse String
     | ToolAddPiece Sako.Color Sako.Type
     | SetExportOptionsVisible Bool
     | SetInputMode (Maybe CastingDeco.InputMode)
@@ -223,6 +226,7 @@ type Msg
     | WhiteSideColor Pieces.SideColor
     | BlackSideColor Pieces.SideColor
     | HttpError Http.Error
+    | PortError String
     | ReplayLoadingError Http.Error
     | ReplayLoaded Int Replay
     | ToShared Shared.Msg
@@ -235,6 +239,10 @@ subscriptions model =
         , Api.Ports.responseSvgNodeContent SvgReadyForDownload
         , Animation.subscription model.timeline AnimationTick
         , Wasm.rpcRespone WasmResponse
+        , Api.MessageGen.subscribePort PortError
+            Api.MessageGen.randomPositionGenerated
+            Api.DecoderGen.randomPositionGenerated
+            RandomPositionResponse
         ]
 
 
@@ -382,31 +390,34 @@ update msg model =
             )
 
         RequestRandomPosition ->
-            ( model, Wasm.RandomPosition 3000 |> rpcCall |> Effect.fromCmd )
+            ( model
+            , Api.MessageGen.generateRandomPosition (Encode.int 3000)
+                |> Effect.fromCmd
+            )
 
         RequestAnalysePosition position ->
             ( model, Wasm.AnalyzePosition { board_fen = Fen.writeFen position, action_history = [] } |> rpcCall |> Effect.fromCmd )
 
         WasmResponse response ->
             case response of
-                Wasm.RandomPositionResponse fen ->
-                    let
-                        newPosition =
-                            Fen.parseFen fen
-                                |> Maybe.withDefault Sako.initialPosition
-                    in
-                    ( { model
-                        | game = addHistoryState newPosition model.game
-                      }
-                        |> animateToCurrentPosition
-                    , Effect.none
-                    )
-
                 Wasm.AnalyzePositionResponse report ->
                     ( { model | analysis = Just report.analysis }, Effect.none )
 
                 _ ->
                     ( model, Effect.none )
+
+        RandomPositionResponse fen ->
+            let
+                newPosition =
+                    Fen.parseFen fen
+                        |> Maybe.withDefault Sako.initialPosition
+            in
+            ( { model
+                | game = addHistoryState newPosition model.game
+              }
+                |> animateToCurrentPosition
+            , Effect.none
+            )
 
         ToolAddPiece color pieceType ->
             ( updateSmartToolAdd (P.getC model.game) color pieceType
@@ -444,6 +455,9 @@ update msg model =
 
         HttpError error ->
             ( model, Api.Ports.logToConsole (Api.Backend.describeError error) |> Effect.fromCmd )
+
+        PortError error ->
+            ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
 
         ReplayLoadingError error ->
             ( { model | query = QueryError }, Api.Ports.logToConsole (Api.Backend.describeError error) |> Effect.fromCmd )
