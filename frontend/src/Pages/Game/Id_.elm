@@ -117,6 +117,9 @@ init params query url =
         [ -- This is not really nice, but we want to give the websocket time to
           -- connect. This is why we wait five seconds.
           -- May be better to move this into typescript.
+          -- But when you do this you need to also move the time drift to a shared
+          -- model member, otherwise it won't be available when you start on
+          -- the main page and then navigate to a game.
           Process.sleep 5000
             |> Task.andThen (\() -> Time.now)
             |> Task.perform (\now -> TimeDriftRequestTrigger { send = now })
