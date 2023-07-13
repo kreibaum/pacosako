@@ -139,7 +139,7 @@ determineColorSettingsFromQuery dict =
 
 
 type Msg
-    = ActionInputStep Sako.Action
+    = Promote Sako.Type
     | Rollback
     | AnimationTick Posix
     | MouseDown BoardMousePosition
@@ -167,8 +167,8 @@ type Msg
 update : Msg -> Model -> ( Model, Effect Msg )
 update msg model =
     case msg of
-        ActionInputStep action ->
-            updateActionInputStep action model
+        Promote pieceType ->
+            updateActionInputStep (Sako.Promote pieceType) model
 
         AnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Effect.none )
@@ -342,10 +342,6 @@ liftActionAt state tile =
         |> List.head
 
 
-{-| Call this method do execute a lift action and initialize drag an drop.
-Only call it, when you have checked, that there is a legal lift action at the
-clicked tile.
--}
 updateMouseDown : BoardMousePosition -> Model -> ( Model, Effect Msg )
 updateMouseDown pos model =
     -- Check if there is a piece we can lift at this position.
@@ -1072,24 +1068,24 @@ promotionButtons =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (ActionInputStep (Sako.Promote Sako.Queen)))
+                (Just (Promote  Sako.Queen))
                 [ icon [ centerX ] Solid.chessQueen
                 , Element.el [ centerX ] (Element.text T.queen)
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (ActionInputStep (Sako.Promote Sako.Knight)))
+                (Just (Promote Sako.Knight))
                 [ icon [ centerX ] Solid.chessKnight
                 , Element.el [ centerX ] (Element.text T.knight)
                 ]
             ]
         , Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (ActionInputStep (Sako.Promote Sako.Rook)))
+                (Just (Promote Sako.Rook))
                 [ icon [ centerX ] Solid.chessRook
                 , Element.el [ centerX ] (Element.text T.rook)
                 ]
             , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (ActionInputStep (Sako.Promote Sako.Bishop)))
+                (Just (Promote Sako.Bishop))
                 [ icon [ centerX ] Solid.chessBishop
                 , Element.el [ centerX ] (Element.text T.bishop)
                 ]

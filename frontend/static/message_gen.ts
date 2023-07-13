@@ -8,8 +8,6 @@ function dockToPorts(elmApp: any, webWorker: Worker) {
 
     // generateRandomPosition :: Elm ~> WebWorker
     // NOTE: Any data send to WebWorker is turned into a string with JSON.stringify
-    // TODO: Instead of postMessage, we should queue up messages and send them
-    // when the worker is ready. I think I have that somewhere...
     connectFromElmPortToWebWorker(elmApp, webWorker, "generateRandomPosition");
     connectFromElmPortToWebWorker(elmApp, webWorker, "analyzePosition");
     connectFromElmPortToWebWorker(elmApp, webWorker, "analyzeReplay");

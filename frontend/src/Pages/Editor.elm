@@ -66,7 +66,6 @@ type alias Model =
     , preview : Maybe Sako.Position
     , timeline : Timeline OpaqueRenderData
     , drag : DragState
-    , windowSize : ( Int, Int )
     , userPaste : String
     , pasteParsed : PositionParseResult
     , analysis : Maybe { text_summary : String }
@@ -159,7 +158,6 @@ initialEditor rawUrl shared query =
     , preview = Nothing
     , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
     , drag = Nothing
-    , windowSize = shared.windowSize
     , userPaste = ""
     , pasteParsed = NoInput
     , analysis = Nothing
