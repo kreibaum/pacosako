@@ -34,6 +34,26 @@ pub fn generate_random_position(data: String) -> Result<(), JsValue> {
     Ok(())
 }
 
+#[derive(Deserialize)]
+struct AnalyzePositionData {
+    board_fen: String,
+    action_history: Vec<PacoAction>,
+}
+
+#[wasm_bindgen(js_name = "analyzePosition")]
+pub fn analyze_position(data: String) -> Result<(), JsValue> {
+    let data: AnalyzePositionData = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+
+    let analysis = puzzle::analyze_position(&data.board_fen, &data.action_history)
+        .map_err(|e| e.to_string())?;
+
+    let analysis = serde_json::to_string(&analysis).map_err(|e| e.to_string())?;
+
+    forwardToMq("positionAnalysisCompleted", &analysis);
+
+    Ok(())
+}
+
 /// Represents a message that is send from elm via ports to the wasm library.
 /// We use this wrapper to make sure the intermediate typescript layer stays
 /// dumb and doesn't need to know about the possible messages..
@@ -50,10 +70,6 @@ pub enum RpcCall {
         board_fen: String,
         action_history: Vec<PacoAction>,
     },
-    AnalyzePosition {
-        board_fen: String,
-        action_history: Vec<PacoAction>,
-    },
 }
 
 /// Represents a message that is send from the wasm library to elm via ports.
@@ -63,7 +79,6 @@ pub enum RpcCall {
 pub enum RpcResponse {
     HistoryToReplayNotation(ReplayData),
     LegalActions { legal_actions: Vec<PacoAction> },
-    AnalyzePosition { analysis: puzzle::AnalysisReport },
     RpcError(String),
 }
 
@@ -98,12 +113,6 @@ pub fn rpc_call_internal(call: &RpcCall) -> Result<RpcResponse, PacoError> {
             action_history,
         } => Ok(RpcResponse::LegalActions {
             legal_actions: legal_actions(board_fen, action_history)?,
-        }),
-        RpcCall::AnalyzePosition {
-            board_fen,
-            action_history,
-        } => Ok(RpcResponse::AnalyzePosition {
-            analysis: puzzle::analyze_position(board_fen, action_history)?,
         }),
     }
 }

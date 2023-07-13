@@ -11,7 +11,7 @@ console.log('Hashes are: ', wasm_js_hash, wasm_hash);
 importScripts(`/cache/lib.min.js?hash=${wasm_js_hash}`);
 declare var wasm_bindgen: any;
 
-const { rpc_call, generateRandomPosition } = wasm_bindgen;
+const { rpc_call, generateRandomPosition, analyzePosition } = wasm_bindgen;
 
 
 /** Helps with typescript type checking. */
@@ -35,6 +35,9 @@ function handleMessage(message: any) {
 function forwardToWasm(messageType: any, data: any) {
     if (messageType === "generateRandomPosition") {
         generateRandomPosition(data);
+    }
+    if (messageType === "analyzePosition") {
+        analyzePosition(data);
     }
 }
 

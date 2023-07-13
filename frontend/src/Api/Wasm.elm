@@ -33,7 +33,6 @@ rpcCall =
 type RpcCall
     = HistoryToReplayNotation { board_fen : String, action_history : List Action, setup : Api.Backend.SetupOptions }
     | LegalAction { board_fen : String, action_history : List Action }
-    | AnalyzePosition { board_fen : String, action_history : List Action }
 
 
 {-| The message received from the wasm worker
@@ -41,7 +40,6 @@ type RpcCall
 type RpcResponse
     = HistoryToReplayNotationResponse ReplayData
     | LegalActionResponse (List Action)
-    | AnalyzePositionResponse { analysis : { text_summary : String } }
     | RpcError String
 
 
@@ -72,13 +70,6 @@ encodeRpcCall msg =
                 ]
                 |> encodeObjectWithOneKey "LegalActions"
 
-        AnalyzePosition { board_fen, action_history } ->
-            Encode.object
-                [ ( "board_fen", Encode.string board_fen )
-                , ( "action_history", Encode.list Sako.encodeAction action_history )
-                ]
-                |> encodeObjectWithOneKey "AnalyzePosition"
-
 
 decodeHistoryToReplayNotationResponse : Decoder RpcResponse
 decodeHistoryToReplayNotationResponse =
@@ -96,12 +87,6 @@ decodeLegalActionResponse =
         )
 
 
-decodeAnalyzePositionResponse : Decoder RpcResponse
-decodeAnalyzePositionResponse =
-    Decode.at [ "AnalyzePosition", "analysis", "text_summary" ] Decode.string
-        |> Decode.map (\str -> AnalyzePositionResponse { analysis = { text_summary = str } })
-
-
 decodeRpcError : Decoder RpcResponse
 decodeRpcError =
     Decode.map RpcError (Decode.field "RpcError" Decode.string)
@@ -112,7 +97,6 @@ decodeRpcCall =
     Decode.oneOf
         [ decodeHistoryToReplayNotationResponse
         , decodeLegalActionResponse
-        , decodeAnalyzePositionResponse
         , decodeRpcError
         ]
 

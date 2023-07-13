@@ -38,6 +38,11 @@ subscribePort errorConstructor portFunction decoder constructor =
 port generateRandomPosition : Value -> Cmd msg
 
 
+{-| Asks for a position to be analyzed
+-}
+port analyzePosition : Value -> Cmd msg
+
+
 
 --------------------------------------------------------------------------------
 -- Messages send from the outside world to the elm app -------------------------
@@ -47,3 +52,8 @@ port generateRandomPosition : Value -> Cmd msg
 {-| A random position has been generated.
 -}
 port randomPositionGenerated : (Value -> msg) -> Sub msg
+
+
+{-| Position analysis has been completed.
+-}
+port positionAnalysisCompleted : (Value -> msg) -> Sub msg

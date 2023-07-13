@@ -10,3 +10,9 @@ import Json.Decode as Decode exposing (Decoder)
 randomPositionGenerated : Decoder String
 randomPositionGenerated =
     Decode.field "board_fen" Decode.string
+
+
+positionAnalysisCompleted : Decoder { text_summary : String }
+positionAnalysisCompleted =
+    Decode.field "text_summary" Decode.string
+        |> Decode.map (\a -> { text_summary = a })

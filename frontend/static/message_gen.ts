@@ -10,11 +10,23 @@ function dockToPorts(elmApp: any, webWorker: Worker) {
     // NOTE: Any data send to WebWorker is turned into a string with JSON.stringify
     // TODO: Instead of postMessage, we should queue up messages and send them
     // when the worker is ready. I think I have that somewhere...
-    if (elmApp.ports.generateRandomPosition) {
-        elmApp.ports.generateRandomPosition.subscribe(function (data) {
+    connectFromElmPortToWebWorker(elmApp, webWorker, "generateRandomPosition");
+    connectFromElmPortToWebWorker(elmApp, webWorker, "analyzePosition");
+}
+
+/**
+ * Connects an outgoing Elm port to the WebWorker.
+ * 
+ * @param elmApp The Elm app.
+ * @param webWorker The WebWorker.
+ * @param portName The name of the port.
+ */
+function connectFromElmPortToWebWorker(elmApp, webWorker, portName) {
+    if (elmApp.ports[portName]) {
+        elmApp.ports[portName].subscribe(function (data) {
             const jsonData = JSON.stringify(data);
-            console.log("Elm port 'generateRandomPosition' send ", jsonData);
-            webWorker.postMessage({ type: "generateRandomPosition", data: jsonData });
+            console.log(`Elm port '${portName}' send `, jsonData);
+            webWorker.postMessage({ type: portName, data: jsonData });
         });
     }
 }

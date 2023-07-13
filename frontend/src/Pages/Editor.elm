@@ -3,9 +3,9 @@ module Pages.Editor exposing (Model, Msg, page)
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.DecoderGen
+import Api.EncoderGen
 import Api.MessageGen
 import Api.Ports
-import Api.Wasm as Wasm exposing (RpcResponse, rpcCall)
 import CastingDeco
 import Colors
 import Components exposing (btn, viewButton, withMsg, withSmallIcon)
@@ -69,7 +69,7 @@ type alias Model =
     , windowSize : ( Int, Int )
     , userPaste : String
     , pasteParsed : PositionParseResult
-    , analysis : Maybe AnalysisReport
+    , analysis : Maybe { text_summary : String }
     , smartTool : SmartToolModel
     , showExportOptions : Bool
     , castingDeco : CastingDeco.Model
@@ -214,8 +214,8 @@ type Msg
     | UseUserPaste Sako.Position
     | RequestRandomPosition
     | RequestAnalysePosition Sako.Position
-    | WasmResponse RpcResponse
     | RandomPositionResponse String
+    | AnalyzePositionResponse { text_summary : String }
     | ToolAddPiece Sako.Color Sako.Type
     | SetExportOptionsVisible Bool
     | SetInputMode (Maybe CastingDeco.InputMode)
@@ -238,11 +238,14 @@ subscriptions model =
         [ Custom.Events.onKeyUp keybindings
         , Api.Ports.responseSvgNodeContent SvgReadyForDownload
         , Animation.subscription model.timeline AnimationTick
-        , Wasm.rpcRespone WasmResponse
         , Api.MessageGen.subscribePort PortError
             Api.MessageGen.randomPositionGenerated
             Api.DecoderGen.randomPositionGenerated
             RandomPositionResponse
+        , Api.MessageGen.subscribePort PortError
+            Api.MessageGen.positionAnalysisCompleted
+            Api.DecoderGen.positionAnalysisCompleted
+            AnalyzePositionResponse
         ]
 
 
@@ -396,15 +399,15 @@ update msg model =
             )
 
         RequestAnalysePosition position ->
-            ( model, Wasm.AnalyzePosition { board_fen = Fen.writeFen position, action_history = [] } |> rpcCall |> Effect.fromCmd )
+            ( model
+            , { board_fen = Fen.writeFen position, action_history = [] }
+                |> Api.EncoderGen.analyzePosition
+                |> Api.MessageGen.analyzePosition
+                |> Effect.fromCmd
+            )
 
-        WasmResponse response ->
-            case response of
-                Wasm.AnalyzePositionResponse report ->
-                    ( { model | analysis = Just report.analysis }, Effect.none )
-
-                _ ->
-                    ( model, Effect.none )
+        AnalyzePositionResponse analysis ->
+            ( { model | analysis = Just analysis }, Effect.none )
 
         RandomPositionResponse fen ->
             let
@@ -1576,16 +1579,3 @@ analysisResult model =
 
         Nothing ->
             Element.none
-
-
-
---------------------------------------------------------------------------------
--- REST api - Mostly moved to Api.Backend exept for some alias definitions. ----
---------------------------------------------------------------------------------
-
-
-type alias AnalysisReport =
-    { text_summary : String
-
-    -- TODO: search_result: SakoSearchResult,
-    }
