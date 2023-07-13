@@ -183,10 +183,6 @@ struct SubscribeToMatchSocketData {
 #[derive(Clone, Serialize, Debug)]
 pub enum ServerMessage {
     CurrentMatchState(CurrentMatchState),
-    MatchConnectionSuccess {
-        key: String,
-        state: CurrentMatchState,
-    },
     Error(String),
     TimeDriftResponse {
         send: DateTime<Utc>,
@@ -431,7 +427,7 @@ async fn handle_subscribe_to_match(
             wake_up_queue::put_utc(&key, next_reminder);
         }
     }
-    let response = ServerMessage::MatchConnectionSuccess { key, state };
+    let response = ServerMessage::CurrentMatchState(state);
     send_msg(response, &sender, ws).await?;
     Ok(())
 }

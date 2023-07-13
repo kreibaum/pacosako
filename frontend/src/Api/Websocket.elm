@@ -85,7 +85,6 @@ All allowed messages that may be send by the server to the client.
 type ServerMessage
     = TechnicalError String
     | NewMatchState CurrentMatchState
-    | MatchConnectionSuccess { key : String, state : CurrentMatchState }
     | TimeDriftRespose { send : Posix, bounced : Posix }
 
 
@@ -96,9 +95,6 @@ decodeServerMessage =
             (Decode.at [ "TechnicalError", "error_message" ] Decode.string)
         , Decode.map NewMatchState
             (Decode.field "CurrentMatchState" decodeMatchState)
-        , Decode.map2 (\key matchState -> MatchConnectionSuccess { key = key, state = matchState })
-            (Decode.at [ "MatchConnectionSuccess", "key" ] Decode.string)
-            (Decode.at [ "MatchConnectionSuccess", "state" ] decodeMatchState)
         , Decode.map2
             (\sendTimestamp bouncedTimestamp ->
                 TimeDriftRespose

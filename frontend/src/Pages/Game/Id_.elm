@@ -526,7 +526,7 @@ in.
 -}
 updateCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Effect Msg )
 updateCurrentMatchStateIfKeyCorrect data model =
-    if data.key == model.currentState.key then
+    if data.key == model.gameKey then
         updateCurrentMatchState data model
 
     else
@@ -559,12 +559,6 @@ updateCurrentMatchState data model =
       }
     , Effect.none
     )
-
-
-updateMatchConnectionSuccess : { key : String, state : CurrentMatchState } -> Model -> ( Model, Effect Msg )
-updateMatchConnectionSuccess data model =
-    { model | gameKey = data.key }
-        |> updateCurrentMatchState data.state
 
 
 {-| Given an old and a new match state, this returns the actions that need to
@@ -612,9 +606,6 @@ updateWebsocket serverMessage model =
 
         Api.Websocket.NewMatchState data ->
             updateCurrentMatchStateIfKeyCorrect data model
-
-        Api.Websocket.MatchConnectionSuccess data ->
-            updateMatchConnectionSuccess data model
 
         Api.Websocket.TimeDriftRespose data ->
             ( model

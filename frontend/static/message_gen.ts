@@ -47,8 +47,6 @@ function sendToElm(elmApp: any, type: string, data: string): boolean {
         port.send(JSON.parse(data));
         return true;
     } else {
-        console.log(`No port with name ${type} found.\n` +
-            `This may be because the port is not used in Elm and dead code elimination removed it.`);
         return false;
     }
 }
