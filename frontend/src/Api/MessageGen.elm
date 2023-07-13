@@ -48,6 +48,11 @@ port analyzePosition : Value -> Cmd msg
 port analyzeReplay : Value -> Cmd msg
 
 
+{-| Signs up for the status of the given match.
+-}
+port subscribeToMatch : Value -> Cmd msg
+
+
 
 --------------------------------------------------------------------------------
 -- Messages send from the outside world to the elm app -------------------------

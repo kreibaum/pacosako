@@ -370,7 +370,7 @@ class WebsocketWrapper {
     /** 
      * If the websocket is open, send the message. Otherwise put it in the queue.
      */
-    private trySend(msg: any) {
+    public trySend(msg: any) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(msg));
         } else {
@@ -417,7 +417,7 @@ class WebsocketWrapper {
     }
 }
 
-new WebsocketWrapper();
+var webSocket = new WebsocketWrapper();
 
 
 // Playing sounds. Note that this can't play multiple sounds at once yet.
@@ -493,7 +493,12 @@ libWorker.onmessage = function (m) {
     console.log("libWorker: " + JSON.stringify(m.data));
 
     if (m.data && m.data.type && m.data.data) {
-        sendToElm(app, m.data.type, m.data.data)
+        var consumedByElm = sendToElm(app, m.data.type, m.data.data)
+        if (!consumedByElm) {
+            // Right now the only other recipient for messages except for elm
+            // is the websocket, so we send it there.
+            webSocket.trySend(m.data)
+        }
     } else {
         console.error("libWorker: Received invalid message from worker.")
     }

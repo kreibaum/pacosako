@@ -89,3 +89,15 @@ fn history_to_replay_notation(
 
     analysis::history_to_replay_notation(initial_board, action_history)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Proxy function for games. This sits between the client and server. //////////
+////////////////////////////////////////////////////////////////////////////////
+
+/// Subscribes to the game on the server.
+#[wasm_bindgen(js_name = "subscribeToMatch")]
+pub fn subscribe_to_match(data: String) -> Result<(), JsValue> {
+    forwardToMq("subscribeToMatchSocket", &data);
+
+    Ok(())
+}

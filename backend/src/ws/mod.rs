@@ -144,9 +144,6 @@ struct GameRoom {
 /// All allowed messages that may be send by the client to the server.
 #[derive(Deserialize)]
 enum ClientMessage {
-    SubscribeToMatch {
-        key: String,
-    },
     DoAction {
         key: String,
         action: PacoAction,
@@ -168,6 +165,18 @@ enum ClientMessage {
         /// We use a token to make sure request and response can be matched.
         token: String,
     },
+}
+
+#[derive(Deserialize)]
+struct RoutedClientMessage {
+    #[serde(rename = "type")]
+    message_type: String,
+    data: String,
+}
+
+#[derive(Deserialize)]
+struct SubscribeToMatchSocketData {
+    key: String,
 }
 
 /// Messages that may be send by the server to the client.
@@ -211,6 +220,18 @@ async fn handle_message(
                 Message::Text(ref text) => {
                     if let Ok(client_msg) = from_str(text) {
                         handle_client_message(client_msg, source, ws, server_state, conn).await?;
+                    } else if let Ok(client_msg) = from_str(text) {
+                        let x: RoutedClientMessage = client_msg;
+                        println!(
+                            "Routed Client Message of type {} with data {}.",
+                            x.message_type, x.data
+                        );
+                        if x.message_type == "subscribeToMatchSocket" {
+                            if let Ok(data) = from_str::<SubscribeToMatchSocketData>(&x.data) {
+                                handle_subscribe_to_match(data.key, source, ws, server_state, conn)
+                                    .await?;
+                            }
+                        }
                     }
                 }
                 Message::Binary(payload) => {
@@ -289,34 +310,6 @@ async fn handle_client_message(
     conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
     match msg {
-        ClientMessage::SubscribeToMatch { key } => {
-            // This just makes sure the room exists. We don't need the room afterwards.
-            server_state.room(&key, sender);
-            let game = fetch_game(&key, conn).await?;
-
-            let state = game.current_state();
-            let state = match state {
-                Ok(state) => state,
-                Err(_) => {
-                    server_state.destroy_room(&key);
-                    return send_error(format!("Could not connect to game {}", key), &sender, ws)
-                        .await;
-                }
-            };
-
-            // Todo: This should only be called once when starting the room, not
-            // when a second player joins the room.
-            if let Some(ref timer) = state.timer {
-                if !timer.get_state().is_finished() {
-                    let next_reminder = timer.timeout(state.controlling_player);
-                    wake_up_queue::put_utc(&key, next_reminder);
-                }
-            }
-
-            let response = ServerMessage::MatchConnectionSuccess { key, state };
-
-            send_msg(response, &sender, ws).await?;
-        }
         ClientMessage::DoAction { key, action } => {
             let uuid = server_state.get_uuid(sender);
             let room = server_state.room(&key, sender);
@@ -412,6 +405,34 @@ async fn handle_client_message(
             }
         }
     }
+    Ok(())
+}
+
+async fn handle_subscribe_to_match(
+    key: String,
+    sender: SocketAddr,
+    ws: &PeerMap,
+    server_state: &mut ServerState,
+    conn: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+) -> Result<(), anyhow::Error> {
+    server_state.room(&key, sender);
+    let game = fetch_game(&key, conn).await?;
+    let state = game.current_state();
+    let state = match state {
+        Ok(state) => state,
+        Err(_) => {
+            server_state.destroy_room(&key);
+            return send_error(format!("Could not connect to game {}", key), &sender, ws).await;
+        }
+    };
+    if let Some(ref timer) = state.timer {
+        if !timer.get_state().is_finished() {
+            let next_reminder = timer.timeout(state.controlling_player);
+            wake_up_queue::put_utc(&key, next_reminder);
+        }
+    }
+    let response = ServerMessage::MatchConnectionSuccess { key, state };
+    send_msg(response, &sender, ws).await?;
     Ok(())
 }
 

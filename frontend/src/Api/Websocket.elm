@@ -40,8 +40,7 @@ All allowed messages that may be send by the client to the server.
 
 -}
 type ClientMessage
-    = SubscribeToMatch String
-    | DoAction { key : String, action : Sako.Action }
+    = DoAction { key : String, action : Sako.Action }
     | Rollback String
     | TimeDriftCheck Posix
 
@@ -49,15 +48,6 @@ type ClientMessage
 encodeClientMessage : ClientMessage -> Value
 encodeClientMessage clientMessage =
     case clientMessage of
-        SubscribeToMatch key ->
-            Encode.object
-                [ ( "SubscribeToMatch"
-                  , Encode.object
-                        [ ( "key", Encode.string key )
-                        ]
-                  )
-                ]
-
         DoAction data ->
             Encode.object
                 [ ( "DoAction"

@@ -11,6 +11,8 @@ function dockToPorts(elmApp: any, webWorker: Worker) {
     connectFromElmPortToWebWorker(elmApp, webWorker, "generateRandomPosition");
     connectFromElmPortToWebWorker(elmApp, webWorker, "analyzePosition");
     connectFromElmPortToWebWorker(elmApp, webWorker, "analyzeReplay");
+
+    connectFromElmPortToWebWorker(elmApp, webWorker, "subscribeToMatch");
 }
 
 /**
@@ -39,12 +41,14 @@ function connectFromElmPortToWebWorker(elmApp, webWorker, portName) {
  * @param type The port name.
  * @param data The data to send.
  */
-function sendToElm(elmApp: any, type: string, data: string) {
+function sendToElm(elmApp: any, type: string, data: string): boolean {
     var port = elmApp.ports[type]
     if (port) {
         port.send(JSON.parse(data));
+        return true;
     } else {
         console.log(`No port with name ${type} found.\n` +
             `This may be because the port is not used in Elm and dead code elimination removed it.`);
+        return false;
     }
 }

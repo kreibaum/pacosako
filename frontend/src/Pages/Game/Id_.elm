@@ -15,6 +15,7 @@ import Dict exposing (Dict)
 import Duration
 import Effect exposing (Effect)
 import Element exposing (..)
+import Api.MessageGen
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -23,6 +24,7 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Json.Decode as Decode
+import Json.Encode as Encode
 import List.Extra as List
 import Maybe.Extra as Maybe
 import Page
@@ -112,8 +114,7 @@ init params query url =
       , elementHeight = 500
       }
     , Cmd.batch
-        [ Api.Websocket.send (Api.Websocket.SubscribeToMatch params.id)
-        , -- This is not really nice, but we want to give the websocket time to
+        [ -- This is not really nice, but we want to give the websocket time to
           -- connect. This is why we wait five seconds.
           -- May be better to move this into typescript.
           Process.sleep 5000
@@ -122,6 +123,8 @@ init params query url =
         , Browser.Dom.getViewport
             |> Task.perform (\data -> SetWindowHeight (round data.viewport.height))
         , fetchHeaderSize
+        , Encode.object [("key", Encode.string params.id)]
+            |> Api.MessageGen.subscribeToMatch
         ]
         |> Effect.fromCmd
     )
@@ -236,7 +239,8 @@ update msg model =
             ( model
             , case status of
                 Api.Websocket.WebsocketConnected ->
-                    Api.Websocket.send (Api.Websocket.SubscribeToMatch model.gameKey)
+                    Encode.object [("key", Encode.string model.gameKey)]
+                        |> Api.MessageGen.subscribeToMatch
                         |> Effect.fromCmd
 
                 _ ->
