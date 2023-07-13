@@ -43,6 +43,11 @@ port generateRandomPosition : Value -> Cmd msg
 port analyzePosition : Value -> Cmd msg
 
 
+{-| Asks for a replay to be analyzed
+-}
+port analyzeReplay : Value -> Cmd msg
+
+
 
 --------------------------------------------------------------------------------
 -- Messages send from the outside world to the elm app -------------------------
@@ -57,3 +62,8 @@ port randomPositionGenerated : (Value -> msg) -> Sub msg
 {-| Position analysis has been completed.
 -}
 port positionAnalysisCompleted : (Value -> msg) -> Sub msg
+
+
+{-| Replay analysis has been completed.
+-}
+port replayAnalysisCompleted : (Value -> msg) -> Sub msg

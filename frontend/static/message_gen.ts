@@ -12,6 +12,7 @@ function dockToPorts(elmApp: any, webWorker: Worker) {
     // when the worker is ready. I think I have that somewhere...
     connectFromElmPortToWebWorker(elmApp, webWorker, "generateRandomPosition");
     connectFromElmPortToWebWorker(elmApp, webWorker, "analyzePosition");
+    connectFromElmPortToWebWorker(elmApp, webWorker, "analyzeReplay");
 }
 
 /**
@@ -26,7 +27,7 @@ function connectFromElmPortToWebWorker(elmApp, webWorker, portName) {
         elmApp.ports[portName].subscribe(function (data) {
             const jsonData = JSON.stringify(data);
             console.log(`Elm port '${portName}' send `, jsonData);
-            webWorker.postMessage({ type: portName, data: jsonData });
+            sendToWebWorker({ type: portName, data: jsonData });
         });
     }
 }

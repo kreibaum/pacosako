@@ -11,7 +11,7 @@ console.log('Hashes are: ', wasm_js_hash, wasm_hash);
 importScripts(`/cache/lib.min.js?hash=${wasm_js_hash}`);
 declare var wasm_bindgen: any;
 
-const { rpc_call, generateRandomPosition, analyzePosition } = wasm_bindgen;
+const { generateRandomPosition, analyzePosition, analyzeReplay } = wasm_bindgen;
 
 
 /** Helps with typescript type checking. */
@@ -25,9 +25,7 @@ function handleMessage(message: any) {
     if (data && data instanceof Object && data.type && data.data) {
         forwardToWasm(data.type, data.data);
     } else {
-        // Existing "legacy" everything is in a wrapper struct solution.
-        let response: string = rpc_call(data);
-        postMessage(response);
+        console.log(`Unknown message type: ${JSON.stringify(data)}`);
     }
 }
 
@@ -38,6 +36,9 @@ function forwardToWasm(messageType: any, data: any) {
     }
     if (messageType === "analyzePosition") {
         analyzePosition(data);
+    }
+    if (messageType === "analyzeReplay") {
+        analyzeReplay(data);
     }
 }
 

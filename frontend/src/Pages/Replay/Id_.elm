@@ -11,8 +11,10 @@ is responsible for displaying it / interacting with it.
 
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
+import Api.DecoderGen
+import Api.EncoderGen
+import Api.MessageGen
 import Api.Ports
-import Api.Wasm as Wasm exposing (ReplayData)
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Colors
@@ -112,6 +114,10 @@ init shared params =
     )
 
 
+type alias ReplayData =
+    { notation : List Notation.HalfMove, opening : String }
+
+
 {-| Init method that is called once the replay has been processed.
 -}
 innerInit : Model -> ReplayData -> InnerModel
@@ -137,7 +143,8 @@ innerInit model sidebarData =
 type Msg
     = GotReplay Replay
     | HttpErrorReplay Http.Error
-    | WasmResponse Wasm.RpcResponse
+    | GotReplayAnalysis { notation : List Notation.HalfMove, opening : String }
+    | PortError String
     | ToShared Shared.Msg
     | GotInnerMsg InnerMsg
 
@@ -173,24 +180,25 @@ update msg model =
                 | replay = ProcessingReplayData
                 , actionHistory = removeTimestamps replay.actions
               }
-            , Wasm.rpcCall (stripDownReplay replay)
+            , replay
+                |> stripDownReplay
+                |> Api.EncoderGen.analyzeReplay
+                |> Api.MessageGen.analyzeReplay
                 |> Effect.fromCmd
             )
 
-        WasmResponse response ->
-            case response of
-                Wasm.HistoryToReplayNotationResponse notation ->
-                    ( { model
-                        | replay = Done (innerInit model notation)
-                      }
-                    , Effect.none
-                    )
-
-                _ ->
-                    ( model, Effect.none )
+        GotReplayAnalysis notation ->
+            ( { model
+                | replay = Done (innerInit model notation)
+              }
+            , Effect.none
+            )
 
         HttpErrorReplay error ->
             ( { model | replay = DownloadingReplayDataFailed error }, Effect.none )
+
+        PortError error ->
+            ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
 
         ToShared outMsg ->
             ( model, Effect.fromShared outMsg )
@@ -278,13 +286,18 @@ innerUpdate msg model =
 
 {-| Remove all the timestamps from the replay and turn it into an RpcCall.
 -}
-stripDownReplay : Replay -> Wasm.RpcCall
-stripDownReplay replay =
-    Wasm.HistoryToReplayNotation
-        { board_fen = Fen.initialBoardFen
-        , action_history = removeTimestamps replay.actions
-        , setup = replay.setupOptions
+stripDownReplay :
+    Replay
+    ->
+        { board_fen : String
+        , action_history : List Sako.Action
+        , setup : Api.Backend.SetupOptions
         }
+stripDownReplay replay =
+    { board_fen = Fen.initialBoardFen
+    , action_history = removeTimestamps replay.actions
+    , setup = replay.setupOptions
+    }
 
 
 removeTimestamps : List ( Sako.Action, Posix ) -> List Sako.Action
@@ -347,7 +360,10 @@ subscriptions model =
 
             _ ->
                 Sub.none
-        , Wasm.rpcRespone WasmResponse
+        , Api.MessageGen.subscribePort PortError
+            Api.MessageGen.replayAnalysisCompleted
+            Api.DecoderGen.replayAnalysisCompleted
+            GotReplayAnalysis
         ]
 
 

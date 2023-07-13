@@ -468,8 +468,6 @@ if (app.ports.scrollTrigger) {
 // The library web worker provides the wasm library without blocking the main
 // thread. Since every port in elm is already async, we don't loose synchronicity.
 
-// TODO: Caching & cache busting.
-
 // This worker is created asynchronously, so we can't send messages to it
 // immediately. Instead we queue them up and send them once the worker is ready.
 
@@ -497,23 +495,23 @@ libWorker.onmessage = function (m) {
     if (m.data && m.data.type && m.data.data) {
         sendToElm(app, m.data.type, m.data.data)
     } else {
-        if (app.ports.rpcResponseValue) {
-            app.ports.rpcResponseValue.send(JSON.parse(m.data))
-        }
+        console.error("libWorker: Received invalid message from worker.")
     }
 }
+
 
 function libWorkerSend(msg: any) {
-    if (libWorkerIsReady) {
-        libWorker.postMessage(JSON.stringify(msg));
-    } else {
-        console.log("Message received before libWorker was ready. Queuing message.")
-        libWorkerMessageQueue.push(JSON.stringify(msg))
-    }
+    const stringifiedMsg = JSON.stringify(msg);
+    sendToWebWorker(stringifiedMsg);
 }
 
-if (app.ports.rpcCallValue) {
-    app.ports.rpcCallValue.subscribe(libWorkerSend)
+function sendToWebWorker(stringifiedMsg: any) {
+    if (libWorkerIsReady) {
+        libWorker.postMessage(stringifiedMsg);
+    } else {
+        console.log("Message received before libWorker was ready. Queuing message.");
+        libWorkerMessageQueue.push(stringifiedMsg);
+    }
 }
 
 // Connect up the generated ports.

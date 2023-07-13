@@ -5,6 +5,7 @@ still written by hand for now.
 -}
 
 import Json.Decode as Decode exposing (Decoder)
+import Notation
 
 
 randomPositionGenerated : Decoder String
@@ -16,3 +17,14 @@ positionAnalysisCompleted : Decoder { text_summary : String }
 positionAnalysisCompleted =
     Decode.field "text_summary" Decode.string
         |> Decode.map (\a -> { text_summary = a })
+
+
+type alias ReplayData =
+    { notation : List Notation.HalfMove, opening : String }
+
+
+replayAnalysisCompleted : Decoder ReplayData
+replayAnalysisCompleted =
+    Decode.map2 ReplayData
+        (Decode.field "notation" (Decode.list Notation.decodeHalfMove))
+        (Decode.field "opening" Decode.string)
