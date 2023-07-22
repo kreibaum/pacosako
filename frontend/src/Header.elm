@@ -16,6 +16,7 @@ import FontAwesome.Styles
 import Gen.Route as Route exposing (Route)
 import Reactive
 import Shared exposing (Msg(..))
+import StaticAssets
 import Svg.Custom
 import Time
 import Translations as T exposing (Language(..))
@@ -59,7 +60,7 @@ wrapWithHeaderV2 shared toMsg headerData body =
         , height fill
         , Element.scrollbarY
         , if headerData.isWithBackground then
-            Background.image "/a/bg.jpg"
+            Background.image StaticAssets.bg
 
           else
             Background.color (Element.rgb255 255 255 255)
@@ -212,7 +213,7 @@ pageHeaderStyle isRouteHighlighted =
 pacosakoLogo : Element msg
 pacosakoLogo =
     Element.image [ width (px 150), centerX ]
-        { src = "/a/pacosako-logo.png", description = "PacoŜako logo" }
+        { src = StaticAssets.pacosakoLogo, description = "PacoŜako logo" }
 
 
 {-| Allows the user to choose the ui language.

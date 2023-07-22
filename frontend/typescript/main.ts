@@ -4,6 +4,7 @@
 /// This could be more precise listing also the ports that we have for better
 /// type checking.
 declare var Elm: any;
+declare var static_assets: any;
 
 // Set up a new mutation observer, that will fire custom events for all
 // svg elements when there is a click event or a motion event.
@@ -423,7 +424,7 @@ var webSocket = new WebsocketWrapper();
 // Playing sounds. Note that this can't play multiple sounds at once yet.
 // If you trigger the placement sound again while it is still running,
 // it will be skipped.
-let piece_placement_sound = new Audio("/a/place_piece.mp3");
+let piece_placement_sound = new Audio(static_assets.placePiece);
 
 function play_sound() {
     piece_placement_sound.play();

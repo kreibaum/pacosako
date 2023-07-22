@@ -4,7 +4,8 @@
         "src",
         ".elm-spa/defaults",
         ".elm-spa/generated",
-        ".elm-i18n"
+        ".elm-i18n",
+        ".asset-list"
     ],
     "elm-version": "0.19.1",
     "dependencies": {

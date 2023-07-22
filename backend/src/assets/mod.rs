@@ -106,10 +106,10 @@ pub async fn favicon() -> CacheResponse<Result<NamedFile, ServerError>> {
     }
 }
 
-#[get("/a/pacosako-logo.png")]
+#[get("/a/pacosakoLogo.png")]
 pub async fn logo() -> CacheResponse<Result<NamedFile, ServerError>> {
     CacheResponse::Private {
-        responder: static_file("../target/assets/pacosako-logo.png").await,
+        responder: static_file("../target/assets/pacosakoLogo.png").await,
         max_age: 24 * 3600,
     }
 }
@@ -122,10 +122,10 @@ pub async fn bg() -> CacheResponse<Result<NamedFile, ServerError>> {
     }
 }
 
-#[get("/a/place_piece.mp3")]
+#[get("/a/placePiece.mp3")]
 pub async fn place_piece() -> CacheResponse<Result<NamedFile, ServerError>> {
     CacheResponse::Private {
-        responder: static_file("../target/assets/place_piece.mp3").await,
+        responder: static_file("../target/assets/placePiece.mp3").await,
         max_age: 24 * 3600,
     }
 }

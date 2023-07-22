@@ -3,6 +3,16 @@ name = "pacosako-tool-server"
 version = "0.1.0"
 authors = ["Rolf Kreibaum <rolf.kreibaum@posteo.de>"]
 edition = "2021"
+default-run = "pacosako-tool-server"
+
+# Add this section to specify multiple binaries
+[[bin]]
+name = "pacosako-tool-server"
+path = "src/main.rs"
+
+[[bin]]
+name = "cache_hash"
+path = "src/utils/cache_hash.rs"
 
 [dependencies]
 kanal = "0.1.0-pre7"

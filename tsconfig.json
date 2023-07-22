@@ -10,6 +10,7 @@
     "files": [
         "frontend/typescript/main.ts",
         "frontend/typescript/lib_worker.ts",
-        "frontend/typescript/message_gen.ts"
+        "frontend/typescript/message_gen.ts",
+        "frontend/typescript/static_assets.ts"
     ],
 }

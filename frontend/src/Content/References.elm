@@ -4,6 +4,7 @@ import Element exposing (Element, centerX, clip, column, el, fill, height, image
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
+import StaticAssets
 import Svg.Discord
 import Svg.Github
 import Svg.Twitch
@@ -46,7 +47,7 @@ officialWebsiteLink =
         , label =
             column [ width fill, centerX, spacing 7 ]
                 [ image [ width (fill |> maximum 400), centerX ]
-                    { src = "/a/pacosako-logo.png", description = "PacoŜako logo" }
+                    { src = StaticAssets.pacosakoLogo, description = "PacoŜako logo" }
                 , el
                     [ Font.size 25
                     , centerX

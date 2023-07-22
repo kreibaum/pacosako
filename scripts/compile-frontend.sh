@@ -8,6 +8,8 @@ fi
 mkdir -p target/js
 mkdir -p target/assets
 
+scripts/copy-assets.sh
+
 scripts/compile-wasm.sh
 
 cp frontend/static/* target/assets/

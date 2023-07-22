@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/a/favicon.svg" sizes="any" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/a/favicon.svg?hash={{ favicon_hash }}"
+      sizes="any"
+    />
     <title>Paco Ŝako</title>
     <script>
       var lib_worker_hash = "{{ lib_worker_hash }}";

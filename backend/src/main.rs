@@ -52,6 +52,7 @@ async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguag
             lib_worker_hash:  caching::hash_file("../target/js/lib_worker.min.js", config.cache_js_hashes),
             wasm_js_hash: caching::hash_file("../target/js/lib.min.js", config.cache_js_hashes),
             wasm_hash: caching::hash_file("../target/js/lib.wasm", config.cache_js_hashes),
+            favicon_hash: caching::hash_file("../target/assets/favicon.svg", config.cache_js_hashes),
         },
     )
 }
