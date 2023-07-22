@@ -11,18 +11,20 @@ use crate::{language, DevEnvironmentConfig, ServerError};
 #[allow(unused_variables)]
 #[get("/js/lib.min.js?<hash>")]
 pub async fn lib_js(hash: String) -> Result<CacheResponse<NamedFile>, ServerError> {
-    Ok(CacheResponse::Private {
+    Ok(CacheResponse::Public {
         responder: static_file("../target/js/lib.min.js").await?,
         max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     })
 }
 
 #[allow(unused_variables)]
 #[get("/js/lib.wasm?<hash>")]
 pub async fn lib_wasm(hash: String) -> Result<CacheResponse<NamedFile>, ServerError> {
-    Ok(CacheResponse::Private {
+    Ok(CacheResponse::Public {
         responder: static_file("../target/js/lib.wasm").await?,
         max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     })
 }
 
@@ -53,9 +55,10 @@ pub async fn elm_cached(
     lang: String,
 ) -> Result<CacheResponse<NamedFile>, ServerError> {
     info!("elm_cached: {} for language {}", hash, lang);
-    Ok(CacheResponse::Private {
+    Ok(CacheResponse::Public {
         responder: static_file(elm_filename(lang, config.use_min_js)).await?,
         max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     })
 }
 
@@ -68,18 +71,20 @@ pub async fn main_js_cached(
     config: &State<DevEnvironmentConfig>,
     hash: &str,
 ) -> Result<CacheResponse<NamedFile>, ServerError> {
-    Ok(CacheResponse::Private {
+    Ok(CacheResponse::Public {
         responder: static_file("../target/js/main.min.js").await?,
         max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     })
 }
 
 #[allow(unused_variables)]
 #[get("/js/lib_worker.min.js?<hash>")]
 pub async fn lib_worker(hash: &str) -> Result<CacheResponse<NamedFile>, ServerError> {
-    Ok(CacheResponse::Private {
+    Ok(CacheResponse::Public {
         responder: static_file("../target/js/lib_worker.min.js").await?,
         max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     })
 }
 
@@ -91,41 +96,42 @@ async fn static_file(path: &'static str) -> Result<NamedFile, ServerError> {
     Ok(NamedFile::open(path).await?)
 }
 
-// TODO: Add a generic static file handler for /a/.. that accesses target/assets
-// and is robust against "../"-attacks.
-// It should also check the hash and return the file with a 1 year cache time if
-// the hash matches.
-
-// TODO: Add a similar static file handler for /js/..
-
-#[get("/a/favicon.svg")]
-pub async fn favicon() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
+#[allow(unused_variables)]
+#[get("/a/favicon.svg?<hash>")]
+pub async fn favicon(hash: &str) -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Public {
         responder: static_file("../target/assets/favicon.svg").await,
-        max_age: 24 * 3600,
+        max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     }
 }
 
-#[get("/a/pacosakoLogo.png")]
-pub async fn logo() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
+#[allow(unused_variables)]
+#[get("/a/pacosakoLogo.png?<hash>")]
+pub async fn logo(hash: &str) -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Public {
         responder: static_file("../target/assets/pacosakoLogo.png").await,
-        max_age: 24 * 3600,
+        max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     }
 }
 
-#[get("/a/bg.jpg")]
-pub async fn bg() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
+#[allow(unused_variables)]
+#[get("/a/bg.jpg?<hash>")]
+pub async fn bg(hash: &str) -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Public {
         responder: static_file("../target/assets/bg.jpg").await,
-        max_age: 24 * 3600,
+        max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     }
 }
 
-#[get("/a/placePiece.mp3")]
-pub async fn place_piece() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
+#[allow(unused_variables)]
+#[get("/a/placePiece.mp3?<hash>")]
+pub async fn place_piece(hash: &str) -> CacheResponse<Result<NamedFile, ServerError>> {
+    CacheResponse::Public {
         responder: static_file("../target/assets/placePiece.mp3").await,
-        max_age: 24 * 3600,
+        max_age: 356 * 24 * 3600,
+        must_revalidate: false,
     }
 }
