@@ -8,10 +8,11 @@ if [ ! -d "scripts" ]; then
 fi
 
 mkdir -p build/frontend-ts
+mkdir -p target/js/
 
 echo "Compiling Typescript"
 tsc
 
 echo "Minifying compiled Typescript"
-terser ./build/frontend-ts/message_gen.js ./build/frontend-ts/main.js -o ./target/main.min.js --mangle --compress
-terser ./build/frontend-ts/lib_worker.js -o ./target/lib_worker.min.js --mangle --compress
+terser ./build/frontend-ts/message_gen.js ./build/frontend-ts/main.js -o ./target/js/main.min.js --mangle --compress
+terser ./build/frontend-ts/lib_worker.js -o ./target/js/lib_worker.min.js --mangle --compress

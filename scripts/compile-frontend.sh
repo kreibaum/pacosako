@@ -5,11 +5,12 @@ if [ ! -d "scripts" ]; then
     exit 1
 fi
 
-mkdir -p target
+mkdir -p target/js
+mkdir -p target/assets
 
 scripts/compile-wasm.sh
 
-cp frontend/static/* target/
+cp frontend/static/* target/assets/
 cd frontend
 
 # English is the default

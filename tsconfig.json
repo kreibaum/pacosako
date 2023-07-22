@@ -8,8 +8,8 @@
         "outDir": "build/frontend-ts"
     },
     "files": [
-        "frontend/static/main.ts",
-        "frontend/static/lib_worker.ts",
-        "frontend/static/message_gen.ts"
+        "frontend/typescript/main.ts",
+        "frontend/typescript/lib_worker.ts",
+        "frontend/typescript/message_gen.ts"
     ],
 }

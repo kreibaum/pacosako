@@ -9,19 +9,19 @@ use crate::{language, DevEnvironmentConfig, ServerError};
 // Code assets
 
 #[allow(unused_variables)]
-#[get("/cache/lib.min.js?<hash>")]
+#[get("/js/lib.min.js?<hash>")]
 pub async fn lib_js(hash: String) -> Result<CacheResponse<NamedFile>, ServerError> {
     Ok(CacheResponse::Private {
-        responder: static_file("../target/lib.min.js").await?,
+        responder: static_file("../target/js/lib.min.js").await?,
         max_age: 356 * 24 * 3600,
     })
 }
 
 #[allow(unused_variables)]
-#[get("/cache/lib.wasm?<hash>")]
+#[get("/js/lib.wasm?<hash>")]
 pub async fn lib_wasm(hash: String) -> Result<CacheResponse<NamedFile>, ServerError> {
     Ok(CacheResponse::Private {
-        responder: static_file("../target/lib.wasm").await?,
+        responder: static_file("../target/js/lib.wasm").await?,
         max_age: 356 * 24 * 3600,
     })
 }
@@ -35,7 +35,7 @@ pub async fn lib_wasm(hash: String) -> Result<CacheResponse<NamedFile>, ServerEr
 /// ./scripts/compile-ts.sh to (re-)build.
 pub fn elm_filename(lang: String, use_min_js: bool) -> &'static str {
     if use_min_js {
-        language::get_static_language_file(&lang).unwrap_or("../target/elm.en.min.js")
+        language::get_static_language_file(&lang).unwrap_or("../target/js/elm.en.min.js")
     } else {
         "../target/elm.js"
     }
@@ -46,7 +46,7 @@ pub fn elm_filename(lang: String, use_min_js: bool) -> &'static str {
 /// this endpoint does not check the hash.
 /// The language is also a parameter here so caching doesn't break the language
 /// selection.
-#[get("/cache/elm.min.js?<hash>&<lang>")]
+#[get("/js/elm.min.js?<hash>&<lang>")]
 pub async fn elm_cached(
     config: &State<DevEnvironmentConfig>,
     hash: String,
@@ -63,22 +63,22 @@ pub async fn elm_cached(
 /// main.js file. In staging and production we are returning the minified
 /// version of it.
 #[allow(unused_variables)]
-#[get("/cache/main.min.js?<hash>")]
+#[get("/js/main.min.js?<hash>")]
 pub async fn main_js_cached(
     config: &State<DevEnvironmentConfig>,
     hash: &str,
 ) -> Result<CacheResponse<NamedFile>, ServerError> {
     Ok(CacheResponse::Private {
-        responder: static_file("../target/main.min.js").await?,
+        responder: static_file("../target/js/main.min.js").await?,
         max_age: 356 * 24 * 3600,
     })
 }
 
 #[allow(unused_variables)]
-#[get("/cache/lib_worker.min.js?<hash>")]
+#[get("/js/lib_worker.min.js?<hash>")]
 pub async fn lib_worker(hash: &str) -> Result<CacheResponse<NamedFile>, ServerError> {
     Ok(CacheResponse::Private {
-        responder: static_file("../target/lib_worker.min.js").await?,
+        responder: static_file("../target/js/lib_worker.min.js").await?,
         max_age: 356 * 24 * 3600,
     })
 }
@@ -91,42 +91,41 @@ async fn static_file(path: &'static str) -> Result<NamedFile, ServerError> {
     Ok(NamedFile::open(path).await?)
 }
 
-#[get("/favicon.svg")]
+// TODO: Add a generic static file handler for /a/.. that accesses target/assets
+// and is robust against "../"-attacks.
+// It should also check the hash and return the file with a 1 year cache time if
+// the hash matches.
+
+// TODO: Add a similar static file handler for /js/..
+
+#[get("/a/favicon.svg")]
 pub async fn favicon() -> CacheResponse<Result<NamedFile, ServerError>> {
     CacheResponse::Private {
-        responder: static_file("../target/favicon.svg").await,
+        responder: static_file("../target/assets/favicon.svg").await,
         max_age: 24 * 3600,
     }
 }
 
-#[get("/pacosako-logo.png")]
+#[get("/a/pacosako-logo.png")]
 pub async fn logo() -> CacheResponse<Result<NamedFile, ServerError>> {
     CacheResponse::Private {
-        responder: static_file("../target/pacosako-logo.png").await,
+        responder: static_file("../target/assets/pacosako-logo.png").await,
         max_age: 24 * 3600,
     }
 }
 
-#[get("/bg.jpg")]
+#[get("/a/bg.jpg")]
 pub async fn bg() -> CacheResponse<Result<NamedFile, ServerError>> {
     CacheResponse::Private {
-        responder: static_file("../target/bg.jpg").await,
+        responder: static_file("../target/assets/bg.jpg").await,
         max_age: 24 * 3600,
     }
 }
 
-#[get("/static/place_piece.mp3")]
+#[get("/a/place_piece.mp3")]
 pub async fn place_piece() -> CacheResponse<Result<NamedFile, ServerError>> {
     CacheResponse::Private {
-        responder: static_file("../target/place_piece.mp3").await,
+        responder: static_file("../target/assets/place_piece.mp3").await,
         max_age: 24 * 3600,
-    }
-}
-
-#[get("/static/posterum_cup_banner.jpg")]
-pub async fn posterum() -> CacheResponse<Result<NamedFile, ServerError>> {
-    CacheResponse::Private {
-        responder: static_file("../target/posterum_cup_banner.jpg").await,
-        max_age: 365 * 24 * 3600,
     }
 }

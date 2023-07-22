@@ -46,7 +46,7 @@ officialWebsiteLink =
         , label =
             column [ width fill, centerX, spacing 7 ]
                 [ image [ width (fill |> maximum 400), centerX ]
-                    { src = "/pacosako-logo.png", description = "PacoŜako logo" }
+                    { src = "/a/pacosako-logo.png", description = "PacoŜako logo" }
                 , el
                     [ Font.size 25
                     , centerX

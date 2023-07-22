@@ -39,8 +39,8 @@ async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguag
     );
     debug!(
         "File {} has hash: {}",
-        "../target/main.min.js",
-        caching::hash_file("../target/main.min.js", true)
+        "../target/js/main.min.js",
+        caching::hash_file("../target/js/main.min.js", true)
     );
 
     Template::render(
@@ -48,10 +48,10 @@ async fn index(config: &State<DevEnvironmentConfig>, lang: language::UserLanguag
         context! {
             lang: lang.0,
             elm_hash: caching::hash_file(elm_filename, config.cache_js_hashes),
-            main_hash: caching::hash_file("../target/main.min.js", config.cache_js_hashes),
-            lib_worker_hash:  caching::hash_file("../target/lib_worker.min.js", config.cache_js_hashes),
-            wasm_js_hash: caching::hash_file("../target/lib.min.js", config.cache_js_hashes),
-            wasm_hash: caching::hash_file("../target/lib.wasm", config.cache_js_hashes),
+            main_hash: caching::hash_file("../target/js/main.min.js", config.cache_js_hashes),
+            lib_worker_hash:  caching::hash_file("../target/js/lib_worker.min.js", config.cache_js_hashes),
+            wasm_js_hash: caching::hash_file("../target/js/lib.min.js", config.cache_js_hashes),
+            wasm_hash: caching::hash_file("../target/js/lib.wasm", config.cache_js_hashes),
         },
     )
 }
@@ -493,7 +493,6 @@ fn rocket() -> _ {
                 assets::lib_worker,
                 assets::lib_js,
                 assets::lib_wasm,
-                assets::posterum,
             ],
         )
         .mount(

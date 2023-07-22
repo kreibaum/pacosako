@@ -3,17 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" sizes="any" />
+    <link rel="icon" type="image/svg+xml" href="/a/favicon.svg" sizes="any" />
     <title>Paco Ŝako</title>
     <script>
       var lib_worker_hash = "{{ lib_worker_hash }}";
       var wasm_js_hash = "{{ wasm_js_hash }}";
       var wasm_hash = "{{ wasm_hash }}";
     </script>
-    <script src="/cache/elm.min.js?hash={{ elm_hash }}&lang={{
-        lang
-      }}"></script>
-    <script src="/cache/main.min.js?hash={{ main_hash }}" defer></script>
+    <script src="/js/elm.min.js?hash={{ elm_hash }}&lang={{ lang }}"></script>
+    <script src="/js/main.min.js?hash={{ main_hash }}" defer></script>
     <style>
       #offscreen-canvas {
         display: none;

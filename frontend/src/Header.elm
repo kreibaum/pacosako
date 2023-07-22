@@ -59,7 +59,7 @@ wrapWithHeaderV2 shared toMsg headerData body =
         , height fill
         , Element.scrollbarY
         , if headerData.isWithBackground then
-            Background.image "/bg.jpg"
+            Background.image "/a/bg.jpg"
 
           else
             Background.color (Element.rgb255 255 255 255)
@@ -212,7 +212,7 @@ pageHeaderStyle isRouteHighlighted =
 pacosakoLogo : Element msg
 pacosakoLogo =
     Element.image [ width (px 150), centerX ]
-        { src = "/pacosako-logo.png", description = "PacoŜako logo" }
+        { src = "/a/pacosako-logo.png", description = "PacoŜako logo" }
 
 
 {-| Allows the user to choose the ui language.
