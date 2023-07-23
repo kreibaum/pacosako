@@ -82,6 +82,12 @@ jobs:
             ~/.cargo
           key: build
 
+      - name: Build cache_hash binary
+        run: |
+          cd backend
+          cargo build --bin cache_hash --release
+          cd ..
+
       - uses: actions/setup-node@v2
 
       - name: Install Elm
