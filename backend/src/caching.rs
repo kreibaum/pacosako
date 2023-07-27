@@ -1,3 +1,8 @@
+use axum::{
+    http::{header, HeaderValue, Request},
+    middleware::Next,
+    response::IntoResponse,
+};
 use blake3::Hasher;
 /// Functions related to caching and cache busting.
 use cached::proc_macro::cached;
@@ -32,4 +37,28 @@ pub fn hash_file(path: &str, use_cache: bool) -> String {
     } else {
         hash_file_no_cache(path)
     }
+}
+
+/// This middleware adds a cache control header to all responses which were
+/// requested for /a/* or /js/*.
+/// The request must also contain a query parameter "hash" for the cache control
+/// to be applied. It is then valid for one year and public.
+pub async fn caching_middleware_fn<B>(request: Request<B>, next: Next<B>) -> impl IntoResponse {
+    let path = request.uri().path();
+    let is_static_file = path.starts_with("/a/") || path.starts_with("/js/");
+    let is_cache_busted = is_static_file
+        && request
+            .uri()
+            .query()
+            .map_or(false, |query| query.contains("hash"));
+
+    let mut response = next.run(request).await;
+
+    if is_static_file && is_cache_busted {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000"),
+        );
+    }
+    response
 }
