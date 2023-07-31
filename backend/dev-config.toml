@@ -1,0 +1,5 @@
+
+dev_mode = true
+bind = "0.0.0.0:8000"
+websocket_port = 3010
+database_path = "data/database.sqlite"
