@@ -5,8 +5,7 @@ After=network.target
 [Service]
 User=pacosako
 WorkingDirectory=/home/pacosako/stage/backend
-Environment="ROCKET_PROFILE=staging"
-ExecStart=/home/pacosako/stage/backend/pacosako
+ExecStart=/home/pacosako/stage/backend/pacosako stage-config.toml
 Restart=always
 
 [Install]
