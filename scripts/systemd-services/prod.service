@@ -1,0 +1,12 @@
+[Unit]
+Description=Production Server
+After=network.target
+
+[Service]
+User=pacosako
+WorkingDirectory=/home/pacosako/prod/backend
+ExecStart=/home/pacosako/prod/backend/pacosako
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

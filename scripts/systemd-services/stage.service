@@ -1,0 +1,13 @@
+[Unit]
+Description=Staging Server
+After=network.target
+
+[Service]
+User=pacosako
+WorkingDirectory=/home/pacosako/stage/backend
+Environment="ROCKET_PROFILE=staging"
+ExecStart=/home/pacosako/stage/backend/pacosako
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
