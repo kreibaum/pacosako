@@ -47,6 +47,6 @@ regex = "1"
 lazy_static = "1.4.0"
 reqwest = "0.11.10"
 blake3 = "1.3.1"
-cached = { version = "0.41.0", default-features = false, features = [
+cached = { version = "0.44.0", default-features = false, features = [
     "proc_macro",
 ] }
