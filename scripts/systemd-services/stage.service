@@ -5,7 +5,7 @@ After=network.target
 [Service]
 User=pacosako
 WorkingDirectory=/home/pacosako/stage/backend
-ExecStart=/home/pacosako/stage/backend/pacosako stage-config.toml
+ExecStart=/home/pacosako/stage/backend/pacosako /home/pacosako/stage-config.toml
 Restart=always
 
 [Install]
