@@ -31,6 +31,10 @@ pub async fn run(state: AppState) {
         .route("/", get(index))
         .route("/js/elm.min.js", get(elm_js))
         .fallback(get(index))
+        .route(
+            "/websocket",
+            get(crate::actors::websocket::websocket_handler),
+        )
         .nest_service("/a", ServeDir::new("../target/assets/"))
         .nest_service("/js/lib.min.js", ServeFile::new("../target/js/lib.min.js"))
         .nest_service("/js/lib.wasm", ServeFile::new("../target/js/lib.wasm"))

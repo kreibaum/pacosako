@@ -2,6 +2,7 @@ mod caching;
 mod config;
 mod db;
 //mod discord;
+mod actors;
 mod game;
 mod language;
 mod server;

@@ -12,6 +12,7 @@
         "Atle",
         "bincode",
         "ccall",
+        "dashmap",
         "DYNLIB",
         "Førre",
         "fxhash",
