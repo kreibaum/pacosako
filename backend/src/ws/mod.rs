@@ -1,18 +1,17 @@
 /// Handles all the websocket client logic.
-pub mod client_connector;
 mod legal_move_oracle;
 pub mod wake_up_queue;
 
 use crate::{
+    actors::websocket::SocketId,
     db,
     sync_match::{CurrentMatchState, SynchronizedMatch},
     ServerError,
 };
 use anyhow::bail;
 use async_std::task;
-use async_tungstenite::tungstenite::Message;
+use axum::extract::ws::Message;
 use chrono::{DateTime, Utc};
-use client_connector::{PeerMap, WebsocketOutMsg};
 use kanal::{Receiver, Sender};
 use log::*;
 use once_cell::sync::OnceCell;
@@ -20,10 +19,7 @@ use pacosako::{PacoAction, PlayerColor};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string;
-use std::{
-    collections::{HashMap, HashSet},
-    net::SocketAddr,
-};
+use std::collections::{HashMap, HashSet};
 
 // Everything can send messages to the logic. The logic is a singleton.
 pub static TO_LOGIC: OnceCell<Sender<LogicMsg>> = OnceCell::new();
@@ -40,11 +36,11 @@ pub fn run_server(port: u16, pool: db::Pool) {
         .set(to_logic)
         .expect("Error setting up the TO_LOGIC static variable.");
 
-    let all_peers = client_connector::run_websocket_connector(port);
+    // let all_peers = client_connector::run_websocket_connector(port);
 
     wake_up_queue::spawn_sleeper_thread();
 
-    run_logic_server(all_peers, message_queue, pool);
+    run_logic_server(message_queue, pool);
 }
 
 /// A message that is send to the logic where the logic has then to react.
@@ -52,7 +48,7 @@ pub fn run_server(port: u16, pool: db::Pool) {
 pub enum LogicMsg {
     Websocket {
         data: Message,
-        source: SocketAddr,
+        source: SocketId,
     },
     Timeout {
         key: String,
@@ -64,27 +60,13 @@ pub enum LogicMsg {
     },
 }
 
-impl WebsocketOutMsg for LogicMsg {
-    fn from_ws_message(
-        data: async_tungstenite::tungstenite::Message,
-        source: std::net::SocketAddr,
-    ) -> std::option::Option<Self> {
-        if data.is_text() || data.is_binary() {
-            Some(LogicMsg::Websocket { data, source })
-        } else {
-            None
-        }
-    }
-}
-
 /// Spawn a thread that handles the server logic.
-fn run_logic_server(all_peers: PeerMap, message_queue: Receiver<LogicMsg>, pool: db::Pool) {
-    std::thread::spawn(move || task::block_on(loop_logic_server(all_peers, message_queue, pool)));
+fn run_logic_server(message_queue: Receiver<LogicMsg>, pool: db::Pool) {
+    std::thread::spawn(move || task::block_on(loop_logic_server(message_queue, pool)));
 }
 
 /// Simple loop that reacts to all the messages.
 async fn loop_logic_server(
-    all_peers: PeerMap,
     message_queue: Receiver<LogicMsg>,
     pool: db::Pool,
 ) -> Result<(), ServerError> {
@@ -92,7 +74,7 @@ async fn loop_logic_server(
 
     while let Ok(msg) = message_queue.recv() {
         let mut conn = pool.0.acquire().await?;
-        let res = handle_message(msg, &all_peers, &mut server_state, &mut conn).await;
+        let res = handle_message(msg, &mut server_state, &mut conn).await;
         if let Err(e) = res {
             warn!("Error in the websocket: {:?}", e);
         }
@@ -103,13 +85,13 @@ async fn loop_logic_server(
 #[derive(Debug, Default)]
 struct ServerState {
     rooms: HashMap<String, GameRoom>,
-    uuids: HashMap<SocketAddr, String>,
+    uuids: HashMap<SocketId, String>,
 }
 
 impl ServerState {
     /// Returns a room, creating it if required. The socket that asked is added
     /// to the room automatically.
-    fn room(&mut self, key: &str, asked_by: SocketAddr) -> &mut GameRoom {
+    fn room(&mut self, key: &str, asked_by: SocketId) -> &mut GameRoom {
         let room = self.rooms.entry(key.to_string()).or_insert(GameRoom {
             key: key.to_string(),
             connected: HashSet::new(),
@@ -124,7 +106,7 @@ impl ServerState {
         self.rooms.remove(key);
     }
 
-    fn get_uuid(&self, sender: SocketAddr) -> String {
+    fn get_uuid(&self, sender: SocketId) -> String {
         self.uuids
             .get(&sender)
             .map_or("None".to_owned(), |s| s.clone())
@@ -134,7 +116,7 @@ impl ServerState {
 #[derive(Debug)]
 struct GameRoom {
     key: String,
-    connected: HashSet<SocketAddr>,
+    connected: HashSet<SocketId>,
     /// The UUIDs that are allowed to make moves on this board.
     /// This is not persisted for now, so after a server restart the game
     /// can be hijacked in principle.
@@ -204,7 +186,6 @@ pub enum ServerMessage {
 /// that is still open here.
 async fn handle_message(
     msg: LogicMsg,
-    ws: &PeerMap,
     server_state: &mut ServerState,
     conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
@@ -215,7 +196,7 @@ async fn handle_message(
             match data {
                 Message::Text(ref text) => {
                     if let Ok(client_msg) = from_str(text) {
-                        handle_client_message(client_msg, source, ws, server_state, conn).await?;
+                        handle_client_message(client_msg, source, server_state, conn).await?;
                     } else if let Ok(client_msg) = from_str(text) {
                         let x: RoutedClientMessage = client_msg;
                         println!(
@@ -224,7 +205,7 @@ async fn handle_message(
                         );
                         if x.message_type == "subscribeToMatchSocket" {
                             if let Ok(data) = from_str::<SubscribeToMatchSocketData>(&x.data) {
-                                handle_subscribe_to_match(data.key, source, ws, server_state, conn)
+                                handle_subscribe_to_match(data.key, source, server_state, conn)
                                     .await?;
                             }
                         }
@@ -234,7 +215,7 @@ async fn handle_message(
                     warn!("Binary message received: {:?}", payload);
                     bail!("Binary message received: {:?}", payload);
                 }
-                Message::Ping(payload) => send_raw_msg(ws, &source, Message::Pong(payload)).await?,
+                Message::Ping(payload) => {}
                 Message::Pong(_) => {}
                 Message::Close(_) => {
                     info!("Close message received. This is not implemented here.");
@@ -251,7 +232,7 @@ async fn handle_message(
 
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&game.key) {
-                broadcast_state(room, &state, ws).await;
+                broadcast_state(room, &state).await;
             }
             Ok(())
         }
@@ -263,14 +244,14 @@ async fn handle_message(
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
                 if let Some(room) = server_state.rooms.get_mut(&key) {
-                    broadcast_state(room, &state, ws).await;
+                    broadcast_state(room, &state).await;
                 }
             }
 
             let state = game.do_action(action)?;
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&key) {
-                broadcast_state(room, &state, ws).await;
+                broadcast_state(room, &state).await;
             }
 
             Ok(())
@@ -300,8 +281,7 @@ async fn progress_the_timer(
 
 async fn handle_client_message(
     msg: ClientMessage,
-    sender: SocketAddr,
-    ws: &PeerMap,
+    sender: SocketId,
     server_state: &mut ServerState,
     conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
@@ -315,7 +295,8 @@ async fn handle_client_message(
                 game
             } else {
                 server_state.destroy_room(&key);
-                return send_error(format!("Game {} not found", key), &sender, ws).await;
+                send_error(format!("Game {} not found", key), &sender).await;
+                return Ok(());
             };
 
             ensure_uuid_is_allowed(room, &game, uuid)?;
@@ -324,13 +305,13 @@ async fn handle_client_message(
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
-                broadcast_state(room, &state, ws).await;
+                broadcast_state(room, &state).await;
                 return Ok(());
             }
 
             let state = game.do_action(action)?;
             store_game(&game, conn).await?;
-            broadcast_state(room, &state, ws).await;
+            broadcast_state(room, &state).await;
         }
         ClientMessage::Rollback { key } => {
             let uuid = server_state.get_uuid(sender);
@@ -349,13 +330,13 @@ async fn handle_client_message(
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
-                broadcast_state(room, &state, ws).await;
+                broadcast_state(room, &state).await;
                 return Ok(());
             }
 
             let state = game.rollback()?;
             store_game(&game, conn).await?;
-            broadcast_state(room, &state, ws).await;
+            broadcast_state(room, &state).await;
         }
         ClientMessage::TimeDriftCheck { send } => {
             send_msg(
@@ -364,9 +345,8 @@ async fn handle_client_message(
                     bounced: Utc::now(),
                 },
                 &sender,
-                ws,
             )
-            .await?;
+            .await;
         }
         ClientMessage::SetUUID { uuid } => {
             server_state.uuids.insert(sender, uuid);
@@ -374,7 +354,7 @@ async fn handle_client_message(
         ClientMessage::GetUUID => {
             let uuid: String = server_state.get_uuid(sender);
             let msg = ServerMessage::SocketUUID { uuid };
-            send_msg(msg, &sender, ws).await?;
+            send_msg(msg, &sender).await;
         }
         ClientMessage::LegalMoveOracle {
             fen,
@@ -390,9 +370,8 @@ async fn handle_client_message(
                             token,
                         },
                         &sender,
-                        ws,
                     )
-                    .await?;
+                    .await;
                 }
                 Err(e) => warn!(
                     "Client made illegal oracle request. Fen={}, actions={:?}, error={:?}",
@@ -406,8 +385,7 @@ async fn handle_client_message(
 
 async fn handle_subscribe_to_match(
     key: String,
-    sender: SocketAddr,
-    ws: &PeerMap,
+    sender: SocketId,
     server_state: &mut ServerState,
     conn: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
 ) -> Result<(), anyhow::Error> {
@@ -418,7 +396,8 @@ async fn handle_subscribe_to_match(
         Ok(state) => state,
         Err(_) => {
             server_state.destroy_room(&key);
-            return send_error(format!("Could not connect to game {}", key), &sender, ws).await;
+            send_error(format!("Could not connect to game {}", key), &sender).await;
+            return Ok(());
         }
     };
     if let Some(ref timer) = state.timer {
@@ -428,7 +407,7 @@ async fn handle_subscribe_to_match(
         }
     }
     let response = ServerMessage::CurrentMatchState(state);
-    send_msg(response, &sender, ws).await?;
+    send_msg(response, &sender).await;
     Ok(())
 }
 
@@ -489,13 +468,13 @@ fn ensure_uuid_is_allowed(
     Ok(())
 }
 
-async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState, ws: &PeerMap) {
+async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState) {
     let mut offenders = vec![];
     for target in room.connected.iter() {
-        // Propagating the error may blame the wrong connection. Instead we just
-        // remove the offending party from the room.
-        let res = send_msg(ServerMessage::CurrentMatchState(state.clone()), target, ws).await;
-        if res.is_err() {
+        // Remove participants that have disconnected.
+        if target.is_alive() {
+            send_msg(ServerMessage::CurrentMatchState(state.clone()), target).await;
+        } else {
             offenders.push(*target);
         }
     }
@@ -505,34 +484,21 @@ async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState, ws: &Pe
     }
 }
 
-async fn send_msg(
-    message: ServerMessage,
-    target: &SocketAddr,
-    ws: &PeerMap,
-) -> Result<(), anyhow::Error> {
-    let msg = to_string(&message)?;
-    send_raw_msg(ws, target, Message::Text(msg)).await
+async fn send_msg(message: ServerMessage, target: &SocketId) {
+    let Ok(msg) = to_string(&message) else {
+        warn!("Could not serialize message: {:?}", message);
+        return;
+    };
+    send_raw_msg(target, Message::Text(msg)).await
 }
 
-async fn send_raw_msg(
-    ws: &PeerMap,
-    target: &SocketAddr,
-    out_msg: Message,
-) -> Result<(), anyhow::Error> {
-    if let Some(target) = ws.get(target).await {
-        Ok(target.send(out_msg).await?)
-    } else {
-        bail!("target does not have a sender.")
-    }
+async fn send_raw_msg(target: &SocketId, out_msg: Message) {
+    target.send(out_msg).await;
 }
 
 /// Helper message to make sending error messages easier.
-async fn send_error(
-    error_message: String,
-    target: &SocketAddr,
-    ws: &PeerMap,
-) -> Result<(), anyhow::Error> {
-    send_msg(ServerMessage::Error(error_message), target, ws).await
+async fn send_error(error_message: String, target: &SocketId) {
+    send_msg(ServerMessage::Error(error_message), target).await
 }
 
 async fn fetch_game(

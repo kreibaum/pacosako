@@ -288,14 +288,11 @@ class WebsocketWrapper {
     private direct_connection(): Promise<WebSocket | undefined> {
         let protocol = window.location.protocol === "https:" ? "wss" : "ws"
         let hostname = window.location.hostname
-        let websocket_url = `${protocol}://${hostname}/websocket`
-        if (!hostname.includes("localhost")
-            && !hostname.includes("127.0.0.1")
-            && !hostname.includes("0.0.0.0")) {
-            return this.try_connect(websocket_url)
-        } else {
-            return Promise.resolve(undefined)
-        }
+        let port = window.location.port
+        let port_str = port ? `:${port}` : ""
+
+        let websocket_url = `${protocol}://${hostname}${port_str}/websocket`
+        return this.try_connect(websocket_url)
     }
 
     /**
@@ -344,7 +341,7 @@ class WebsocketWrapper {
         this.sendStatusToElm("Connected")
         this.ws = ws
         this.onopen(null)
-        this.ws.onclose = ev => this.connection_closed()
+        this.ws.onclose = ev => this.connection_closed(ev)
     }
 
     private onopen(ev: Event) {
@@ -387,7 +384,12 @@ class WebsocketWrapper {
      * Notifies the elm app of the socket problem and tries to reconnect using
      * an exponential back-off strategy.
      */
-    private connection_closed() {
+    private connection_closed(ev: CloseEvent) {
+        if (ev.wasClean) {
+            console.log("Websocket connection was closed cleanly.")
+            return;
+        }
+
         this.sendStatusToElm("Disconnected")
 
         console.log("Websocket connection was closed. Trying to reconnect.")

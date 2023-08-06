@@ -18,6 +18,8 @@ use tokio::{
     task::AbortHandle,
 };
 
+use crate::ws::{to_logic, LogicMsg};
+
 /// Identifies a websocket connection across the server.
 /// This is used to send messages to a specific socket.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -37,6 +39,9 @@ impl SocketId {
     /// Calling this method makes the socket callable by it's id.
     fn with_data(self, data: SocketData) {
         ALL_SOCKETS.insert(self, data);
+    }
+    pub fn is_alive(self) -> bool {
+        ALL_SOCKETS.contains_key(&self)
     }
     /// If there is a socket registered with this id, return a Sender that can
     /// be used to send messages to it. This sender puts messages into a mpsc
@@ -87,7 +92,22 @@ struct SocketData {
 
 /// Handles a new websocket connection, setting up the tasks that read and
 /// write to the socket. This also registers the socket on its id.
-async fn handle_socket(socket: WebSocket) {
+async fn handle_socket(mut socket: WebSocket) {
+    // socket
+    //     .send(Message::Text("Hello from the server!".to_string()))
+    //     .await
+    //     .unwrap();
+    // // Sleep for 0.4 seconds
+    // tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+
+    // socket
+    //     .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+    //         code: 1000,
+    //         reason: std::borrow::Cow::Borrowed(""),
+    //     })))
+    //     .await
+    //     .unwrap();
+    // socket.close().await.unwrap();
     let (sender, receiver) = socket.split();
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);
@@ -110,7 +130,13 @@ async fn handle_socket(socket: WebSocket) {
 async fn read(mut receiver: SplitStream<WebSocket>, id: SocketId) {
     while let Some(msg) = receiver.next().await {
         match msg {
-            Ok(msg) => id.send(msg).await,
+            Ok(msg) => {
+                //id.send(msg).await
+                to_logic(LogicMsg::Websocket {
+                    data: msg,
+                    source: id,
+                });
+            }
             Err(e) => {
                 error!("Error reading from websocket {}: {}", id.0, e);
                 id.remove();
