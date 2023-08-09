@@ -92,22 +92,7 @@ struct SocketData {
 
 /// Handles a new websocket connection, setting up the tasks that read and
 /// write to the socket. This also registers the socket on its id.
-async fn handle_socket(mut socket: WebSocket) {
-    // socket
-    //     .send(Message::Text("Hello from the server!".to_string()))
-    //     .await
-    //     .unwrap();
-    // // Sleep for 0.4 seconds
-    // tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-
-    // socket
-    //     .send(Message::Close(Some(axum::extract::ws::CloseFrame {
-    //         code: 1000,
-    //         reason: std::borrow::Cow::Borrowed(""),
-    //     })))
-    //     .await
-    //     .unwrap();
-    // socket.close().await.unwrap();
+async fn handle_socket(socket: WebSocket) {
     let (sender, receiver) = socket.split();
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);
