@@ -118,7 +118,7 @@ impl CurrentMatchState {
     ) -> Result<Self, PacoError> {
         let victory_state = Self::victory_state(board, &sync_match.timer);
 
-        Ok(CurrentMatchState {
+        Ok(Self {
             key: sync_match.key.clone(),
             actions: sync_match.actions.clone(),
             legal_actions: if victory_state.is_over() {
@@ -154,7 +154,7 @@ impl SynchronizedMatch {
             draw_after_n_repetitions: params.draw_after_n_repetitions.unwrap_or(3),
         };
 
-        SynchronizedMatch {
+        Self {
             key: key.to_owned(),
             actions: Vec::default(),
             timer: params.timer.map(|t| t.into()),
@@ -206,7 +206,7 @@ impl SynchronizedMatch {
 
         if board.victory_state().is_over() {
             if let Some(timer) = &mut self.timer {
-                timer.stop()
+                timer.stop();
             }
         }
 

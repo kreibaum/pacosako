@@ -47,8 +47,8 @@ pub enum ServerError {
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         match self {
-            ServerError::NotAllowed => (StatusCode::FORBIDDEN, "Not allowed").into_response(),
-            ServerError::NotFound => (StatusCode::NOT_FOUND, "Not found").into_response(),
+            Self::NotAllowed => (StatusCode::FORBIDDEN, "Not allowed").into_response(),
+            Self::NotFound => (StatusCode::NOT_FOUND, "Not found").into_response(),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response(),
         }
     }
@@ -157,7 +157,9 @@ impl IntoResponse for ServerError {
 ////////////////////////////////////////////////////////////////////////////////
 
 fn init_logger() {
-    use simplelog::*;
+    use simplelog::{
+        ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+    };
 
     CombinedLogger::init(vec![
         TermLogger::new(
@@ -197,10 +199,7 @@ async fn init_database_pool(config: EnvironmentConfig) -> Pool {
     info!("Starting database migrations (if necessary)");
     let migration_result = sqlx::migrate!().run(&pool.0).await;
     if let Err(migration_error) = migration_result {
-        panic!(
-            "Migration error when starting the server: {:?}",
-            migration_error
-        );
+        panic!("Migration error when starting the server: {migration_error:?}");
     }
     info!("Database migrated successfully.");
     info!("Pool ready in {}ms", now.elapsed().as_millis());
@@ -209,11 +208,11 @@ async fn init_database_pool(config: EnvironmentConfig) -> Pool {
 }
 
 /// Initialize the websocket server and provide it with a database connection.
-fn init_new_websocket_server(config: EnvironmentConfig, pool: Pool) {
+fn init_new_websocket_server(pool: Pool) {
     info!("Starting websocket server");
     let now = std::time::Instant::now();
 
-    ws::run_server(config.websocket_port, pool);
+    ws::run_server(pool);
 
     info!(
         "Websocket server started in {}ms",
@@ -229,14 +228,14 @@ pub struct AppState {
 
 // support converting an `AppState` in an `EnvironmentConfig`
 impl FromRef<AppState> for EnvironmentConfig {
-    fn from_ref(app_state: &AppState) -> EnvironmentConfig {
+    fn from_ref(app_state: &AppState) -> Self {
         app_state.config.clone()
     }
 }
 
 // support converting an `AppState` in an `Pool`
 impl FromRef<AppState> for Pool {
-    fn from_ref(app_state: &AppState) -> Pool {
+    fn from_ref(app_state: &AppState) -> Self {
         app_state.pool.clone()
     }
 }
@@ -249,7 +248,7 @@ async fn main() {
 
     let pool = init_database_pool(config.clone()).await;
 
-    init_new_websocket_server(config.clone(), pool.clone());
+    init_new_websocket_server(pool.clone());
 
     let state = AppState { config, pool };
 

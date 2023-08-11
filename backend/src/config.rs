@@ -8,7 +8,6 @@ use std::{env, fs};
 pub struct EnvironmentConfig {
     pub dev_mode: bool,
     pub database_path: String,
-    pub websocket_port: u16,
     pub bind: String,
 }
 
@@ -22,7 +21,7 @@ pub fn load_config() -> EnvironmentConfig {
         Ok(config) => config,
         Err(err) => {
             // With the immediate exit, we can't use error!() here.
-            println!("Error loading config: {}", err);
+            println!("Error loading config: {err}");
             std::process::exit(1);
         }
     }
@@ -43,7 +42,7 @@ fn load_config_inner() -> Result<EnvironmentConfig, String> {
 
     // Read the config file
     let config_file = fs::read_to_string(&config_filename)
-        .map_err(|_| format!("Could not read config file at path: {}", config_filename))?;
+        .map_err(|_| format!("Could not read config file at path: {config_filename}"))?;
 
     info!("Loaded config file: {}", config_filename);
 

@@ -1,5 +1,4 @@
 /// Handles all the websocket client logic.
-mod legal_move_oracle;
 pub mod wake_up_queue;
 
 use crate::{
@@ -13,7 +12,7 @@ use async_std::task;
 use axum::extract::ws::Message;
 use chrono::{DateTime, Utc};
 use kanal::{Receiver, Sender};
-use log::*;
+use log::{info, warn};
 use once_cell::sync::OnceCell;
 use pacosako::{PacoAction, PlayerColor};
 use serde::{Deserialize, Serialize};
@@ -26,17 +25,15 @@ pub static TO_LOGIC: OnceCell<Sender<LogicMsg>> = OnceCell::new();
 
 pub fn to_logic(msg: LogicMsg) {
     if let Err(e) = TO_LOGIC.get().expect("Logic not initialized.").send(msg) {
-        warn!("Error sending message to logic: {}", e)
+        warn!("Error sending message to logic: {}", e);
     }
 }
 
-pub fn run_server(port: u16, pool: db::Pool) {
+pub fn run_server(pool: db::Pool) {
     let (to_logic, message_queue) = kanal::unbounded();
     TO_LOGIC
         .set(to_logic)
         .expect("Error setting up the TO_LOGIC static variable.");
-
-    // let all_peers = client_connector::run_websocket_connector(port);
 
     wake_up_queue::spawn_sleeper_thread();
 
@@ -126,27 +123,12 @@ struct GameRoom {
 /// All allowed messages that may be send by the client to the server.
 #[derive(Deserialize)]
 enum ClientMessage {
-    DoAction {
-        key: String,
-        action: PacoAction,
-    },
-    Rollback {
-        key: String,
-    },
-    TimeDriftCheck {
-        send: DateTime<Utc>,
-    },
-    SetUUID {
-        uuid: String,
-    },
+    DoAction { key: String, action: PacoAction },
+    Rollback { key: String },
+    TimeDriftCheck { send: DateTime<Utc> },
+    SetUUID { uuid: String },
     // Ask for the socket uuid by sending "GetUUID" as json. For debugging.
     GetUUID,
-    LegalMoveOracle {
-        fen: String,
-        actions: Vec<PacoAction>,
-        /// We use a token to make sure request and response can be matched.
-        token: String,
-    },
 }
 
 #[derive(Deserialize)]
@@ -173,10 +155,6 @@ pub enum ServerMessage {
     /// Returns the socket uuid. For debugging.
     SocketUUID {
         uuid: String,
-    },
-    LegalMoveOracleResponse {
-        legal_actions: Vec<PacoAction>,
-        token: String,
     },
 }
 
@@ -215,8 +193,7 @@ async fn handle_message(
                     warn!("Binary message received: {:?}", payload);
                     bail!("Binary message received: {:?}", payload);
                 }
-                Message::Ping(payload) => {}
-                Message::Pong(_) => {}
+                Message::Ping(_) | Message::Pong(_) => {}
                 Message::Close(_) => {
                     info!("Close message received. This is not implemented here.");
                 }
@@ -228,7 +205,7 @@ async fn handle_message(
 
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone())?;
 
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&game.key) {
@@ -239,7 +216,7 @@ async fn handle_message(
         LogicMsg::AiAction { key, action } => {
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone())?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -259,7 +236,7 @@ async fn handle_message(
     }
 }
 
-async fn progress_the_timer(
+fn progress_the_timer(
     game: &mut SynchronizedMatch,
     key: String,
 ) -> Result<CurrentMatchState, anyhow::Error> {
@@ -291,17 +268,15 @@ async fn handle_client_message(
             let room = server_state.room(&key, sender);
 
             let game = fetch_game(&room.key, conn).await;
-            let mut game = if let Ok(game) = game {
-                game
-            } else {
+            let Ok(mut game) = game else {
                 server_state.destroy_room(&key);
-                send_error(format!("Game {} not found", key), &sender).await;
+                send_error(format!("Game {key} not found"), &sender).await;
                 return Ok(());
             };
 
             ensure_uuid_is_allowed(room, &game, uuid)?;
 
-            let state = progress_the_timer(&mut game, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone())?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -326,7 +301,7 @@ async fn handle_client_message(
                 return Ok(());
             }
 
-            let state = progress_the_timer(&mut game, key.clone()).await?;
+            let state = progress_the_timer(&mut game, key.clone())?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -356,29 +331,6 @@ async fn handle_client_message(
             let msg = ServerMessage::SocketUUID { uuid };
             send_msg(msg, &sender).await;
         }
-        ClientMessage::LegalMoveOracle {
-            fen,
-            actions,
-            token,
-        } => {
-            let legal_actions = legal_move_oracle::legal_moves(&fen, &actions);
-            match legal_actions {
-                Ok(legal_actions) => {
-                    send_msg(
-                        ServerMessage::LegalMoveOracleResponse {
-                            legal_actions,
-                            token,
-                        },
-                        &sender,
-                    )
-                    .await;
-                }
-                Err(e) => warn!(
-                    "Client made illegal oracle request. Fen={}, actions={:?}, error={:?}",
-                    fen, actions, e
-                ),
-            }
-        }
     }
     Ok(())
 }
@@ -392,13 +344,10 @@ async fn handle_subscribe_to_match(
     server_state.room(&key, sender);
     let game = fetch_game(&key, conn).await?;
     let state = game.current_state();
-    let state = match state {
-        Ok(state) => state,
-        Err(_) => {
-            server_state.destroy_room(&key);
-            send_error(format!("Could not connect to game {}", key), &sender).await;
-            return Ok(());
-        }
+    let Ok(state) = state else {
+        server_state.destroy_room(&key);
+        send_error(format!("Could not connect to game {key}"), &sender).await;
+        return Ok(());
     };
     if let Some(ref timer) = state.timer {
         if !timer.get_state().is_finished() {
@@ -470,7 +419,7 @@ fn ensure_uuid_is_allowed(
 
 async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState) {
     let mut offenders = vec![];
-    for target in room.connected.iter() {
+    for target in &room.connected {
         // Remove participants that have disconnected.
         if target.is_alive() {
             send_msg(ServerMessage::CurrentMatchState(state.clone()), target).await;
@@ -489,7 +438,7 @@ async fn send_msg(message: ServerMessage, target: &SocketId) {
         warn!("Could not serialize message: {:?}", message);
         return;
     };
-    send_raw_msg(target, Message::Text(msg)).await
+    send_raw_msg(target, Message::Text(msg)).await;
 }
 
 async fn send_raw_msg(target: &SocketId, out_msg: Message) {
@@ -498,7 +447,7 @@ async fn send_raw_msg(target: &SocketId, out_msg: Message) {
 
 /// Helper message to make sending error messages easier.
 async fn send_error(error_message: String, target: &SocketId) {
-    send_msg(ServerMessage::Error(error_message), target).await
+    send_msg(ServerMessage::Error(error_message), target).await;
 }
 
 async fn fetch_game(

@@ -28,7 +28,7 @@ pub async fn insert(
     .await?
     .last_insert_rowid();
 
-    game.key = format!("{}", id);
+    game.key = format!("{id}");
 
     Ok(())
 }
@@ -72,7 +72,7 @@ pub async fn select(
     .await?;
 
     if let Some(raw_game) = raw_game {
-        Ok(Some(raw_game.to_match()?))
+        Ok(Some(raw_game.into_match()?))
     } else {
         Ok(None)
     }
@@ -90,7 +90,7 @@ pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, Ser
 
     let mut result = Vec::with_capacity(raw_games.len());
     for raw_game in raw_games {
-        result.push(raw_game.to_match()?);
+        result.push(raw_game.into_match()?);
     }
 
     Ok(result)
@@ -106,7 +106,7 @@ struct RawGame {
 }
 
 impl RawGame {
-    fn to_match(self) -> Result<SynchronizedMatch, ServerError> {
+    fn into_match(self) -> Result<SynchronizedMatch, ServerError> {
         let timer = if let Some(ref timer) = self.timer {
             let timer: Timer = serde_json::from_str(timer)?;
             Some(timer.sanitize())

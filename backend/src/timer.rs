@@ -44,7 +44,7 @@ impl TimerConfig {
 /// Ensure that all values of the timer config are below 1000000. This
 /// ensures we don't trigger an overflow. See #85.
 fn limit_for_safety(to_limit: Duration) -> Duration {
-    to_limit.min(Duration::seconds(1000000))
+    to_limit.min(Duration::seconds(1_000_000))
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -64,14 +64,14 @@ pub struct Timer {
     config: TimerConfig,
 }
 
-/// There is no default implementation for serde::Serialize for Duration, so we
+/// There is no default implementation for `serde::Serialize` for `Duration`, so we
 /// have to provide it ourself. This also gives us the flexibility to decide
 /// how much precision we expose to the client.
 fn serialize_seconds<S: serde::Serializer>(duration: &Duration, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_f32(duration.num_milliseconds() as f32 / 1000f32)
 }
 
-/// Like serialize_seconds, but optional
+/// Like `serialize_seconds`, but optional
 fn serialize_seconds_optional<S: serde::Serializer>(
     duration: &Option<Duration>,
     s: S,
@@ -82,24 +82,25 @@ fn serialize_seconds_optional<S: serde::Serializer>(
     }
 }
 
-/// There is no default implementation for serde::Serialize for Duration, so we
+fn duration_from_f32_seconds(seconds: f32) -> Duration {
+    Duration::milliseconds((1000.0 * seconds) as i64)
+}
+
+/// There is no default implementation for `serde::Serialize` for `Duration`, so we
 /// have to provide it ourself. This also gives us the flexibility to decide
 /// how much precision we expose to the client.
 fn deserialize_seconds<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Duration, D::Error> {
     let seconds: f32 = serde::de::Deserialize::deserialize(d)?;
-    Ok(Duration::milliseconds((1000.0 * seconds) as i64))
+    Ok(duration_from_f32_seconds(seconds))
 }
 
-/// Like deserialize_seconds, but optional
+/// Like `deserialize_seconds`, but optional
 fn deserialize_seconds_optional<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<Option<Duration>, D::Error> {
     let seconds: Result<f32, D::Error> = serde::de::Deserialize::deserialize(d);
-    if let Ok(seconds) = seconds {
-        Ok(Some(Duration::milliseconds((1000.0 * seconds) as i64)))
-    } else {
-        Ok(None)
-    }
+
+    seconds.map(|seconds| Some(duration_from_f32_seconds(seconds)))
 }
 
 impl Timer {
@@ -162,7 +163,7 @@ impl Timer {
         }
     }
 
-    pub fn get_state(&self) -> TimerState {
+    pub const fn get_state(&self) -> TimerState {
         self.timer_state
     }
 
@@ -214,19 +215,17 @@ pub enum TimerState {
 }
 
 impl TimerState {
-    pub fn is_finished(self) -> bool {
+    pub const fn is_finished(self) -> bool {
         match self {
-            TimerState::NotStarted => false,
-            TimerState::Running => false,
-            TimerState::Timeout(_) => true,
-            TimerState::Stopped => true,
+            Self::NotStarted | Self::Running => false,
+            Self::Timeout(_) | Self::Stopped => true,
         }
     }
 }
 
 impl From<TimerConfig> for Timer {
-    fn from(config: TimerConfig) -> Timer {
-        Timer {
+    fn from(config: TimerConfig) -> Self {
+        Self {
             last_timestamp: Utc::now(),
             time_left_white: config.time_budget_white,
             time_left_black: config.time_budget_black,
@@ -237,8 +236,8 @@ impl From<TimerConfig> for Timer {
 }
 
 impl From<&TimerConfig> for Timer {
-    fn from(config: &TimerConfig) -> Timer {
-        Timer {
+    fn from(config: &TimerConfig) -> Self {
+        Self {
             last_timestamp: Utc::now(),
             time_left_white: config.time_budget_white,
             time_left_black: config.time_budget_black,

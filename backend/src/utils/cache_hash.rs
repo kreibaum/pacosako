@@ -22,6 +22,6 @@ fn main() {
     let mut file = fs::File::open(filename).expect("Error opening file");
     let mut hasher = Hasher::new();
     io::copy(&mut file, &mut hasher)
-        .unwrap_or_else(|_| panic!("Could not hash static file at path: {}", filename));
+        .unwrap_or_else(|_| panic!("Could not hash static file at path: {filename}"));
     println!("{}", hasher.finalize().to_hex());
 }

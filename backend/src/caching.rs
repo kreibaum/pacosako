@@ -12,11 +12,11 @@ use std::{fs::File, io};
 /// Returns the hash as a string.
 fn hash_file_no_cache(path: &str) -> String {
     let Ok(mut file) = File::open(path) else {
-        panic!("Could not open static file at path: {}", path)
+        panic!("Could not open static file at path: {path}")
     };
     let mut hasher = Hasher::new();
     let Ok(_) = io::copy(&mut file, &mut hasher) else {
-        panic!("Could not hash static file at path: {}", path)
+        panic!("Could not hash static file at path: {path}")
     };
     hasher.finalize().to_hex().to_string()
 }

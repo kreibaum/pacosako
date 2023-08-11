@@ -9,7 +9,7 @@ use axum::{
     middleware,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Router,
 };
 use serde::Deserialize;
 use tera::Context;
@@ -21,9 +21,8 @@ use tower_http::services::{ServeDir, ServeFile};
 pub async fn run(state: AppState) {
     let socket_addr = state.config.bind.parse().unwrap();
 
-    let api: Router<AppState> = game::add_to_router(Router::new())
-        .route("/websocket/port", get(websocket_port))
-        .route("/language", post(language::set_user_language));
+    let api: Router<AppState> =
+        game::add_to_router(Router::new()).route("/language", post(language::set_user_language));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();
@@ -112,11 +111,6 @@ async fn index(
     ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], body)
 }
 
-// Used for fallback connection in local development environment.
-async fn websocket_port(config: State<EnvironmentConfig>) -> Json<u16> {
-    Json(config.websocket_port)
-}
-
 #[derive(Deserialize)]
 struct LangQuery {
     lang: String,
@@ -136,7 +130,7 @@ async fn elm_js(config: State<EnvironmentConfig>, query: Query<LangQuery>) -> im
 
     let file = File::open(filename)
         .await
-        .unwrap_or_else(|_| panic!("Could not open static file at path: {}", filename));
+        .unwrap_or_else(|_| panic!("Could not open static file at path: {filename}"));
 
     let body = StreamBody::new(ReaderStream::new(file));
 

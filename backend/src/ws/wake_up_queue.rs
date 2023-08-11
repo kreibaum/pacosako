@@ -38,7 +38,7 @@ pub fn put(key: impl Into<String>, wake_up: Instant) {
             wake_up,
         })
     {
-        warn!("Failed to send wake up entry: {}", e)
+        warn!("Failed to send wake up entry: {}", e);
     }
 }
 
@@ -135,9 +135,9 @@ struct WakeUpEntry {
     wake_up: Instant,
 }
 
-/// Implement Ord on WakeUpEntry so that it can be used in a BTreeSet.
-/// The ordering is reversed so that the smallest wake_up time is at the front.
-/// If the wake_up times are equal, the key is used to break the tie.
+/// Implement Ord on `WakeUpEntry` so that it can be used in a `BTreeSet`.
+/// The ordering is reversed so that the smallest wake-up time is at the front.
+/// If the wake-up times are equal, the key is used to break the tie.
 /// This is needed to make the ordering total.
 impl Ord for WakeUpEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
