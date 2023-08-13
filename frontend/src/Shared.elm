@@ -101,8 +101,7 @@ init { url, key } flags =
       , websocketConnectionState = Api.Websocket.WebsocketConnecting
       , lastWebsocketStatusUpdate = now
       }
-    , Api.Backend.getCurrentLogin HttpError
-        (Maybe.map LoginSuccess >> Maybe.withDefault LogoutSuccess)
+    , Cmd.none
     )
 
 
