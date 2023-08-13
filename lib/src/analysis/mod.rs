@@ -43,6 +43,17 @@ pub struct HalfMoveMetadata {
     gives_opponent_paco_opportunity: bool,
 }
 
+/// Metadata with all flags set to false.
+impl Default for HalfMoveMetadata {
+    fn default() -> Self {
+        HalfMoveMetadata {
+            gives_sako: false,
+            missed_paco: false,
+            gives_opponent_paco_opportunity: false,
+        }
+    }
+}
+
 /// A notation atom roughly corresponds to a Sako.Action but carries more metadata.
 #[derive(Debug, Clone)]
 pub(crate) enum NotationAtom {
@@ -179,8 +190,8 @@ fn apply_action_semantically(
     }
 }
 
-// Turns a list of notation atoms into a list of sections.
-// the initial 2-move is combined into a single section.
+/// Turns a list of notation atoms into a list of sections.
+/// the initial 2-move is combined into a single section.
 fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<HalfMoveSection> {
     let mut result: Vec<HalfMoveSection> = Vec::new();
 
@@ -267,17 +278,14 @@ pub fn history_to_replay_notation(
     let mut in_sako_before_move = is_sako(&board, board.controlling_player().other())?;
 
     // Pick moves off the stack and add them to the current half move.
-
-    // This one just gets added to.
-    let mut all_notations = Vec::new();
-    // This one gets added to during one move and then turned into a HalfMove.
+    // This vector collects notation atoms and then gets turned into a HalfMove
+    // when the current player changes. (Or game is over)
     let mut notations = Vec::new();
     for (action_index, &action) in actions.iter().enumerate() {
         let notation = apply_action_semantically(&mut board, action)?;
-        all_notations.push(notation.clone());
         notations.push(notation);
 
-        if board.controlling_player() != current_player {
+        if board.controlling_player() != current_player || board.victory_state.is_over() {
             // analyze situation, finalize half move, change color
             let giving_sako_after_move = is_sako(&board, current_player)?;
             let in_sako_after_move = is_sako(&board, current_player.other())?;
@@ -320,6 +328,10 @@ pub fn history_to_replay_notation(
 }
 
 pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
+    // If the game is already over, we don't need to check for ŝako.
+    if board.victory_state().is_over() {
+        return Ok(false);
+    }
     let mut board = board.clone();
     if board.required_action.is_promote() {
         board.execute(PacoAction::Promote(PieceType::Queen))?;
