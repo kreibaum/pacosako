@@ -1,5 +1,6 @@
 use std::sync::atomic;
 
+use crate::ws::{to_logic, LogicMsg};
 use axum::{
     extract::{
         ws::{Message, WebSocket},
@@ -17,8 +18,6 @@ use tokio::{
     sync::mpsc::{Receiver, Sender},
     task::AbortHandle,
 };
-
-use crate::ws::{to_logic, LogicMsg};
 
 /// Identifies a websocket connection across the server.
 /// This is used to send messages to a specific socket.
