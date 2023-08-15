@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Server Statistics</title>
+  </head>
+  <body>
+    <h1>Server Statistics</h1>
+
+    <p>Public statistics about the PacoPlay server.</p>
+
+    <section>
+      <h2>System Configuration</h2>
+      <p><strong>Dev Mode:</strong> {{ dev_mode }}</p>
+      <p><strong>Database Path:</strong> {{ database_path }}</p>
+      <p><strong>Bind:</strong> {{ bind }} (May be proxied via NGINX)</p>
+    </section>
+
+    <section>
+      <h2>Connected Clients</h2>
+      <p>
+        <strong>Number of Open WebSocket Connections:</strong>
+        {{ num_connected_clients }}
+      </p>
+    </section>
+  </body>
+</html>

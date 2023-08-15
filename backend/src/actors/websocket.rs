@@ -30,7 +30,7 @@ pub async fn websocket_handler(ws: WebSocketUpgrade) -> Response {
     ws.on_upgrade(handle_socket)
 }
 
-/// Lot's of static methods to interact with the AllSockets instance.
+/// Lots of static methods to interact with the AllSockets instance.
 impl SocketId {
     /// Generates a new unique socket id to be used to refer to a socket.
     pub fn new() -> SocketId {
@@ -74,6 +74,11 @@ impl SocketId {
             data.writer_task_abort_handle.abort();
             data.reader_task_abort_handle.abort();
         }
+    }
+
+    /// Returns the number of currently connected websockets.
+    pub fn count_connections() -> usize {
+        ALL_SOCKETS.len()
     }
 }
 

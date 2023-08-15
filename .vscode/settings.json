@@ -21,13 +21,16 @@
         "lightspeed",
         "lunalearn",
         "ntest",
+        "proxied",
         "pytrans",
+        "reqwest",
         "svgdown",
         "svgmove",
         "svgup",
         "Tera",
         "tinyset",
         "webassembly",
-        "Weblate"
+        "Weblate",
+        "websockets"
     ]
 }

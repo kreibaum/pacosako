@@ -29,6 +29,7 @@ pub async fn run(state: AppState) {
     let app: Router = app
         .route("/", get(index))
         .route("/js/elm.min.js", get(elm_js))
+        .route("/statistics", get(crate::statistics::statistics_handler))
         .fallback(get(index))
         .route(
             "/websocket",

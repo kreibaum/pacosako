@@ -6,6 +6,7 @@ mod actors;
 mod game;
 mod language;
 mod server;
+mod statistics;
 mod sync_match;
 mod templates;
 mod timer;
