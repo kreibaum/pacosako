@@ -39,6 +39,7 @@ type alias Model =
     -- people sharing a game with you.
     , username : String
     , recentCustomTimes : List CustomTimer
+    , playSounds : Bool
     , permissions : List LocalStorage.Permission
     , now : Posix
     , oAuthState : String
@@ -95,6 +96,7 @@ init { url, key } flags =
       , username = ls.data.username
       , recentCustomTimes = ls.data.recentCustomTimes
       , permissions = ls.permissions
+      , playSounds = ls.data.playSounds
       , now = now
       , oAuthState = oAuthState
       , isHeaderOpen = False
@@ -212,7 +214,7 @@ userHidesGamesArePublicHint model =
 triggerSaveLocalStorage : Model -> Cmd msg
 triggerSaveLocalStorage model =
     LocalStorage.store
-        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes }
+        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes, playSounds = model.playSounds }
         , permissions = model.permissions
         }
 

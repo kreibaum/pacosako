@@ -2,6 +2,7 @@ module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
 import Api.Decoders exposing (CurrentMatchState, getActionList)
+import Api.MessageGen
 import Api.Ports as Ports
 import Api.Websocket
 import Browser.Dom
@@ -15,7 +16,6 @@ import Dict exposing (Dict)
 import Duration
 import Effect exposing (Effect)
 import Element exposing (..)
-import Api.MessageGen
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -51,7 +51,7 @@ page : Shared.Model -> Request.With Params -> Page.With Model Msg
 page shared { params, query, url } =
     Page.advanced
         { init = init params query url
-        , update = update
+        , update = update shared
         , subscriptions = subscriptions
         , view = view shared
         }
@@ -126,7 +126,7 @@ init params query url =
         , Browser.Dom.getViewport
             |> Task.perform (\data -> SetWindowHeight (round data.viewport.height))
         , fetchHeaderSize
-        , Encode.object [("key", Encode.string params.id)]
+        , Encode.object [ ( "key", Encode.string params.id ) ]
             |> Api.MessageGen.subscribeToMatch
         ]
         |> Effect.fromCmd
@@ -170,11 +170,11 @@ type Msg
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
 
 
-update : Msg -> Model -> ( Model, Effect Msg )
-update msg model =
+update : Shared.Model -> Msg -> Model -> ( Model, Effect Msg )
+update shared msg model =
     case msg of
         Promote pieceType ->
-            updateActionInputStep (Sako.Promote pieceType) model
+            updateActionInputStep shared (Sako.Promote pieceType) model
 
         AnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Effect.none )
@@ -187,7 +187,7 @@ update msg model =
         MouseDown pos ->
             case model.inputMode of
                 Nothing ->
-                    updateMouseDown pos model
+                    updateMouseDown shared pos model
 
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Effect.none )
@@ -195,7 +195,7 @@ update msg model =
         MouseUp pos ->
             case model.inputMode of
                 Nothing ->
-                    updateMouseUp pos model
+                    updateMouseUp shared pos model
 
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Effect.none )
@@ -242,7 +242,7 @@ update msg model =
             ( model
             , case status of
                 Api.Websocket.WebsocketConnected ->
-                    Encode.object [("key", Encode.string model.gameKey)]
+                    Encode.object [ ( "key", Encode.string model.gameKey ) ]
                         |> Api.MessageGen.subscribeToMatch
                         |> Effect.fromCmd
 
@@ -349,12 +349,13 @@ liftActionAt state tile =
         |> List.head
 
 
-updateMouseDown : BoardMousePosition -> Model -> ( Model, Effect Msg )
-updateMouseDown pos model =
+updateMouseDown : Shared.Model -> BoardMousePosition -> Model -> ( Model, Effect Msg )
+updateMouseDown shared pos model =
     -- Check if there is a piece we can lift at this position.
     case Maybe.andThen (liftActionAt model.currentState) pos.tile of
         Just action ->
-            updateActionInputStep action
+            updateActionInputStep shared
+                action
                 { model
                     | dragState = Just { start = pos, current = pos }
                 }
@@ -387,12 +388,12 @@ updateTryRegrabLiftedPiece pos model =
         ( model, Effect.none )
 
 
-updateMouseUp : BoardMousePosition -> Model -> ( Model, Effect Msg )
-updateMouseUp pos model =
+updateMouseUp : Shared.Model -> BoardMousePosition -> Model -> ( Model, Effect Msg )
+updateMouseUp shared pos model =
     case Maybe.andThen (legalActionAt model.currentState) pos.tile of
         -- Check if the position is an allowed action.
         Just action ->
-            updateActionInputStep action { model | dragState = Nothing }
+            updateActionInputStep shared action { model | dragState = Nothing }
 
         Nothing ->
             ( { model
@@ -489,8 +490,8 @@ renderPlayViewDragging dragState model =
 {-| Add the given action to the list of all actions taken and sends it to the
 server for confirmation. Will also trigger an animation.
 -}
-updateActionInputStep : Sako.Action -> Model -> ( Model, Effect Msg )
-updateActionInputStep action model =
+updateActionInputStep : Shared.Model -> Sako.Action -> Model -> ( Model, Effect Msg )
+updateActionInputStep shared action model =
     let
         newBoard =
             Sako.doAction action model.board
@@ -511,15 +512,19 @@ updateActionInputStep action model =
             }
             |> Api.Websocket.send
             |> Effect.fromCmd
-        , case action of
-            Sako.Place _ ->
-                Ports.playSound () |> Effect.fromCmd
+        , if shared.playSounds then
+            case action of
+                Sako.Place _ ->
+                    Ports.playSound () |> Effect.fromCmd
 
-            Sako.Lift _ ->
-                Effect.none
+                Sako.Lift _ ->
+                    Effect.none
 
-            Sako.Promote _ ->
-                Effect.none
+                Sako.Promote _ ->
+                    Effect.none
+
+          else
+            Effect.none
         ]
     )
 
@@ -1066,7 +1071,7 @@ promotionButtons =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
             [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote  Sako.Queen))
+                (Just (Promote Sako.Queen))
                 [ icon [ centerX ] Solid.chessQueen
                 , Element.el [ centerX ] (Element.text T.queen)
                 ]
