@@ -68,6 +68,7 @@ type Msg
     | LogoutSuccess
     | UserHidesGamesArePublicHint
     | SetLanguage Language
+    | SetPlaySounds Bool
     | WindowResize Int Int
     | UpdateNow Posix
     | AddRecentCustomTimer CustomTimer
@@ -154,6 +155,9 @@ update _ msg model =
         SetLanguage lang ->
             setLanguage lang model
 
+        SetPlaySounds playSounds ->
+            setPlaySound playSounds model
+
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }, Cmd.none )
 
@@ -200,6 +204,15 @@ setLanguage lang model =
     ( model
     , Api.Backend.postLanguage lang HttpError (\() -> TriggerReload)
     )
+
+
+setPlaySound : Bool -> Model -> ( Model, Cmd Msg )
+setPlaySound playSounds model =
+    let
+        newModel =
+            { model | playSounds = playSounds }
+    in
+    ( newModel, triggerSaveLocalStorage newModel )
 
 
 userHidesGamesArePublicHint : Model -> ( Model, Cmd Msg )

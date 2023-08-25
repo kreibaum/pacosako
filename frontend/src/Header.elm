@@ -15,7 +15,7 @@ import FontAwesome.Solid as Solid
 import FontAwesome.Styles
 import Gen.Route as Route exposing (Route)
 import Reactive
-import Shared exposing (Msg(..))
+import Shared exposing (Model, Msg(..))
 import StaticAssets
 import Svg.Custom
 import Time
@@ -81,17 +81,17 @@ pageHeaderV2 : Shared.Model -> HeaderData -> Element Shared.Msg
 pageHeaderV2 model headerData =
     case Reactive.classify model.windowSize of
         Reactive.Phone ->
-            pageHeaderV2Phone model headerData model.isHeaderOpen
+            pageHeaderV2Phone model headerData
 
         Reactive.Tablet ->
-            pageHeaderV2Phone model headerData model.isHeaderOpen
+            pageHeaderV2Phone model headerData
 
         Reactive.Desktop ->
             pageHeaderV2Desktop model headerData
 
 
-pageHeaderV2Phone : Shared.Model -> HeaderData -> Bool -> Element Msg
-pageHeaderV2Phone model headerData isHeaderOpen =
+pageHeaderV2Phone : Shared.Model -> HeaderData -> Element Msg
+pageHeaderV2Phone model headerData =
     column
         [ width fill
         , spacing 10
@@ -110,10 +110,10 @@ pageHeaderV2Phone model headerData isHeaderOpen =
             , Border.color (Element.rgb255 200 200 200)
             ]
             [ Input.button [ width (px 20) ]
-                { onPress = Just (SetHeaderOpen (not isHeaderOpen))
+                { onPress = Just (SetHeaderOpen (not model.isHeaderOpen))
                 , label =
                     icon [ centerX, centerY, paddingXY 10 10 ]
-                        (if isHeaderOpen then
+                        (if model.isHeaderOpen then
                             Solid.times
 
                          else
@@ -121,10 +121,7 @@ pageHeaderV2Phone model headerData isHeaderOpen =
                         )
                 }
             , el [ centerX ] pacosakoLogo
-            , Input.button []
-                { onPress = Just (SetHeaderOpen (not isHeaderOpen))
-                , label = flagForLanguage T.compiledLanguage
-                }
+            , quickSettingsOpenButton model
             ]
         , column
             [ spacing 10
@@ -142,9 +139,9 @@ pageHeaderV2Phone model headerData isHeaderOpen =
             [ pageHeaderButtonV2 Route.Home_ T.headerPlayPacoSako headerData.isRouteHighlighted
             , pageHeaderButtonV2 Route.Tutorial T.headerTutorial headerData.isRouteHighlighted
             , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles headerData.isRouteHighlighted
-            , row [ centerX ] languageChoiceV2
+            , quickSettings model
             ]
-            |> showIf isHeaderOpen
+            |> showIf model.isHeaderOpen
         ]
 
 
@@ -159,7 +156,7 @@ showIf condition element =
 
 pageHeaderV2Desktop : Shared.Model -> HeaderData -> Element Msg
 pageHeaderV2Desktop model headerData =
-    Element.row
+    column
         [ width fill
         , Border.solid
         , Border.widthEach
@@ -171,20 +168,90 @@ pageHeaderV2Desktop model headerData =
         , Border.color (Element.rgb255 200 200 200)
         , Background.color (Element.rgba255 255 255 255 0.6)
         ]
-        [ Element.row
+        [ el
+            [ width fill
+            , Border.widthEach
+                { bottom = 1
+                , left = 0
+                , right = 0
+                , top = 0
+                }
+            , Border.color (Element.rgb255 200 200 200)
+            ]
+            (row
+                [ width (Element.maximum 1120 fill)
+                , centerX
+                , Element.paddingXY 10 20
+                , spacing 5
+                ]
+                [ Element.row [ spacing 15, width fill ]
+                    [ pageHeaderButtonV2 Route.Home_ T.headerPlayPacoSako headerData.isRouteHighlighted
+                    , pageHeaderButtonV2 Route.Tutorial T.headerTutorial headerData.isRouteHighlighted
+                    , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles headerData.isRouteHighlighted
+                    ]
+                , el [] pacosakoLogo
+                , el [ width fill ] (quickSettingsOpenButton model)
+                ]
+            )
+        , el
             [ width (Element.maximum 1120 fill)
             , centerX
-            , Element.paddingXY 10 20
-            , spacing 5
+            , spacing 10
+            , paddingEach { top = 10, bottom = 10, left = 15, right = 15 }
+            , Border.solid
+            , Border.color (Element.rgb255 200 200 200)
             ]
-            [ Element.row [ spacing 15, width fill ]
-                [ pageHeaderButtonV2 Route.Home_ T.headerPlayPacoSako headerData.isRouteHighlighted
-                , pageHeaderButtonV2 Route.Tutorial T.headerTutorial headerData.isRouteHighlighted
-                , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles headerData.isRouteHighlighted
-                ]
-            , el [] pacosakoLogo
-            , el [ width fill ] (Element.row [ alignRight ] languageChoiceV2)
+            (quickSettings model)
+            |> showIf model.isHeaderOpen
+        ]
+
+
+quickSettingsOpenButton : Model -> Element Shared.Msg
+quickSettingsOpenButton model =
+    Element.row [ alignRight ]
+        [ Input.button
+            [ Background.color
+                (if model.isHeaderOpen then
+                    Element.rgb255 180 180 180
+
+                 else
+                    Element.rgb255 220 220 220
+                )
+            , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+            , padding 10
+            , Border.rounded 5
             ]
+            { onPress = Just (SetHeaderOpen (not model.isHeaderOpen))
+            , label =
+                row []
+                    [ icon
+                        [ paddingEach
+                            { bottom = 1
+                            , left = 0
+                            , right = 10
+                            , top = 0
+                            }
+                        ]
+                        Solid.cog
+                    , flagForLanguage T.compiledLanguage
+                    ]
+            }
+        ]
+
+
+quickSettings : Model -> Element Shared.Msg
+quickSettings model =
+    column [ spacing 10, width fill ]
+        [ el [ Font.bold ] (Element.text "Quick Settings")
+        , Input.checkbox []
+            { onChange = SetPlaySounds
+            , icon = Input.defaultCheckbox
+            , checked = model.playSounds
+            , label =
+                Input.labelRight []
+                    (Element.text "Play sounds")
+            }
+        , row [ centerX ] languageChoiceV2
         ]
 
 
