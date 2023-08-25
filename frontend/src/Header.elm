@@ -215,7 +215,7 @@ quickSettingsOpenButton model =
                     Element.rgb255 180 180 180
 
                  else
-                    Element.rgb255 220 220 220
+                    Element.rgba255 220 220 220 0
                 )
             , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
             , padding 10
