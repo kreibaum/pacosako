@@ -242,14 +242,14 @@ quickSettingsOpenButton model =
 quickSettings : Model -> Element Shared.Msg
 quickSettings model =
     column [ spacing 10, width fill ]
-        [ el [ Font.bold ] (Element.text "Quick Settings")
+        [ el [ Font.bold ] (Element.text T.quickSettingsHeader)
         , Input.checkbox []
             { onChange = SetPlaySounds
             , icon = Input.defaultCheckbox
             , checked = model.playSounds
             , label =
                 Input.labelRight []
-                    (Element.text "Play sounds")
+                    (Element.text T.quickSettingsPlaySounds)
             }
         , row [ centerX ] languageChoiceV2
         ]

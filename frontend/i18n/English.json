@@ -85,6 +85,8 @@
     "communityOfficialWebsiteLink": "https://pacosako.com/en",
     "communityWatchOnTwitch": "Watch on Twitch!",
     "communityStarOnGithub": "Star on GitHub!",
+    "quickSettingsHeader": "Quick Settings",
+    "quickSettingsPlaySounds": "Play Sounds",
     "websocketWarningConnecting": "Connecting…",
     "websocketWarningReconnecting": "Reconnecting…"
 }
