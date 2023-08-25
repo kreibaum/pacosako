@@ -108,6 +108,7 @@ pageHeaderV2Phone model headerData =
                 , top = 0
                 }
             , Border.color (Element.rgb255 200 200 200)
+            , Element.behindContent (el [ centerX, centerY ] pacosakoLogo)
             ]
             [ Input.button [ width (px 20) ]
                 { onPress = Just (SetHeaderOpen (not model.isHeaderOpen))
@@ -120,7 +121,6 @@ pageHeaderV2Phone model headerData =
                             Solid.bars
                         )
                 }
-            , el [ centerX ] pacosakoLogo
             , quickSettingsOpenButton model
             ]
         , column
