@@ -39,6 +39,7 @@ type alias Model =
     -- people sharing a game with you.
     , username : String
     , recentCustomTimes : List CustomTimer
+    , playSounds : Bool
     , permissions : List LocalStorage.Permission
     , now : Posix
     , oAuthState : String
@@ -67,6 +68,7 @@ type Msg
     | LogoutSuccess
     | UserHidesGamesArePublicHint
     | SetLanguage Language
+    | SetPlaySounds Bool
     | WindowResize Int Int
     | UpdateNow Posix
     | AddRecentCustomTimer CustomTimer
@@ -95,6 +97,7 @@ init { url, key } flags =
       , username = ls.data.username
       , recentCustomTimes = ls.data.recentCustomTimes
       , permissions = ls.permissions
+      , playSounds = ls.data.playSounds
       , now = now
       , oAuthState = oAuthState
       , isHeaderOpen = False
@@ -152,6 +155,9 @@ update _ msg model =
         SetLanguage lang ->
             setLanguage lang model
 
+        SetPlaySounds playSounds ->
+            setPlaySound playSounds model
+
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }, Cmd.none )
 
@@ -200,6 +206,15 @@ setLanguage lang model =
     )
 
 
+setPlaySound : Bool -> Model -> ( Model, Cmd Msg )
+setPlaySound playSounds model =
+    let
+        newModel =
+            { model | playSounds = playSounds }
+    in
+    ( newModel, triggerSaveLocalStorage newModel )
+
+
 userHidesGamesArePublicHint : Model -> ( Model, Cmd Msg )
 userHidesGamesArePublicHint model =
     let
@@ -212,7 +227,7 @@ userHidesGamesArePublicHint model =
 triggerSaveLocalStorage : Model -> Cmd msg
 triggerSaveLocalStorage model =
     LocalStorage.store
-        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes }
+        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes, playSounds = model.playSounds }
         , permissions = model.permissions
         }
 

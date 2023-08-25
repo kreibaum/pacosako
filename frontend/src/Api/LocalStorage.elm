@@ -159,6 +159,7 @@ defaultData : Data
 defaultData =
     { username = ""
     , recentCustomTimes = []
+    , playSounds = True
     }
 
 
@@ -174,6 +175,7 @@ encodeData data =
     Encode.object
         [ ( "username", Encode.string data.username )
         , ( "recentCustomTimes", Encode.list encodeCustomTimer data.recentCustomTimes )
+        , ( "playSounds", Encode.bool data.playSounds )
         ]
 
 
@@ -205,6 +207,7 @@ censor permissions data =
 type alias DataV1 =
     { username : String
     , recentCustomTimes : List CustomTimer
+    , playSounds : Bool
     }
 
 
@@ -231,10 +234,13 @@ censorUser permissions data =
 
 decodeDataV1 : Decoder DataV1
 decodeDataV1 =
-    Decode.map2 DataV1
+    Decode.map3 DataV1
         (Decode.field "username" Decode.string)
         (Decode.maybe (Decode.field "recentCustomTimes" (Decode.list decodeCustomTimer))
             |> Decode.map (Maybe.withDefault [])
+        )
+        (Decode.maybe (Decode.field "playSounds" Decode.bool)
+            |> Decode.map (Maybe.withDefault True)
         )
 
 
