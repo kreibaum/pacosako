@@ -86,5 +86,7 @@
     "communityStarOnGithub": "Stelumu ĉe GitHub!",
     "enableRepetitionDraw": "3-opa ripeto egalvenkas",
     "websocketWarningConnecting": "Konektas…",
-    "websocketWarningReconnecting": "Rekonektas…"
+    "websocketWarningReconnecting": "Rekonektas…",
+    "quickSettingsHeader": "Agordetoj",
+    "quickSettingsPlaySounds": "Ludi Bruojn"
 }
