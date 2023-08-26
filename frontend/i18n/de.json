@@ -86,5 +86,7 @@
     "websocketWarningReconnecting": "Verbindung wird wiederherstellt …",
     "enableRepetitionDraw": "Unentschieden bei 3-facher Wiederholung",
     "replayWithOpening": " als Eröffnung.",
-    "communityStarOnGithub": "Gib uns einen GitHub Stern!"
+    "communityStarOnGithub": "Gib uns einen GitHub Stern!",
+    "quickSettingsHeader": "Schnelleinstellungen",
+    "quickSettingsPlaySounds": "Töne abspielen"
 }
