@@ -86,5 +86,7 @@
     "pageNotFoundReturn": "Página no encontrada. Regresar a la página de inicio.",
     "gameTitle": "Jugar Paco Ŝako - pacoplay.com",
     "gameCopyToClipboard": "Copiar URL para un amigo",
-    "gameRestartMove": "Reiniciar movida"
+    "gameRestartMove": "Reiniciar movida",
+    "quickSettingsHeader": "Configuración rápida",
+    "quickSettingsPlaySounds": "Reproducir sonidos"
 }
