@@ -80,7 +80,7 @@ async fn loop_logic_server(
 }
 
 #[derive(Debug, Default)]
-struct ServerState {
+pub struct ServerState {
     rooms: HashMap<String, GameRoom>,
     uuids: HashMap<SocketId, String>,
 }

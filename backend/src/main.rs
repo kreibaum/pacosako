@@ -5,6 +5,7 @@ mod db;
 mod actors;
 mod game;
 mod language;
+mod login;
 mod server;
 mod statistics;
 mod sync_match;

@@ -3,3 +3,8 @@ dev_mode = true
 bind = "0.0.0.0:8000"
 websocket_port = 3010
 database_path = "data/database.sqlite"
+# Generating a string suitable for use as a secret_key configuration value
+# is usually done through tools like openssl. Using openssl, a 256-bit base64 key
+# can be generated with the command `openssl rand -base64 32`.
+# This particular key is used for development purposes only.
+secret_key = "0B25jpNtswUWdkemdxU3B8Fvnm46ISgrawzinUpvLLQ="
