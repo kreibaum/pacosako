@@ -1,12 +1,8 @@
 use super::{crypto, SessionId, UserId, SESSION_COOKIE};
-use crate::{
-    config::EnvironmentConfig,
-    db::{Connection, Pool},
-    AppState,
-};
+use crate::{db::Connection, AppState};
 use axum::{
     async_trait,
-    extract::{FromRequestParts, State},
+    extract::FromRequestParts,
     http::{request::Parts, StatusCode},
     Extension, RequestPartsExt,
 };
@@ -71,7 +67,7 @@ async fn get_session_from_request_parts(
     let Extension(cookies) = parts
         .extract::<Extension<Cookies>>()
         .await
-        .expect("Missing cookies");
+        .expect("Missing the 'Cookies' extractor");
 
     let Some(session_cookie) = cookies.get(SESSION_COOKIE) else {
         anyhow::bail!("User is not logged in.")

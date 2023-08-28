@@ -2,7 +2,8 @@
 //! It is introduced with the 20230826184016_user_management.sql script
 
 mod crypto;
-mod session;
+pub mod session;
+pub mod user;
 
 use crate::{
     config::EnvironmentConfig,
@@ -19,7 +20,7 @@ use axum::{
 };
 use reqwest::StatusCode;
 use serde::Deserialize;
-use tower_cookies::{Cookie, Cookies};
+use tower_cookies::{cookie::SameSite, Cookie, Cookies};
 
 use self::session::SessionData;
 
@@ -47,8 +48,8 @@ pub async fn username_password_route(
     dto: Json<UsernamePasswordDTO>,
 ) -> Response {
     match username_password(pool, config, cookies, dto).await {
-        Ok(_) => (StatusCode::SEE_OTHER, [(axum::http::header::LOCATION, "/")]).into_response(),
-        Err(_) => (StatusCode::UNAUTHORIZED, "Login failed").into_response(),
+        Ok(_) => (StatusCode::ACCEPTED).into_response(),
+        Err(_) => (StatusCode::UNAUTHORIZED).into_response(),
     }
 }
 
@@ -77,6 +78,7 @@ async fn username_password(
         .path("/")
         .http_only(true)
         .secure(!config.dev_mode)
+        .same_site(SameSite::Strict)
         .finish();
     cookies.add(session_cookie);
 
@@ -136,7 +138,12 @@ pub async fn logout_route(
         .await
         .expect("Error removing sessions for user.");
 
-    cookies.remove(Cookie::build(SESSION_COOKIE, "").path("/").finish());
+    cookies.remove(
+        Cookie::build(SESSION_COOKIE, "")
+            .path("/")
+            .same_site(SameSite::Strict)
+            .finish(),
+    );
 
     format!("Logout for user {}", session.user_id.0)
 }

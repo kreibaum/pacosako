@@ -1,6 +1,7 @@
 mod caching;
 mod config;
 mod db;
+mod secret_login;
 //mod discord;
 mod actors;
 mod game;

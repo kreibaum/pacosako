@@ -1,7 +1,7 @@
 //! This module implements the server for the backend.
 //! We are using Axum as the web framework.
 
-use crate::{caching, game, language, login, templates, AppState, EnvironmentConfig};
+use crate::{caching, game, language, login, secret_login, templates, AppState, EnvironmentConfig};
 use axum::{
     body::StreamBody,
     extract::{Query, State},
@@ -32,6 +32,7 @@ pub async fn run(state: AppState) {
         .route("/", get(index))
         .route("/js/elm.min.js", get(elm_js))
         .route("/statistics", get(crate::statistics::statistics_handler))
+        .route("/secret_login", get(secret_login::secret_login))
         .fallback(get(index))
         .route(
             "/websocket",
