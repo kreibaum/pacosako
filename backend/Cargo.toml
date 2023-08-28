@@ -20,6 +20,7 @@ argon2 = { version = "0.5.1", features = ["std"] }
 axum = { version = "0.6.19", features = ["query", "ws"] }
 base64 = "0.21.3"
 dashmap = "5.5.0"
+hyper = "0.14.25"
 rand = "0.8.5"
 tera = "1.19.0"
 tower-http = { version = "0.4.3", features = ["fs"] }

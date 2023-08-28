@@ -1900,6 +1900,7 @@ dependencies = [
  "dashmap",
  "futures",
  "futures-util",
+ "hyper",
  "kanal",
  "lazy_static",
  "log",
