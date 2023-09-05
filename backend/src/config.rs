@@ -9,6 +9,7 @@ pub struct EnvironmentConfig {
     pub dev_mode: bool,
     pub database_path: String,
     pub bind: String,
+    pub secret_key: String,
 }
 
 /// Determines from the first command line argument which config file to load.

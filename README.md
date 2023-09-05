@@ -111,7 +111,27 @@ In the backend you need to adapt the `get_static_language_file` function to make
 sure the productive server is also able to deliver the compiled Elm in the right
 language.
 
-## Working with Julia
+## Creating a username-password user
+
+When developing the server without access to Discord secrets, you can create a
+username-password user by inserting it directly into the database with
+
+```sql
+-- First, insert the user into the user table
+INSERT INTO user (name, avatar) VALUES ('Rolf Kreibaum', 'identicon:204bedcd9a44b3e1db26e7619bca694d');
+
+-- Then, retrieve the ID of the newly inserted user and use it to insert into the login table
+INSERT INTO login (user_id, type, identifier, hashed_password)
+VALUES (last_insert_rowid(), 'password', 'rolf', '$argon2id$v=19$m=19456,t=2,p=1$OsG1y7Fvnq1FW8gKvlK4gQ$ryEgps/NG93d/Nyp8ri0GMR+LHymyb7ivnw5vnE4Q7U');
+```
+
+In order to get the `argon2` hash of a password, just run the server locally
+and try logging in with the password you want to use. The server will print
+the hash to the console. (This happens only with `dev_mode = true`.)
+
+Don't forget to commit the changes to the database.
+
+# Working with Julia
 
 To compile the shared library run `cargo build --release` in ./lib
 

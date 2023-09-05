@@ -1,10 +1,12 @@
 mod caching;
 mod config;
 mod db;
+mod secret_login;
 //mod discord;
 mod actors;
 mod game;
 mod language;
+mod login;
 mod server;
 mod statistics;
 mod sync_match;

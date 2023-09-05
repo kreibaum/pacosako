@@ -1,7 +1,11 @@
 //! This module implements the server for the backend.
 //! We are using Axum as the web framework.
 
-use crate::{caching, game, language, templates, AppState, EnvironmentConfig};
+use crate::{
+    caching, game, language,
+    login::{self, user},
+    secret_login, templates, AppState, EnvironmentConfig,
+};
 use axum::{
     body::StreamBody,
     extract::{Query, State},
@@ -21,8 +25,10 @@ use tower_http::services::{ServeDir, ServeFile};
 pub async fn run(state: AppState) {
     let socket_addr = state.config.bind.parse().unwrap();
 
-    let api: Router<AppState> =
-        game::add_to_router(Router::new()).route("/language", post(language::set_user_language));
+    let api: Router<AppState> = game::add_to_router(Router::new())
+        .route("/language", post(language::set_user_language))
+        .route("/username_password", post(login::username_password_route))
+        .route("/logout", get(login::logout_route));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();
@@ -30,6 +36,8 @@ pub async fn run(state: AppState) {
         .route("/", get(index))
         .route("/js/elm.min.js", get(elm_js))
         .route("/statistics", get(crate::statistics::statistics_handler))
+        .route("/secret_login", get(secret_login::secret_login))
+        .route("/p/:avatar", get(user::proxy_avatar_route))
         .fallback(get(index))
         .route(
             "/websocket",
