@@ -24,6 +24,7 @@ The format is:
 
 -}
 
+import Colors exposing (ColorConfig)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
@@ -160,6 +161,7 @@ defaultData =
     { username = ""
     , recentCustomTimes = []
     , playSounds = True
+    , colorConfig = Colors.defaultBoardColors
     }
 
 
@@ -176,6 +178,7 @@ encodeData data =
         [ ( "username", Encode.string data.username )
         , ( "recentCustomTimes", Encode.list encodeCustomTimer data.recentCustomTimes )
         , ( "playSounds", Encode.bool data.playSounds )
+        , ( "colorConfig", Colors.encodeColorConfig data.colorConfig )
         ]
 
 
@@ -208,6 +211,7 @@ type alias DataV1 =
     { username : String
     , recentCustomTimes : List CustomTimer
     , playSounds : Bool
+    , colorConfig : ColorConfig
     }
 
 
@@ -234,13 +238,16 @@ censorUser permissions data =
 
 decodeDataV1 : Decoder DataV1
 decodeDataV1 =
-    Decode.map3 DataV1
+    Decode.map4 DataV1
         (Decode.field "username" Decode.string)
         (Decode.maybe (Decode.field "recentCustomTimes" (Decode.list decodeCustomTimer))
             |> Decode.map (Maybe.withDefault [])
         )
         (Decode.maybe (Decode.field "playSounds" Decode.bool)
             |> Decode.map (Maybe.withDefault True)
+        )
+        (Decode.maybe (Decode.field "colorConfig" Colors.decodeColorConfig)
+            |> Decode.map (Maybe.withDefault Colors.defaultBoardColors)
         )
 
 

@@ -447,7 +447,7 @@ successBodyPhone shared model =
     el
         [ width fill, height fill, scrollbarY ]
         (column [ spacing 5, width fill ]
-            [ boardView model
+            [ boardView shared model
             , arrowButtons
             , Element.column
                 [ width fill, height (fill |> Element.minimum 250), scrollbarY ]
@@ -479,7 +479,7 @@ successBodyDesktop shared model =
     el [ centerX, height fill, width (Element.maximum 1120 fill) ]
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
-            [ column [ width fill, height fill ] [ boardView model ]
+            [ column [ width fill, height fill ] [ boardView shared model ]
             , Element.column [ spacing 10, padding 10, alignTop, height fill, width (px 250) ]
                 (sidebarContent shared model)
             ]
@@ -561,8 +561,8 @@ animateDirectR model =
 
 {-| Show the game state at `model.actionCount`.
 -}
-boardView : InnerModel -> Element InnerMsg
-boardView model =
+boardView : Shared.Model -> InnerModel -> Element InnerMsg
+boardView shared model =
     case currentBoard model of
         ReplayOk position partialActionHistory ->
             Element.el
@@ -570,7 +570,7 @@ boardView model =
                 , height fill
                 , centerX
                 ]
-                (boardViewOk model position partialActionHistory)
+                (boardViewOk shared model position partialActionHistory)
 
         ReplayToShort ->
             Element.text "Replay is corrupted, too short :-("
@@ -603,11 +603,11 @@ currentBoard model =
         ReplayToShort
 
 
-boardViewOk : InnerModel -> Sako.Position -> List Sako.Action -> Element InnerMsg
-boardViewOk model position partialActionHistory =
+boardViewOk : Shared.Model -> InnerModel -> Sako.Position -> List Sako.Action -> Element InnerMsg
+boardViewOk shared model position partialActionHistory =
     PositionView.viewTimeline
         { colorScheme =
-            Colors.configToOptions Colors.defaultBoardColors
+            Colors.configToOptions shared.colorConfig
         , nodeId = Nothing
         , decoration = decoration model position partialActionHistory
         , dragPieceData = []

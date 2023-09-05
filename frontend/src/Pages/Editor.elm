@@ -1056,35 +1056,35 @@ editorUi : Shared.Model -> Model -> Element Msg
 editorUi shared model =
     case Reactive.classify shared.windowSize of
         Reactive.Phone ->
-            editorUiPhone model
+            editorUiPhone shared model
 
         Reactive.Tablet ->
-            editorUiDesktop model
+            editorUiDesktop shared model
 
         Reactive.Desktop ->
-            editorUiDesktop model
+            editorUiDesktop shared model
 
 
-editorUiPhone : Model -> Element Msg
-editorUiPhone model =
+editorUiPhone : Shared.Model -> Model -> Element Msg
+editorUiPhone shared model =
     el [ centerX, width fill, height fill, scrollbarY ]
         (column
             [ width fill, height fill, spacing 10 ]
             [ Element.paragraph [] [ sharingHeader model ]
-            , positionViewInner model
+            , positionViewInner shared model
             , column [ width fill, height fill, spacing 10, padding 10, Element.alignRight ]
                 (sidebarContent model)
             ]
         )
 
 
-editorUiDesktop : Model -> Element Msg
-editorUiDesktop model =
+editorUiDesktop : Shared.Model -> Model -> Element Msg
+editorUiDesktop shared model =
     el [ centerX, height fill, width (Element.maximum 1120 fill) ]
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
             [ column [ width fill, height fill ]
-                [ positionView model
+                [ positionView shared model
                 ]
             , column [ width (px 250), height fill, spacing 10, padding 10, Element.alignRight ]
                 (sidebarContent model)
@@ -1126,8 +1126,8 @@ fenUrl model =
         |> Url.toString
 
 
-positionView : Model -> Element Msg
-positionView model =
+positionView : Shared.Model -> Model -> Element Msg
+positionView shared model =
     Element.el
         [ width fill
         , height fill
@@ -1135,14 +1135,14 @@ positionView model =
         , centerX
         , Element.inFront (sharingHeader model)
         ]
-        (positionViewInner model)
+        (positionViewInner shared model)
 
 
-positionViewInner : Model -> Element Msg
-positionViewInner model =
+positionViewInner : Shared.Model -> Model -> Element Msg
+positionViewInner shared model =
     let
         config =
-            boardViewConfig model
+            boardViewConfig shared model
     in
     case model.preview of
         Nothing ->
@@ -1154,10 +1154,10 @@ positionViewInner model =
                 |> PositionView.viewStatic config
 
 
-boardViewConfig : Model -> PositionView.ViewConfig Msg
-boardViewConfig model =
+boardViewConfig : Shared.Model -> Model -> PositionView.ViewConfig Msg
+boardViewConfig shared model =
     { colorScheme =
-        Colors.configToOptions Colors.defaultBoardColors
+        Colors.configToOptions shared.colorConfig
             |> Colors.withPieceColorScheme model.colorScheme
     , nodeId = Just sakoEditorId
     , decoration = toolDecoration model

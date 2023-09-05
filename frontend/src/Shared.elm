@@ -15,6 +15,7 @@ import Api.Ports
 import Api.Websocket exposing (WebsocketConnectionState)
 import Browser.Events
 import Browser.Navigation exposing (Key)
+import Colors exposing (ColorConfig)
 import Http
 import Json.Decode as Decode exposing (Decoder, Value)
 import Json.Encode exposing (Value)
@@ -46,6 +47,7 @@ type alias Model =
     , isHeaderOpen : Bool
     , websocketConnectionState : WebsocketConnectionState
     , lastWebsocketStatusUpdate : Posix
+    , colorConfig : ColorConfig
     }
 
 
@@ -69,6 +71,7 @@ type Msg
     | UserHidesGamesArePublicHint
     | SetLanguage Language
     | SetPlaySounds Bool
+    | SetColorConfig ColorConfig
     | WindowResize Int Int
     | UpdateNow Posix
     | AddRecentCustomTimer CustomTimer
@@ -103,6 +106,7 @@ init { url, key } flags =
       , isHeaderOpen = False
       , websocketConnectionState = Api.Websocket.WebsocketConnecting
       , lastWebsocketStatusUpdate = now
+      , colorConfig = ls.data.colorConfig
       }
     , Cmd.none
     )
@@ -157,6 +161,9 @@ update _ msg model =
 
         SetPlaySounds playSounds ->
             setPlaySound playSounds model
+
+        SetColorConfig colorConfig ->
+            setColorConfig colorConfig model
 
         WindowResize width height ->
             ( { model | windowSize = ( width, height ) }, Cmd.none )
@@ -215,6 +222,15 @@ setPlaySound playSounds model =
     ( newModel, triggerSaveLocalStorage newModel )
 
 
+setColorConfig : ColorConfig -> Model -> ( Model, Cmd Msg )
+setColorConfig colorConfig model =
+    let
+        newModel =
+            { model | colorConfig = colorConfig }
+    in
+    ( newModel, triggerSaveLocalStorage newModel )
+
+
 userHidesGamesArePublicHint : Model -> ( Model, Cmd Msg )
 userHidesGamesArePublicHint model =
     let
@@ -227,7 +243,7 @@ userHidesGamesArePublicHint model =
 triggerSaveLocalStorage : Model -> Cmd msg
 triggerSaveLocalStorage model =
     LocalStorage.store
-        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes, playSounds = model.playSounds }
+        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes, playSounds = model.playSounds, colorConfig = model.colorConfig }
         , permissions = model.permissions
         }
 

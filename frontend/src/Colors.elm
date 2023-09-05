@@ -1,9 +1,15 @@
 module Colors exposing
-    ( ColorConfig
+    ( BoardColorConfig
+    , ColorConfig
     , ColorOptions
     , configToOptions
+    , decodeColorConfig
     , defaultBoardColors
+    , encodeColorConfig
     , getOptionsByName
+    , suggestedBoardColors
+    , toElement
+    , withBoardColorConfig
     , withPieceColorScheme
     )
 
@@ -11,6 +17,7 @@ module Colors exposing
 -}
 
 import Color exposing (Color)
+import Element
 import Json.Decode
 import Json.Decode.Pipeline
 import Json.Encode
@@ -28,6 +35,14 @@ type alias ColorConfig =
     , whitePieceStroke : Color
     , blackPieceFill : Color
     , blackPieceStroke : Color
+    }
+
+
+type alias BoardColorConfig =
+    { whiteTileColor : Color
+    , blackTileColor : Color
+    , borderColor : Color
+    , highlightColor : Color
     }
 
 
@@ -62,6 +77,15 @@ fiveAsideBoardColors =
     , blackPieceFill = Color.rgb255 50 50 50
     , blackPieceStroke = Color.rgb255 150 150 100
     }
+
+
+toElement : Color -> Element.Color
+toElement color =
+    let
+        record =
+            Color.toRgba color
+    in
+    Element.rgba record.red record.green record.blue record.alpha
 
 
 decodeColor : Json.Decode.Decoder Color
@@ -155,8 +179,8 @@ getOptionsByName name =
             configToOptions defaultBoardColors
 
 
-{-| Merging the editor piece color choice. This is more of a legacy thing that
-will stay in until every part of the website uses a unified color management.
+{-| Merging the editor piece color choice. This is important to separately choose
+the piece colors from the board colors.
 -}
 withPieceColorScheme : ColorScheme -> ColorOptions -> ColorOptions
 withPieceColorScheme scheme options =
@@ -181,6 +205,16 @@ withPieceColorScheme scheme options =
     }
 
 
+withBoardColorConfig : BoardColorConfig -> ColorConfig -> ColorConfig
+withBoardColorConfig config options =
+    { options
+        | whiteTileColor = config.whiteTileColor
+        , blackTileColor = config.blackTileColor
+        , borderColor = config.borderColor
+        , highlightColor = config.highlightColor
+    }
+
+
 {-| Copied to avoid cyclic reference and to avoid refactoring for now.
 -}
 type alias SideColor =
@@ -195,3 +229,48 @@ type alias ColorScheme =
     { white : SideColor
     , black : SideColor
     }
+
+
+suggestedBoardColors : List BoardColorConfig
+suggestedBoardColors =
+    [ { whiteTileColor = Color.hsl 0.4 0.2 0.9
+      , blackTileColor = Color.hsl 0.4 0.4 0.4
+      , borderColor = Color.hsl 0.4 0.3 0.3
+      , highlightColor = Color.rgba 1 1 0 0.52
+      }
+    , { whiteTileColor = Color.rgb255 153 153 255
+      , blackTileColor = Color.rgb255 85 85 153
+      , borderColor = Color.rgb255 34 34 68
+      , highlightColor = Color.rgba 0 1 1 0.5
+      }
+    , { whiteTileColor = Color.rgb255 153 255 153
+      , blackTileColor = Color.rgb255 85 153 85
+      , borderColor = Color.rgb255 34 68 34
+      , highlightColor = Color.rgba 1 1 0 0.5
+      }
+    , { whiteTileColor = Color.rgb255 237 214 176
+      , blackTileColor = Color.rgb255 184 135 98
+      , borderColor = Color.rgb255 70 48 32
+      , highlightColor = Color.rgba 1 1 0 0.5
+      }
+    , { whiteTileColor = Color.hsl 0.55 0.2 0.9
+      , blackTileColor = Color.hsl 0.55 0.4 0.4
+      , borderColor = Color.hsl 0.55 0.3 0.3
+      , highlightColor = Color.rgba 1 1 0 0.52
+      }
+    , { whiteTileColor = Color.hsl 0.70 0.2 0.9
+      , blackTileColor = Color.hsl 0.70 0.3 0.4
+      , borderColor = Color.hsl 0.70 0.3 0.3
+      , highlightColor = Color.rgba 1 0.7 1 0.6
+      }
+    , { whiteTileColor = Color.hsl 0.11 0.2 0.9
+      , blackTileColor = Color.hsl 0.11 0.4 0.4
+      , borderColor = Color.hsl 0.11 0.3 0.3
+      , highlightColor = Color.rgba 1 1 0 0.52
+      }
+    , { whiteTileColor = Color.hsl 0.70 0.0 0.9
+      , blackTileColor = Color.hsl 0.70 0.0 0.65
+      , borderColor = Color.hsl 0.70 0.0 0.3
+      , highlightColor = Color.rgba 1 1 0 0.52
+      }
+    ]

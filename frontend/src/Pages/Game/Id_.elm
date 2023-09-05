@@ -78,7 +78,6 @@ type alias Model =
     , whiteName : String
     , blackName : String
     , gameUrl : Url.Url
-    , colorSettings : Colors.ColorOptions
     , timeDriftMillis : Float
     , windowHeight : Int
     , visibleHeaderSize : Int
@@ -107,7 +106,6 @@ init params query url =
       , whiteName = ""
       , blackName = ""
       , gameUrl = url
-      , colorSettings = determineColorSettingsFromQuery query
       , timeDriftMillis = 0
       , windowHeight = 500
       , visibleHeaderSize = 0
@@ -131,13 +129,6 @@ init params query url =
         ]
         |> Effect.fromCmd
     )
-
-
-determineColorSettingsFromQuery : Dict String String -> Colors.ColorOptions
-determineColorSettingsFromQuery dict =
-    Dict.get "colors" dict
-        |> Maybe.map Colors.getOptionsByName
-        |> Maybe.withDefault (Colors.configToOptions Colors.defaultBoardColors)
 
 
 
@@ -726,7 +717,7 @@ playPositionView shared model =
             )
         ]
         (PositionView.viewTimeline
-            { colorScheme = model.colorSettings
+            { colorScheme = Colors.configToOptions shared.colorConfig
             , nodeId = Just sakoEditorId
             , decoration = playDecoration model
             , dragPieceData = []

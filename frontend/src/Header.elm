@@ -5,6 +5,7 @@ module Header exposing (..)
 
 import Api.LocalStorage exposing (Permission(..))
 import Api.Websocket
+import Colors
 import Custom.Element exposing (icon)
 import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, padding, paddingEach, paddingXY, paragraph, px, row, spacing, width)
 import Element.Background as Background
@@ -251,8 +252,43 @@ quickSettings model =
                 Input.labelRight []
                     (Element.text T.quickSettingsPlaySounds)
             }
+        , quickSettingsBoardColorSelector model
         , row [ centerX ] languageChoiceV2
         ]
+
+
+quickSettingsBoardColorSelector : Model -> Element Shared.Msg
+quickSettingsBoardColorSelector shared =
+    Element.wrappedRow [ centerX ] (List.map (oneQuickSettingsBoardColorSelector shared) Colors.suggestedBoardColors)
+
+
+oneQuickSettingsBoardColorSelector : Model -> Colors.BoardColorConfig -> Element Shared.Msg
+oneQuickSettingsBoardColorSelector shared boardColor =
+    let
+        newColorConfig =
+            Colors.withBoardColorConfig boardColor shared.colorConfig
+
+        borderStyle =
+            if newColorConfig == shared.colorConfig then
+                Background.color (Colors.toElement boardColor.borderColor)
+
+            else
+                Element.mouseOver [ Background.color (Colors.toElement boardColor.borderColor) ]
+    in
+    Input.button []
+        { onPress = Just (SetColorConfig newColorConfig)
+        , label =
+            row [ width (px 45), height (px 45), borderStyle, padding 5, Border.rounded 5 ]
+                [ column [ width fill, height fill ]
+                    [ el [ width fill, height fill, Background.color (Colors.toElement boardColor.whiteTileColor) ] Element.none
+                    , el [ width fill, height fill, Background.color (Colors.toElement boardColor.blackTileColor) ] Element.none
+                    ]
+                , column [ width fill, height fill ]
+                    [ el [ width fill, height fill, Background.color (Colors.toElement boardColor.blackTileColor) ] Element.none
+                    , el [ width fill, height fill, Background.color (Colors.toElement boardColor.whiteTileColor) ] Element.none
+                    ]
+                ]
+        }
 
 
 pageHeaderButtonV2 : Route -> String -> (Route -> Bool) -> Element Shared.Msg

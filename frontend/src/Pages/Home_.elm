@@ -358,7 +358,7 @@ matchSetupUiDesktop shared model =
                 , Content.References.gitHubLink
                 ]
             ]
-        , recentGamesList model.recentGames
+        , recentGamesList shared model.recentGames
         ]
 
 
@@ -375,7 +375,7 @@ matchSetupUiTablet shared model =
             [ Content.References.twitchLink
             , Content.References.gitHubLink
             ]
-        , recentGamesList model.recentGames
+        , recentGamesList shared model.recentGames
         ]
 
 
@@ -388,7 +388,7 @@ matchSetupUiPhone shared model =
         , Content.References.officialWebsiteLink
         , Content.References.twitchLink
         , Content.References.gitHubLink
-        , recentGamesList model.recentGames
+        , recentGamesList shared model.recentGames
         ]
 
 
@@ -681,8 +681,8 @@ joinOnlineMatchUi model =
         ]
 
 
-recentGamesList : WebData (List CurrentMatchState) -> Element Msg
-recentGamesList data =
+recentGamesList : Shared.Model -> WebData (List CurrentMatchState) -> Element Msg
+recentGamesList shared data =
     case data of
         RemoteData.NotAsked ->
             Input.button [ padding 10 ]
@@ -701,11 +701,11 @@ recentGamesList data =
                 }
 
         RemoteData.Success games ->
-            recentGamesListSuccess games
+            recentGamesListSuccess shared games
 
 
-recentGamesListSuccess : List CurrentMatchState -> Element Msg
-recentGamesListSuccess games =
+recentGamesListSuccess : Shared.Model -> List CurrentMatchState -> Element Msg
+recentGamesListSuccess shared games =
     Element.column [ centerX ]
         [ Element.el
             [ centerX
@@ -719,7 +719,7 @@ recentGamesListSuccess games =
 
           else
             Element.wrappedRow [ width fill, spacing 5 ]
-                (List.map (lazy recentGamesListSuccessOne) games
+                (List.map (lazy (recentGamesListSuccessOne shared)) games
                     ++ [ refreshButton ]
                 )
         ]
@@ -744,14 +744,14 @@ refreshButton =
         }
 
 
-recentGamesListSuccessOne : CurrentMatchState -> Element msg
-recentGamesListSuccessOne matchState =
+recentGamesListSuccessOne : Shared.Model -> CurrentMatchState -> Element msg
+recentGamesListSuccessOne shared matchState =
     let
         position =
             Sako.initialPosition
                 |> Sako.doActionsList matchState.actionHistory
                 |> Maybe.map (PositionView.renderStatic WhiteBottom)
-                |> Maybe.map (PositionView.viewStatic PositionView.staticViewConfig)
+                |> Maybe.map (PositionView.viewStatic (PositionView.staticViewConfig shared.colorConfig))
                 |> Maybe.withDefault (Element.text matchState.key)
                 |> Element.el [ width (px 150), height (px 150) ]
 

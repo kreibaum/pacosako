@@ -132,7 +132,7 @@ viewStatic config renderData =
     in
     Svg.svg attributes
         [ board renderData.rotation config.colorScheme
-        , pastMovementIndicatorLayer renderData.rotation config.decoration
+        , pastMovementIndicatorLayer config.colorScheme renderData.rotation config.decoration
         , castingHighlightLayer renderData.rotation config.decoration
         , highlightLayer renderData.rotation config.decoration
         , dropTargetLayer renderData.rotation config.decoration
@@ -191,9 +191,9 @@ type alias ViewConfig msg =
     }
 
 
-staticViewConfig : ViewConfig msg
-staticViewConfig =
-    { colorScheme = Colors.configToOptions Colors.defaultBoardColors
+staticViewConfig : Colors.ColorConfig -> ViewConfig msg
+staticViewConfig colorConfig =
+    { colorScheme = Colors.configToOptions colorConfig
     , nodeId = Nothing
     , decoration = []
     , dragPieceData = []
@@ -248,20 +248,22 @@ highlightLayer rotation decorations =
         |> Svg.g []
 
 
-pastMovementIndicatorLayer : BoardRotation -> List BoardDecoration -> Svg a
-pastMovementIndicatorLayer rotation decorations =
+pastMovementIndicatorLayer : ColorOptions -> BoardRotation -> List BoardDecoration -> Svg a
+pastMovementIndicatorLayer colors rotation decorations =
     decorations
         |> List.filterMap getPastMovementIndicator
-        |> List.map (onePastMovementIndicator rotation)
+        |> List.map (onePastMovementIndicator colors rotation)
         |> Svg.g []
 
 
-onePastMovementIndicator : BoardRotation -> Tile -> Svg a
-onePastMovementIndicator rotation tile =
+onePastMovementIndicator : ColorOptions -> BoardRotation -> Tile -> Svg a
+onePastMovementIndicator colors rotation tile =
     Svg.path
         [ Svg.translate (coordinateOfTile rotation tile)
         , SvgA.d "m 0 0 v 100 h 100 v -100 z"
-        , SvgA.fill "rgba(255, 255, 0, 0.5)"
+        , SvgA.fill colors.highlightColor
+
+        --  "rgba(255, 255, 0, 0.5)"
         ]
         []
 
