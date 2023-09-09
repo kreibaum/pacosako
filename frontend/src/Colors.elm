@@ -231,9 +231,107 @@ type alias ColorScheme =
     }
 
 
+yellowFelixHighlight : Color
+yellowFelixHighlight =
+    Color.rgba 1 0.933333333 0.631372549 0.5
+
+
+greenFelixHighlight : Color
+greenFelixHighlight =
+    Color.rgba 0.592156863 1 0.607843137 0.5
+
+
+blueFelixHighlight : Color
+blueFelixHighlight =
+    Color.rgba 0.615686275 0.937254902 0.97254902 0.5
+
+
 suggestedBoardColors : List BoardColorConfig
 suggestedBoardColors =
-    [ { whiteTileColor = Color.hsl 0.4 0.2 0.9
+    [ -- Pastel Grey (Felix)
+      { whiteTileColor = Color.rgb255 227 229 241
+      , blackTileColor = Color.rgb255 140 142 153
+      , borderColor = Color.rgb255 85 84 91
+      , highlightColor = greenFelixHighlight
+      }
+
+    -- Pastel Blue (Felix)
+    , { whiteTileColor = Color.rgb255 203 213 222
+      , blackTileColor = Color.rgb255 95 125 154
+      , borderColor = Color.rgb255 66 81 110
+      , highlightColor = yellowFelixHighlight
+      }
+
+    -- Pastel Green (Felix)
+    , { whiteTileColor = Color.rgb255 234 240 208
+      , blackTileColor = Color.rgb255 106 137 85
+      , borderColor = Color.rgb255 82 102 60
+      , highlightColor = yellowFelixHighlight
+      }
+
+    -- Pastel Turquoise (Felix)
+    , { whiteTileColor = Color.rgb255 192 230 221
+      , blackTileColor = Color.rgb255 68 139 136
+      , borderColor = Color.rgb255 50 105 100
+      , highlightColor = yellowFelixHighlight
+      }
+
+    -- Pastel Wood (Felix)
+    , { whiteTileColor = Color.rgb255 244 228 219
+      , blackTileColor = Color.rgb255 183 139 111
+      , borderColor = Color.rgb255 85 84 91
+      , highlightColor = blueFelixHighlight
+      }
+
+    -- Pastel Purple (Felix)
+    , { whiteTileColor = Color.rgb255 243 226 229
+      , blackTileColor = Color.rgb255 149 121 152
+      , borderColor = Color.rgb255 111 85 115
+      , highlightColor = yellowFelixHighlight
+      }
+
+    -- Intense Blue (Felix)
+    , { whiteTileColor = Color.rgb255 146 213 188
+      , blackTileColor = Color.rgb255 0 101 122
+      , borderColor = Color.rgb255 0 56 85
+      , highlightColor = greenFelixHighlight
+      }
+
+    -- Intense Red (Felix)
+    , { whiteTileColor = Color.rgb255 234 208 197
+      , blackTileColor = Color.rgb255 159 58 51
+      , borderColor = Color.rgb255 130 45 41
+      , highlightColor = yellowFelixHighlight
+      }
+
+    -- Intense Purple (Felix)
+    , { whiteTileColor = Color.rgb255 246 204 201
+      , blackTileColor = Color.rgb255 135 87 141
+      , borderColor = Color.rgb255 91 62 120
+      , highlightColor = blueFelixHighlight
+      }
+
+    -- Intense Green (Original)
+    , { whiteTileColor = Color.rgb255 153 255 153
+      , blackTileColor = Color.rgb255 85 153 85
+      , borderColor = Color.rgb255 34 68 34
+      , highlightColor = Color.rgba 1 1 0 0.5
+      }
+
+    -- Intense Orange (Felix)
+    , { whiteTileColor = Color.rgb255 249 220 192
+      , blackTileColor = Color.rgb255 228 85 39
+      , borderColor = Color.rgb255 195 53 16
+      , highlightColor = blueFelixHighlight
+      }
+
+    -- Intense Wood (Felix)
+    , { whiteTileColor = Color.rgb255 227 198 171
+      , blackTileColor = Color.rgb255 126 79 57
+      , borderColor = Color.rgb255 83 51 44
+      , highlightColor = blueFelixHighlight
+      }
+    , { whiteTileColor = Color.hsl 0.4 0.2 0.9
       , blackTileColor = Color.hsl 0.4 0.4 0.4
       , borderColor = Color.hsl 0.4 0.3 0.3
       , highlightColor = Color.rgba 1 1 0 0.52
@@ -243,34 +341,19 @@ suggestedBoardColors =
       , borderColor = Color.rgb255 34 34 68
       , highlightColor = Color.rgba 0 1 1 0.5
       }
-    , { whiteTileColor = Color.rgb255 153 255 153
-      , blackTileColor = Color.rgb255 85 153 85
-      , borderColor = Color.rgb255 34 68 34
-      , highlightColor = Color.rgba 1 1 0 0.5
-      }
-    , { whiteTileColor = Color.rgb255 237 214 176
-      , blackTileColor = Color.rgb255 184 135 98
-      , borderColor = Color.rgb255 70 48 32
-      , highlightColor = Color.rgba 1 1 0 0.5
-      }
     , { whiteTileColor = Color.hsl 0.55 0.2 0.9
       , blackTileColor = Color.hsl 0.55 0.4 0.4
       , borderColor = Color.hsl 0.55 0.3 0.3
       , highlightColor = Color.rgba 1 1 0 0.52
       }
-    , { whiteTileColor = Color.hsl 0.70 0.2 0.9
-      , blackTileColor = Color.hsl 0.70 0.3 0.4
-      , borderColor = Color.hsl 0.70 0.3 0.3
+    , { whiteTileColor = Color.hsl 0.7 0.2 0.9
+      , blackTileColor = Color.hsl 0.7 0.3 0.4
+      , borderColor = Color.hsl 0.7 0.3 0.3
       , highlightColor = Color.rgba 1 0.7 1 0.6
       }
     , { whiteTileColor = Color.hsl 0.11 0.2 0.9
       , blackTileColor = Color.hsl 0.11 0.4 0.4
       , borderColor = Color.hsl 0.11 0.3 0.3
-      , highlightColor = Color.rgba 1 1 0 0.52
-      }
-    , { whiteTileColor = Color.hsl 0.70 0.0 0.9
-      , blackTileColor = Color.hsl 0.70 0.0 0.65
-      , borderColor = Color.hsl 0.70 0.0 0.3
       , highlightColor = Color.rgba 1 1 0 0.52
       }
     ]
