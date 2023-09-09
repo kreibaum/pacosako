@@ -218,7 +218,7 @@ oneCastingDecoTileMarker rotation tile =
     Svg.path
         [ Svg.translate (coordinateOfTile rotation tile)
         , SvgA.d "m 0 0 v 100 h 100 v -100 z"
-        , SvgA.fill "rgb(255, 0, 0)"
+        , SvgA.fill "rgb(255, 44, 50)"
         ]
         []
 
