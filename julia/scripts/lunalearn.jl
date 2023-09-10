@@ -376,6 +376,7 @@ module Pretrain
 
 end # module Pretrain
 
+using Jtac, JtacPacoSako
 using ArgParse
 
 function main()
