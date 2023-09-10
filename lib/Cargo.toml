@@ -19,12 +19,19 @@ bincode = "1.3"
 lazy-regex = "3.0.1"
 lazy_static = "1.4"
 fxhash = "0.2.1"
+petgraph = { version = "0.6.2" }
+smallvec = "1.10.0"
 tinyset = "0.4.15"
+js-sys = "0.3.60"
+wasm-bindgen-futures = "0.4.33"
+async-trait = "0.1.60"
+rand_distr = "0.4.3"
 
 [dev-dependencies]
+tokio = { version = "1.23.0", features = ["macros", "rt"] } # Required for tests
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
-ntest = "0.9.0"             # Required for timeouts to test potential infinite loops.
+ntest = "0.9.0"                                             # Required for timeouts to test potential infinite loops.
 
 [profile.release]
 debug = true

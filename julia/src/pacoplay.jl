@@ -38,7 +38,7 @@ module Api
   function create_game(; domain = :dev) :: Int
     url = PacoPlay.Url.server(; domain)
     body = "{\"timer\":null,\"safe_mode\":true}"
-    resp = HTTP.post(url * "/api/create_game"; body)
+    resp = HTTP.post(url * "/api/create_game", Dict("Content-Type" => "application/json"); body)
 
     @assert resp.status == 200 "Creating game failed: $(resp.status)"
     parse(Int, String(resp.body))
@@ -167,7 +167,7 @@ function action_string(match, id, current_player :: Int) :: String
 end
 
 function subscription_string(match :: Int) :: String
-  "{\"SubscribeToMatch\":{\"key\":\"$match\"}}"
+  "{\"type\":\"subscribeToMatchSocket\",\"data\":\"{\\\"key\\\":\\\"$match\\\"}\"}"
 end
 
 function subscribe(ws, match :: Int)
@@ -180,10 +180,10 @@ function subscribe(ws, match :: Int)
     logerr("Could not parse server response")
     return nothing
   end
-  if "MatchConnectionSuccess" in keys(json)
-    return json["MatchConnectionSuccess"]
+  if "CurrentMatchState" in keys(json)
+    return json["CurrentMatchState"]
   else
-    logerr("Could not understand server response")
+    logerr("Could not understand server response: " * String(response))
     return nothing
   end
 end
@@ -224,7 +224,7 @@ function logerr(msg)
   buf = IOBuffer()
   ctx = IOContext(buf, :color => true)
   printstyled(ctx, "pacoplay ", color = 245)
-  printstyled(ctx, "Error: $msg\n", color = red)
+  printstyled(ctx, "Error: $msg\n", color = :red)
   println(stderr, String(take!(buf)) * msg)
 end
 
@@ -272,7 +272,7 @@ function play( player :: Player.AbstractPlayer
     url = Url.game(match; domain)
     log("Assuming color $(COLORS[color]) in $url")
 
-    game, timeout = Json.parse_game(json["state"])
+    game, timeout = Json.parse_game(json)
     games = Channel(100)
     log(match, "Received first state $(fen(game))")
 

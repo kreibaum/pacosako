@@ -81,12 +81,54 @@ function Game.apply_action!(ps::PacoSako, action::Int)::PacoSako
     ps
 end
 
-function Game.array(ps::PacoSako)::Array{Float32,3}
-    size = Base.size(ps)
-    memory = zeros(Float32, prod(size))
-    status_code = ccall((:repr, DYNLIB_PATH), Int64, (Ptr{Nothing}, Ptr{Float32}, Int64), ps.ptr, memory, length(memory))
-    @assert status_code == 0 "Error while determining the game representation"
-    reshape(memory, size)
+function Game.array(pss::Vector{PacoSako})
+    batchsize = length(pss)
+    buf = Game.array_buffer(PacoSako, batchsize)
+    Game.array!(buf, pss)
+    buf
+end
+
+function Game.array(ps::PacoSako)
+    reshape(Game.array([ps]), 8, 8, 30)
+end
+
+function Game.array!(buf, pss :: Vector{PacoSako})
+    # do arguments make sense?
+    batchsize = length(pss)
+    @assert size(buf)[1:3] == size(PacoSako)
+    @assert size(buf, 4) >= batchsize
+
+    # some working memory
+    idxrepr = zeros(UInt32, 38)
+    one_indices = zeros(UInt32, 33, batchsize)
+    layer_vals = zeros(Float32, 5, batchsize)
+
+    for (i, ps) in enumerate(pss)
+        # set idxrepr via call to rust
+        ccall( (:get_idxrepr, DYNLIB_PATH)
+             , Int64, (Ptr{Nothing}, Ptr{Nothing}, Int64)
+             , ps.ptr, idxrepr, length(idxrepr) )
+
+        one_indices[:, i] .= 1 .+ idxrepr[1:33] .+ (i-1) * prod(size(PacoSako))
+        layer_vals[:, i] .= idxrepr[34:38]
+    end
+
+    # reset buffer
+    buf[:, :, :, 1:batchsize] .= 0
+
+    # set one_indices in buffer to ... one!
+    one_indices = reshape(one_indices, :)
+    buf[one_indices] .= 1
+
+    # set layer values of buffer
+    layer_vals = Model.adapt_atype(buf, layer_vals) # maybe load it to GPU
+    layer_vals = reshape(layer_vals, 1, 1, 5, batchsize) # makes broadcasting work
+    buf[:, :, 26:30, 1:batchsize] .= layer_vals
+
+    # scale final layer
+    buf[:, :, 30, 1:batchsize] ./= 100
+
+    nothing
 end
 
 function Base.size(::Type{PacoSako})

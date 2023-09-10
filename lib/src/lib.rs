@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod analysis;
 pub mod const_tile;
 pub mod draw_state;
@@ -5,6 +6,7 @@ pub mod editor;
 pub mod export;
 pub mod fen;
 pub mod parser;
+pub mod progress;
 pub mod random;
 pub mod setup_options;
 mod static_include;
@@ -22,14 +24,9 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::fmt::Display;
-use std::ops::Add;
+use std::ops::{Add, Index};
 pub use types::{BoardPosition, PieceType, PlayerColor};
 extern crate lazy_static;
-#[cfg(test)]
-extern crate quickcheck;
-#[cfg(test)]
-#[macro_use(quickcheck)]
-extern crate quickcheck_macros;
 
 #[derive(thiserror::Error, Clone, Debug, Serialize)]
 pub enum PacoError {
@@ -71,6 +68,10 @@ pub enum PacoError {
     BoardNotSettled,
     #[error("Search is not allowed with these parameters:")]
     SearchNotAllowed(String),
+    #[error("The game is over.")]
+    GameIsOver,
+    #[error("There are no legal actions.")]
+    NoLegalActions,
 }
 
 impl From<serde_json::Error> for PacoError {
@@ -129,6 +130,17 @@ pub struct DenseBoard {
     pub castling: Castling,
     pub victory_state: VictoryState,
     pub draw_state: DrawState,
+}
+
+impl Index<(PlayerColor, BoardPosition)> for DenseBoard {
+    type Output = Option<PieceType>;
+
+    fn index(&self, index: (PlayerColor, BoardPosition)) -> &Self::Output {
+        match index {
+            (PlayerColor::White, pos) => &self.white[pos.0 as usize],
+            (PlayerColor::Black, pos) => &self.black[pos.0 as usize],
+        }
+    }
 }
 
 /// Promotions can happen at the start of your turn if the opponent moved a pair

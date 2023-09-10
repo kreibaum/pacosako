@@ -8,6 +8,8 @@
 
 # We need to use "no-modules" because we are using this in a WebWorker.
 # Firefox does not support ES6 modules in WebWorkers yet.
+# Supported by default with Firefox 114
+# https://caniuse.com/mdn-api_worker_worker_ecmascript_modules
 
 mkdir -p build/frontend-wasm
 mkdir -p target/js

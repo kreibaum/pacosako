@@ -1,13 +1,17 @@
 //! This module defines all the methods that are exposed in the C library.
 //! It is the part that can be used by Julia.
 
-use std::collections::hash_map::DefaultHasher;
+use fxhash::FxHasher;
 use std::str;
 
 use crate::{
+    ai::{
+        glue::{action_index_to_action, action_to_action_index},
+        repr::index_representation,
+    },
     analysis::{self, reverse_amazon_search},
-    determine_all_threats, fen, BoardPosition, DenseBoard, PacoAction, PacoBoard, PieceType,
-    PlayerColor,
+    determine_all_threats, fen, BoardPosition, DenseBoard, PacoAction, PacoBoard, PlayerColor,
+    VictoryState,
 };
 
 #[no_mangle]
@@ -16,32 +20,57 @@ pub extern "C" fn new() -> *mut DenseBoard {
 }
 
 /// Leaks the memory (for now) and returns a pointer.
+///
+/// Leaking memory is safe, so no unsafe annotation here.
 fn leak_to_julia(board: DenseBoard) -> *mut DenseBoard {
     Box::into_raw(Box::from(board))
 }
 
+/// This function drops the memory of the given DenseBoard.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to make sure that the pointer
+/// is valid and that the memory is not used anymore.
 #[no_mangle]
-pub extern "C" fn drop(ps: *mut DenseBoard) {
+pub unsafe extern "C" fn drop(ps: *mut DenseBoard) {
     // Looks like it does not do anything, but should actually deallocate the
     // memory of the PacoSako data structure.
     // Debug only: println!("dropping dense board.");
     let _ = unsafe { Box::from_raw(ps) };
 }
 
+/// This function prints the given DenseBoard.
+///
+/// # Safety
+///
+/// The ps pointer must be valid.
 #[no_mangle]
-pub extern "C" fn print(ps: *mut DenseBoard) {
+pub unsafe extern "C" fn print(ps: *mut DenseBoard) {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     println!("{:?}", ps);
 }
 
+/// Clones a DenseBoard and returns the pointer to the clone.
+/// The original DenseBoard is not touched.
+///
+/// # Safety
+///
+/// The ps pointer must be valid.
 #[no_mangle]
-pub extern "C" fn clone(ps: *mut DenseBoard) -> *mut DenseBoard {
+pub unsafe extern "C" fn clone(ps: *mut DenseBoard) -> *mut DenseBoard {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     Box::into_raw(Box::from(ps.clone()))
 }
 
+/// This function returns the current player.
+/// 1 for white, -1 for black.
+///
+/// # Safety
+///
+/// The ps pointer must be valid.
 #[no_mangle]
-pub extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
+pub unsafe extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     match ps.controlling_player() {
         crate::PlayerColor::White => 1,
@@ -52,8 +81,13 @@ pub extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
 /// Stores a 0 terminated array into the array given by the out pointer. The
 /// array must have at least 64 bytes (u8) of space. If all the space is used,
 /// no null termination is used.
+///
+/// # Safety
+///
+/// The ps pointer must be valid. The out pointer must be valid and have at
+/// least 64 bytes of space.
 #[no_mangle]
-pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
+pub unsafe extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     if let Ok(ls) = ps.actions() {
         let mut length = 0;
@@ -70,19 +104,6 @@ pub extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
         }
     } else {
         unsafe { *out = 0 }
-    }
-}
-
-fn action_to_action_index(action: crate::PacoAction) -> u8 {
-    use crate::PieceType::*;
-    match action {
-        crate::PacoAction::Lift(p) => 1 + p.0,
-        crate::PacoAction::Place(p) => 1 + p.0 + 64,
-        crate::PacoAction::Promote(Rook) => 129,
-        crate::PacoAction::Promote(Knight) => 130,
-        crate::PacoAction::Promote(Bishop) => 131,
-        crate::PacoAction::Promote(Queen) => 132,
-        crate::PacoAction::Promote(_) => 255,
     }
 }
 
@@ -112,26 +133,21 @@ impl PlayerAlign for PacoAction {
     }
 }
 
+/// Executes the given action. Returns 0 if the action was successful, -1
+/// otherwise.
+///
+/// # Safety
+///
+/// The pointer must point to a valid DenseBoard. The action does not have to be
+/// a legal action nor does it have to be a valid action.
 #[no_mangle]
-pub extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i64 {
-    use crate::PieceType::*;
+pub unsafe extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
 
-    let action = if (1..=64).contains(&action) {
-        crate::PacoAction::Lift(BoardPosition(action - 1))
-    } else if action <= 128 {
-        crate::PacoAction::Place(BoardPosition(action - 1 - 64))
-    } else if action == 129 {
-        crate::PacoAction::Promote(Rook)
-    } else if action == 130 {
-        crate::PacoAction::Promote(Knight)
-    } else if action == 131 {
-        crate::PacoAction::Promote(Bishop)
-    } else if action == 132 {
-        crate::PacoAction::Promote(Queen)
-    } else {
+    let Some(action) = action_index_to_action(action) else {
         return -1;
     };
+
     let res = ps.execute(action.align(ps.controlling_player()));
     if res.is_err() {
         -1
@@ -140,18 +156,24 @@ pub extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i64 {
     }
 }
 
+/// Returns the victory state of the game, reduced to a single number.
+/// 1 for white victory, -1 for black victory, 0 for draw, 42 for running.
+///
+/// # Safety
+///
+/// The pointer must point to a valid DenseBoard.
 #[no_mangle]
-pub extern "C" fn status(ps: *mut DenseBoard) -> i64 {
+pub unsafe extern "C" fn status(ps: *mut DenseBoard) -> i64 {
     use crate::PlayerColor::*;
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     match ps.victory_state {
-        crate::VictoryState::Running => 42,
-        crate::VictoryState::PacoVictory(White) => 1,
-        crate::VictoryState::PacoVictory(Black) => -1,
-        crate::VictoryState::TimeoutVictory(White) => 1,
-        crate::VictoryState::TimeoutVictory(Black) => -1,
-        crate::VictoryState::NoProgressDraw => 0,
-        crate::VictoryState::RepetitionDraw => 0,
+        VictoryState::Running => 42,
+        VictoryState::PacoVictory(White) => 1,
+        VictoryState::PacoVictory(Black) => -1,
+        VictoryState::TimeoutVictory(White) => 1,
+        VictoryState::TimeoutVictory(Black) => -1,
+        VictoryState::NoProgressDraw => 0,
+        VictoryState::RepetitionDraw => 0,
     }
 }
 
@@ -159,8 +181,14 @@ pub extern "C" fn status(ps: *mut DenseBoard) -> i64 {
 // (De-)Serialization //////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Returns the length of the serialized board. Returns -1 if the serialization
+/// failed. This is required to allocate the correct amount of memory in julia.
+///
+/// # Safety
+///
+/// The pointer must point to a valid DenseBoard.
 #[no_mangle]
-pub extern "C" fn serialize_len(ps: *mut DenseBoard) -> i64 {
+pub unsafe extern "C" fn serialize_len(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
 
     if let Ok(encoded) = bincode::serialize(ps) {
@@ -176,8 +204,20 @@ pub extern "C" fn serialize_len(ps: *mut DenseBoard) -> i64 {
 ///
 /// If you improperly specify the buffer, this may buffer overrun and cause a
 /// security issue. Make sure you own the memory you write to!
+///
+/// Returns -1 if the serialization failed.
+///
+///
+/// # Safety
+///
+/// The out pointer must point to a valid u8 array with at least serialize_len(ps)
+/// bytes of space. The ps pointer must point to a valid DenseBoard.
 #[no_mangle]
-pub extern "C" fn serialize(ps: *mut DenseBoard, mut out: *mut u8, reserved_space: i64) -> i64 {
+pub unsafe extern "C" fn serialize(
+    ps: *mut DenseBoard,
+    mut out: *mut u8,
+    reserved_space: i64,
+) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
 
     if let Ok(encoded) = bincode::serialize(ps) {
@@ -205,22 +245,21 @@ pub extern "C" fn serialize(ps: *mut DenseBoard, mut out: *mut u8, reserved_spac
 ///
 /// If you don't properly specify the buffer size, this can buffer over-read and
 /// copy memory you may not want exposed to a new location.
-/// (e.g. Heartblead was a buffer over-read vulnerability)
+/// (e.g. Heartbleed was a buffer over-read vulnerability)
 /// Make sure you own the memory you read from!
+///
+/// Returns a null pointer if the deserialization failed.
+/// Returns a pointer to a DenseBoard if the deserialization was successful.
+///
+/// # Safety
+///
+/// The bincode_ptr must point to a valid u8 array with at least reserved_space.
 #[no_mangle]
-pub extern "C" fn deserialize(mut bincode_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
-    // Read bytes into a buffer vector
-    let mut buffer = Vec::with_capacity(reserved_space as usize);
-    for _ in 0..reserved_space {
-        let byte = unsafe {
-            let b = *bincode_ptr;
-            bincode_ptr = bincode_ptr.offset(1);
-            b
-        };
-        buffer.push(byte);
-    }
+pub unsafe extern "C" fn deserialize(bincode_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
+    // Convert the pointer to a slice
+    let bincode_slice = std::slice::from_raw_parts(bincode_ptr, reserved_space as usize);
 
-    let board: Result<DenseBoard, _> = bincode::deserialize(&buffer);
+    let board: Result<DenseBoard, _> = bincode::deserialize(bincode_slice);
     if let Ok(board) = board {
         leak_to_julia(board)
     } else {
@@ -236,145 +275,32 @@ pub extern "C" fn repr_layer_count() -> i64 {
     24 + 6
 }
 
-/// Generates a Tensor representation of the board state for machine learning.
-/// When the black player is playing, the white and black pieces are flipped.
-/// Both the memory blocks are switched and the top/bottom is switched.
-/// This means the AI does not really know which color it is playing.
+/// Returns the index representation of the board state.
+/// This is a lot more compressed than the Tensor representation which is very
+/// sparse.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that the out pointer
+/// points to a memory block of at least 38 u32. Additionally, you need to ensure
+/// that ps points to a valid DenseBoard.
 #[no_mangle]
-pub extern "C" fn repr(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) -> i64 {
-    let ps: &mut DenseBoard = unsafe { &mut *ps };
-    if reserved_space != repr_layer_count() * 8 * 8 {
+pub unsafe extern "C" fn get_idxrepr(
+    ps: *mut DenseBoard,
+    out: *mut u32,
+    reserved_space: i64,
+) -> i64 {
+    // Ensure that at least 38 u32 are reserved.
+    if reserved_space < 38 {
         return -1;
     }
 
-    // How does this vector look representing the Tensor?
-    // (1 3) (5 7)
-    // (2 4) (6 8)
-    // -> 1 2 3 4 5 6 7 8
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+    let out: &mut [u32; 38] = unsafe { &mut *(out as *mut [u32; 38]) };
 
-    // Layers describing the settled pieces
-    let white_offset = color_offset(PlayerColor::White, ps.controlling_player()) as isize;
-    let black_offset = color_offset(PlayerColor::Black, ps.controlling_player()) as isize;
-    for t in 0..64 {
-        let mirror_t = if ps.controlling_player() == PlayerColor::White {
-            t
-        } else {
-            mirror_paco_position(BoardPosition(t as u8)).0 as isize
-        };
-        if let Some(&Some(piece_type)) = ps.white.get(t as usize) {
-            unsafe {
-                let cell = out.offset(mirror_t + 64 * layer_offset(piece_type) + white_offset);
-                *cell = 1.0;
-            }
-        }
-        if let Some(&Some(piece_type)) = ps.black.get(t as usize) {
-            unsafe {
-                let cell = out.offset(mirror_t + 64 * layer_offset(piece_type) + black_offset);
-                *cell = 1.0;
-            }
-        }
-    }
+    index_representation(ps, out);
 
-    // Layers describing the lifted pieces
-    match ps.lifted_piece {
-        crate::Hand::Empty => {}
-        crate::Hand::Single { piece, position } => unsafe {
-            enable_cell_at(position, piece, true, true, out);
-        },
-        crate::Hand::Pair {
-            piece,
-            partner,
-            position,
-        } => unsafe {
-            enable_cell_at(position, piece, true, true, out);
-            enable_cell_at(position, partner, false, true, out);
-        },
-    }
-
-    // Flag layers describing castling options
-    if ps.controlling_player() == PlayerColor::White {
-        if ps.castling.white_queen_side {
-            unsafe { set_layer(24, 1.0, out) };
-        }
-        if ps.castling.white_king_side {
-            unsafe { set_layer(25, 1.0, out) };
-        }
-        if ps.castling.black_queen_side {
-            unsafe { set_layer(26, 1.0, out) };
-        }
-        if ps.castling.black_king_side {
-            unsafe { set_layer(27, 1.0, out) };
-        }
-    } else {
-        if ps.castling.black_queen_side {
-            unsafe { set_layer(24, 1.0, out) };
-        }
-        if ps.castling.black_king_side {
-            unsafe { set_layer(25, 1.0, out) };
-        }
-        if ps.castling.white_queen_side {
-            unsafe { set_layer(26, 1.0, out) };
-        }
-        if ps.castling.white_king_side {
-            unsafe { set_layer(27, 1.0, out) };
-        }
-    }
-
-    // Layer that shows the en-passant square
-    if let Some(t) = ps.en_passant {
-        let mirror_t = if ps.controlling_player() == PlayerColor::White {
-            t.0 as isize
-        } else {
-            mirror_paco_position(BoardPosition(t.0 as u8)).0 as isize
-        };
-        unsafe {
-            let cell = out.offset(mirror_t + 64 * 28);
-            *cell = 1.0
-        }
-    }
-
-    // Layer that gives the half-move counter (normalized between 0 and 1)
-    unsafe { set_layer(29, ps.draw_state.no_progress_half_moves as f32 / 100.0, out) }
-
-    // Still missing are the "repetition" layers. Doing the same move 3 times
-    // leads to a draw. This is not implemented in the engine yet.
-
-    0
-}
-
-unsafe fn set_layer(layer: isize, value: f32, out: *mut f32) {
-    for i in 0..64 {
-        let cell = out.offset(64 * layer + i);
-        *cell = value;
-    }
-}
-
-unsafe fn enable_cell_at(
-    pos: BoardPosition,
-    piece_type: PieceType,
-    is_for_current_player: bool,
-    is_lifted: bool,
-    out: *mut f32,
-) {
-    let color_offset = if is_for_current_player { 0 } else { 6 * 64 };
-    let lift_offset = if is_lifted { 12 * 64 } else { 0 };
-    let pos = if is_for_current_player {
-        pos.0 as isize
-    } else {
-        mirror_paco_position(pos).0 as isize
-    };
-    let offset = pos + layer_offset(piece_type) + color_offset + lift_offset;
-
-    let cell = out.offset(offset);
-    *cell = 1.0;
-}
-
-fn color_offset(color: PlayerColor, controlling_player: PlayerColor) -> i32 {
-    if color == controlling_player {
-        0
-    } else {
-        6 * 64
-    }
+    0 // Everything went fine
 }
 
 fn mirror_paco_position(pos: BoardPosition) -> BoardPosition {
@@ -390,19 +316,15 @@ fn mirror_paco_position(pos: BoardPosition) -> BoardPosition {
     BoardPosition::new(pos.x(), 7 - pos.y())
 }
 
-fn layer_offset(piece_type: PieceType) -> isize {
-    match piece_type {
-        PieceType::Pawn => 0,
-        PieceType::Rook => 1,
-        PieceType::Knight => 2,
-        PieceType::Bishop => 3,
-        PieceType::Queen => 4,
-        PieceType::King => 5,
-    }
-}
-
+/// Checks if two DenseBoard instances are equal.
+/// Returns 0 (success code) if they are equal, 1 if they are not.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that ps1 and ps2
+/// point to valid DenseBoard instances.
 #[no_mangle]
-pub extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i64 {
+pub unsafe extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i64 {
     let ps1: &DenseBoard = unsafe { &*ps1 };
     let ps2: &DenseBoard = unsafe { &*ps2 };
 
@@ -413,34 +335,49 @@ pub extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i64 {
     }
 }
 
+/// Calculates a hash of a DenseBoard instance. This is not guaranteed to be
+/// stable across versions.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that ps points to a
+/// valid DenseBoard instance.
 #[no_mangle]
-pub extern "C" fn hash(ps: *mut DenseBoard) -> u64 {
+pub unsafe extern "C" fn hash(ps: *mut DenseBoard) -> u64 {
     use std::hash::{Hash, Hasher};
     let ps: &DenseBoard = unsafe { &*ps };
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = FxHasher::default();
     ps.hash(&mut hasher);
     hasher.finish()
 }
 
+/// Returns a random position.
 #[no_mangle]
 pub extern "C" fn random_position() -> *mut DenseBoard {
-    use rand::Rng;
-
-    let mut rng = rand::thread_rng();
-    let board: DenseBoard = rng.gen();
-    leak_to_julia(board)
+    leak_to_julia(rand::random())
 }
 
+/// Checks if the current player is in check.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that ps points to a
+/// valid DenseBoard instance.
 #[no_mangle]
-pub extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
+pub unsafe extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
     let ps: &DenseBoard = unsafe { &*ps };
     analysis::is_sako(ps, ps.controlling_player.other()).unwrap()
 }
 
 /// Returns a number between 0 and 64 that counts how many squares are threatened
 /// by the current player.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that ps points to a
+/// valid DenseBoard instance.
 #[no_mangle]
-pub extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
+pub unsafe extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
     let threats = determine_all_threats(ps)
         .unwrap()
@@ -454,8 +391,15 @@ pub extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
 /// Finds all the paco sequences that are possible in the given position.
 /// Needs to use the output memory to returns these, so it may not return
 /// all the chains that were found.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that ps points to a
+/// valid DenseBoard instance.
+/// Additionally, you need to ensure that out points to a memory block of at least
+/// reserved_space u8.
 #[no_mangle]
-pub extern "C" fn find_paco_sequences(
+pub unsafe extern "C" fn find_paco_sequences(
     ps: *mut DenseBoard,
     out: *mut u8,
     reserved_space: i64,
@@ -526,8 +470,20 @@ fn write_out_chain(
     0
 }
 
+/// Turns a DenseBoard into its FEN representation. This does not retain all
+/// information, so it is not fully reversible. Most history is lost.
+///
+/// Returns 0 if the fen_string does not fit into the reserved space.
+/// Returns the length of the fen_string otherwise.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that ps points to a
+/// valid DenseBoard instance.
+/// Additionally, you need to ensure that out points to a memory block of at least
+/// reserved_space u8.
 #[no_mangle]
-pub extern "C" fn write_fen(ps: *mut DenseBoard, out: *mut u8, reserved_space: i64) -> i64 {
+pub unsafe extern "C" fn write_fen(ps: *mut DenseBoard, out: *mut u8, reserved_space: i64) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
     let fen_string = fen::write_fen(ps);
@@ -538,16 +494,26 @@ pub extern "C" fn write_fen(ps: *mut DenseBoard, out: *mut u8, reserved_space: i
 
     for (i, c) in fen_string.iter().enumerate() {
         unsafe {
-            let cell = out.offset(i as isize);
+            let cell = out.add(i);
             *cell = *c;
         }
     }
 
-    return fen_string.len() as i64;
+    fen_string.len() as i64
 }
 
+/// Parses a FEN string into a DenseBoard.
+///
+/// Returns a pointer to the DenseBoard if the FEN string was valid.
+/// Returns null if the FEN string was invalid. Either because it was invalid
+/// utf8 or because it was not a valid FEN string.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that fen_ptr points to a
+/// valid memory block of at least reserved_space u8.
 #[no_mangle]
-pub extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
+pub unsafe extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
     // Read bytes into a buffer vector
     let mut buffer = Vec::with_capacity(reserved_space as usize);
     for _ in 0..reserved_space {
@@ -563,7 +529,7 @@ pub extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut D
     match string_result {
         Err(_) => std::ptr::null_mut(),
         Ok(string) => {
-            let board = fen::parse_fen(&string);
+            let board = fen::parse_fen(string);
             if let Ok(board) = board {
                 leak_to_julia(board)
             } else {

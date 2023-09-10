@@ -63,6 +63,10 @@ impl PlayerColor {
             Self::Black => 'B',
         }
     }
+
+    pub(crate) fn all() -> impl Iterator<Item = Self> {
+        [Self::White, Self::Black].iter().copied()
+    }
 }
 
 // TODO: This should really be renamed "Tile" to match the frontend.
@@ -127,6 +131,11 @@ impl BoardPosition {
             Black => Self::new_checked(self.x() as i8, self.y() as i8 - 1),
         }
     }
+
+    /// Returns all possible positions on the board.
+    pub fn all() -> impl Iterator<Item = Self> {
+        (0..64).map(Self)
+    }
 }
 
 /// The debug output for a position is a string like d4 that is easily human readable.
@@ -176,6 +185,7 @@ impl TryFrom<&str> for BoardPosition {
 mod tests {
     use super::*;
     use quickcheck::TestResult;
+    use quickcheck_macros::quickcheck;
 
     /// This test verifies the TryFrom<&str> implementation for BoardPosition.
     #[test]
