@@ -152,9 +152,10 @@ Play on the website
 PacoPlay.play(player, color = :white, domain = :dev)
 ```
 
-This assumes you have installed JtacPacoSako as a development package using
+This assumes you have installed Jtac.jl and JtacPacoSako as a development package using
 
-    ]dev ..../pacosako/julia
+    ]dev {..}/Jtac.jl
+    ]dev {..}/pacosako/julia
 
 # Architecture
 

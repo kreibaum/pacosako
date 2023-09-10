@@ -10,13 +10,17 @@ use crate::{
         repr::index_representation,
     },
     analysis::{self, reverse_amazon_search},
-    determine_all_threats, fen, BoardPosition, DenseBoard, PacoAction, PacoBoard, PlayerColor,
-    VictoryState,
+    determine_all_threats, fen,
+    setup_options::SetupOptions,
+    BoardPosition, DenseBoard, PacoAction, PacoBoard, PlayerColor, VictoryState,
 };
 
 #[no_mangle]
 pub extern "C" fn new() -> *mut DenseBoard {
-    leak_to_julia(DenseBoard::new())
+    leak_to_julia(DenseBoard::with_options(&SetupOptions {
+        draw_after_n_repetitions: 3,
+        ..Default::default()
+    }))
 }
 
 /// Leaks the memory (for now) and returns a pointer.
