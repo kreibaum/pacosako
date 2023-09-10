@@ -152,6 +152,16 @@ Play on the website
 PacoPlay.play(player, color = :white, domain = :dev)
 ```
 
+Loading a model (with precomputed weights) and playing on the website with
+root parallelization and asynchronous MCTS.
+Make sure to always use dilution when using root parallelization.
+
+```julia
+model = Model.load("julia/models/ludwig-1.0.jtm", gpu=true, async=true)
+player = Player.MCTSPlayer(model, power = 10000, parallel_roots=10, dilution=0.1, temperature=0.1)
+PacoPlay.play(player, color = :white, domain = :dev)
+```
+
 This assumes you have installed Jtac.jl and JtacPacoSako as a development package using
 
     ]dev {..}/Jtac.jl
