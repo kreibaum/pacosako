@@ -95,6 +95,8 @@ end
 function Game.array!(buf, pss :: Vector{PacoSako})
     # do arguments make sense?
     batchsize = length(pss)
+    batchsize > 0 || return
+
     @assert size(buf)[1:3] == size(PacoSako)
     @assert size(buf, 4) >= batchsize
 
