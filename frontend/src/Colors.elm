@@ -249,9 +249,9 @@ blueFelixHighlight =
 suggestedBoardColors : List BoardColorConfig
 suggestedBoardColors =
     [ -- Pastel Grey (Felix)
-      { whiteTileColor = Color.rgb255 227 229 241
-      , blackTileColor = Color.rgb255 140 142 153
-      , borderColor = Color.rgb255 85 84 91
+      { whiteTileColor = Color.rgb255 241 241 241
+      , blackTileColor = Color.rgb255 180 180 180
+      , borderColor = Color.rgb255 153 153 153
       , highlightColor = greenFelixHighlight
       }
 
@@ -263,23 +263,23 @@ suggestedBoardColors =
       }
 
     -- Pastel Green (Felix)
-    , { whiteTileColor = Color.rgb255 234 240 208
+    , { whiteTileColor = Color.rgb255 235 235 213
       , blackTileColor = Color.rgb255 106 137 85
       , borderColor = Color.rgb255 82 102 60
       , highlightColor = yellowFelixHighlight
       }
 
     -- Pastel Turquoise (Felix)
-    , { whiteTileColor = Color.rgb255 192 230 221
-      , blackTileColor = Color.rgb255 68 139 136
-      , borderColor = Color.rgb255 50 105 100
+    , { whiteTileColor = Color.rgb255 229 241 239
+      , blackTileColor = Color.rgb255 85 148 142
+      , borderColor = Color.rgb255 72 130 138
       , highlightColor = yellowFelixHighlight
       }
 
     -- Pastel Wood (Felix)
     , { whiteTileColor = Color.rgb255 244 228 219
       , blackTileColor = Color.rgb255 183 139 111
-      , borderColor = Color.rgb255 85 84 91
+      , borderColor = Color.rgb255 143 113 101
       , highlightColor = blueFelixHighlight
       }
 
@@ -355,5 +355,10 @@ suggestedBoardColors =
       , blackTileColor = Color.hsl 0.11 0.4 0.4
       , borderColor = Color.hsl 0.11 0.3 0.3
       , highlightColor = Color.rgba 1 1 0 0.52
+      }
+    , { whiteTileColor = Color.rgb255 227 229 241
+      , blackTileColor = Color.rgb255 140 142 153
+      , borderColor = Color.rgb255 85 84 91
+      , highlightColor = greenFelixHighlight
       }
     ]
