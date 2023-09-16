@@ -10,6 +10,10 @@ chmod +x /home/gitpod/bin/pytrans.py
 export PATH="/home/gitpod/bin:$PATH"
 echo "export PATH="/home/gitpod/bin:$PATH"" >> ~/.bashrc
 
+# Setup cache_hash binary
+curl -L -o /home/gitpod/bin/cache_hash https://github.com/kreibaum/pacosako/releases/download/v1.0.0-cache_hash/cache_hash
+chmod +x /home/gitpod/bin/cache_hash
+
 # Prepare target directory, prebuild frontend
 echo Prebuild of elm frontend
 mkdir -p target

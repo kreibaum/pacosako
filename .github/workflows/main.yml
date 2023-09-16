@@ -82,12 +82,6 @@ jobs:
             ~/.cargo
           key: build
 
-      - name: Build cache_hash binary
-        run: |
-          cd backend
-          cargo build --bin cache_hash --release
-          cd ..
-
       - uses: actions/setup-node@v2
 
       - name: Install Elm
@@ -96,12 +90,14 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v2.2.2
 
-      - name: Install pytrans.py
+      - name: Install pytrans.py and cache_hash
         run: |
           mkdir -p $GITHUB_WORKSPACE/bin
           export PATH="$GITHUB_WORKSPACE/bin:$PATH"
           curl -L -o $GITHUB_WORKSPACE/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.2/pytrans.py
           chmod +x $GITHUB_WORKSPACE/bin/pytrans.py
+          curl -L -o $GITHUB_WORKSPACE/bin/cache_hash https://github.com/kreibaum/pacosako/releases/download/v1.0.0-cache_hash/cache_hash
+          chmod +x $GITHUB_WORKSPACE/bin/cache_hash
           ls $GITHUB_WORKSPACE/bin
 
       - name: Install wasm-pack
