@@ -732,7 +732,6 @@ arrowButtons =
     Element.row [ spacing 5, width fill, paddingXY 5 0 ]
         [ sharedWidthControll False T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
         , sharedWidthControll False T.replayPreviousAction Solid.chevronLeft (Just PreviousAction)
-        , sharedWidthControll False T.replayPlayAll Solid.play (Just PlayAll)
         , sharedWidthControll False T.replayNextAction Solid.chevronRight (Just NextAction)
         , sharedWidthControll False T.replayNextMove Solid.arrowRight (Just NextMove)
         ]
@@ -760,7 +759,8 @@ sharedWidthControll isSelected altText iconType msg =
 animationSpeedButtons : InnerModel -> Element InnerMsg
 animationSpeedButtons model =
     Element.row [ spacing 5, width fill, paddingXY 5 0 ]
-        [ sharedWidthControll (model.animationSpeedSetting == SlowAnimation) T.replayPreviousMove Solid.snowflake (Just (SetAnimationSpeedSetting SlowAnimation))
+        [ sharedWidthControll False T.replayPlayAll Solid.play (Just PlayAll)
+        , sharedWidthControll (model.animationSpeedSetting == SlowAnimation) T.replayPreviousMove Solid.snowflake (Just (SetAnimationSpeedSetting SlowAnimation))
         , sharedWidthControll (model.animationSpeedSetting == NormalAnimation) T.replayPreviousAction Solid.frog (Just (SetAnimationSpeedSetting NormalAnimation))
         , sharedWidthControll (model.animationSpeedSetting == FastAnimation) T.replayPlayAll Solid.spaceShuttle (Just (SetAnimationSpeedSetting FastAnimation))
         ]
