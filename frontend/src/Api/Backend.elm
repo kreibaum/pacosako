@@ -14,7 +14,7 @@ module Api.Backend exposing
     , postLoginPassword
     , postMatchRequest
     , postRematchFromActionIndex
-    , postSave
+    , postSave, getJson
     )
 
 {-| Server API. This is a mixed bag of all the GET and POST calls we can make to

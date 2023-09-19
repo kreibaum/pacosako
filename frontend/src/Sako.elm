@@ -8,6 +8,7 @@ module Sako exposing
     , VictoryState(..)
     , actionTile
     , decodeAction
+    , decodeFlatTile
     , decodeColor
     , decodeVictoryState
     , doAction
