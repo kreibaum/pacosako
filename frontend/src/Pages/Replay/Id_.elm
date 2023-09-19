@@ -678,7 +678,8 @@ metaDataDecoration model =
             Notation.actionIndexForSectionIndex model.sidebarData model.selected
                 |> Debug.log "Action Index"
     in 
-    Api.ReplayMetaData.filter (Set.fromList ["Example Arrow"]) actionIndex model.replayMetaData
+    Api.ReplayMetaData.filter (Set.fromList ["Example Arrow", "Weight Arrow"])
+        actionIndex model.replayMetaData
         |> List.filterMap oneMetaDataDecoration
 
 oneMetaDataDecoration : ReplayCue -> Maybe PositionView.BoardDecoration
@@ -686,8 +687,8 @@ oneMetaDataDecoration cue =
     case cue of
         CueString _ ->
             Nothing
-        CueArrow { start, end } -> 
-            Just( PositionView.CastingArrow { head = end , tail = start } )
+        CueArrow arrow -> 
+            Just( PositionView.CastingArrow arrow )
 
 --------------------------------------------------------------------------------
 -- Sidebar ---------------------------------------------------------------------

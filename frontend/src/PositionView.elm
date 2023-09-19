@@ -235,7 +235,7 @@ castingArrowLayer rotation decorations =
 drawArrow : BoardRotation -> Arrow -> Svg a
 drawArrow rotation arrow =
     Arrow.toSvg rotation
-        [ SvgA.fill "rgb(255, 200, 0, 0.5)"
+        [ SvgA.fill arrow.color
         ]
         arrow
 

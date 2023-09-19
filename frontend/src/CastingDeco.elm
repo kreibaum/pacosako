@@ -56,7 +56,7 @@ mouseDown mode mouse model =
 -}
 mouseDownArrows : BoardMousePosition -> Model -> Model
 mouseDownArrows mouse model =
-    { model | ghostArrow = Maybe.map2 Arrow mouse.tile mouse.tile }
+    { model | ghostArrow = Maybe.map (\tile -> Arrow tile tile Arrow.defaultTailWidth Arrow.defaultArrowColor )  mouse.tile  }
 
 
 mouseMove : InputMode -> BoardMousePosition -> Model -> Model

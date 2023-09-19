@@ -5,6 +5,7 @@ import Dict exposing (Dict)
 import Set exposing (Set)
 import Api.Backend exposing (Api, getJson)
 import Sako
+import Arrow exposing (Arrow)
 
 empty : ReplayMetaDataProcessed
 empty = Dict.empty
@@ -40,14 +41,18 @@ type alias ReplayMetaData =
     , data : String
     }
 
+
 {-| Type we actually want to use for the replay -}
 type alias ReplayMetaDataProcessed = Dict String (Dict Int (List ReplayCue))
 
+
+{-| Same as ReplayMetaDataProcessed, but "Raw" i.e. no data transforms -}
+type alias ReplayMetaDataProcessedStage1 = Dict String (Dict Int (List ReplayCueRaw))
+
+
 type ReplayCue
     = CueString String
-    | CueArrow CueArrowData
-
-type alias CueArrowData = { start : Sako.Tile, end : Sako.Tile }
+    | CueArrow Arrow
 
 
 {-| Process a list of ReplayMetaData into the desired ReplayMetaDataProcessed format.
@@ -58,6 +63,8 @@ type alias CueArrowData = { start : Sako.Tile, end : Sako.Tile }
 processReplayMetaData : List ReplayMetaData -> ReplayMetaDataProcessed
 processReplayMetaData replayList =
     List.foldl processReplayItem Dict.empty replayList
+        |> mapByGrouping weightDistribution
+        |> cookCues
 
 
 {-| Process an individual ReplayMetaData item and update the ReplayMetaDataProcessed dictionary.
@@ -70,7 +77,7 @@ processReplayMetaData replayList =
         b. If it does, append the ReplayCue to the existing list for that action index.
     3. Return the updated ReplayMetaDataProcessed dictionary.
 -}
-processReplayItem : ReplayMetaData -> ReplayMetaDataProcessed -> ReplayMetaDataProcessed
+processReplayItem : ReplayMetaData -> ReplayMetaDataProcessedStage1 -> ReplayMetaDataProcessedStage1
 processReplayItem replayItem processed =
     let
         newCue = parseReplayCue replayItem.data
@@ -106,12 +113,12 @@ decodeReplayMetaData =
         (Decode.field "data" Decode.string)
 
 
-parseReplayCue : String -> ReplayCue
+parseReplayCue : String -> ReplayCueRaw
 parseReplayCue input =
     Decode.decodeString decodeReplayCue input
-        |> Result.withDefault (CueString input)
+        |> Result.withDefault (CueStringRaw input)
 
-decodeReplayCue : Decoder ReplayCue
+decodeReplayCue : Decoder ReplayCueRaw
 decodeReplayCue =
     Decode.oneOf [
         guardType "arrow" decodeArrow
@@ -130,9 +137,85 @@ guardType expectedType nextDecoder =
                 Decode.fail ("Expected type '" ++ expectedType ++ "' but got '" ++ actualType ++ "'")
            )
 
-decodeArrow : Decoder ReplayCue
+decodeArrow : Decoder ReplayCueRaw
 decodeArrow =
-    Decode.map2 CueArrowData
-        (Decode.field "start" Sako.decodeFlatTile)
-        (Decode.field "end" Sako.decodeFlatTile)
-        |> Decode.map CueArrow
+    Decode.map5 ArrowRaw
+        (Decode.field "head" Sako.decodeFlatTile)
+        (Decode.field "tail" Sako.decodeFlatTile)
+        (decodeWithDefault Arrow.defaultTailWidth (Decode.field "width" Decode.float))
+        (decodeWithDefault Arrow.defaultArrowColor (Decode.field "color" Decode.string))
+        (decodeWithDefault 0 (Decode.field "weight" Decode.float))
+        |> Decode.map CueArrowRaw
+
+decodeWithDefault : a -> Decoder a -> Decoder a
+decodeWithDefault default decoder =
+    Decode.maybe decoder
+        |> Decode.map (Maybe.withDefault default)
+
+--------------------------------------------------------------------------------
+-- Raw types and transformations -----------------------------------------------
+--------------------------------------------------------------------------------
+
+
+
+{-| Unprocessed replay cue. There are some preprocessing steps like the
+    weight -> width transformation that are applied at this stage.
+-}
+type ReplayCueRaw
+    = CueStringRaw String
+    | CueArrowRaw ArrowRaw
+
+
+type alias ArrowRaw =
+    { head : Sako.Tile
+    , tail : Sako.Tile
+    , width : Float
+    , color : String
+    , weight : Float
+    }
+
+
+mapByGrouping : (a -> b) -> Dict String (Dict Int a) -> Dict String (Dict Int b)
+mapByGrouping f dictDict =
+    Dict.map (\_ d -> Dict.map (\_ l -> f l) d) dictDict
+
+{-| This is just an elaborate `map cookCue` on a monad stack.
+    Used to turn a raw cue into a non-raw cue inside the processed replay meta data.
+-}
+cookCues : ReplayMetaDataProcessedStage1 -> ReplayMetaDataProcessed
+cookCues categories =
+    mapByGrouping (List.map cookCue) categories
+
+
+cookCue : ReplayCueRaw -> ReplayCue
+cookCue cue =
+    case cue of
+        CueStringRaw x -> CueString x
+        CueArrowRaw x -> CueArrow (Arrow.Arrow x.head x.tail x.width x.color)
+
+
+weightToDistribute : Float
+weightToDistribute = 30
+
+
+{-| Takes a certain total width and distributes it amongs all arrows that have
+    a positive "weight" value. This allows you to display a policy without
+    determining the weights yourself.
+-}
+weightDistribution : List ReplayCueRaw -> List ReplayCueRaw
+weightDistribution arrows =
+    let
+        total = arrows
+            |> List.filterMap (\cue ->
+                case cue of
+                    CueArrowRaw arrow -> Just arrow.weight
+                    _ -> Nothing
+                )
+            |> List.filter (\x -> x > 0)
+            |> List.sum
+    in
+    arrows
+        |> List.map (\cue ->
+            case cue of
+                CueArrowRaw arrow -> if arrow.weight > 0 then CueArrowRaw { arrow | width = weightToDistribute * arrow.weight / total } else cue 
+                c -> c )
