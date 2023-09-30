@@ -255,7 +255,7 @@ function play( player :: Player.AbstractPlayer
 
   if match <= 0
     log("Requesting new game from $server_url...")
-    match = Api.create_game()
+    match = Api.create_game(;domain)
     url = Url.game(match; domain)
     log("Created game: $url")
   end
