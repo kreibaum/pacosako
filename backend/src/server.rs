@@ -4,7 +4,7 @@
 use crate::{
     caching, game, language,
     login::{self, user},
-    secret_login, templates, AppState, EnvironmentConfig,
+    secret_login, templates, AppState, EnvironmentConfig, replay_data,
 };
 use axum::{
     body::StreamBody,
@@ -28,7 +28,8 @@ pub async fn run(state: AppState) {
     let api: Router<AppState> = game::add_to_router(Router::new())
         .route("/language", post(language::set_user_language))
         .route("/username_password", post(login::username_password_route))
-        .route("/logout", get(login::logout_route));
+        .route("/logout", get(login::logout_route))
+        .route("/replay_meta_data/:game", get(replay_data::get_metadata));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();

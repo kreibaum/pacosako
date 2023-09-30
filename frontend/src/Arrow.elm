@@ -1,4 +1,4 @@
-module Arrow exposing (Arrow, toSvg)
+module Arrow exposing (Arrow, toSvg, defaultTailWidth, defaultArrowColor)
 
 {-| This module renders the arrow that is used to point from one tile to another
 tile. An arrow is given as a labeled pair of Tiles {head, tail}.
@@ -13,6 +13,8 @@ import Svg.Custom as Svg exposing (BoardRotation(..))
 type alias Arrow =
     { head : Tile
     , tail : Tile
+    , width : Float
+    , color : String
     }
 
 
@@ -43,14 +45,19 @@ coordinateOfTileFloat rotation tile =
     ( toFloat x, toFloat y )
 
 
-tailWidth : Float
-tailWidth =
+defaultTailWidth : Float
+defaultTailWidth =
     10
 
 
-headWidth : Float
-headWidth =
-    40
+headScaleFactor : Float
+headScaleFactor =
+    4
+
+
+defaultArrowColor : String
+defaultArrowColor = "rgb(255, 200, 0, 0.5)"
+
 
 
 delta : BoardRotation -> Arrow -> ( Float, Float )
@@ -78,16 +85,18 @@ length arrow =
 arrowPath : Arrow -> Svg.Attribute a
 arrowPath arrow =
     let
+        headWidth = arrow.width * headScaleFactor
+
         l =
             length arrow
     in
     SvgA.d
         ("m 0 0 v "
-            ++ String.fromFloat (-tailWidth / 2)
+            ++ String.fromFloat (-arrow.width / 2)
             ++ " h "
             ++ String.fromFloat (l - headWidth / 2)
             ++ " v "
-            ++ String.fromFloat (-(headWidth - tailWidth) / 2)
+            ++ String.fromFloat (-(headWidth - arrow.width) / 2)
             -- Now we move to the tip of the arrow head
             ++ " L "
             ++ String.fromFloat l
@@ -98,7 +107,7 @@ arrowPath arrow =
             ++ " "
             ++ String.fromFloat (headWidth / 2)
             ++ " v "
-            ++ String.fromFloat (-(headWidth - tailWidth) / 2)
+            ++ String.fromFloat (-(headWidth - arrow.width) / 2)
             -- And back to the tail
             ++ " h "
             ++ String.fromFloat -(l - headWidth / 2)

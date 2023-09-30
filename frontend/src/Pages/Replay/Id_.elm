@@ -15,6 +15,7 @@ import Api.DecoderGen
 import Api.EncoderGen
 import Api.MessageGen
 import Api.Ports
+import Arrow exposing (Arrow)
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Colors
@@ -43,12 +44,14 @@ import PositionView exposing (OpaqueRenderData)
 import Reactive
 import Request
 import Sako exposing (Color(..))
+import Set
 import Shared
 import Svg.Custom as Svg exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Translations as T
 import Url
 import View exposing (View)
+import Api.ReplayMetaData exposing (ReplayMetaDataProcessed, ReplayCue(..))
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
@@ -71,6 +74,8 @@ type alias Params =
 
 type alias Model =
     { replay : DataLoadingWrapper
+    -- We store this inside & outside because of race conditions.
+    , replayMetaData : ReplayMetaDataProcessed
     , actionHistory : List Sako.Action
     , key : String
     , navigationKey : Browser.Navigation.Key
@@ -83,6 +88,7 @@ type alias InnerModel =
     , navigationKey : Browser.Navigation.Key
     , actionHistory : List Sako.Action
     , sidebarData : List Notation.HalfMove
+    , replayMetaData : ReplayMetaDataProcessed
     , opening : String
     , selected : Notation.SectionIndex
     , timeline : Timeline OpaqueRenderData
@@ -103,13 +109,15 @@ type DataLoadingWrapper
 init : Shared.Model -> Params -> ( Model, Effect Msg )
 init shared params =
     ( { replay = DownloadingReplayData
+      , replayMetaData = Api.ReplayMetaData.empty
       , actionHistory = []
       , key = params.id
       , navigationKey = shared.key
       , now = Time.millisToPosix 0
       }
     , Cmd.batch
-        [ Api.Backend.getReplay params.id HttpErrorReplay GotReplay ]
+        [ Api.Backend.getReplay params.id HttpErrorReplay GotReplay
+        , Api.ReplayMetaData.getReplayMetaData params.id HttpErrorReplay GotReplayMetaData ]
         |> Effect.fromCmd
     )
 
@@ -126,6 +134,7 @@ innerInit model sidebarData =
     , navigationKey = model.navigationKey
     , actionHistory = model.actionHistory
     , sidebarData = sidebarData.notation
+    , replayMetaData = model.replayMetaData
     , opening = sidebarData.opening
     , selected = Notation.initialSectionIndex
     , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
@@ -142,7 +151,9 @@ innerInit model sidebarData =
 
 type Msg
     = GotReplay Replay
+    | GotReplayMetaData ReplayMetaDataProcessed
     | HttpErrorReplay Http.Error
+    | HttpErrorMetaData Http.Error
     | GotReplayAnalysis { notation : List Notation.HalfMove, opening : String }
     | PortError String
     | ToShared Shared.Msg
@@ -194,8 +205,19 @@ update msg model =
             , Effect.none
             )
 
+        GotReplayMetaData replayMetaData ->
+            ( { model | replayMetaData = Debug.log "ReplayMetaData" replayMetaData }
+                |> copyReplayMetaDataIntoInner
+            , Effect.none )
+
         HttpErrorReplay error ->
             ( { model | replay = DownloadingReplayDataFailed error }, Effect.none )
+
+
+        HttpErrorMetaData error -> 
+            ( { model | replayMetaData = Debug.log "ReplayMetaData" Api.ReplayMetaData.error }
+                |> copyReplayMetaDataIntoInner
+            , Effect.none )
 
         PortError error ->
             ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
@@ -282,6 +304,17 @@ innerUpdate msg model =
 
         SetAnimationSpeedSetting setting ->
             ( { model | animationSpeedSetting = setting }, Effect.none )
+
+
+{-| Tells the inner model about the replay mata data from the outer model. -}
+copyReplayMetaDataIntoInner : Model -> Model
+copyReplayMetaDataIntoInner model = 
+    case model.replay of
+        Done innerModel ->
+            { model | replay = Done { innerModel | replayMetaData = model.replayMetaData } }
+
+        _ ->
+            model
 
 
 {-| Remove all the timestamps from the replay and turn it into an RpcCall.
@@ -610,6 +643,7 @@ boardViewOk shared model position partialActionHistory =
             Colors.configToOptions shared.colorConfig
         , nodeId = Nothing
         , decoration = decoration model position partialActionHistory
+            ++ metaDataDecoration model
         , dragPieceData = []
         , mouseDown = Maybe.map MouseDown model.inputMode
         , mouseUp = Maybe.map MouseUp model.inputMode
@@ -637,7 +671,24 @@ decoration model position partialActionHistory =
     else
         CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
 
+metaDataDecoration : InnerModel -> List PositionView.BoardDecoration
+metaDataDecoration model =
+    let
+        actionIndex =
+            Notation.actionIndexForSectionIndex model.sidebarData model.selected
+                |> Debug.log "Action Index"
+    in 
+    Api.ReplayMetaData.filter (Set.fromList ["Example Arrow", "Weight Arrow"])
+        actionIndex model.replayMetaData
+        |> List.filterMap oneMetaDataDecoration
 
+oneMetaDataDecoration : ReplayCue -> Maybe PositionView.BoardDecoration
+oneMetaDataDecoration cue =
+    case cue of
+        CueString _ ->
+            Nothing
+        CueArrow arrow -> 
+            Just( PositionView.CastingArrow arrow )
 
 --------------------------------------------------------------------------------
 -- Sidebar ---------------------------------------------------------------------
@@ -681,7 +732,6 @@ arrowButtons =
     Element.row [ spacing 5, width fill, paddingXY 5 0 ]
         [ sharedWidthControll False T.replayPreviousMove Solid.arrowLeft (Just PreviousMove)
         , sharedWidthControll False T.replayPreviousAction Solid.chevronLeft (Just PreviousAction)
-        , sharedWidthControll False T.replayPlayAll Solid.play (Just PlayAll)
         , sharedWidthControll False T.replayNextAction Solid.chevronRight (Just NextAction)
         , sharedWidthControll False T.replayNextMove Solid.arrowRight (Just NextMove)
         ]
@@ -709,7 +759,8 @@ sharedWidthControll isSelected altText iconType msg =
 animationSpeedButtons : InnerModel -> Element InnerMsg
 animationSpeedButtons model =
     Element.row [ spacing 5, width fill, paddingXY 5 0 ]
-        [ sharedWidthControll (model.animationSpeedSetting == SlowAnimation) T.replayPreviousMove Solid.snowflake (Just (SetAnimationSpeedSetting SlowAnimation))
+        [ sharedWidthControll False T.replayPlayAll Solid.play (Just PlayAll)
+        , sharedWidthControll (model.animationSpeedSetting == SlowAnimation) T.replayPreviousMove Solid.snowflake (Just (SetAnimationSpeedSetting SlowAnimation))
         , sharedWidthControll (model.animationSpeedSetting == NormalAnimation) T.replayPreviousAction Solid.frog (Just (SetAnimationSpeedSetting NormalAnimation))
         , sharedWidthControll (model.animationSpeedSetting == FastAnimation) T.replayPlayAll Solid.spaceShuttle (Just (SetAnimationSpeedSetting FastAnimation))
         ]
