@@ -15,6 +15,7 @@ import Api.DecoderGen
 import Api.EncoderGen
 import Api.MessageGen
 import Api.Ports
+import Api.ReplayMetaData exposing (ReplayCue(..), ReplayMetaDataProcessed)
 import Arrow exposing (Arrow)
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
@@ -51,7 +52,6 @@ import Time exposing (Posix)
 import Translations as T
 import Url
 import View exposing (View)
-import Api.ReplayMetaData exposing (ReplayMetaDataProcessed, ReplayCue(..))
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
@@ -74,6 +74,7 @@ type alias Params =
 
 type alias Model =
     { replay : DataLoadingWrapper
+
     -- We store this inside & outside because of race conditions.
     , replayMetaData : ReplayMetaDataProcessed
     , actionHistory : List Sako.Action
@@ -117,7 +118,8 @@ init shared params =
       }
     , Cmd.batch
         [ Api.Backend.getReplay params.id HttpErrorReplay GotReplay
-        , Api.ReplayMetaData.getReplayMetaData params.id HttpErrorReplay GotReplayMetaData ]
+        , Api.ReplayMetaData.getReplayMetaData params.id HttpErrorReplay GotReplayMetaData
+        ]
         |> Effect.fromCmd
     )
 
@@ -206,18 +208,19 @@ update msg model =
             )
 
         GotReplayMetaData replayMetaData ->
-            ( { model | replayMetaData = Debug.log "ReplayMetaData" replayMetaData }
+            ( { model | replayMetaData = replayMetaData }
                 |> copyReplayMetaDataIntoInner
-            , Effect.none )
+            , Effect.none
+            )
 
         HttpErrorReplay error ->
             ( { model | replay = DownloadingReplayDataFailed error }, Effect.none )
 
-
-        HttpErrorMetaData error -> 
-            ( { model | replayMetaData = Debug.log "ReplayMetaData" Api.ReplayMetaData.error }
+        HttpErrorMetaData error ->
+            ( { model | replayMetaData = Api.ReplayMetaData.error }
                 |> copyReplayMetaDataIntoInner
-            , Effect.none )
+            , Effect.none
+            )
 
         PortError error ->
             ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
@@ -306,9 +309,10 @@ innerUpdate msg model =
             ( { model | animationSpeedSetting = setting }, Effect.none )
 
 
-{-| Tells the inner model about the replay mata data from the outer model. -}
+{-| Tells the inner model about the replay mata data from the outer model.
+-}
 copyReplayMetaDataIntoInner : Model -> Model
-copyReplayMetaDataIntoInner model = 
+copyReplayMetaDataIntoInner model =
     case model.replay of
         Done innerModel ->
             { model | replay = Done { innerModel | replayMetaData = model.replayMetaData } }
@@ -642,8 +646,9 @@ boardViewOk shared model position partialActionHistory =
         { colorScheme =
             Colors.configToOptions shared.colorConfig
         , nodeId = Nothing
-        , decoration = decoration model position partialActionHistory
-            ++ metaDataDecoration model
+        , decoration =
+            decoration model position partialActionHistory
+                ++ metaDataDecoration model
         , dragPieceData = []
         , mouseDown = Maybe.map MouseDown model.inputMode
         , mouseUp = Maybe.map MouseUp model.inputMode
@@ -671,24 +676,29 @@ decoration model position partialActionHistory =
     else
         CastingDeco.toDecoration PositionView.castingDecoMappers model.castingDeco
 
+
 metaDataDecoration : InnerModel -> List PositionView.BoardDecoration
 metaDataDecoration model =
     let
         actionIndex =
             Notation.actionIndexForSectionIndex model.sidebarData model.selected
-                |> Debug.log "Action Index"
-    in 
-    Api.ReplayMetaData.filter (Set.fromList ["Example Arrow", "Weight Arrow"])
-        actionIndex model.replayMetaData
+    in
+    Api.ReplayMetaData.filter (Set.fromList [ "Example Arrow", "Weight Arrow" ])
+        actionIndex
+        model.replayMetaData
         |> List.filterMap oneMetaDataDecoration
+
 
 oneMetaDataDecoration : ReplayCue -> Maybe PositionView.BoardDecoration
 oneMetaDataDecoration cue =
     case cue of
         CueString _ ->
             Nothing
-        CueArrow arrow -> 
-            Just( PositionView.CastingArrow arrow )
+
+        CueArrow arrow ->
+            Just (PositionView.CastingArrow arrow)
+
+
 
 --------------------------------------------------------------------------------
 -- Sidebar ---------------------------------------------------------------------
