@@ -6,6 +6,7 @@ module Animation exposing
     , animate
     , init
     , interrupt
+    , isRunning
     , milliseconds
     , pause
     , queue
@@ -232,3 +233,8 @@ It is also optional, so fading in and out must be implemented as well.
 -}
 type AnimationProperty property
     = Interpolate { t : Float, old : property, new : property }
+
+
+isRunning : Timeline state -> Bool
+isRunning timeline =
+    timeline.running

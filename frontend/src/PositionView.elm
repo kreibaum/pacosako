@@ -12,6 +12,7 @@ module PositionView exposing
     , pastMovementIndicatorList
     , render
     , renderStatic
+    , simpleInternalModel
     , staticViewConfig
     , viewStatic
     , viewTimeline
@@ -155,6 +156,19 @@ type alias InternalModel =
     , hover : Maybe Tile
     , draggingPieces : DraggingPieces
     , rotation : BoardRotation
+    }
+
+
+{-| Internal model for animated boards you can't interact with.
+-}
+simpleInternalModel : BoardRotation -> InternalModel
+simpleInternalModel rotation =
+    { highlight = Nothing
+    , dragStartTile = Nothing
+    , dragDelta = Nothing
+    , hover = Nothing
+    , draggingPieces = DraggingPiecesNormal []
+    , rotation = rotation
     }
 
 
