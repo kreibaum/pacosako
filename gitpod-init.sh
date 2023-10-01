@@ -5,7 +5,7 @@
 
 # Setup pytrans.py
 mkdir -p /home/gitpod/bin
-curl -L -o /home/gitpod/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.2/pytrans.py
+curl -L -o /home/gitpod/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.3/pytrans.py
 chmod +x /home/gitpod/bin/pytrans.py
 export PATH="/home/gitpod/bin:$PATH"
 echo "export PATH="/home/gitpod/bin:$PATH"" >> ~/.bashrc
