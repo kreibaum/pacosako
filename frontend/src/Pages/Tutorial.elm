@@ -22,6 +22,7 @@ import Request exposing (Request)
 import Sako
 import Set exposing (Set)
 import Shared
+import StaticAssets
 import Svg.Custom exposing (BoardRotation(..))
 import Time exposing (Posix)
 import Translations as T exposing (Language(..))
@@ -265,7 +266,13 @@ youtubeEmbed ( w, _ ) allowed url =
     else
         Input.button [ centerX ]
             { label =
-                Element.el [ width (px videoWidth), height (px videoHeight), centerX, Background.color (Element.rgb 0.9 0.9 0.8) ]
+                Element.el
+                    [ width (px videoWidth)
+                    , height (px videoHeight)
+                    , centerX
+                    , Background.image StaticAssets.messyPawns
+                    , Font.bold
+                    ]
                     (paragraph [ padding 25, centerX, centerY, Font.center ] [ text "Click to enable video. By clicking, you'll load content from YouTube." ])
             , onPress = Just (EnableVideo url)
             }
@@ -305,16 +312,27 @@ traditionalChessAnimation =
 traditionalChessAnimationData : List (List Sako.Action)
 traditionalChessAnimationData =
     [ [ Sako.Lift (Sako.Tile 1 0), Sako.Place (Sako.Tile 2 2) ]
+    , []
     , [ Sako.Lift (Sako.Tile 3 6), Sako.Place (Sako.Tile 3 4) ]
+    , []
     , [ Sako.Lift (Sako.Tile 6 0), Sako.Place (Sako.Tile 5 2) ]
+    , []
     , [ Sako.Lift (Sako.Tile 7 6), Sako.Place (Sako.Tile 7 4) ]
+    , []
     , [ Sako.Lift (Sako.Tile 3 1), Sako.Place (Sako.Tile 3 3) ]
+    , []
     , [ Sako.Lift (Sako.Tile 7 7), Sako.Place (Sako.Tile 7 5) ]
+    , []
     , [ Sako.Lift (Sako.Tile 2 0), Sako.Place (Sako.Tile 5 3) ]
+    , []
     , [ Sako.Lift (Sako.Tile 2 7), Sako.Place (Sako.Tile 6 3) ]
+    , []
     , [ Sako.Lift (Sako.Tile 2 2), Sako.Place (Sako.Tile 1 4) ]
+    , []
     , [ Sako.Lift (Sako.Tile 3 7), Sako.Place (Sako.Tile 3 5) ]
+    , []
     , [ Sako.Lift (Sako.Tile 4 1), Sako.Place (Sako.Tile 4 2) ]
+    , []
     , [ Sako.Lift (Sako.Tile 4 6), Sako.Place (Sako.Tile 4 4) ]
     ]
 
@@ -333,7 +351,9 @@ creatingUnionAnimation =
 creatingUnionAnimationData : List (List Sako.Action)
 creatingUnionAnimationData =
     [ [ Sako.Lift (Sako.Tile 5 3), Sako.Place (Sako.Tile 4 4) ]
+    , []
     , [ Sako.Lift (Sako.Tile 6 3), Sako.Place (Sako.Tile 5 2) ]
+    , []
     , [ Sako.Lift (Sako.Tile 1 4), Sako.Place (Sako.Tile 3 5) ]
     ]
 
@@ -352,10 +372,15 @@ movingUnionAnimation =
 movingUnionAnimationData : List (List Sako.Action)
 movingUnionAnimationData =
     [ [ Sako.Lift (Sako.Tile 4 4), Sako.Place (Sako.Tile 4 3) ]
+    , []
     , [ Sako.Lift (Sako.Tile 5 2), Sako.Place (Sako.Tile 6 4) ]
+    , []
     , [ Sako.Lift (Sako.Tile 3 5), Sako.Place (Sako.Tile 1 3) ]
+    , []
     , [ Sako.Lift (Sako.Tile 1 3), Sako.Place (Sako.Tile 2 5) ]
+    , []
     , [ Sako.Lift (Sako.Tile 2 5), Sako.Place (Sako.Tile 6 5) ]
+    , []
     , [ Sako.Lift (Sako.Tile 6 4), Sako.Place (Sako.Tile 7 2) ]
     ]
 
@@ -375,8 +400,10 @@ takeoverUnionAnimationData : List (List Sako.Action)
 takeoverUnionAnimationData =
     [ [ Sako.Lift (Sako.Tile 7 5), Sako.Place (Sako.Tile 6 5) ]
     , [ Sako.Place (Sako.Tile 6 2) ]
+    , []
     , [ Sako.Lift (Sako.Tile 6 1), Sako.Place (Sako.Tile 7 2) ]
     , [ Sako.Place (Sako.Tile 5 3) ]
+    , []
     , [ Sako.Lift (Sako.Tile 5 6), Sako.Place (Sako.Tile 6 5) ]
     , [ Sako.Place (Sako.Tile 2 5) ]
     ]
@@ -391,7 +418,9 @@ takeoverUnionAnimation2Data : List (List Sako.Action)
 takeoverUnionAnimation2Data =
     [ [ Sako.Lift (Sako.Tile 7 5), Sako.Place (Sako.Tile 6 5) ]
     , [ Sako.Place (Sako.Tile 6 1) ]
+    , []
     , [ Sako.Lift (Sako.Tile 3 0), Sako.Place (Sako.Tile 3 2) ]
+    , []
     , [ Sako.Lift (Sako.Tile 3 4), Sako.Place (Sako.Tile 4 3) ]
     , [ Sako.Place (Sako.Tile 3 2) ]
     ]
@@ -437,6 +466,7 @@ promotionAnimationData : List (List Sako.Action)
 promotionAnimationData =
     [ [ Sako.Lift (Sako.Tile 7 6), Sako.Place (Sako.Tile 7 7) ]
     , [ Sako.Promote Sako.Queen ]
+    , []
     , [ Sako.Lift (Sako.Tile 2 5), Sako.Place (Sako.Tile 4 7) ]
     , [ Sako.Promote Sako.Knight ]
     ]
@@ -525,119 +555,71 @@ textParagraph content =
 englishTutorial : Shared.Model -> Model -> List (Element Msg)
 englishTutorial shared model =
     [ grayBox
-        [ heading "An Introduction to Paco Ŝako"
-        , textParagraph """Paco Ŝako is a game about Peace
-            created by the Dutch Artist Felix Albers.The name Paco Ŝako means
-            "Peace Chess" in Esperanto, the language of peace."""
-        , textParagraph """This first part of the tutorial is also
-            available on Youtube, if you prefer to learn from a video."""
+        [ heading T.tutorial01Introduction1
+        , textParagraph T.tutorial01Introduction2
+        , textParagraph T.tutorial01Introduction3
         , youtubeEmbed shared.windowSize model.enabledVideos "yJVcQK2gTdM"
         ]
     , grayBox
-        [ heading "The Movement of Pieces"
-        , textParagraph """Each Paco Ŝako piece moves in the same way as a traditional chess piece.
-            This tutorial assumes you already have a basic understanding of chess."""
-        , textParagraph """Here is an opening from game of Paco Ŝako where some
-            regular moves are played. Click or tap to play!"""
+        [ heading T.tutorial02Movement1
+        , textParagraph T.tutorial02Movement2
+        , textParagraph T.tutorial02Movement3
         , animationEmbed shared model "traditionalChessAnimation"
-        , textParagraph """While these moves follow the rules of chess, you'll find
-            the look quite reckless. Both players place their valuable pieces
-            directly on threatened squares. What is going on here?"""
+        , textParagraph T.tutorial02Movement4
         ]
     , grayBox
-        [ heading "Creating a Union"
-        , textParagraph """In Paco Ŝako you never remove the other player's pieces.
-            Instead you have the option to unite your piece with their pieces.
-            Both player's pieces remain on the board. Play the animation to see this in action!"""
+        [ heading T.tutorial03CreateUnion1
+        , textParagraph T.tutorial03CreateUnion2
         , animationEmbed shared model "creatingUnionAnimation"
         ]
     , grayBox
-        [ heading "Moving a union"
-        , textParagraph """Once united, both players can keep on playing with that union.
-            You may only move the union according to the rules of movement of your own piece."""
+        [ heading T.tutorial04MoveUnion1
+        , textParagraph T.tutorial04MoveUnion2
         , animationEmbed shared model "movingUnionAnimation"
-        , textParagraph """If your piece is in a union, we are calling it "united".
-            You can not move a piece out of the union on its own. You always
-            have to take its parter as well. To free your piece from a union, 
-            another piece must take over."""
+        , textParagraph T.tutorial04MoveUnion3
         ]
     , grayBox
-        [ heading "Taking over a Union"
-        , textParagraph """You can take over a union by playing one of your pieces
-            into a union and replacing your original piece. You can then place
-            the free piece according to its movement rules in the same turn."""
+        [ heading T.tutorial05TakeOverUnion1
+        , textParagraph T.tutorial05TakeOverUnion2
         , animationEmbed shared model "takeoverUnionAnimation"
-        , textParagraph """Instead of moving from the union to an open square,
-            the freed piece can also be used to create  a new union."""
+        , textParagraph T.tutorial05TakeOverUnion3
         , animationEmbed shared model "takeoverUnionAnimation2"
         ]
     , grayBox
-        [ heading "The Chain Reaction"
-        , textParagraph """It is also possible to take over another union.
-            This creates a chain reaction."""
-        , textParagraph """Chain reactions move a lot of your pieces at the same time.
-            They are a powerful way to reshape your position on the board and
-            have an outstanding impact on the gameplay. As you gain experience,
-            you'll be able to find longer and longer chains to do more in a single move."""
+        [ heading T.tutorial06ChainReaction1
+        , textParagraph T.tutorial06ChainReaction2
+        , textParagraph T.tutorial06ChainReaction3
         , animationEmbed shared model "chainAnimation"
         ]
     , grayBox
-        [ heading "The End Goal"
-        , textParagraph """The end goal is to be the first player to unite one
-            of your pieces with the other player's king. This means the
-            king can never form a union, start a chain or be used in a chain."""
-        , textParagraph """You now know the basic rules of Paco Ŝako can are
-            ready to play a game. You can play online with a friend or you can
-            join our community Discord to find somebody to play with."""
+        [ heading T.tutorial07EndGoal1
+        , textParagraph T.tutorial07EndGoal2
+        , textParagraph T.tutorial07EndGoal3
         ]
     , Content.References.discordInvite
     , grayBox
-        [ heading "Promotions"
-        , textParagraph """A pawn that reaches the opposite side of the board
-            must be promoted to a different piece. The player who owns the piece
-            gets to chose one of "queen", "knight", "bishop" or "rook"."""
-        , textParagraph """
-            A difference in Paco Ŝako is, that a pawn can be moved to the opposite
-            side of the board as part of a union. In this case it also promotes
-            and it is still the owner of the pawn who decides the promotion."""
+        [ heading T.tutorial08Promotions1
+        , textParagraph T.tutorial08Promotions2
+        , textParagraph T.tutorial08Promotions3
         , animationEmbed shared model "promotionAnimation"
         ]
     , grayBox
-        [ heading "Castling"
-        , textParagraph """Castling is a special move which moves the king
-            two squares toward a rook and then moving the rook to the square
-            that the king passed over."""
-        , textParagraph """To castle, select the king first. You'll be offered
-            an option to move it two squares. The rook will be moved for you
-            automatically."""
-        , textParagraph """ You are only allowed to castle, if neither
-            the king nor the rook has moved before. All squares between
-            the pieces must be empty. Any square the king moves over can not
-            be threatened."""
-        , textParagraph """In Paco Ŝako, this also includes any threat that is
-            created through a chain. This sometimes makes it hard to know,
-            if you are actually allowed to castle. When playing on this website,
-            you can just lift the king and it will only offer you to castle
-            when it is allowed."""
-        , textParagraph """Castling at the right moment or denying your opponent
-            the opportunity to castle, is often an important part of the stategy."""
+        [ heading T.tutorial09Castling1
+        , textParagraph T.tutorial09Castling2
+        , textParagraph T.tutorial09Castling3
+        , textParagraph T.tutorial09Castling4
+        , textParagraph T.tutorial09Castling5
+        , textParagraph T.tutorial09Castling6
         ]
     , grayBox
-        [ heading "En Passant"
-        , textParagraph """En passant is a special way for a pawn to form a union.
-            Directly after a pawn is moved two squares at once, the opponents pawns
-            are allowed to unite with it, as if it only moved a single square."""
-        , textParagraph """On this website you will be offered the move,
-            whenever you lift a pawn that is allowed to unite en passant."""
-        , textParagraph """In Paco Ŝako, en passant is allowed at the start,
-            in the middle and at the end of a chain."""
+        [ heading T.tutorial10EnPassant1
+        , textParagraph T.tutorial10EnPassant2
+        , textParagraph T.tutorial10EnPassant3
+        , textParagraph T.tutorial10EnPassant4
         ]
     , grayBox
-        [ heading "Learn more about Chains from Felix"
-        , textParagraph """You can learn more about chains and loop from Felix Albers,
-            the creator Paco Ŝako. This video gives a short recap of this
-            tutorial and then more aspects and situations of the game in the second
-            part of the video at 1:10."""
+        [ heading T.tutorial11MoreAboutChains1
+        , textParagraph T.tutorial11MoreAboutChains2
         , youtubeEmbed shared.windowSize model.enabledVideos "tQ2JLsFvfxI"
         ]
     ]
