@@ -150,8 +150,7 @@ view shared model =
                         [ paragraph [] [ text "Beda\u{00AD}ŭrinde ĉi tiu paĝo ne haveblas en Esperanto :-(" ] ]
 
                 German ->
-                    textPageWrapper
-                        [ paragraph [] [ text "Wir haben leider noch keine deutsche Anleitung :-(" ] ]
+                    textPageWrapper (englishTutorial shared model)
 
                 Swedish ->
                     textPageWrapper
