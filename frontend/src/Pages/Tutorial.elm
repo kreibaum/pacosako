@@ -138,26 +138,7 @@ view shared model =
             { isRouteHighlighted = \r -> r == Route.Tutorial
             , isWithBackground = True
             }
-            (case T.compiledLanguage of
-                English ->
-                    textPageWrapper (englishTutorial shared model)
-
-                Dutch ->
-                    textPageWrapper (englishTutorial shared model)
-
-                Esperanto ->
-                    textPageWrapper
-                        [ paragraph [] [ text "Beda\u{00AD}ŭrinde ĉi tiu paĝo ne haveblas en Esperanto :-(" ] ]
-
-                German ->
-                    textPageWrapper (englishTutorial shared model)
-
-                Swedish ->
-                    textPageWrapper (englishTutorial shared model)
-
-                Spanish ->
-                    textPageWrapper (englishTutorial shared model)
-            )
+            (textPageWrapper (englishTutorial shared model))
     }
 
 
