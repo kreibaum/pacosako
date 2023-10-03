@@ -2,6 +2,7 @@ module Pages.Tutorial exposing (Model, Msg, page)
 
 import Animation exposing (Timeline)
 import Content.References
+import Custom.Element exposing (icon)
 import Dict exposing (Dict)
 import Effect exposing (Effect)
 import Element exposing (Element, centerX, centerY, el, fill, height, maximum, padding, paddingEach, paddingXY, paragraph, px, spacing, text, width)
@@ -12,6 +13,8 @@ import Element.Input as Input
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
 import Fen
+import FontAwesome.Icon exposing (Icon)
+import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Layout
@@ -444,18 +447,37 @@ animationEmbed : Shared.Model -> Model -> String -> Element Msg
 animationEmbed shared model key =
     model.animations
         |> Dict.get key
-        |> Maybe.map (\( _, animation ) -> animationEmbedInner shared key animation)
+        |> Maybe.map (\( isStarted, animation ) -> animationEmbedInner shared key isStarted animation)
         |> Maybe.withDefault (Element.text "Render Error!")
         |> Element.el [ width (Element.maximum 500 fill), centerX ]
 
 
-animationEmbedInner : Shared.Model -> String -> Timeline OpaqueRenderData -> Element Msg
-animationEmbedInner shared key timeline =
+animationEmbedInner : Shared.Model -> String -> Bool -> Timeline OpaqueRenderData -> Element Msg
+animationEmbedInner shared key isStarted timeline =
     let
+        (overlayIcon, ovenlayColor) =
+            if not isStarted then
+                (Just Solid.play, (Element.rgba 1 1 1 0.7))
+
+            else if not (Animation.isRunning timeline) then
+                (Just Solid.redo, (Element.rgba 1 1 1 0.5))
+
+            else
+                (Nothing, (Element.rgba 1 1 1 0.7))
+
+        overlayIconAttribute =
+            overlayIcon
+                |> Maybe.map (icon [ centerX, centerY, Font.size 100, Font.color ovenlayColor ])
+                |> Maybe.map Element.inFront
+                |> Maybe.withDefault Element.spaceEvenly
+
+        viewConfig =
+            PositionView.staticViewConfig shared.colorConfig
+
         label =
-            PositionView.viewTimeline (PositionView.staticViewConfig shared.colorConfig) timeline
+            PositionView.viewTimeline viewConfig timeline
     in
-    Input.button [ width fill ]
+    Input.button [ width fill, overlayIconAttribute ]
         { onPress = Just (StartAnimation key)
         , label = label
         }
