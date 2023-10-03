@@ -143,7 +143,7 @@ view shared model =
                     textPageWrapper (englishTutorial shared model)
 
                 Dutch ->
-                    dutchTutorial shared
+                    textPageWrapper (englishTutorial shared model)
 
                 Esperanto ->
                     textPageWrapper
@@ -153,12 +153,10 @@ view shared model =
                     textPageWrapper (englishTutorial shared model)
 
                 Swedish ->
-                    textPageWrapper
-                        [ paragraph [] [ text "Tyvärr har vi ingen svensk manual än :-(" ] ]
+                    textPageWrapper (englishTutorial shared model)
 
                 Spanish ->
-                    textPageWrapper
-                        [ paragraph [] [ text "Lamentablemente, todavía no tenemos un manual en español :-(" ] ]
+                    textPageWrapper (englishTutorial shared model)
             )
     }
 
@@ -168,64 +166,6 @@ textPageWrapper content =
     Layout.vScollBox
         [ Element.column [ width (fill |> maximum 1000), centerX, padding 10, spacing 10 ]
             content
-        ]
-
-
-{-| The tutorial needs only a language and this is stored outside. It contains
-the language toggle for now, so it needs to be taught to send language messages.
--}
-dutchTutorial : Shared.Model -> Element msg
-dutchTutorial shared =
-    Layout.vScollBox
-        [ Element.column [ width (fill |> maximum 1000), centerX, paddingXY 10 20, spacing 10 ]
-            [ "Leer Paco Ŝako"
-                |> text
-                |> el [ Font.size 40, centerX ]
-            , paragraph []
-                [ "Felix bereidt een reeks video-instructies over Paco Ŝako voor. Je kunt ze hier en op zijn YouTube-kanaal vinden." |> text ]
-            , oneVideo shared.windowSize ( "Opstelling", Just "1jybatEtdPo" )
-            , oneVideo shared.windowSize ( "Beweging van de stukken", Just "mCoara3xUlk" )
-            , oneVideo shared.windowSize ( "4 Paco Ŝako Regles", Just "zEq1fqBoL9M" )
-            , oneVideo shared.windowSize ( "Doel Van Het Spel", Nothing )
-            , oneVideo shared.windowSize ( "Combo's, Loop, Ketting", Nothing )
-            , oneVideo shared.windowSize ( "Strategie", Nothing )
-            , oneVideo shared.windowSize ( "Opening, Middenspel, Eindspel", Nothing )
-            , oneVideo shared.windowSize ( "Rokeren, Promoveren, En Passant", Nothing )
-            , oneVideo shared.windowSize ( "Creatieve Speelwijze", Nothing )
-            , oneVideo shared.windowSize ( "Spel Plezier & Schoonheid", Nothing )
-            ]
-        ]
-
-
-oneVideo : ( Int, Int ) -> ( String, Maybe String ) -> Element msg
-oneVideo ( w, _ ) ( caption, link ) =
-    let
-        videoWidth =
-            min 640 (w - 20)
-
-        videoHeight =
-            videoWidth * 9 // 16
-    in
-    Element.column
-        [ width fill
-        , height fill
-        , Background.color (Element.rgb 0.9 0.9 0.9)
-        ]
-        [ paragraph [ padding 10 ] [ text caption |> el [ Font.size 25 ] ]
-        , case link of
-            Just videoKey ->
-                Youtube.fromString videoKey
-                    |> Youtube.attributes
-                        [ YoutubeA.width videoWidth
-                        , YoutubeA.height videoHeight
-                        ]
-                    |> Youtube.toHtml
-                    |> Element.html
-                    |> Element.el []
-
-            Nothing ->
-                paragraph []
-                    [ "Felix bereidt momenteel deze video voor." |> text ]
         ]
 
 
