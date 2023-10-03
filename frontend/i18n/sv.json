@@ -89,7 +89,7 @@
     "tutorial03CreateUnion1": "Skapa en union",
     "tutorial03CreateUnion2": "I Paco Ŝako tar du aldrig bort den andra spelarens pjäser. Istället har du möjligheten att förena din pjäs med deras pjäser. Båda spelarnas pjäser stannar kvar på brädet. Spela upp animationen för att se detta i aktion!",
     "tutorial04MoveUnion1": "Flytta en union",
-    "tutorial04MoveUnion2": "När de är förenade kan båda spelarna fortsätta spela med den unionen. Du får endast flytta unionen enligt ditt eget pjäs rörelses regler.",
+    "tutorial04MoveUnion2": "När de är förenade kan båda spelarna fortsätta spela med den unionen. Du får endast flytta unionen enligt din egen pjäs rörelseregler.",
     "tutorial04MoveUnion3": "Om din pjäs är i en union, kallar vi den \"förenad\". Du kan inte flytta en pjäs ur en union på egen hand. Du måste alltid ta med dess partner också. För att frigöra din pjäs från en union måste en annan pjäs ta över.",
     "tutorial05TakeOverUnion1": "Ta över en union",
     "tutorial05TakeOverUnion2": "Du kan ta över en union genom att spela en av dina pjäser in i en union och ersätta din ursprungliga pjäs. Du kan sedan placera den fria pjäsen enligt dess rörelses regler i samma drag.",
