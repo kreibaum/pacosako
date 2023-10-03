@@ -890,7 +890,7 @@ timerTagSvg data =
 timerTextSvg : Svg.Attribute msg -> String -> Svg msg
 timerTextSvg fill caption =
     Svg.text_
-        [ SvgA.style "text-anchor:middle;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
+        [ SvgA.style "text-anchor:middle;font-size:40px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
         , SvgA.x "125"
         , SvgA.y "30"
         , fill
