@@ -272,7 +272,7 @@ youtubeEmbed ( w, _ ) allowed url =
                     , Background.image StaticAssets.messyPawns
                     , Font.bold
                     ]
-                    (paragraph [ padding 25, centerX, centerY, Font.center ] [ text "Click to enable video. By clicking, you'll load content from YouTube." ])
+                    (paragraph [ padding 25, centerX, centerY, Font.center ] [ text T.tutorial00ClickToEnableYoutube ])
             , onPress = Just (EnableVideo url)
             }
 
