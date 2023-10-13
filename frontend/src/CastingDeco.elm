@@ -13,9 +13,11 @@ module CastingDeco exposing
     )
 
 import Arrow exposing (Arrow)
-import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf)
+import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
 import Custom.Events exposing (BoardMousePosition)
 import Element exposing (Element, spacing)
+import Element.Font as Font
+import FontAwesome.Solid as Solid
 import List.Extra as List
 import Sako exposing (Tile)
 import Translations as T
@@ -38,7 +40,7 @@ initModel =
 
 type InputMode
     = InputTiles
-    | InputArrows
+    | InputArrows String
 
 
 mouseDown : InputMode -> BoardMousePosition -> Model -> Model
@@ -48,15 +50,15 @@ mouseDown mode mouse model =
             -- Nothing to do here, tile is shown on mouse up.
             model
 
-        InputArrows ->
-            mouseDownArrows mouse model
+        InputArrows color ->
+            mouseDownArrows color mouse model
 
 
 {-| Create a ghost arrow.
 -}
-mouseDownArrows : BoardMousePosition -> Model -> Model
-mouseDownArrows mouse model =
-    { model | ghostArrow = Maybe.map (\tile -> Arrow tile tile Arrow.defaultTailWidth Arrow.defaultArrowColor )  mouse.tile  }
+mouseDownArrows : String -> BoardMousePosition -> Model -> Model
+mouseDownArrows color mouse model =
+    { model | ghostArrow = Maybe.map (\tile -> Arrow tile tile Arrow.defaultTailWidth color) mouse.tile }
 
 
 mouseMove : InputMode -> BoardMousePosition -> Model -> Model
@@ -66,7 +68,7 @@ mouseMove mode mouse model =
             -- Nothing to do here, tile is shown on mouse up.
             model
 
-        InputArrows ->
+        InputArrows _ ->
             mouseMoveArrows mouse model
 
 
@@ -92,7 +94,7 @@ mouseUp mode mouse model =
             -- Nothing to do here, tile is shown on mouse up.
             mouseUpTiles mouse model
 
-        InputArrows ->
+        InputArrows _ ->
             model
                 |> mouseMoveArrows mouse
                 |> mouseUpArrows
@@ -218,17 +220,22 @@ tileInputClearButton messages model =
 arrowInputMode : Messages msg -> Maybe InputMode -> Model -> Element msg
 arrowInputMode messages mode model =
     Element.row [ spacing 5 ]
-        [ arrowInputModeButton messages mode
+        [ arrowInputModeButton (Element.rgb255 255 200 0) "rgb(255, 200, 0, 0.5)" messages mode
+        , arrowInputModeButton (Element.rgb255 200 0 255) "rgb(200, 0, 255, 0.5)" messages mode
+        , arrowInputModeButton (Element.rgb255 0 200 255) "rgb(0, 200, 255, 0.5)" messages mode
+        , arrowInputModeButton (Element.rgb255 255 100 100) "rgb(255, 100, 100, 0.5)" messages mode
         , arrowInputClearButton messages model
         ]
 
 
-arrowInputModeButton : Messages msg -> Maybe InputMode -> Element msg
-arrowInputModeButton messages mode =
-    btn T.decoArrows
-        |> withMsg (messages.setInputMode (Just InputArrows))
-        |> withMsgIf (mode == Just InputArrows) (messages.setInputMode Nothing)
-        |> isSelectedIf (mode == Just InputArrows)
+arrowInputModeButton : Element.Color -> String -> Messages msg -> Maybe InputMode -> Element msg
+arrowInputModeButton eColor color messages mode =
+    btn ""
+        |> withSmallIcon Solid.arrowRight
+        |> withStyle (Font.color eColor)
+        |> withMsg (messages.setInputMode (Just (InputArrows color)))
+        |> withMsgIf (mode == Just (InputArrows color)) (messages.setInputMode Nothing)
+        |> isSelectedIf (mode == Just (InputArrows color))
         |> viewButton
 
 

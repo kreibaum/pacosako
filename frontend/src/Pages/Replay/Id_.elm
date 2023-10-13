@@ -410,7 +410,7 @@ keybindings : List (KeyBinding InnerMsg)
 keybindings =
     [ forKey "1" |> fireMsg (SetInputMode Nothing)
     , forKey "2" |> fireMsg (SetInputMode (Just CastingDeco.InputTiles))
-    , forKey "3" |> fireMsg (SetInputMode (Just CastingDeco.InputArrows))
+    , forKey "3" |> fireMsg (SetInputMode (Just (CastingDeco.InputArrows Arrow.defaultArrowColor)))
     , forKey " " |> fireMsg ClearDecoComplete
     , forKey "0" |> fireMsg ClearDecoComplete
     , forKey "ArrowDown" |> fireMsg NextAction

@@ -5,6 +5,7 @@ import Api.Decoders exposing (CurrentMatchState, getActionList)
 import Api.MessageGen
 import Api.Ports as Ports
 import Api.Websocket
+import Arrow
 import Browser.Dom
 import Browser.Events
 import CastingDeco
@@ -639,7 +640,7 @@ keybindings : List (KeyBinding Msg)
 keybindings =
     [ forKey "1" |> fireMsg (SetInputMode Nothing)
     , forKey "2" |> fireMsg (SetInputMode (Just CastingDeco.InputTiles))
-    , forKey "3" |> fireMsg (SetInputMode (Just CastingDeco.InputArrows))
+    , forKey "3" |> fireMsg (SetInputMode (Just (CastingDeco.InputArrows Arrow.defaultArrowColor)))
     , forKey " " |> fireMsg ClearDecoComplete
     , forKey "0" |> fireMsg ClearDecoComplete
     ]
