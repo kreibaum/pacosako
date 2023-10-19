@@ -1,3 +1,4 @@
+pub mod chasing_paco;
 mod opening;
 pub mod puzzle;
 pub mod reverse_amazon_search;
