@@ -3,6 +3,7 @@
 use core::fmt::Debug;
 use fxhash::{FxHashMap, FxHashSet};
 use std::{
+    borrow::Cow,
     collections::{hash_map::Entry, VecDeque},
     fmt::Formatter,
     ops::Add,
@@ -32,6 +33,12 @@ impl Debug for ExploredStateAmazon {
             .as_str(),
         )
     }
+}
+
+pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
+    let tree = explore_paco_tree(board, for_player)?;
+
+    Ok(!tree.paco_positions.is_empty())
 }
 
 pub fn find_paco_sequences(
@@ -69,8 +76,20 @@ pub fn explore_paco_tree(
         ));
     }
 
+    // Required for e.g. r2q1Ck1/ppp1n2p/4f2c/3d4/1b1o1e1P/2E1P3/P1P2PP1/2KR1B2 w 1 AHah - -
+    // Or 3P4/1k1l1p2/5D2/aaEd1v1C/3e1acd/8/D3L3/4K3 w 7 - - -
+    // We want to avoid cloning the board if we don't have to. So we'll use a
+    // Cow here.
+    let board = if board.required_action.is_promote() {
+        let mut board = board.clone();
+        board.execute(PacoAction::Promote(PieceType::Queen))?;
+        Cow::Owned(board)
+    } else {
+        Cow::Borrowed(board)
+    };
+
     // First, find out if we actually need to do anything.
-    let search = reverse_amazon_squares(board, attacking_player)?;
+    let search = reverse_amazon_squares(&board, attacking_player)?;
     if search.starting_tiles.is_empty() {
         return Ok(ExploredStateAmazon {
             paco_positions: FxHashSet::default(),
@@ -83,8 +102,8 @@ pub fn explore_paco_tree(
     let mut paco_positions: FxHashSet<DenseBoard> = FxHashSet::default();
     let mut found_via: FxHashMap<DenseBoard, Vec<(PacoAction, DenseBoard)>> = FxHashMap::default();
 
-    // Clone the board and correctly set the controlling player.
-    let mut board = board.clone();
+    // Clone the board (if not already cloned) and correctly set the controlling player.
+    let mut board: DenseBoard = board.into_owned();
     board.controlling_player = attacking_player;
 
     // The paco positions we are interested in are the one that end with a

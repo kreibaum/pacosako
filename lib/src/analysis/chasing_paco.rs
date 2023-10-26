@@ -3,15 +3,38 @@
 //! where the player to win must always put its opponent in Ŝako. This reduces
 //! the number of positions we need to analyze.
 
+use core::panic;
+
 use crate::{
     analysis::{self},
     determine_all_moves, trace_first_move, DenseBoard, PacoAction, PacoBoard, PacoError,
-    PlayerColor,
+    PlayerColor, VictoryState,
 };
+
+use super::reverse_amazon_search;
+
+pub fn my_is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
+    let classical_result = analysis::is_sako(board, for_player)?;
+    let amazon_result = reverse_amazon_search::is_sako(board, for_player)?;
+
+    if classical_result != amazon_result {
+        panic!(
+            "Classical ({}) and Amazon ({}) search disagree on Ŝako for board:\n{:?}, FEN: {}",
+            classical_result,
+            amazon_result,
+            board,
+            crate::fen::write_fen(board)
+        );
+    }
+    Ok(classical_result)
+}
 
 /// Checks if the given board state is "Chasing Paco in 2". This can use either
 /// player's perspective. The board must be settled. (No active chain.)
 /// Returns a vector of all moves that can be used for this chase.
+///
+/// If a the attacker can directly unite with the opponents king, this is not
+/// considered a chasing paco in 2. (This is a chasing paco in 1.)
 ///
 /// Note that for n == 2, the Chasing Paco is equivalent to Forced Paco.
 pub fn is_chasing_paco_in_2(
@@ -25,27 +48,45 @@ pub fn is_chasing_paco_in_2(
         "Board must be settled to determine chasing paco in 2"
     );
     let mut result = vec![];
+
     let mut board = board.clone();
     board.controlling_player = attacker;
 
     let explored_attacks = determine_all_moves(board)?;
 
+    // Check if one of these actually wins the game already.
+    if explored_attacks
+        .settled
+        .iter()
+        .any(|b| b.victory_state == VictoryState::PacoVictory(attacker))
+    {
+        return Ok(vec![]);
+    }
+
     // Filter out the settled boards on which the opponent is in Ŝako now.
     'attacks: for attack_board in &explored_attacks.settled {
-        if analysis::is_sako(attack_board, attacker)? {
+        // TODO: This does not yet use the amazon search algorithm.
+        // But just swapping it in with is_sako(..) defined as
+        // explore_paco_tree(..).paco_positions.is_empty() didn't work.
+        // Needs more investigation. Maybe this is even a bug in the amazon search?
+        if my_is_sako(attack_board, attacker)? {
             // This is a settled board to analyze further. Is there any defense
             // against Ŝako?
             // Uniting with the king is a valid defense.
-            if analysis::is_sako(attack_board, attacker.other())? {
+            if my_is_sako(attack_board, attacker.other())? {
                 continue;
             }
-            assert!(attack_board.controlling_player == attacker.other());
+            assert!(
+                attack_board.controlling_player == attacker.other(),
+                "{}",
+                crate::fen::write_fen(attack_board)
+            );
             let explored_defense = determine_all_moves(attack_board.clone())?;
             // All of the defense boards must still be in Ŝako. Otherwise we can
             // escape. This then discards the attack board (and move) from the
             // options.
             for defense_board in &explored_defense.settled {
-                if !analysis::is_sako(defense_board, attacker)? {
+                if !my_is_sako(defense_board, attacker)? {
                     continue 'attacks;
                 }
             }
@@ -148,6 +189,28 @@ mod tests {
 
         // I believe this is chasing paco in 3, so a good test case for later.
         assert!(is_chasing_paco_in_2(&board, PlayerColor::White)?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn chasing_paco_2_detected_example_c() -> Result<(), PacoError> {
+        let setup = "2btk2r/1pe2ppp/1P2p3/1dC5/8/P1E3A1/2sP1PP1/3LK1NR w 0 AHah - -";
+        let board = fen::parse_fen(setup).unwrap();
+
+        assert!(is_chasing_paco_in_2(&board, PlayerColor::White)?.is_empty());
+        assert!(is_chasing_paco_in_2(&board, PlayerColor::Black)?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn chasing_paco_2_detected_example_d() -> Result<(), PacoError> {
+        // Tests against a promotion at the end of the move "after" capturing
+        // the king confusing the algorithm.
+        let setup = "r1b1kb1r/pp1D1e2/q1A2n2/1Pp3pp/3f4/8/P1P2PPP/RNB1K1NR w 0 AHah - -";
+        let board = fen::parse_fen(setup).unwrap();
+
+        assert!(is_chasing_paco_in_2(&board, PlayerColor::White)?.is_empty());
+        assert!(is_chasing_paco_in_2(&board, PlayerColor::Black)?.is_empty());
         Ok(())
     }
 }

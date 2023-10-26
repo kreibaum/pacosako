@@ -13,6 +13,9 @@ mod static_include;
 pub mod types;
 pub mod zobrist;
 
+#[cfg(test)]
+mod testdata;
+
 use draw_state::DrawState;
 use fxhash::FxHashSet;
 use serde::{Deserialize, Serialize};
@@ -1537,8 +1540,11 @@ pub fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, P
                 // We encounter this state for the first time.
                 Entry::Vacant(v_entry) => {
                     v_entry.insert(vec![(action, Some(todo.clone()))]);
-                    if b.is_settled() {
-                        // The state is settled, we don't look at the following moves.
+                    if b.controlling_player() != board.controlling_player()
+                        || b.victory_state().is_over()
+                    {
+                        // The controlling player has switched,
+                        // we don't look at the following moves.
                         settled.insert(b);
                     } else {
                         // We will look at the possible chain moves later.

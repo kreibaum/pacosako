@@ -42,6 +42,8 @@ pub struct HalfMoveMetadata {
     missed_paco: bool,
     /// If you make a move that ends with yourself in Ŝako even if you didn't start there.
     gives_opponent_paco_opportunity: bool,
+    paco_in_2_found: bool,
+    paco_in_2_missed: bool,
 }
 
 /// Metadata with all flags set to false.
@@ -51,6 +53,8 @@ impl Default for HalfMoveMetadata {
             gives_sako: false,
             missed_paco: false,
             gives_opponent_paco_opportunity: false,
+            paco_in_2_found: false,
+            paco_in_2_missed: false,
         }
     }
 }
@@ -267,33 +271,47 @@ pub fn history_to_replay_notation(
         move_number: move_count,
         current_player,
         actions: Vec::new(),
-        metadata: HalfMoveMetadata {
-            gives_sako: false,
-            missed_paco: false,
-            gives_opponent_paco_opportunity: false,
-        },
+        metadata: HalfMoveMetadata::default(),
     };
 
     let mut board = initial_board.clone();
     let mut giving_sako_before_move = is_sako(&board, board.controlling_player())?;
     let mut in_sako_before_move = is_sako(&board, board.controlling_player().other())?;
+    let mut paco_in_2_moves =
+        chasing_paco::is_chasing_paco_in_2(&board, board.controlling_player())?;
 
     // Pick moves off the stack and add them to the current half move.
     // This vector collects notation atoms and then gets turned into a HalfMove
     // when the current player changes. (Or game is over)
     let mut notations = Vec::new();
+    let mut actions_in_move = Vec::new();
     for (action_index, &action) in actions.iter().enumerate() {
         let notation = apply_action_semantically(&mut board, action)?;
         notations.push(notation);
+        actions_in_move.push(action);
+
+        // Looks incorrect:
+        // http://0.0.0.0:8000/replay/13016
+        // There should never be a situation which is both "missed paco" and
+        // "Missed paco in 2" at the same time.
+
+        // TODO: Performance
 
         if board.controlling_player() != current_player || board.victory_state.is_over() {
             // analyze situation, finalize half move, change color
             let giving_sako_after_move = is_sako(&board, current_player)?;
             let in_sako_after_move = is_sako(&board, current_player.other())?;
+
+            // If there was a paco in 2 option, did the player take it?
+            let paco_in_2_found = paco_in_2_moves.contains(&actions_in_move);
+            let paco_in_2_missed = !paco_in_2_found && !paco_in_2_moves.is_empty();
+
             current_half_move.metadata = HalfMoveMetadata {
                 gives_sako: giving_sako_after_move,
                 missed_paco: giving_sako_before_move && !board.victory_state().is_over(),
                 gives_opponent_paco_opportunity: !in_sako_before_move && in_sako_after_move,
+                paco_in_2_found,
+                paco_in_2_missed,
             };
 
             current_half_move.actions =
@@ -311,14 +329,14 @@ pub fn history_to_replay_notation(
                 move_number: move_count,
                 current_player,
                 actions: Vec::new(),
-                metadata: HalfMoveMetadata {
-                    gives_sako: false,
-                    missed_paco: false,
-                    gives_opponent_paco_opportunity: false,
-                },
+                metadata: HalfMoveMetadata::default(),
             };
             giving_sako_before_move = in_sako_after_move;
-            in_sako_before_move = giving_sako_after_move
+            in_sako_before_move = giving_sako_after_move;
+
+            paco_in_2_moves =
+                chasing_paco::is_chasing_paco_in_2(&board, board.controlling_player())?;
+            actions_in_move.clear();
         }
     }
 
@@ -334,6 +352,7 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
         return Ok(false);
     }
     let mut board = board.clone();
+    // Required for e.g. r2q1Ck1/ppp1n2p/4f2c/3d4/1b1o1e1P/2E1P3/P1P2PP1/2KR1B2 w 1 AHah - -
     if board.required_action.is_promote() {
         board.execute(PacoAction::Promote(PieceType::Queen))?;
     }
@@ -358,7 +377,7 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
 // Test module
 #[cfg(test)]
 mod tests {
-    use crate::fen;
+    use crate::{fen, testdata::REPLAY_13103};
 
     use super::*;
 
@@ -388,11 +407,7 @@ mod tests {
                     action_index: 2,
                     label: "d2>d4".to_string(),
                 },],
-                metadata: HalfMoveMetadata {
-                    gives_sako: false,
-                    missed_paco: false,
-                    gives_opponent_paco_opportunity: false,
-                }
+                metadata: HalfMoveMetadata::default()
             }]
         );
     }
@@ -424,11 +439,7 @@ mod tests {
                         action_index: 2,
                         label: "e2>e4".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
                 HalfMove {
                     move_number: 1,
@@ -437,11 +448,7 @@ mod tests {
                         action_index: 4,
                         label: "d7>d5".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
                 HalfMove {
                     move_number: 2,
@@ -450,11 +457,7 @@ mod tests {
                         action_index: 6,
                         label: "e4xd5".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
                 HalfMove {
                     move_number: 2,
@@ -469,11 +472,7 @@ mod tests {
                             label: ">d4".to_string(),
                         },
                     ],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 }
             ]
         );
@@ -507,11 +506,7 @@ mod tests {
                         action_index: 2,
                         label: "RPh2>h8".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
                 HalfMove {
                     move_number: 2,
@@ -530,11 +525,7 @@ mod tests {
                             label: ">g6".to_string(),
                         },
                     ],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
             ]
         );
@@ -570,11 +561,7 @@ mod tests {
                         action_index: 2,
                         label: "0-0".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
                 HalfMove {
                     move_number: 1,
@@ -583,11 +570,7 @@ mod tests {
                         action_index: 4,
                         label: "0-0-0".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
                 HalfMove {
                     move_number: 2,
@@ -596,11 +579,7 @@ mod tests {
                         action_index: 6,
                         label: "Kg1>h1".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
                 HalfMove {
                     move_number: 2,
@@ -609,11 +588,7 @@ mod tests {
                         action_index: 8,
                         label: "Kc8>d7".to_string(),
                     },],
-                    metadata: HalfMoveMetadata {
-                        gives_sako: false,
-                        missed_paco: false,
-                        gives_opponent_paco_opportunity: false,
-                    }
+                    metadata: HalfMoveMetadata::default()
                 },
             ]
         );
@@ -644,12 +619,18 @@ mod tests {
                     label: "Nc6xd4".to_string(),
                 },],
                 metadata: HalfMoveMetadata {
-                    gives_sako: false,
-                    missed_paco: false,
                     gives_opponent_paco_opportunity: true,
+                    ..Default::default()
                 }
             },]
         );
+    }
+
+    #[test]
+    fn test_replay_13103() -> Result<(), PacoError> {
+        let notation = history_to_replay_notation(DenseBoard::new(), &REPLAY_13103)?;
+
+        Ok(())
     }
 
     // TODO: Add an integration test were we test all games that were ever played.
