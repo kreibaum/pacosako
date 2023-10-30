@@ -81,8 +81,9 @@ encodeConfig config =
         [ ( "time_budget_white", encodeSeconds config.timeBudgetWhite )
         , ( "time_budget_black", encodeSeconds config.timeBudgetBlack )
         , ( "increment"
-          , Maybe.map encodeSeconds config.increment
-                |> Maybe.withDefault Encode.null
+          , config.increment
+                |> Maybe.withDefault (Duration.seconds 0)
+                |> encodeSeconds
           )
         ]
 
