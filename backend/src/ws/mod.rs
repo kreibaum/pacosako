@@ -8,7 +8,6 @@ use crate::{
     ServerError,
 };
 use anyhow::bail;
-use async_std::task;
 use axum::extract::ws::Message;
 use chrono::{DateTime, Utc};
 use kanal::{Receiver, Sender};
@@ -59,7 +58,18 @@ pub enum LogicMsg {
 
 /// Spawn a thread that handles the server logic.
 fn run_logic_server(message_queue: Receiver<LogicMsg>, pool: db::Pool) {
-    std::thread::spawn(move || task::block_on(loop_logic_server(message_queue, pool)));
+    std::thread::spawn(move || {
+        // Create a runtime that _must_ be driven from a call
+        // to `Runtime::block_on`.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        // This will run the runtime and future on the current thread
+        rt.block_on(loop_logic_server(message_queue, pool))
+            .expect("Error running the logic server.");
+    });
 }
 
 /// Simple loop that reacts to all the messages.
