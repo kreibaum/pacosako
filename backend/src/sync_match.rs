@@ -40,6 +40,12 @@ pub struct StampedAction {
     timestamp: DateTime<Utc>,
 }
 
+impl From<&StampedAction> for PacoAction {
+    fn from(stamped_action: &StampedAction) -> Self {
+        stamped_action.action
+    }
+}
+
 /// A match is a recording of actions taken in it together with a unique
 /// identifier that can be used to connect to the game.
 /// It also takes care of tracking the timing and ensures actions are legal.
@@ -163,7 +169,7 @@ impl SynchronizedMatch {
     }
 
     /// Reconstruct the board state
-    fn project(&self) -> Result<pacosako::DenseBoard, PacoError> {
+    pub fn project(&self) -> Result<pacosako::DenseBoard, PacoError> {
         // Here we don't need to validate the move, this was done before they
         // have been added to the action list.
         let mut board = pacosako::DenseBoard::with_options(&self.setup_options);

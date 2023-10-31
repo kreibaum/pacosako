@@ -3,8 +3,6 @@
 //! where the player to win must always put its opponent in Ŝako. This reduces
 //! the number of positions we need to analyze.
 
-use core::panic;
-
 use crate::{
     analysis::{self},
     determine_all_moves, trace_first_move, DenseBoard, PacoAction, PacoBoard, PacoError,
@@ -14,19 +12,24 @@ use crate::{
 use super::reverse_amazon_search;
 
 pub fn my_is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
-    let classical_result = analysis::is_sako(board, for_player)?;
-    let amazon_result = reverse_amazon_search::is_sako(board, for_player)?;
+    reverse_amazon_search::is_sako(board, for_player)
 
-    if classical_result != amazon_result {
-        panic!(
-            "Classical ({}) and Amazon ({}) search disagree on Ŝako for board:\n{:?}, FEN: {}",
-            classical_result,
-            amazon_result,
-            board,
-            crate::fen::write_fen(board)
-        );
-    }
-    Ok(classical_result)
+    // TODO: Make this algorithm generalize over the constituent algorithms.
+
+    // use core::panic;
+    // let classical_result = analysis::is_sako(board, for_player)?;
+    // let amazon_result = reverse_amazon_search::is_sako(board, for_player)?;
+
+    // if classical_result != amazon_result {
+    //     panic!(
+    //         "Classical ({}) and Amazon ({}) search disagree on Ŝako for board:\n{:?}, FEN: {}",
+    //         classical_result,
+    //         amazon_result,
+    //         board,
+    //         crate::fen::write_fen(board)
+    //     );
+    // }
+    // Ok(classical_result)
 }
 
 /// Checks if the given board state is "Chasing Paco in 2". This can use either
