@@ -8,12 +8,12 @@ use std::fmt::Display;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PieceType {
-    Pawn = 1,
-    Rook = 2,
-    Knight = 3,
-    Bishop = 4,
-    Queen = 5,
-    King = 6,
+    Pawn = 0,
+    Rook = 1,
+    Knight = 2,
+    Bishop = 3,
+    Queen = 4,
+    King = 5,
 }
 
 impl PieceType {
@@ -33,8 +33,8 @@ impl PieceType {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlayerColor {
-    White,
-    Black,
+    White = 0,
+    Black = 1,
 }
 
 impl PlayerColor {

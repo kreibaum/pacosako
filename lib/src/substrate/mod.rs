@@ -3,8 +3,8 @@
 //! because we were already using that for the board with all the logic.
 
 use crate::{parser::Square, BoardPosition, PacoError, PieceType, PlayerColor};
-
 pub mod dense;
+pub mod zobrist;
 
 pub trait Substrate {
     /// Returns the piece at the given position, if any.

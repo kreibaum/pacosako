@@ -2,14 +2,16 @@
 //! We reserve memory for all positions and keep them in an array.
 //! This already improves the previous dense version using Vec.
 
+use super::zobrist::Zobrist;
 use super::{BitBoard, Substrate};
 use crate::{BoardPosition, PlayerColor};
 use crate::{PacoError, PieceType};
 use rand::Rng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::hash::Hash;
 use std::ops::{Index, IndexMut};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DenseSubstrate {
     #[serde(
         serialize_with = "serialize_option_array",
@@ -21,6 +23,13 @@ pub struct DenseSubstrate {
         deserialize_with = "deserialize_option_array"
     )]
     black: [Option<PieceType>; 64],
+    hash: Zobrist,
+}
+
+impl Hash for DenseSubstrate {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        state.write_u64(self.hash.as_u64());
+    }
 }
 
 /// A default substrate is empty and must be filled with pieces to be useful.
@@ -29,6 +38,7 @@ impl Default for DenseSubstrate {
         DenseSubstrate {
             white: [None; 64],
             black: [None; 64],
+            hash: Zobrist::default(),
         }
     }
 }
@@ -72,17 +82,43 @@ impl Substrate for DenseSubstrate {
             PlayerColor::White => self.white[pos] = None,
             PlayerColor::Black => self.black[pos] = None,
         }
+        self.hash ^= Zobrist::piece_on_square_opt(player, pos, result);
         result
     }
     fn set_piece(&mut self, player: PlayerColor, pos: BoardPosition, piece: PieceType) {
         match player {
-            PlayerColor::White => self.white[pos] = Some(piece),
-            PlayerColor::Black => self.black[pos] = Some(piece),
+            PlayerColor::White => {
+                self.hash ^= Zobrist::piece_on_square_opt(player, pos, self.white[pos]);
+                self.hash ^= Zobrist::piece_on_square(player, pos, piece);
+                self.white[pos] = Some(piece)
+            }
+            PlayerColor::Black => {
+                self.hash ^= Zobrist::piece_on_square_opt(player, pos, self.black[pos]);
+                self.hash ^= Zobrist::piece_on_square(player, pos, piece);
+                self.black[pos] = Some(piece)
+            }
         }
     }
     fn swap(&mut self, pos1: BoardPosition, pos2: BoardPosition) {
-        self.white.swap(pos1.0 as usize, pos2.0 as usize);
-        self.black.swap(pos1.0 as usize, pos2.0 as usize);
+        let w1 = self.white[pos1];
+        let w2 = self.white[pos2];
+        let b1 = self.black[pos1];
+        let b2 = self.black[pos2];
+
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::White, pos1, w1);
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::White, pos2, w1);
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::White, pos1, w2);
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::White, pos2, w2);
+
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::Black, pos1, b1);
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::Black, pos2, b1);
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::Black, pos1, b2);
+        self.hash ^= Zobrist::piece_on_square_opt(PlayerColor::Black, pos2, b2);
+
+        self.white[pos1] = w2;
+        self.white[pos2] = w1;
+        self.black[pos1] = b2;
+        self.black[pos2] = b1;
     }
     fn bitboard_color(&self, player: PlayerColor) -> super::BitBoard {
         match player {
@@ -115,6 +151,21 @@ impl DenseSubstrate {
         use rand::seq::SliceRandom;
         self.white.shuffle(rng);
         self.black.shuffle(rng);
+        self.refresh_hash();
+    }
+
+    fn refresh_hash(&mut self) {
+        self.hash = Zobrist::default();
+        for i in 0..64 {
+            if let Some(piece) = self.white[i] {
+                self.hash ^=
+                    Zobrist::piece_on_square(PlayerColor::White, BoardPosition(i as u8), piece);
+            }
+            if let Some(piece) = self.black[i] {
+                self.hash ^=
+                    Zobrist::piece_on_square(PlayerColor::Black, BoardPosition(i as u8), piece);
+            }
+        }
     }
 }
 
@@ -178,5 +229,5 @@ where
 #[test]
 fn test_size() {
     use std::mem::size_of;
-    assert_eq!(size_of::<DenseSubstrate>(), 64 * 2);
+    assert_eq!(size_of::<DenseSubstrate>(), 64 * 2 + 8);
 }
