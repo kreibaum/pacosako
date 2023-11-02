@@ -5,8 +5,8 @@ use crate::BoardPosition;
 /// This is also why we have that lifetime requirement.
 pub const fn pos(s: &'static str) -> BoardPosition {
     assert!(s.len() == 2);
-    let file = s.as_bytes()[0] as u8 - b'a';
-    let rank = s.as_bytes()[1] as u8 - b'1';
+    let file = s.as_bytes()[0] - b'a';
+    let rank = s.as_bytes()[1] - b'1';
     BoardPosition::new(file, rank)
 }
 

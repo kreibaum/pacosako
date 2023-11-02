@@ -151,21 +151,31 @@ impl DenseSubstrate {
         use rand::seq::SliceRandom;
         self.white.shuffle(rng);
         self.black.shuffle(rng);
-        self.refresh_hash();
+        self.refresh_zobrist_hash();
     }
 
-    fn refresh_hash(&mut self) {
-        self.hash = Zobrist::default();
+    pub fn get_zobrist_hash(&self) -> Zobrist {
+        self.hash
+    }
+
+    /// This method recomputes the zobrist hash from scratch.
+    /// This is really only exposed for testing and you should just get_zobrist_hash
+    /// when you need it.
+    pub fn recompute_zobrist_hash(&self) -> Zobrist {
+        let mut hash = Zobrist::default();
         for i in 0..64 {
             if let Some(piece) = self.white[i] {
-                self.hash ^=
-                    Zobrist::piece_on_square(PlayerColor::White, BoardPosition(i as u8), piece);
+                hash ^= Zobrist::piece_on_square(PlayerColor::White, BoardPosition(i as u8), piece);
             }
             if let Some(piece) = self.black[i] {
-                self.hash ^=
-                    Zobrist::piece_on_square(PlayerColor::Black, BoardPosition(i as u8), piece);
+                hash ^= Zobrist::piece_on_square(PlayerColor::Black, BoardPosition(i as u8), piece);
             }
         }
+        hash
+    }
+
+    fn refresh_zobrist_hash(&mut self) {
+        self.hash = self.recompute_zobrist_hash();
     }
 }
 

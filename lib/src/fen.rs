@@ -55,7 +55,7 @@ lazy_static! {
         let mut map: HashMap<Square, char> = HashMap::new();
 
         reverse.iter().for_each(|(c, square)| {
-            map.insert(square.clone(), *c);
+            map.insert(*square, *c);
         });
         // By going over lower case characters first, we make sure those get preferred.
         reverse.iter().for_each(|(c, square)| {

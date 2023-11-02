@@ -12,7 +12,6 @@ pub mod setup_options;
 mod static_include;
 mod substrate;
 pub mod types;
-pub mod zobrist;
 
 #[cfg(test)]
 mod testdata;
@@ -26,9 +25,8 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
-use std::convert::TryFrom;
 use std::fmt::Display;
-use std::ops::{Add, Index};
+use std::ops::Add;
 use substrate::dense::DenseSubstrate;
 use substrate::Substrate;
 pub use types::{BoardPosition, PieceType, PlayerColor};
@@ -125,7 +123,7 @@ pub struct VariantSettings {
 /// In a DenseBoard we reserve memory for all positions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DenseBoard {
-    substrate: DenseSubstrate,
+    pub substrate: DenseSubstrate,
     pub controlling_player: PlayerColor,
     pub required_action: RequiredAction,
     pub lifted_piece: Hand,
@@ -261,23 +259,6 @@ pub enum Hand {
 }
 
 impl Hand {
-    fn colored_optional_pair(
-        &self,
-        as_player: PlayerColor,
-    ) -> (Option<PieceType>, Option<PieceType>) {
-        use Hand::*;
-        match self {
-            Empty => (None, None),
-            Single { piece, .. } => match as_player {
-                PlayerColor::White => (Some(*piece), None),
-                PlayerColor::Black => (None, Some(*piece)),
-            },
-            Pair { piece, partner, .. } => match as_player {
-                PlayerColor::White => (Some(*piece), Some(*partner)),
-                PlayerColor::Black => (Some(*partner), Some(*piece)),
-            },
-        }
-    }
     pub fn is_empty(&self) -> bool {
         matches!(self, Hand::Empty)
     }
@@ -375,8 +356,8 @@ impl DenseBoard {
         };
 
         // Board structure
-        let back_row = vec![Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook];
-        let front_row = vec![Pawn; 8];
+        let back_row = [Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook];
+        let front_row = [Pawn; 8];
 
         for p in 0..8 {
             result
@@ -937,7 +918,7 @@ impl DenseBoard {
         is_pair: bool,
         is_threat_detection: bool,
     ) -> Vec<BoardPosition> {
-        let directions = vec![(1, 0), (0, 1), (-1, 0), (0, -1)];
+        let directions = [(1, 0), (0, 1), (-1, 0), (0, -1)];
         directions
             .iter()
             .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
@@ -951,7 +932,7 @@ impl DenseBoard {
         is_pair: bool,
         is_threat_detection: bool,
     ) -> Vec<BoardPosition> {
-        let offsets = vec![
+        let offsets = [
             (1, 2),
             (2, 1),
             (2, -1),
@@ -982,7 +963,7 @@ impl DenseBoard {
         is_pair: bool,
         is_threat_detection: bool,
     ) -> Vec<BoardPosition> {
-        let directions = vec![(1, 1), (-1, 1), (1, -1), (-1, -1)];
+        let directions = [(1, 1), (-1, 1), (1, -1), (-1, -1)];
         directions
             .iter()
             .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
@@ -995,7 +976,7 @@ impl DenseBoard {
         is_pair: bool,
         is_threat_detection: bool,
     ) -> Vec<BoardPosition> {
-        let directions = vec![
+        let directions = [
             (0, 1),
             (1, 1),
             (1, 0),
@@ -1093,7 +1074,7 @@ impl DenseBoard {
     }
 
     fn place_targets_king_without_castling(&self, position: BoardPosition) -> Vec<BoardPosition> {
-        let offsets = vec![
+        let offsets = [
             (0, 1),
             (1, 1),
             (1, 0),
@@ -2401,7 +2382,7 @@ mod tests {
     /// But also, I expect nothing to crash.
     #[test]
     fn test_rollback_empty() -> Result<(), PacoError> {
-        let actions = vec![];
+        let actions = [];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
         Ok(())
     }
@@ -2409,7 +2390,7 @@ mod tests {
     #[test]
     fn test_rollback_single_lift() -> Result<(), PacoError> {
         use PacoAction::*;
-        let actions = vec![Lift(pos("d2"))];
+        let actions = [Lift(pos("d2"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
         Ok(())
     }
@@ -2417,7 +2398,7 @@ mod tests {
     #[test]
     fn test_rollback_settled_changed() -> Result<(), PacoError> {
         use PacoAction::*;
-        let actions = vec![Lift(pos("e2")), Place(pos("e4"))];
+        let actions = [Lift(pos("e2")), Place(pos("e4"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 2);
         Ok(())
     }
@@ -2428,12 +2409,10 @@ mod tests {
     fn test_rollback_promotion() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let actions = vec![
-            Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
+        let actions = [Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("d5")), Place(pos("d4")),
             Lift(pos("b2")), Place(pos("b4")), Lift(pos("d4")), Place(pos("d3")),
-            Lift(pos("d3")), Place(pos("b2")), Lift(pos("b2")), Place(pos("b1")),
-        ];
+            Lift(pos("d3")), Place(pos("b2")), Lift(pos("b2")), Place(pos("b1"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
         Ok(())
     }
@@ -2444,12 +2423,10 @@ mod tests {
     fn test_rollback_promotion_opponent() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let actions = vec![
-            Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
+        let actions = [Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
-            Lift(pos("c3")), Place(pos("b1")),
-        ];
+            Lift(pos("c3")), Place(pos("b1"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
         Ok(())
     }
@@ -2459,12 +2436,10 @@ mod tests {
     fn test_rollback_promotion_start_turn() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let actions = vec![
-            Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
+        let actions = [Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
-            Lift(pos("c3")), Place(pos("b1")), Promote(PieceType::Queen), Lift(pos("h5")),
-        ];
+            Lift(pos("c3")), Place(pos("b1")), Promote(PieceType::Queen), Lift(pos("h5"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
         Ok(())
     }
@@ -2475,14 +2450,12 @@ mod tests {
     fn test_rollback_promotion_king_union() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-        let actions = vec![
-            Lift(pos("f2")), Place(pos("f4")), Lift(pos("f7")), Place(pos("f5")),
+        let actions = [Lift(pos("f2")), Place(pos("f4")), Lift(pos("f7")), Place(pos("f5")),
             Lift(pos("g2")), Place(pos("g4")), Lift(pos("f5")), Place(pos("g4")),
             Lift(pos("f4")), Place(pos("f5")), Lift(pos("a7")), Place(pos("a6")),
             Lift(pos("f5")), Place(pos("f6")), Lift(pos("a6")), Place(pos("a5")),
             Lift(pos("f6")), Place(pos("f7")), Lift(pos("a5")), Place(pos("a4")),
-            Lift(pos("f7")), Place(pos("e8")),
-        ];
+            Lift(pos("f7")), Place(pos("e8"))];
         assert_eq!(find_last_checkpoint_index(actions.iter())?, 22);
         Ok(())
     }
