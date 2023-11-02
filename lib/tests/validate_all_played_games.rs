@@ -67,7 +67,6 @@ fn regression_run() {
 /// Validates that the zobrist hash never breaks for any game in the database.
 /// We do this in addition to fuzzing the engine, to make sure we cover also
 /// the likely cases very well.
-/// #[ignore = "reason"]
 #[test]
 fn validate_zobrist_integrity() {
     let games: Vec<RegressionValidation> = load_regression_database();

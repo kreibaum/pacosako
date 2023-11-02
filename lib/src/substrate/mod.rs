@@ -52,7 +52,7 @@ pub trait Substrate {
 
 // Using a u64 as a [bool; 64]. This is known as a bitboard.
 // This is a very common technique in chess programming.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct BitBoard(pub u64);
 
 pub struct BitBoardIter {
@@ -61,11 +61,28 @@ pub struct BitBoardIter {
 }
 
 impl BitBoard {
-    pub fn iter(&self) -> BitBoardIter {
+    pub fn iter(self) -> BitBoardIter {
         BitBoardIter {
             bits: self.0,
             current: 0,
         }
+    }
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+    pub fn contains(self, pos: BoardPosition) -> bool {
+        (self.0 & (1u64 << pos.0)) != 0
+    }
+    pub fn insert(&mut self, pos: BoardPosition) -> bool {
+        let old = self.0;
+        self.0 |= 1u64 << pos.0;
+        old != self.0
+    }
+    pub fn remove(&mut self, pos: BoardPosition) {
+        self.0 &= !(1u64 << pos.0);
+    }
+    pub fn len(self) -> u8 {
+        self.0.count_ones() as u8
     }
 }
 

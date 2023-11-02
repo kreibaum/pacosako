@@ -175,13 +175,13 @@ mod tests {
 
             // Count pieces
             assert_eq!(
-                board.substrate.bitboard_color(White).0.count_ones(),
+                board.substrate.bitboard_color(White).len(),
                 16,
                 "Wrong amount of White pieces: {:?}",
                 fen
             );
             assert_eq!(
-                board.substrate.bitboard_color(Black).0.count_ones(),
+                board.substrate.bitboard_color(Black).len(),
                 16,
                 "Wrong amount of Black pieces: {:?}",
                 fen

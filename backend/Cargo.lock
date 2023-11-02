@@ -1394,7 +1394,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror",
- "tinyset",
  "wasm-bindgen-futures",
 ]
 
@@ -2381,15 +2380,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ad70d68dba9e1f8aceda7aa6711965dfec1cac869f311a51bd08b3a2ccbce20"
 dependencies = [
  "time-core",
-]
-
-[[package]]
-name = "tinyset"
-version = "0.4.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2417e47ddd3809ad40222777ac754ee881b3a6401e38cbeeeb3ee1ca5f30aa0"
-dependencies = [
- "rand",
 ]
 
 [[package]]
