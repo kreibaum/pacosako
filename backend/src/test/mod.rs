@@ -11,7 +11,7 @@ use crate::{config, db::Connection, sync_match::SynchronizedMatch};
 
 const MIN_GAME_ID: i64 = 1;
 // Bad apples are identified until 3000.
-const MAX_GAME_ID: i64 = 500; // Loads games 1..=MAX_GAME_ID, inclusive
+const MAX_GAME_ID: i64 = 3000; // Loads games 1..=MAX_GAME_ID, inclusive
 const MIN_GAME_ACTION_COUNT: usize = 12; // Only keep games with at least this many actions
 
 // Use regex [0-9]{5} in the csv to find games that are really slow (> 10s).

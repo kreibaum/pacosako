@@ -10,6 +10,7 @@ pub mod progress;
 pub mod random;
 pub mod setup_options;
 mod static_include;
+mod substrate;
 pub mod types;
 pub mod zobrist;
 
@@ -28,6 +29,8 @@ use std::collections::VecDeque;
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::ops::{Add, Index};
+use substrate::dense::DenseSubstrate;
+use substrate::Substrate;
 pub use types::{BoardPosition, PieceType, PlayerColor};
 extern crate lazy_static;
 
@@ -47,6 +50,8 @@ pub enum PacoError {
     PromoteToPawn,
     #[error("You can not 'Promote' a pawn to a king.")]
     PromoteToKing,
+    #[error("You can not 'Promote without a pawn on the opponents home row.")]
+    PromoteNotAPawn,
     #[error("You need to have some free space to castle or to move the king.")]
     NoSpaceToMoveTheKing(BoardPosition),
     #[error("The input JSON is malformed.")]
@@ -120,8 +125,7 @@ pub struct VariantSettings {
 /// In a DenseBoard we reserve memory for all positions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct DenseBoard {
-    pub white: Vec<Option<PieceType>>,
-    pub black: Vec<Option<PieceType>>,
+    substrate: DenseSubstrate,
     pub controlling_player: PlayerColor,
     pub required_action: RequiredAction,
     pub lifted_piece: Hand,
@@ -133,17 +137,6 @@ pub struct DenseBoard {
     pub castling: Castling,
     pub victory_state: VictoryState,
     pub draw_state: DrawState,
-}
-
-impl Index<(PlayerColor, BoardPosition)> for DenseBoard {
-    type Output = Option<PieceType>;
-
-    fn index(&self, index: (PlayerColor, BoardPosition)) -> &Self::Output {
-        match index {
-            (PlayerColor::White, pos) => &self.white[pos.0 as usize],
-            (PlayerColor::Black, pos) => &self.black[pos.0 as usize],
-        }
-    }
 }
 
 /// Promotions can happen at the start of your turn if the opponent moved a pair
@@ -370,8 +363,7 @@ impl DenseBoard {
     pub fn with_options(options: &SetupOptions) -> Self {
         use PieceType::*;
         let mut result: Self = DenseBoard {
-            white: Vec::with_capacity(64),
-            black: Vec::with_capacity(64),
+            substrate: DenseSubstrate::default(),
             controlling_player: PlayerColor::White,
             required_action: RequiredAction::Lift,
             lifted_piece: Hand::Empty,
@@ -386,31 +378,26 @@ impl DenseBoard {
         let back_row = vec![Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook];
         let front_row = vec![Pawn; 8];
 
-        result
-            .white
-            .extend(back_row.iter().map(|&a| Option::Some(a)));
-        result
-            .white
-            .extend(front_row.iter().map(|&a| Option::Some(a)));
-        result.white.append(&mut vec![None; 64 - 16]);
-
-        assert!(
-            result.white.len() == 64,
-            "Amount of white pieces is incorrect."
-        );
-
-        result.black.append(&mut vec![None; 64 - 16]);
-        result
-            .black
-            .extend(front_row.iter().map(|&a| Option::Some(a)));
-        result
-            .black
-            .extend(back_row.iter().map(|&a| Option::Some(a)));
-
-        assert!(
-            result.black.len() == 64,
-            "Amount of black pieces is incorrect."
-        );
+        for p in 0..8 {
+            result
+                .substrate
+                .set_piece(PlayerColor::White, BoardPosition(p), back_row[p as usize]);
+            result.substrate.set_piece(
+                PlayerColor::White,
+                BoardPosition(p + 8),
+                front_row[p as usize],
+            );
+            result.substrate.set_piece(
+                PlayerColor::Black,
+                BoardPosition(p + 48),
+                front_row[p as usize],
+            );
+            result.substrate.set_piece(
+                PlayerColor::Black,
+                BoardPosition(p + 56),
+                back_row[p as usize],
+            );
+        }
 
         result
     }
@@ -419,8 +406,7 @@ impl DenseBoard {
     /// simpler positions without all pieces.
     pub fn empty() -> Self {
         DenseBoard {
-            white: vec![None; 64],
-            black: vec![None; 64],
+            substrate: DenseSubstrate::default(),
             controlling_player: PlayerColor::White,
             required_action: RequiredAction::Lift,
             lifted_piece: Hand::Empty,
@@ -439,13 +425,8 @@ impl DenseBoard {
 
     pub fn from_squares(squares: HashMap<BoardPosition, parser::Square>) -> Self {
         let mut result = Self::empty();
-        for (position, square) in squares.iter() {
-            if let Some(piece_type) = square.white {
-                *result.white.get_mut(position.0 as usize).unwrap() = Some(piece_type);
-            }
-            if let Some(piece_type) = square.black {
-                *result.black.get_mut(position.0 as usize).unwrap() = Some(piece_type);
-            }
+        for (&position, &square) in squares.iter() {
+            result.substrate.set_square(position, square);
         }
         result
     }
@@ -456,9 +437,9 @@ impl DenseBoard {
     fn pieces_that_can_be_lifted(&self) -> Result<Vec<PacoAction>, PacoError> {
         let mut result = vec![];
 
-        for p in self.active_positions() {
-            let is_pair = self.opponent_present(p);
-            let piece = *self.active_pieces().get(p.0 as usize).unwrap();
+        for p in self.substrate.bitboard_color(self.controlling_player) {
+            let is_pair = self.substrate.has_piece(self.controlling_player.other(), p);
+            let piece = self.substrate.get_piece(self.controlling_player, p);
             if let Some(piece) = piece {
                 // For the King we need a special case, otherwise we would be
                 // checking castling options which is expensive.
@@ -498,8 +479,10 @@ impl DenseBoard {
         self.draw_state.half_move_with_no_progress();
         // We unwrap the pieces once to remove the outer Some() from the .get_mut(..) call.
         // We still receive an optional where None represents an empty square.
-        let piece = *self.active_pieces().get(position.0 as usize).unwrap();
-        let partner = *self.opponent_pieces().get(position.0 as usize).unwrap();
+        let piece = self.substrate.get_piece(self.controlling_player, position);
+        let partner = self
+            .substrate
+            .get_piece(self.controlling_player.other(), position);
 
         if let Some(piece_type) = piece {
             // When lifting a rook, castling may be forfeit.
@@ -546,20 +529,16 @@ impl DenseBoard {
                     partner: partner_type,
                     position,
                 };
-                *self
-                    .opponent_pieces_mut()
-                    .get_mut(position.0 as usize)
-                    .unwrap() = None;
+                self.substrate
+                    .remove_piece(self.controlling_player.other(), position);
             } else {
                 self.lifted_piece = Hand::Single {
                     piece: piece_type,
                     position,
                 };
             }
-            *self
-                .active_pieces_mut()
-                .get_mut(position.0 as usize)
-                .unwrap() = None;
+            self.substrate
+                .remove_piece(self.controlling_player, position);
             Ok(self)
         } else {
             Err(PacoError::LiftEmptyPosition)
@@ -593,10 +572,12 @@ impl DenseBoard {
                     return self.place_king(position, target);
                 }
 
-                // Read piece currently on the board at the target position and place the
-                // held piece there.
-                let board_piece = *self.active_pieces().get(target.0 as usize).unwrap();
-                *self.active_pieces_mut().get_mut(target.0 as usize).unwrap() = Some(piece);
+                // Read piece currently on the board at the target position
+                // and place the held piece there.
+                let board_piece = self.substrate.get_piece(self.controlling_player, target);
+                self.substrate
+                    .set_piece(self.controlling_player, target, piece);
+
                 if let Some(new_hand_piece) = board_piece {
                     // This is a chain, so we track a piece in hand.
                     self.lifted_piece = Hand::Single {
@@ -612,9 +593,13 @@ impl DenseBoard {
                 } else {
                     // Not a chain.
 
+                    let new_partner = self
+                        .substrate
+                        .get_piece(self.controlling_player.other(), target);
+
                     // Check if the half move counter gets reset.
                     // Is there a new union we are creating?
-                    if let Some(Some(_)) = self.opponent_pieces().get(target.0 as usize) {
+                    if new_partner.is_some() {
                         self.draw_state.reset_half_move_counter();
                     }
 
@@ -627,15 +612,13 @@ impl DenseBoard {
                     // united with the king. This is because we can safely assume
                     // that the king was not united with any other piece before.
 
-                    if Some(&Some(PieceType::King)) == self.opponent_pieces().get(target.0 as usize)
-                    {
+                    if Some(PieceType::King) == new_partner {
                         // We have united with the opponent king, the game is now won.
                         self.victory_state = VictoryState::PacoVictory(self.controlling_player);
                     }
 
                     // Placing without chaining means the current player switches.
-                    // Note that there still may be a hanging promoting, so the
-                    // active player does necessarily switch.
+                    // Except for when there is still a promotion to be done.
                     if self.promotion.is_some() {
                         self.required_action = RequiredAction::PromoteThenFinish;
                     } else {
@@ -651,20 +634,16 @@ impl DenseBoard {
                 partner,
                 position,
             } => {
-                let board_piece = self.active_pieces().get(target.0 as usize).unwrap();
-                let board_partner = self.opponent_pieces().get(target.0 as usize).unwrap();
-
-                if board_piece.is_some() || board_partner.is_some() {
+                if !self.substrate.is_empty(target) {
                     Err(PacoError::PlacePairFullPosition)
                 } else {
                     self.en_passant = None;
                     self.check_and_mark_en_passant(piece, position, target);
 
-                    *self.active_pieces_mut().get_mut(target.0 as usize).unwrap() = Some(piece);
-                    *self
-                        .opponent_pieces_mut()
-                        .get_mut(target.0 as usize)
-                        .unwrap() = Some(partner);
+                    self.substrate
+                        .set_piece(self.controlling_player, target, piece);
+                    self.substrate
+                        .set_piece(self.controlling_player.other(), target, partner);
                     self.lifted_piece = Hand::Empty;
 
                     // If a pawn is moved onto the opponents home row, track promotion.
@@ -729,8 +708,7 @@ impl DenseBoard {
     // Swaps the content of two squares. Does not touch lifted pieces.
     // Usually done for auxiliary movement like en passant or castling.
     fn swap(&mut self, pos1: BoardPosition, pos2: BoardPosition) {
-        self.white.swap(pos1.0 as usize, pos2.0 as usize);
-        self.black.swap(pos1.0 as usize, pos2.0 as usize);
+        self.substrate.swap(pos1, pos2);
     }
 
     /// Moves back the pawn to the en passant square, including the partner.
@@ -761,10 +739,8 @@ impl DenseBoard {
         }
 
         // Place down the king
-        self.active_pieces_mut()
-            .get_mut(king_target.0 as usize)
-            .unwrap()
-            .replace(PieceType::King);
+        self.substrate
+            .set_piece(self.controlling_player, king_target, PieceType::King);
         self.lifted_piece = Hand::Empty;
 
         // Forfeit castling rights.
@@ -789,7 +765,7 @@ impl DenseBoard {
         let king_min = min(king_source.0, king_target.0);
         let king_max = max(king_source.0, king_target.0);
         for i in (king_min + 1)..king_max {
-            if !self.is_empty(BoardPosition(i)) {
+            if !self.substrate.is_empty(BoardPosition(i)) {
                 return Err(PacoError::NoSpaceToMoveTheKing(BoardPosition(i)));
             }
         }
@@ -810,18 +786,17 @@ impl DenseBoard {
             // Here we .unwrap() instead of returning an error, because a promotion target outside
             // the home row indicates an error as does a promotion target without a piece at that
             // position.
-            let owner = target.home_row().unwrap().other();
+            let owner = target
+                .home_row()
+                .expect("Promotion target outside home row")
+                .other();
             assert_eq!(self.controlling_player, owner);
-            let promoted_pawn: &mut Option<PieceType> = self
-                .pieces_of_color_mut(owner)
-                .get_mut(target.0 as usize)
-                .unwrap();
-            // assert_eq!(*promoted_pawn, Some(PieceType::Pawn));
-            if *promoted_pawn != Some(PieceType::Pawn) {
-                panic!();
-            }
 
-            *promoted_pawn = Some(new_type);
+            // Safety check that there really is a pawn in the target position.
+            if self.substrate.get_piece(owner, target) != Some(PieceType::Pawn) {
+                return Err(PacoError::PromoteNotAPawn);
+            }
+            self.substrate.set_piece(owner, target, new_type);
             self.promotion = None;
 
             // Promotion counts as progress.
@@ -853,62 +828,6 @@ impl DenseBoard {
         } else {
             Err(PacoError::PromoteWithoutCandidate)
         }
-    }
-
-    pub fn get(&self, color: PlayerColor, pos: BoardPosition) -> Option<PieceType> {
-        self.pieces_of_color(color)
-            .get(pos.0 as usize)
-            .cloned()
-            .expect("Indexing into board with assumed good tile.")
-    }
-
-    /// The Dense Board representation containing only pieces of the given color.
-    fn pieces_of_color(&self, color: PlayerColor) -> &Vec<Option<PieceType>> {
-        match color {
-            PlayerColor::White => &self.white,
-            PlayerColor::Black => &self.black,
-        }
-    }
-
-    /// The Dense Board representation containing only pieces of the given color. (mutable borrow)
-    fn pieces_of_color_mut(&mut self, color: PlayerColor) -> &mut Vec<Option<PieceType>> {
-        match color {
-            PlayerColor::White => &mut self.white,
-            PlayerColor::Black => &mut self.black,
-        }
-    }
-
-    /// The Dense Board representation containing only pieces of the current player.
-    fn active_pieces(&self) -> &Vec<Option<PieceType>> {
-        self.pieces_of_color(self.controlling_player)
-    }
-
-    /// The Dense Board representation containing only pieces of the opponent player.
-    fn opponent_pieces(&self) -> &Vec<Option<PieceType>> {
-        self.pieces_of_color(self.controlling_player.other())
-    }
-
-    /// The Dense Board representation containing only pieces of the current player.
-    fn active_pieces_mut(&mut self) -> &mut Vec<Option<PieceType>> {
-        self.pieces_of_color_mut(self.controlling_player)
-    }
-
-    /// The Dense Board representation containing only pieces of the opponent player.
-    fn opponent_pieces_mut(&mut self) -> &mut Vec<Option<PieceType>> {
-        match self.controlling_player {
-            PlayerColor::White => &mut self.black,
-            PlayerColor::Black => &mut self.white,
-        }
-    }
-
-    /// All positions where the active player has a piece.
-    fn active_positions(&self) -> impl Iterator<Item = BoardPosition> + '_ {
-        // The filter map takes (usize, Optional<PieceType>) and returns Optional<BoardPosition>
-        // where we just place the index in a Some whenever a piece is found.
-        self.active_pieces()
-            .iter()
-            .enumerate()
-            .filter_map(|p| p.1.map(|_| BoardPosition(p.0 as u8)))
     }
 
     /// All place target for a piece of given type at a given position.
@@ -958,18 +877,21 @@ impl DenseBoard {
         // and in particular this is never possible for a pair.
         if !is_pair {
             let strike_directions = [(-1, forward), (1, forward)];
-            let targets_on_board = strike_directions.iter().filter_map(|d| position.add(*d));
-
             let en_passant_square = self.en_passant;
-
-            targets_on_board
-                .filter(|p| self.opponent_present(*p) || en_passant_square == Some(*p))
+            strike_directions
+                .iter()
+                .filter_map(|d| position.add(*d))
+                .filter(|p| {
+                    self.substrate
+                        .has_piece(self.controlling_player.other(), *p)
+                        || en_passant_square == Some(*p)
+                })
                 .for_each(|p| possible_moves.push(p));
         }
 
         // Moving forward, this is similar to a king
         if let Some(step) = position.add((0, forward)) {
-            if self.is_empty(step) {
+            if self.substrate.is_empty(step) {
                 possible_moves.push(step);
                 // If we are on the base row or further back, check if we can move another step.
                 let double_move_allowed = if self.controlling_player == White {
@@ -979,7 +901,7 @@ impl DenseBoard {
                 };
                 if double_move_allowed {
                     if let Some(step_2) = step.add((0, forward)) {
-                        if self.is_empty(step_2) {
+                        if self.substrate.is_empty(step_2) {
                             possible_moves.push(step_2);
                         }
                     }
@@ -1043,7 +965,9 @@ impl DenseBoard {
         if is_threat_detection {
             targets_on_board.collect()
         } else if is_pair {
-            targets_on_board.filter(|p| self.is_empty(*p)).collect()
+            targets_on_board
+                .filter(|p| self.substrate.is_empty(*p))
+                .collect()
         } else {
             targets_on_board
                 .filter(|p| self.can_place_single_at(*p))
@@ -1104,9 +1028,9 @@ impl DenseBoard {
         // Check if the castling right was not void earlier
         if self.controlling_player == PlayerColor::White && self.castling.white_queen_side {
             // Check if the spaces are empty
-            if self.is_empty(BoardPosition(1))
-                && self.is_empty(BoardPosition(2))
-                && self.is_empty(BoardPosition(3))
+            if self.substrate.is_empty(BoardPosition(1))
+                && self.substrate.is_empty(BoardPosition(2))
+                && self.substrate.is_empty(BoardPosition(3))
             {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
@@ -1120,7 +1044,9 @@ impl DenseBoard {
         }
         if self.controlling_player == PlayerColor::White && self.castling.white_king_side {
             // Check if the spaces are empty
-            if self.is_empty(BoardPosition(5)) && self.is_empty(BoardPosition(6)) {
+            if self.substrate.is_empty(BoardPosition(5))
+                && self.substrate.is_empty(BoardPosition(6))
+            {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
                     lazy_threats = Some(calc_threats()?);
@@ -1133,9 +1059,9 @@ impl DenseBoard {
         }
         if self.controlling_player == PlayerColor::Black && self.castling.black_queen_side {
             // Check if the spaces are empty
-            if self.is_empty(BoardPosition(57))
-                && self.is_empty(BoardPosition(58))
-                && self.is_empty(BoardPosition(59))
+            if self.substrate.is_empty(BoardPosition(57))
+                && self.substrate.is_empty(BoardPosition(58))
+                && self.substrate.is_empty(BoardPosition(59))
             {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
@@ -1149,7 +1075,9 @@ impl DenseBoard {
         }
         if self.controlling_player == PlayerColor::Black && self.castling.black_king_side {
             // Check if the spaces are empty
-            if self.is_empty(BoardPosition(61)) && self.is_empty(BoardPosition(62)) {
+            if self.substrate.is_empty(BoardPosition(61))
+                && self.substrate.is_empty(BoardPosition(62))
+            {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
                     lazy_threats = Some(calc_threats()?);
@@ -1180,7 +1108,7 @@ impl DenseBoard {
             .filter_map(|d| position.add(*d))
             // Placing the king works like placing a pair, as he can only be
             // placed on empty squares.
-            .filter(|p| self.is_empty(*p))
+            .filter(|p| self.substrate.is_empty(*p))
             .collect();
         targets_on_board
     }
@@ -1190,29 +1118,11 @@ impl DenseBoard {
     /// This is only forbidden when the target position holds a piece of the own color
     /// without a dance partner.
     fn can_place_single_at(&self, target: BoardPosition) -> bool {
-        self.opponent_present(target) || !self.active_piece_present(target)
+        self.substrate
+            .has_piece(self.controlling_player.other(), target)
+            || !self.substrate.has_piece(self.controlling_player, target)
     }
-    /// Is there an opponent (i.e. a piece of current_player.other()) at the target location?
-    fn opponent_present(&self, target: BoardPosition) -> bool {
-        self.opponent_pieces()
-            .get(target.0 as usize)
-            .unwrap()
-            .is_some()
-    }
-    /// Is there a piece of the current player at the target location?
-    fn active_piece_present(&self, target: BoardPosition) -> bool {
-        self.active_pieces()
-            .get(target.0 as usize)
-            .unwrap()
-            .is_some()
-    }
-    /// Decide whether a pair may be placed at the indicated position.
-    ///
-    /// This is only allowed if the position is completely empty.
-    fn is_empty(&self, target: BoardPosition) -> bool {
-        self.white.get(target.0 as usize).unwrap().is_none()
-            && self.black.get(target.0 as usize).unwrap().is_none()
-    }
+
     /// Calculates all targets by sliding step by step in a given direction and stopping at the
     /// first obstacle or at the end of the board.
     fn slide_targets(
@@ -1228,7 +1138,7 @@ impl DenseBoard {
         // This while loop leaves if we drop off the board or if we hit a target.
         // The is_pair parameter determines, if the first thing we hit is a valid target.
         while let Some(target) = slide {
-            if self.is_empty(target) {
+            if self.substrate.is_empty(target) {
                 possible_moves.push(target);
                 slide = target.add((dx, dy));
             } else if !is_pair && self.can_place_single_at(target) {
@@ -1270,18 +1180,6 @@ impl DenseBoard {
                 .iter()
                 .map(|p| PacoAction::Place(*p))
                 .collect()),
-        }
-    }
-    pub fn king_position(&self, color: PlayerColor) -> Result<BoardPosition, PacoError> {
-        if let Some((king_pos, _)) = self
-            .pieces_of_color(color)
-            .iter()
-            .enumerate()
-            .find(|&(_, &p)| p == Some(PieceType::King))
-        {
-            Ok(BoardPosition(king_pos as u8))
-        } else {
-            Err(PacoError::NoKingOnBoard(color))
         }
     }
 }
@@ -1361,9 +1259,11 @@ impl PacoBoard for DenseBoard {
                 // # Rules 2017: "A king cannot be united with another piece and
                 // # is therefore exempt from creating, moving or taking over a
                 // # union and from the chain reaction."
-                self.active_positions()
+                self.substrate
+                    .bitboard_color(self.controlling_player)
+                    .iter()
                     .filter(|position| {
-                        *self.active_pieces().get(position.0 as usize).unwrap()
+                        self.substrate.get_piece(self.controlling_player, *position)
                             != Some(PieceType::King)
                     })
                     .map(Lift)
@@ -1384,23 +1284,13 @@ impl PacoBoard for DenseBoard {
     fn is_settled(&self) -> bool {
         self.lifted_piece == Hand::Empty
     }
-    fn king_in_union(&self, color: PlayerColor) -> bool {
-        let (king_pos, _) = self
-            .pieces_of_color(color)
-            .iter()
-            .enumerate()
-            .find(|&(_, &p)| p == Some(PieceType::King))
-            .unwrap();
-
-        self.pieces_of_color(color.other())[king_pos].is_some()
-    }
     fn controlling_player(&self) -> PlayerColor {
         self.controlling_player
     }
     fn get_at(&self, position: BoardPosition) -> (Option<PieceType>, Option<PieceType>) {
         (
-            self.white.get(position.0 as usize).cloned().unwrap_or(None),
-            self.black.get(position.0 as usize).cloned().unwrap_or(None),
+            self.substrate.get_piece(PlayerColor::White, position),
+            self.substrate.get_piece(PlayerColor::Black, position),
         )
     }
     fn en_passant_capture_possible(&self) -> bool {
@@ -1424,6 +1314,13 @@ impl PacoBoard for DenseBoard {
     fn victory_state(&self) -> VictoryState {
         self.victory_state
     }
+    fn king_in_union(&self, color: PlayerColor) -> bool {
+        match self.substrate.find_king(color) {
+            Ok(king_pos) => self.substrate.has_piece(color.other(), king_pos),
+            // If there is no king, then it is not in a union.
+            Err(_) => false,
+        }
+    }
 }
 
 fn all_promotion_options() -> Result<Vec<PacoAction>, PacoError> {
@@ -1438,62 +1335,6 @@ fn all_promotion_options() -> Result<Vec<PacoAction>, PacoError> {
 impl Default for DenseBoard {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Represents a board state in human readable exchange notation for Paco Ŝako.
-/// It will look like this. Line breaks are included in the String as '\n'.
-///
-/// ```
-/// # use pacosako::*;
-/// # use std::convert::TryFrom;
-/// let notation = ExchangeNotation(".. .. .. .B .. .. .. ..\\n\
-/// .B R. .. .. .Q .. .. P.\\n\
-/// .. .P .P .K .. NP P. ..\\n\
-/// PR .R PP .. .. .. .. ..\\n\
-/// K. .P P. .. NN .. .. ..\\n\
-/// P. .P .. P. .. .. BP R.\\n\
-/// P. .. .P .. .. .. BN Q.\\n\
-/// .. .. .. .. .. .. .. ..".to_owned());
-/// let board = DenseBoard::try_from( &notation ).unwrap();
-/// ```
-#[derive(Debug, Clone)]
-pub struct ExchangeNotation(pub String);
-
-impl From<&DenseBoard> for ExchangeNotation {
-    fn from(board: &DenseBoard) -> Self {
-        let mut f = String::with_capacity(191);
-
-        for y in (0..8).rev() {
-            for x in 0..8 {
-                let coord = BoardPosition::new(x, y).0 as usize;
-                let w = board.white.get(coord).unwrap();
-                f.push_str(w.map(PieceType::to_char).unwrap_or("."));
-
-                let b = board.black.get(coord).unwrap();
-                f.push_str(b.map(PieceType::to_char).unwrap_or("."));
-
-                if x != 7 {
-                    f.push(' ');
-                }
-            }
-            if y != 0 {
-                f.push('\n');
-            }
-        }
-        assert_eq!(f.len(), 191);
-        ExchangeNotation(f)
-    }
-}
-
-impl TryFrom<&ExchangeNotation> for DenseBoard {
-    type Error = ();
-    fn try_from(notation: &ExchangeNotation) -> Result<Self, ()> {
-        if let Some(matrix) = parser::try_exchange_notation(&notation.0) {
-            Ok(DenseBoard::from_squares(matrix.0))
-        } else {
-            Err(())
-        }
     }
 }
 
@@ -1813,7 +1654,10 @@ mod tests {
         execute_action!(board, place, "d3");
 
         // Check if the target pawn was indeed united.
-        assert_eq!(*board.white.get(pos("d3").0 as usize).unwrap(), Some(Pawn));
+        assert_eq!(
+            board.substrate.get_piece(PlayerColor::White, pos("d3")),
+            Some(Pawn)
+        );
     }
 
     /// This test sets up a situation where a sako through a chain is possible using en passant.

@@ -49,7 +49,9 @@
 //! tensor[:,:,29] = indices[37] as f32 / 100.0
 //!
 
-use crate::{BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor};
+use crate::{
+    substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
+};
 
 /// Fills in the tensor representation of the board.
 /// Assumes that out is already zeroed.
@@ -82,7 +84,7 @@ pub fn index_representation(board: &DenseBoard, out: &mut [u32; 38]) {
     // Pieces that are settled on the board. This should be between 30 and 32.
     for piece_color in PlayerColor::all() {
         for tile in BoardPosition::all() {
-            if let Some(piece_type) = board[(piece_color, tile)] {
+            if let Some(piece_type) = board.substrate.get_piece(piece_color, tile) {
                 out.push_index(tile, piece_type, piece_color, false);
             }
         }

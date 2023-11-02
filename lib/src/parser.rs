@@ -20,7 +20,7 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct Matrix(pub HashMap<BoardPosition, Square>);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Square {
     pub white: Option<PieceType>,
     pub black: Option<PieceType>,

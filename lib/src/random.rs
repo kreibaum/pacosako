@@ -1,8 +1,10 @@
-use crate::{PieceType, PlayerColor};
-
 use super::DenseBoard;
+use crate::const_tile::*;
+use crate::substrate::Substrate;
+use crate::PieceType::*;
+use crate::PlayerColor::{Black, White};
+use crate::{BoardPosition, PieceType};
 use rand::distributions::{Distribution, Standard};
-use rand::seq::SliceRandom;
 use rand::Rng;
 
 /// Defines a random generator for Paco Ŝako games that are not over yet.
@@ -13,91 +15,107 @@ impl Distribution<DenseBoard> for Standard {
         let mut board = DenseBoard::new();
 
         // Shuffle white and black pieces around
-        board.white.shuffle(rng);
-        board.black.shuffle(rng);
+        board.substrate.shuffle(rng);
 
         // Check all positions for violations
         // No pawns on the enemy home row
-        for i in 0..64 {
-            if i < 8 && board.black[i] == Some(PieceType::Pawn) {
+        for i in BoardPosition::all() {
+            if i.0 < 8 && board.substrate.is_piece(Black, i, Pawn) {
                 let free_index = loop {
                     let candidate = random_position_without_black(&board, rng);
-                    if candidate >= 8 {
+                    if candidate.0 >= 8 {
                         break candidate;
                     }
                 };
-                board.black.swap(i, free_index);
+                board.substrate.remove_piece(Black, i);
+                board.substrate.set_piece(Black, free_index, Pawn);
             }
-            if i >= 56 && board.white[i] == Some(PieceType::Pawn) {
+            if i.0 >= 56 && board.substrate.is_piece(White, i, Pawn) {
                 let free_index = loop {
                     let candidate = random_position_without_white(&board, rng);
-                    if candidate < 56 {
+                    if candidate.0 < 56 {
                         break candidate;
                     }
                 };
-                board.white.swap(i, free_index);
+                board.substrate.remove_piece(White, i);
+                board.substrate.set_piece(White, free_index, Pawn);
             }
         }
 
         // No single pawns on the own home row
-        for i in 0..64 {
-            if i < 8
-                && board.white[i] == Some(PieceType::Pawn)
-                && (board.black[i].is_none() || board.black[i] == Some(PieceType::King))
+        for i in BoardPosition::all() {
+            if i.0 < 8
+                && board.substrate.is_piece(White, i, Pawn)
+                && (!board.substrate.has_piece(Black, i)
+                    || board.substrate.is_piece(Black, i, King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_white(&board, rng);
-                    if (8..56).contains(&candidate) {
+                    if (8..56).contains(&candidate.0) {
                         break candidate;
                     }
                 };
-                board.white.swap(i, free_index);
+                let piece = board
+                    .substrate
+                    .remove_piece(White, i)
+                    .expect("Piece is missing, but we just checked.");
+                board.substrate.set_piece(White, free_index, piece);
             }
-            if i >= 56
-                && board.black[i] == Some(PieceType::Pawn)
-                && (board.white[i].is_none() || board.white[i] == Some(PieceType::King))
+            if i.0 >= 56
+                && board.substrate.is_piece(Black, i, Pawn)
+                && (!board.substrate.has_piece(White, i)
+                    || board.substrate.is_piece(White, i, King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_black(&board, rng);
-                    if (8..56).contains(&candidate) {
+                    if (8..56).contains(&candidate.0) {
                         break candidate;
                     }
                 };
-                board.black.swap(i, free_index);
+                let piece = board
+                    .substrate
+                    .remove_piece(Black, i)
+                    .expect("Piece is missing, but we just checked.");
+                board.substrate.set_piece(Black, free_index, piece);
             }
         }
 
         // Ensure, that the king is single. (Done after all other pieces are moved).
-        for i in 0..64 {
-            if board.white[i] == Some(PieceType::King) && board.black[i].is_some() {
-                let free_index = random_empty_position(&board, rng);
-                board.white.swap(i, free_index);
-            }
-            if board.black[i] == Some(PieceType::King) && board.white[i].is_some() {
-                let free_index = random_empty_position(&board, rng);
-                board.black.swap(i, free_index);
-            }
+        let white_king_position = board
+            .substrate
+            .find_king(White)
+            .expect("White king is missing");
+        if board.substrate.has_piece(Black, white_king_position) {
+            let free_index = random_empty_position(&board, rng);
+            board.substrate.remove_piece(White, white_king_position);
+            board.substrate.set_piece(White, free_index, King);
+        }
+
+        let black_king_position = board
+            .substrate
+            .find_king(Black)
+            .expect("Black king is missing");
+        if board.substrate.has_piece(Black, black_king_position) {
+            let free_index = random_empty_position(&board, rng);
+            board.substrate.remove_piece(Black, black_king_position);
+            board.substrate.set_piece(Black, free_index, King);
         }
 
         // Randomize current player
-        board.controlling_player = if rng.gen() {
-            PlayerColor::White
-        } else {
-            PlayerColor::Black
-        };
+        board.controlling_player = if rng.gen() { White } else { Black };
 
         // Figure out if any castling permissions remain
-        let white_king_in_position = board.white[4] == Some(PieceType::King);
-        let black_king_in_position = board.black[60] == Some(PieceType::King);
+        let white_king_in_position = board.substrate.is_piece(White, E1, King);
+        let black_king_in_position = board.substrate.is_piece(White, E8, King);
 
         board.castling.white_queen_side =
-            white_king_in_position && board.white[0] == Some(PieceType::Rook);
+            white_king_in_position && board.substrate.is_piece(White, A1, Rook);
         board.castling.white_king_side =
-            white_king_in_position && board.white[7] == Some(PieceType::Rook);
+            white_king_in_position && board.substrate.is_piece(White, H1, Rook);
         board.castling.black_queen_side =
-            black_king_in_position && board.black[56] == Some(PieceType::Rook);
+            black_king_in_position && board.substrate.is_piece(Black, A8, Rook);
         board.castling.black_king_side =
-            black_king_in_position && board.black[63] == Some(PieceType::Rook);
+            black_king_in_position && board.substrate.is_piece(Black, H8, Rook);
 
         board
     }
@@ -105,10 +123,10 @@ impl Distribution<DenseBoard> for Standard {
 
 /// This will not terminate if the board is full.
 /// The runtime of this function is not deterministic. (Geometric distribution)
-fn random_empty_position<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> usize {
+fn random_empty_position<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> BoardPosition {
     loop {
-        let candidate = rng.gen_range(0..64);
-        if board.white[candidate].is_none() && board.black[candidate].is_none() {
+        let candidate = BoardPosition(rng.gen_range(0..64));
+        if board.substrate.is_empty(candidate) {
             return candidate;
         }
     }
@@ -116,10 +134,13 @@ fn random_empty_position<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> us
 
 /// This will not terminate if the board is full.
 /// The runtime of this function is not deterministic. (Geometric distribution)
-fn random_position_without_white<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> usize {
+fn random_position_without_white<R: Rng + ?Sized>(
+    board: &DenseBoard,
+    rng: &mut R,
+) -> BoardPosition {
     loop {
-        let candidate = rng.gen_range(0..64);
-        if board.white[candidate].is_none() {
+        let candidate = BoardPosition(rng.gen_range(0..64));
+        if !board.substrate.has_piece(White, candidate) {
             return candidate;
         }
     }
@@ -127,10 +148,13 @@ fn random_position_without_white<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut 
 
 /// This will not terminate if the board is full.
 /// The runtime of this function is not deterministic. (Geometric distribution)
-fn random_position_without_black<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> usize {
+fn random_position_without_black<R: Rng + ?Sized>(
+    board: &DenseBoard,
+    rng: &mut R,
+) -> BoardPosition {
     loop {
-        let candidate = rng.gen_range(0..64);
-        if board.black[candidate].is_none() {
+        let candidate = BoardPosition(rng.gen_range(0..64));
+        if !board.substrate.has_piece(Black, candidate) {
             return candidate;
         }
     }
@@ -138,7 +162,7 @@ fn random_position_without_black<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut 
 
 #[cfg(test)]
 mod tests {
-    use crate::{DenseBoard, PieceType};
+    use crate::{fen, substrate::Substrate, DenseBoard, PieceType, PlayerColor::*};
 
     #[test]
     fn random_dense_board_consistent() {
@@ -147,72 +171,86 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..1000 {
             let board: DenseBoard = rng.gen();
+            let fen = fen::write_fen(&board);
 
-            let mut whites_found = 0;
-            let mut blacks_found = 0;
+            // Count pieces
+            assert_eq!(
+                board.substrate.bitboard_color(White).0.count_ones(),
+                16,
+                "Wrong amount of White pieces: {:?}",
+                fen
+            );
+            assert_eq!(
+                board.substrate.bitboard_color(Black).0.count_ones(),
+                16,
+                "Wrong amount of Black pieces: {:?}",
+                fen
+            );
+
+            // The king should be single
+            let white_king_position = board
+                .substrate
+                .find_king(White)
+                .expect("White king is missing");
+            assert!(
+                !board.substrate.has_piece(Black, white_king_position),
+                "The White king is united: {:?}",
+                fen
+            );
+
+            let black_king_position = board
+                .substrate
+                .find_king(Black)
+                .expect("Black king is missing");
+            assert!(
+                !board.substrate.has_piece(White, black_king_position),
+                "The Black king is united: {:?}",
+                fen
+            );
 
             // Check all positions for violations
             for i in 0..64 {
-                // Count pieces
-                if board.white[i].is_some() {
-                    whites_found += 1;
-                }
-                if board.black[i].is_some() {
-                    blacks_found += 1;
-                }
-
-                // The king should be single
-                if board.white[i] == Some(PieceType::King) {
-                    assert_eq!(
-                        board.black[i], None,
-                        "The white king is united.\n{:?}",
-                        board
-                    );
-                }
-                if board.black[i] == Some(PieceType::King) {
-                    assert_eq!(
-                        board.white[i], None,
-                        "The black king is united.\n{:?}",
-                        board
-                    );
-                }
+                let white_piece = board
+                    .substrate
+                    .get_piece(White, crate::BoardPosition(i as u8));
+                let black_piece = board
+                    .substrate
+                    .get_piece(Black, crate::BoardPosition(i as u8));
                 // No pawns on the enemy home row
                 // No single pawns on the own home row
                 if i < 8 {
                     assert_ne!(
-                        board.black[i],
+                        black_piece,
                         Some(PieceType::Pawn),
                         "There is a black pawn on the white home row\n{:?}",
-                        board
+                        fen
                     );
-                    if board.black[i].is_none() {
+                    if black_piece.is_none() {
                         assert_ne!(
-                            board.white[i],
+                            white_piece,
                             Some(PieceType::Pawn),
                             "There is a single white pawn on the white home row\n{:?}",
-                            board
+                            fen
                         );
                     }
                 }
                 if i >= 56 {
                     assert_ne!(
-                        board.white[i],
+                        white_piece,
                         Some(PieceType::Pawn),
                         "There is a white pawn on the black home row\n{:?}",
-                        board
+                        fen
                     );
-                    if board.white[i].is_none() {
+                    if white_piece.is_none() {
                         assert_ne!(
-                            board.black[i],
+                            black_piece,
                             Some(PieceType::Pawn),
                             "There is a single black pawn on the black home row\n{:?}",
-                            board
+                            fen
                         );
                     }
                 }
             }
-            assert_eq!(whites_found, 16);
-            assert_eq!(blacks_found, 16);
         }
     }
 }

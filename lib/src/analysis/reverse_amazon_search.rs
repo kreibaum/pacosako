@@ -13,7 +13,10 @@ use tinyset::SetU32;
 // TODO: This can get more performance by switching from Set<u32> to Set<{0..63}>
 // and using a bit board for implementation.
 
-use crate::{BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor};
+use crate::{
+    substrate::Substrate, BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType,
+    PlayerColor,
+};
 
 use super::tree;
 
@@ -108,7 +111,8 @@ pub fn explore_paco_tree(
 
     // The paco positions we are interested in are the one that end with a
     // king capture.
-    let king_capture_action = PacoAction::Place(board.king_position(attacking_player.other())?);
+    let king_capture_action =
+        PacoAction::Place(board.substrate.find_king(attacking_player.other())?);
 
     // Add the starting positions to the todo list.
     todo_list.push_back(board);
@@ -193,7 +197,11 @@ impl<'a> AmazonContext<'a> {
                 .advance_pawn(attacking_player.other())
                 .expect("The en-passant square should never be at the border.");
             // Check if this is a pair. Otherwise we don't care.
-            if board.get(attacking_player, en_passant_slide_from).is_some() {
+            // We need our own piece in the pair there to chain into it.
+            if board
+                .substrate
+                .has_piece(attacking_player, en_passant_slide_from)
+            {
                 (Some(pos), Some(en_passant_slide_from))
             } else {
                 (None, None)
@@ -203,7 +211,7 @@ impl<'a> AmazonContext<'a> {
         };
 
         let mut todo_list = SetU32::default();
-        let king_position = board.king_position(attacking_player.other())?;
+        let king_position = board.substrate.find_king(attacking_player.other())?;
         todo_list.insert(king_position.0 as u32);
 
         Ok(AmazonContext {
@@ -333,8 +341,11 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                 ctx.starting_tiles.insert(current.0 as u32);
             }
 
-            let attacking_piece = ctx.board.get(ctx.attacking_player, current);
-            let defending_piece = ctx.board.get(ctx.attacking_player.other(), current);
+            let attacking_piece = ctx.board.substrate.get_piece(ctx.attacking_player, current);
+            let defending_piece = ctx
+                .board
+                .substrate
+                .get_piece(ctx.attacking_player.other(), current);
 
             match (attacking_piece, defending_piece) {
                 (None, None) => {
@@ -429,11 +440,11 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
             continue;
         }
 
-        if let Some(attacker) = ctx.board.get(ctx.attacking_player, target) {
-            if ctx
+        if let Some(attacker) = ctx.board.substrate.get_piece(ctx.attacking_player, target) {
+            if !ctx
                 .board
-                .get(ctx.attacking_player.other(), target)
-                .is_none()
+                .substrate
+                .has_piece(ctx.attacking_player.other(), target)
             {
                 // Only knights can start the attack with a knight move.
                 if ctx.lifted_tile.is_none() && attacker == PieceType::Knight {

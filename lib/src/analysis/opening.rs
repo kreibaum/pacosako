@@ -1,5 +1,7 @@
-/// This module contains classifiers for openings.
-use crate::{const_tile::pos, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType};
+//! This module contains classifiers for openings.
+use crate::PlayerColor::White;
+use crate::{const_tile::*, BoardPosition};
+use crate::{substrate::Substrate, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType};
 
 /// Returns all the openings that can be detected on the given replay.
 pub(crate) fn classify_opening(
@@ -41,8 +43,8 @@ pub(crate) fn is_swedish_knights(
 
         // Check if we have a swedish knight
         // Is there a knight on c3 and f4?
-        if board.white[pos("c3").0 as usize] == Some(PieceType::Knight)
-            && board.white[pos("f4").0 as usize] == Some(PieceType::Knight)
+        if board.substrate.is_piece(White, C3, PieceType::Knight)
+            && board.substrate.is_piece(White, F4, PieceType::Knight)
         {
             return Ok(true);
         }
@@ -77,7 +79,7 @@ pub fn is_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<bool
         action_pointer += 1;
 
         // Is there a rook on h3
-        if board.white[pos("h3").0 as usize] == Some(PieceType::Rook) {
+        if board.substrate.is_piece(White, H3, PieceType::Rook) {
             break;
         }
 
@@ -102,18 +104,18 @@ pub fn is_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<bool
         action_pointer += 1;
 
         // Is there a rook on e3
-        if board.white[pos("e3").0 as usize] == Some(PieceType::Rook) {
+        if board.substrate.is_piece(White, E3, PieceType::Rook) {
             // Check if there is a pawn in front of it
-            if board.white[pos("e4").0 as usize] == Some(PieceType::Pawn) {
+            if board.substrate.is_piece(White, E4, PieceType::Pawn) {
                 return Ok(false);
             }
             return Ok(true);
         }
 
         // Is there a rook on f3
-        if board.white[pos("f3").0 as usize] == Some(PieceType::Rook) {
+        if board.substrate.is_piece(White, F3, PieceType::Rook) {
             // Check if there is a pawn in front of it
-            if board.white[pos("f4").0 as usize] == Some(PieceType::Pawn) {
+            if board.substrate.is_piece(White, F4, PieceType::Pawn) {
                 return Ok(false);
             }
             return Ok(true);
@@ -141,9 +143,12 @@ fn is_double_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<b
 
         // How many rooks are on the 3rd row?
         let mut rooks_on_3rd_row = 0;
-        let mut index = pos("a3").0 as usize;
-        while index <= pos("h3").0 as usize {
-            if board.white[index] == Some(PieceType::Rook) {
+        let mut index = pos("a3").0;
+        while index <= pos("h3").0 {
+            if board
+                .substrate
+                .is_piece(White, BoardPosition(index), PieceType::Rook)
+            {
                 rooks_on_3rd_row += 1;
             }
             index += 1;

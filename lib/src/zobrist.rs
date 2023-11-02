@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
 use crate::{
-    get_castling_auxiliary_move, static_include, BoardPosition, Castling, DenseBoard, Hand,
-    PacoAction, PacoBoard, PieceType, PlayerColor,
+    get_castling_auxiliary_move, static_include, substrate::Substrate, BoardPosition, Castling,
+    DenseBoard, Hand, PacoAction, PacoBoard, PieceType, PlayerColor,
 };
 
 pub fn print_all() {
@@ -74,18 +74,24 @@ impl Zobrist {
         let mut sum = 0;
 
         for position in 0..64 {
-            if let Some(piece_type) = board.white.get(position).unwrap() {
+            if let Some(piece_type) = board
+                .substrate
+                .get_piece(PlayerColor::White, BoardPosition(position as u8))
+            {
                 sum ^= Zobrist::piece_on_square(
-                    *piece_type,
+                    piece_type,
                     BoardPosition(position as u8),
                     PlayerColor::White,
                     false,
                 )
                 .0;
             }
-            if let Some(piece_type) = board.black.get(position).unwrap() {
+            if let Some(piece_type) = board
+                .substrate
+                .get_piece(PlayerColor::Black, BoardPosition(position as u8))
+            {
                 sum ^= Zobrist::piece_on_square(
-                    *piece_type,
+                    piece_type,
                     BoardPosition(position as u8),
                     PlayerColor::Black,
                     false,
@@ -257,10 +263,9 @@ pub fn zobrist_step_for_placed_pieces(board: &DenseBoard, action: PacoAction) ->
                     // If we moved back a pair, then the own piece gets lifted and
                     // can chain.
                     sum ^= Zobrist::piece_on_square_opt(
-                        *board
-                            .active_pieces()
-                            .get(en_passant_reset_from.0 as usize)
-                            .unwrap(),
+                        board
+                            .substrate
+                            .get_piece(board.controlling_player, en_passant_reset_from),
                         target,
                         board.controlling_player(),
                         false,

@@ -9,8 +9,8 @@ pub(crate) mod tree;
 use serde::Serialize;
 
 use crate::{
-    determine_all_threats, BoardPosition, DenseBoard, Hand, PacoAction, PacoBoard, PacoError,
-    PieceType, PlayerColor,
+    determine_all_threats, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoAction,
+    PacoBoard, PacoError, PieceType, PlayerColor,
 };
 #[derive(Serialize, PartialEq, Eq, Debug)]
 pub struct ReplayData {
@@ -171,7 +171,9 @@ fn apply_action_semantically(
         }
         PacoAction::Place(at) => {
             // Remember the opponents piece that is at the target position.
-            let &partner = board.opponent_pieces().get(at.0 as usize).unwrap();
+            let partner = board
+                .substrate
+                .get_piece(board.controlling_player.other(), at);
             board.execute(action)?;
             match board.lifted_piece {
                 Hand::Empty => {
@@ -365,8 +367,10 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
         .filter(|(_, is_threatened)| is_threatened.0)
     {
         // Check if the opponents king is on this square.
-        let piece = board.opponent_pieces().get(pos).unwrap();
-        if piece == &Some(PieceType::King) {
+        let piece = board
+            .substrate
+            .get_piece(board.controlling_player.other(), BoardPosition(pos as u8));
+        if piece == Some(PieceType::King) {
             return Ok(true);
         }
     }
