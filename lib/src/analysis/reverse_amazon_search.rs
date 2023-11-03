@@ -13,7 +13,7 @@ use std::{
 // and using a bit board for implementation.
 
 use crate::{
-    substrate::{BitBoard, Substrate},
+    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
     BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
 };
 
@@ -174,12 +174,15 @@ pub struct ReverseAmazonSearchResult {
 struct AmazonContext<'a> {
     board: &'a DenseBoard,
     attacking_player: PlayerColor,
+    attacking_pieces: BitBoard,
+    defending_pieces: BitBoard,
     tiles_seen: BitBoard,
     todo_list: BitBoard,
     starting_tiles: BitBoard,
     chaining_tiles: BitBoard,
     en_passant_tile: Option<BoardPosition>,
     en_passant_slide_from: Option<BoardPosition>,
+    en_passant_bb: BitBoard,
     lifted_tile: Option<BoardPosition>,
     lifted_type: Option<PieceType>,
 }
@@ -215,6 +218,8 @@ impl<'a> AmazonContext<'a> {
 
         Ok(AmazonContext {
             board,
+            attacking_pieces: board.substrate.bitboard_color(attacking_player),
+            defending_pieces: board.substrate.bitboard_color(attacking_player.other()),
             attacking_player,
             tiles_seen: BitBoard::default(),
             todo_list,
@@ -222,6 +227,7 @@ impl<'a> AmazonContext<'a> {
             chaining_tiles: BitBoard::default(),
             en_passant_tile,
             en_passant_slide_from,
+            en_passant_bb: en_passant_tile.into(),
             lifted_tile: board.lifted_piece.position(),
             lifted_type: board.lifted_piece.piece(),
         })
@@ -416,43 +422,30 @@ fn we_can_start_from_here(
 // Knight moves and slides are substantially different, because there is no
 // inner "sliding" loop. We just check the position and then we are done.
 fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
-    let offsets = [
-        (1, 2),
-        (2, 1),
-        (2, -1),
-        (1, -2),
-        (-1, -2),
-        (-2, -1),
-        (-2, 1),
-        (-1, 2),
-    ];
+    let all_targets = KNIGHT_TARGETS[from.0 as usize];
 
-    let targets_on_board = offsets.iter().filter_map(|d| from.add(*d));
+    // Places the knight can come from, which have either a pair or the en_passant tile.
+    let chain_options =
+        all_targets & ((ctx.attacking_pieces & ctx.defending_pieces) | ctx.en_passant_bb);
+    ctx.todo_list.insert_all(chain_options);
 
-    for target in targets_on_board {
-        // If en-passant is possible, the en-passant square may take part in a
-        // chain. Starting from the en-passant square is not possible.
-        if ctx.en_passant_tile == Some(target) {
-            ctx.todo_list.insert(target);
-            continue;
-        }
-
-        if let Some(attacker) = ctx.board.substrate.get_piece(ctx.attacking_player, target) {
-            if !ctx
-                .board
-                .substrate
-                .has_piece(ctx.attacking_player.other(), target)
-            {
-                // Only knights can start the attack with a knight move.
-                if ctx.lifted_tile.is_none() && attacker == PieceType::Knight {
-                    ctx.starting_tiles.insert(target);
-                }
-            } else {
-                ctx.todo_list.insert(target);
-            }
-        } else if Some(target) == ctx.lifted_tile && Some(PieceType::Knight) == ctx.lifted_type {
+    // Places the knight can start from
+    // Ideally we would already filter this for "knight only", but we don't have
+    // a bitboard for that yet.
+    let start_options = all_targets & ctx.attacking_pieces & !ctx.defending_pieces;
+    for target in start_options {
+        // Special case, if we are already working with a lifted piece.
+        if Some(target) == ctx.lifted_tile && Some(PieceType::Knight) == ctx.lifted_type {
             // We can also start from the lifted square.
             ctx.starting_tiles.insert(target);
+        } else {
+            let is_knight =
+                ctx.board
+                    .substrate
+                    .is_piece(ctx.attacking_player, target, PieceType::Knight);
+            if is_knight && ctx.lifted_tile.is_none() {
+                ctx.starting_tiles.insert(target);
+            }
         }
     }
 }

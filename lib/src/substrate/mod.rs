@@ -2,7 +2,10 @@
 //! avoiding as much other logic as possible. We can't call this board,
 //! because we were already using that for the board with all the logic.
 
+use std::ops::{BitAnd, BitOr, Not};
+
 use crate::{parser::Square, BoardPosition, PacoError, PieceType, PlayerColor};
+pub mod constant_bitboards;
 pub mod dense;
 pub mod zobrist;
 
@@ -74,8 +77,11 @@ impl BitBoard {
         (self.0 & (1u64 << pos.0)) != 0
     }
     pub fn insert(&mut self, pos: BoardPosition) -> bool {
+        self.insert_all(BitBoard(1u64 << pos.0))
+    }
+    pub fn insert_all(&mut self, other: BitBoard) -> bool {
         let old = self.0;
-        self.0 |= 1u64 << pos.0;
+        self.0 |= other.0;
         old != self.0
     }
     pub fn remove(&mut self, pos: BoardPosition) {
@@ -101,6 +107,7 @@ impl Iterator for BitBoardIter {
         None
     }
 }
+
 impl IntoIterator for BitBoard {
     type Item = BoardPosition;
     type IntoIter = BitBoardIter;
@@ -110,5 +117,44 @@ impl IntoIterator for BitBoard {
             bits: self.0,
             current: 0,
         }
+    }
+}
+
+impl From<BoardPosition> for BitBoard {
+    fn from(pos: BoardPosition) -> Self {
+        BitBoard(1u64 << pos.0)
+    }
+}
+
+impl From<Option<BoardPosition>> for BitBoard {
+    fn from(pos: Option<BoardPosition>) -> Self {
+        match pos {
+            Some(pos) => BitBoard(1u64 << pos.0),
+            None => BitBoard(0),
+        }
+    }
+}
+
+impl BitAnd for BitBoard {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        BitBoard(self.0 & rhs.0)
+    }
+}
+
+impl BitOr for BitBoard {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        BitBoard(self.0 | rhs.0)
+    }
+}
+
+impl Not for BitBoard {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        BitBoard(!self.0)
     }
 }
