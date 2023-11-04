@@ -106,7 +106,7 @@ pub fn record_position(board: &mut DenseBoard) {
     }
 }
 
-fn calculate_hash(board: &mut DenseBoard) -> u64 {
+fn calculate_hash(board: &DenseBoard) -> u64 {
     let mut s = FxHasher::default();
 
     // We care about the board state.

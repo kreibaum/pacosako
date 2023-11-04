@@ -12,23 +12,6 @@ use super::reverse_amazon_search;
 
 pub fn my_is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
     reverse_amazon_search::is_sako(board, for_player)
-
-    // TODO: Make this algorithm generalize over the constituent algorithms.
-
-    // use core::panic;
-    // let classical_result = analysis::is_sako(board, for_player)?;
-    // let amazon_result = reverse_amazon_search::is_sako(board, for_player)?;
-
-    // if classical_result != amazon_result {
-    //     panic!(
-    //         "Classical ({}) and Amazon ({}) search disagree on Ŝako for board:\n{:?}, FEN: {}",
-    //         classical_result,
-    //         amazon_result,
-    //         board,
-    //         crate::fen::write_fen(board)
-    //     );
-    // }
-    // Ok(classical_result)
 }
 
 /// Checks if the given board state is "Chasing Paco in 2". This can use either
@@ -58,15 +41,16 @@ pub fn is_chasing_paco_in_2(
 
     // Check if one of these actually wins the game already.
     if explored_attacks
-        .settled
-        .iter()
+        .by_hash
+        .values()
         .any(|b| b.victory_state == VictoryState::PacoVictory(attacker))
     {
         return Ok(vec![]);
     }
 
     // Filter out the settled boards on which the opponent is in Ŝako now.
-    'attacks: for attack_board in &explored_attacks.settled {
+    'attacks: for attack_hash in &explored_attacks.settled {
+        let attack_board = &explored_attacks.by_hash[attack_hash];
         // TODO: This does not yet use the amazon search algorithm.
         // But just swapping it in with is_sako(..) defined as
         // explore_paco_tree(..).paco_positions.is_empty() didn't work.
@@ -87,14 +71,15 @@ pub fn is_chasing_paco_in_2(
             // All of the defense boards must still be in Ŝako. Otherwise we can
             // escape. This then discards the attack board (and move) from the
             // options.
-            for defense_board in &explored_defense.settled {
+            for defense_hash in &explored_defense.settled {
+                let defense_board = &explored_defense.by_hash[defense_hash];
                 if !my_is_sako(defense_board, attacker)? {
                     continue 'attacks;
                 }
             }
             // No defense worked, we have a chasing paco in 2.
             // We note down the move that got us here.
-            let trace = trace_first_move(attack_board, &explored_attacks.found_via)
+            let trace = trace_first_move(*attack_hash, &explored_attacks.found_via)
                 .expect("All settled states in an ExploredMoves must have a trace");
             result.push(trace);
         }

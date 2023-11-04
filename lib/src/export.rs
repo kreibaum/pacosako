@@ -428,9 +428,9 @@ pub unsafe extern "C" fn find_paco_sequences(
 
     let mut actions = vec![];
     // Is there a state where the black king is dancing?
-    for board in explored.settled {
-        if board.king_in_union(ps.controlling_player.other()) {
-            if let Some(trace) = crate::trace_first_move(&board, &explored.found_via) {
+    for (hash, board) in explored.by_hash.into_iter() {
+        if explored.settled.contains(&hash) && board.king_in_union(ps.controlling_player.other()) {
+            if let Some(trace) = crate::trace_first_move(hash, &explored.found_via) {
                 actions.push(trace);
             }
         }

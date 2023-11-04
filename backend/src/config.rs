@@ -33,6 +33,8 @@ fn load_config_inner() -> Result<EnvironmentConfig, String> {
     // Get the command line arguments
     let args: Vec<String> = env::args().collect();
 
+    // When building a Flamegraph, you'll have to replace this
+    // by just "dev-config.toml".to_string()
     let config_filename = match args.len() {
         1 => "dev-config.toml".to_string(),
         2 => args[1].clone(),

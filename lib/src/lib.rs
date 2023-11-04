@@ -20,7 +20,7 @@ mod testdata;
 
 use const_tile::*;
 use draw_state::DrawState;
-use fxhash::FxHashSet;
+use fxhash::{FxHashMap, FxHashSet, FxHasher};
 use paco_action::PacoActionSet;
 use serde::{Deserialize, Serialize};
 use setup_options::SetupOptions;
@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::fmt::Display;
+use std::hash::{Hash, Hasher};
 use std::ops::Add;
 use substrate::constant_bitboards::{KING_TARGETS, KNIGHT_TARGETS};
 use substrate::dense::DenseSubstrate;
@@ -1265,8 +1266,9 @@ impl Default for DenseBoard {
 }
 
 pub struct ExploredState<T: PacoBoard> {
-    pub settled: HashSet<T>,
-    pub found_via: HashMap<T, Vec<(PacoAction, Option<T>)>>,
+    pub by_hash: FxHashMap<u64, T>,
+    pub settled: HashSet<u64>,
+    pub found_via: HashMap<u64, Vec<(PacoAction, Option<u64>)>>,
 }
 
 /// Defines an algorithm that determines all moves.
@@ -1276,53 +1278,86 @@ pub struct ExploredState<T: PacoBoard> {
 /// Essentially I am investigating a finite, possibly cyclic, directed graph where some nodes
 /// are marked (settled boards) and I wish to find all acyclic paths from the root to these
 /// marked (settled) nodes.
-pub fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, PacoError> {
-    let mut todo_list: VecDeque<T> = VecDeque::new();
-    let mut settled: HashSet<T> = HashSet::new();
-    let mut found_via: HashMap<T, Vec<(PacoAction, Option<T>)>> = HashMap::new();
+pub fn determine_all_moves(board: DenseBoard) -> Result<ExploredState<DenseBoard>, PacoError> {
+    let mut by_hash: FxHashMap<u64, DenseBoard> = FxHashMap::default();
+    let mut todo_list: VecDeque<u64> = VecDeque::new();
+    let mut settled: HashSet<u64> = HashSet::new();
+    let mut found_via: HashMap<u64, Vec<(PacoAction, Option<u64>)>> = HashMap::new();
 
     // Put all starting moves into the initialization
     for action in board.actions()? {
         let mut b = board.clone();
         b.execute_trusted(action)?;
+
+        let hash = calculate_interning_hash(&b);
+        by_hash.insert(hash, b);
+
         found_via
-            .entry(b.clone())
+            .entry(hash)
             .and_modify(|v| v.push((action, None)))
             .or_insert_with(|| vec![(action, None)]);
-        todo_list.push_back(b);
+        todo_list.push_back(hash);
     }
 
     // Pull entries from the todo_list until it is empty.
-    while let Some(todo) = todo_list.pop_front() {
+    while let Some(todo_hash) = todo_list.pop_front() {
+        // .clone() here is required, because I can't guarantee that the .insert
+        // call that comes a bit later does not invalidate the reference.
+        let todo_board = by_hash.get(&todo_hash).unwrap().clone();
+        let actions = todo_board.actions()?;
         // Execute all actions and look at the resulting board state.
-        for action in todo.actions()? {
-            let mut b = todo.clone();
-            b.execute_trusted(action)?;
+        for action in actions {
+            let mut new_board = todo_board.clone();
+            new_board.execute_trusted(action)?;
+            let new_hash = calculate_interning_hash(&new_board);
+            let player_changed_or_over = new_board.controlling_player()
+                != board.controlling_player()
+                || new_board.victory_state().is_over();
+            by_hash.insert(new_hash, new_board);
+
             // look up if this action has already been found.
-            match found_via.entry(b.clone()) {
+            match found_via.entry(new_hash) {
                 // We have seen this state already and don't need to add it to the todo list.
                 Entry::Occupied(mut o_entry) => {
-                    o_entry.get_mut().push((action, Some(todo.clone())));
+                    o_entry.get_mut().push((action, Some(todo_hash)));
                 }
                 // We encounter this state for the first time.
                 Entry::Vacant(v_entry) => {
-                    v_entry.insert(vec![(action, Some(todo.clone()))]);
-                    if b.controlling_player() != board.controlling_player()
-                        || b.victory_state().is_over()
-                    {
+                    v_entry.insert(vec![(action, Some(todo_hash))]);
+                    if player_changed_or_over {
                         // The controlling player has switched,
                         // we don't look at the following moves.
-                        settled.insert(b);
+                        settled.insert(new_hash);
                     } else {
                         // We will look at the possible chain moves later.
-                        todo_list.push_back(b);
+                        todo_list.push_back(new_hash);
                     }
                 }
             }
         }
     }
 
-    Ok(ExploredState { settled, found_via })
+    Ok(ExploredState {
+        by_hash,
+        settled,
+        found_via,
+    })
+}
+
+fn calculate_interning_hash(board: &DenseBoard) -> u64 {
+    let mut s = FxHasher::default();
+
+    // We care about the board state.
+    board.substrate.hash(&mut s);
+    // We care about the piece in hand
+    board.lifted_piece.hash(&mut s);
+    // We care about the current player.
+    board.controlling_player.hash(&mut s);
+    // We care about en passant and castling.
+    board.en_passant.hash(&mut s);
+    board.castling.hash(&mut s);
+
+    s.finish()
 }
 
 /// Traces a action sequence to the `target` state via the `found_via` map.
@@ -1330,20 +1365,20 @@ pub fn determine_all_moves<T: PacoBoard>(board: T) -> Result<ExploredState<T>, P
 /// depends on the order in which actions were determined.
 /// Termination of this function depends on implementation details of `determine_all_moves`.
 /// Returns None when no path can be found.
-pub fn trace_first_move<T: PacoBoard, S: std::hash::BuildHasher>(
-    target: &T,
-    found_via: &HashMap<T, Vec<(PacoAction, Option<T>)>, S>,
+pub fn trace_first_move<S: std::hash::BuildHasher>(
+    target: u64,
+    found_via: &HashMap<u64, Vec<(PacoAction, Option<u64>)>, S>,
 ) -> Option<Vec<PacoAction>> {
     let mut trace: Vec<PacoAction> = Vec::new();
 
     let mut pivot = target;
 
     loop {
-        let parents = found_via.get(pivot)?;
+        let parents = found_via.get(&pivot)?;
         let (action, parent) = parents.get(0)?;
         trace.push(*action);
         if let Some(p) = parent {
-            pivot = p;
+            pivot = *p;
         } else {
             trace.reverse();
             return Some(trace);
@@ -1506,14 +1541,18 @@ mod tests {
     }
 
     /// Helper function to make tests of "determine all moves" easier.
-    fn find_sako_states<T: PacoBoard>(board: T) -> Result<Vec<T>, PacoError> {
+    fn find_sako_states(board: DenseBoard) -> Result<Vec<DenseBoard>, PacoError> {
         let opponent = board.controlling_player().other();
 
-        Ok(determine_all_moves(board)?
-            .settled
-            .drain()
-            .filter(|b| b.king_in_union(opponent))
-            .collect())
+        let explored_state = determine_all_moves(board)?;
+
+        let mut result = vec![];
+        for (hash, board) in explored_state.by_hash.into_iter() {
+            if explored_state.settled.contains(&hash) && board.king_in_union(opponent) {
+                result.push(board);
+            }
+        }
+        Ok(result)
     }
 
     #[test]
