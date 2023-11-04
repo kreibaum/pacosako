@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::fmt::Display;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PieceType {
     Pawn = 0,
     Rook = 1,
@@ -71,7 +71,7 @@ impl PlayerColor {
 
 // TODO: This should really be renamed "Tile" to match the frontend.
 // That is also less ambiguous.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct BoardPosition(pub u8);
 
 impl Add<(i8, i8)> for BoardPosition {

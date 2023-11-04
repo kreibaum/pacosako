@@ -663,6 +663,13 @@ mod tests {
         // Sort the sequences by length.
         sequences.sort_by_key(|a| a.len());
 
+        // Please note that the algorithm returns all possible end state where
+        // the king is captured. And for each such end state we also get one
+        // shortest path to it. However, there can be multiple shortest paths
+        // and we don't really guarantee which one we get.
+        // If we reorder in which order we inspect the moves, positions are
+        // found in a different order and the returned sequences change.
+
         assert_eq!(sequences.len(), 3);
         assert_eq!(sequences[0].len(), 15);
         assert_eq!(sequences[0][0], PacoAction::Lift(C3));
@@ -686,14 +693,14 @@ mod tests {
         assert_eq!(sequences[1][1], PacoAction::Place(E4));
         assert_eq!(sequences[1][2], PacoAction::Place(E5));
         assert_eq!(sequences[1][3], PacoAction::Place(E4));
-        assert_eq!(sequences[1][4], PacoAction::Place(G3));
-        assert_eq!(sequences[1][5], PacoAction::Place(E4));
-        assert_eq!(sequences[1][6], PacoAction::Place(E5));
-        assert_eq!(sequences[1][7], PacoAction::Place(G7));
-        assert_eq!(sequences[1][8], PacoAction::Place(E5));
-        assert_eq!(sequences[1][9], PacoAction::Place(E4));
-        assert_eq!(sequences[1][10], PacoAction::Place(F2));
-        assert_eq!(sequences[1][11], PacoAction::Place(G3));
+        assert_eq!(sequences[1][4], PacoAction::Place(F2));
+        assert_eq!(sequences[1][5], PacoAction::Place(G3));
+        assert_eq!(sequences[1][6], PacoAction::Place(E4));
+        assert_eq!(sequences[1][7], PacoAction::Place(E5));
+        assert_eq!(sequences[1][8], PacoAction::Place(G7));
+        assert_eq!(sequences[1][9], PacoAction::Place(E5));
+        assert_eq!(sequences[1][10], PacoAction::Place(E4));
+        assert_eq!(sequences[1][11], PacoAction::Place(F2));
         assert_eq!(sequences[1][12], PacoAction::Place(E4));
         assert_eq!(sequences[1][13], PacoAction::Place(E5));
         assert_eq!(sequences[1][14], PacoAction::Place(G7));
@@ -710,10 +717,10 @@ mod tests {
         assert_eq!(sequences[2][7], PacoAction::Place(G7));
         assert_eq!(sequences[2][8], PacoAction::Place(E5));
         assert_eq!(sequences[2][9], PacoAction::Place(E4));
-        assert_eq!(sequences[2][10], PacoAction::Place(G3));
-        assert_eq!(sequences[2][11], PacoAction::Place(F1));
-        assert_eq!(sequences[2][12], PacoAction::Place(F2));
-        assert_eq!(sequences[2][13], PacoAction::Place(G3));
+        assert_eq!(sequences[2][10], PacoAction::Place(F2));
+        assert_eq!(sequences[2][11], PacoAction::Place(G3));
+        assert_eq!(sequences[2][12], PacoAction::Place(F1));
+        assert_eq!(sequences[2][13], PacoAction::Place(F2));
         assert_eq!(sequences[2][14], PacoAction::Place(E4));
         assert_eq!(sequences[2][15], PacoAction::Place(E5));
         assert_eq!(sequences[2][16], PacoAction::Place(G7));

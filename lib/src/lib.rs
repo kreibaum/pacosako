@@ -16,6 +16,7 @@ pub mod types;
 #[cfg(test)]
 mod testdata;
 
+use const_tile::*;
 use draw_state::DrawState;
 use fxhash::FxHashSet;
 use serde::{Deserialize, Serialize};
@@ -27,8 +28,9 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::fmt::Display;
 use std::ops::Add;
+use substrate::constant_bitboards::{KING_TARGETS, KNIGHT_TARGETS};
 use substrate::dense::DenseSubstrate;
-use substrate::Substrate;
+use substrate::{BitBoard, Substrate};
 pub use types::{BoardPosition, PieceType, PlayerColor};
 extern crate lazy_static;
 
@@ -280,7 +282,7 @@ impl Hand {
 
 /// A PacoAction is an action that can be applied to a PacoBoard to modify it.
 /// An action is an atomic part of a move, like picking up a piece or placing it down.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum PacoAction {
     /// Lifting a piece starts a move.
     Lift(BoardPosition),
@@ -819,7 +821,7 @@ impl DenseBoard {
         position: BoardPosition,
         piece_type: PieceType,
         is_pair: bool,
-    ) -> Result<Vec<BoardPosition>, PacoError> {
+    ) -> Result<BitBoard, PacoError> {
         use PieceType::*;
         match piece_type {
             Pawn => Ok(self.place_targets_pawn(position, is_pair)),
@@ -831,11 +833,7 @@ impl DenseBoard {
         }
     }
 
-    fn threat_place_targets(
-        &self,
-        position: BoardPosition,
-        piece_type: PieceType,
-    ) -> Vec<BoardPosition> {
+    fn threat_place_targets(&self, position: BoardPosition, piece_type: PieceType) -> BitBoard {
         use PieceType::*;
         match piece_type {
             Pawn => self.threat_place_targets_pawn(position),
@@ -843,14 +841,14 @@ impl DenseBoard {
             Knight => self.place_targets_knight(position, false, true),
             Bishop => self.place_targets_bishop(position, false, true),
             Queen => self.place_targets_queen(position, false, true),
-            King => vec![], // The king can not threaten.
+            King => BitBoard::default(), // The king can not threaten.
         }
     }
 
     /// Calculates all possible placement targets for a pawn at the given position.
-    fn place_targets_pawn(&self, position: BoardPosition, is_pair: bool) -> Vec<BoardPosition> {
+    fn place_targets_pawn(&self, position: BoardPosition, is_pair: bool) -> BitBoard {
         use PlayerColor::White;
-        let mut possible_moves = Vec::new();
+        let mut possible_moves = BitBoard::default();
 
         let forward = self.controlling_player.forward_direction();
 
@@ -867,13 +865,15 @@ impl DenseBoard {
                         .has_piece(self.controlling_player.other(), *p)
                         || en_passant_square == Some(*p)
                 })
-                .for_each(|p| possible_moves.push(p));
+                .for_each(|p| {
+                    possible_moves.insert(p);
+                });
         }
 
         // Moving forward, this is similar to a king
         if let Some(step) = position.add((0, forward)) {
             if self.substrate.is_empty(step) {
-                possible_moves.push(step);
+                possible_moves.insert(step);
                 // If we are on the base row or further back, check if we can move another step.
                 let double_move_allowed = if self.controlling_player == White {
                     position.y() <= 1
@@ -883,7 +883,7 @@ impl DenseBoard {
                 if double_move_allowed {
                     if let Some(step_2) = step.add((0, forward)) {
                         if self.substrate.is_empty(step_2) {
-                            possible_moves.push(step_2);
+                            possible_moves.insert(step_2);
                         }
                     }
                 }
@@ -894,7 +894,7 @@ impl DenseBoard {
     }
     /// Calculates all possible threat placement targets for a pawn at the given
     /// position.
-    fn threat_place_targets_pawn(&self, position: BoardPosition) -> Vec<BoardPosition> {
+    fn threat_place_targets_pawn(&self, position: BoardPosition) -> BitBoard {
         use PlayerColor::White;
 
         let forward = if self.controlling_player == White {
@@ -917,12 +917,15 @@ impl DenseBoard {
         position: BoardPosition,
         is_pair: bool,
         is_threat_detection: bool,
-    ) -> Vec<BoardPosition> {
+    ) -> BitBoard {
+        let mut result = BitBoard::default();
         let directions = [(1, 0), (0, 1), (-1, 0), (0, -1)];
-        directions
-            .iter()
-            .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
-            .collect()
+
+        for d in directions {
+            result.insert_all(self.slide_targets(position, d, is_pair, is_threat_detection));
+        }
+
+        result
     }
 
     /// Calculates all possible placement targets for a knight at the given position.
@@ -931,26 +934,19 @@ impl DenseBoard {
         position: BoardPosition,
         is_pair: bool,
         is_threat_detection: bool,
-    ) -> Vec<BoardPosition> {
-        let offsets = [
-            (1, 2),
-            (2, 1),
-            (2, -1),
-            (1, -2),
-            (-1, -2),
-            (-2, -1),
-            (-2, 1),
-            (-1, 2),
-        ];
-        let targets_on_board = offsets.iter().filter_map(|d| position.add(*d));
+    ) -> BitBoard {
+        let targets_on_board = KNIGHT_TARGETS[position.0 as usize];
+
         if is_threat_detection {
-            targets_on_board.collect()
+            targets_on_board
         } else if is_pair {
             targets_on_board
+                .iter()
                 .filter(|p| self.substrate.is_empty(*p))
                 .collect()
         } else {
             targets_on_board
+                .iter()
                 .filter(|p| self.can_place_single_at(*p))
                 .collect()
         }
@@ -962,12 +958,15 @@ impl DenseBoard {
         position: BoardPosition,
         is_pair: bool,
         is_threat_detection: bool,
-    ) -> Vec<BoardPosition> {
+    ) -> BitBoard {
+        let mut result = BitBoard::default();
         let directions = [(1, 1), (-1, 1), (1, -1), (-1, -1)];
-        directions
-            .iter()
-            .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
-            .collect()
+
+        for d in directions {
+            result.insert_all(self.slide_targets(position, d, is_pair, is_threat_detection));
+        }
+
+        result
     }
     /// Calculates all possible placement targets for a queen at the given position.
     fn place_targets_queen(
@@ -975,7 +974,8 @@ impl DenseBoard {
         position: BoardPosition,
         is_pair: bool,
         is_threat_detection: bool,
-    ) -> Vec<BoardPosition> {
+    ) -> BitBoard {
+        let mut result = BitBoard::default();
         let directions = [
             (0, 1),
             (1, 1),
@@ -986,18 +986,22 @@ impl DenseBoard {
             (-1, 0),
             (-1, 1),
         ];
-        directions
-            .iter()
-            .flat_map(|d| self.slide_targets(position, *d, is_pair, is_threat_detection))
-            .collect()
+
+        for d in directions {
+            result.insert_all(self.slide_targets(position, d, is_pair, is_threat_detection));
+        }
+
+        result
     }
+
     /// Calculates all possible placement targets for a king at the given position.
-    fn place_targets_king(&self, position: BoardPosition) -> Result<Vec<BoardPosition>, PacoError> {
+    fn place_targets_king(&self, position: BoardPosition) -> Result<BitBoard, PacoError> {
         let mut targets_on_board = self.place_targets_king_without_castling(position);
 
         // Threat computation is expensive so we need to make sure we only do it once.
         let mut lazy_threats: Option<[IsThreatened; 64]> = None;
         let calc_threats = || {
+            // TODO: This should utilize a modified amazon algorithm as a first step.
             // We can't just call determine_all_threats directly as the wrong
             // player is currently active and we have a king in hand.
             let mut board_clone = self.clone();
@@ -1009,9 +1013,9 @@ impl DenseBoard {
         // Check if the castling right was not void earlier
         if self.controlling_player == PlayerColor::White && self.castling.white_queen_side {
             // Check if the spaces are empty
-            if self.substrate.is_empty(BoardPosition(1))
-                && self.substrate.is_empty(BoardPosition(2))
-                && self.substrate.is_empty(BoardPosition(3))
+            if self.substrate.is_empty(B1)
+                && self.substrate.is_empty(C1)
+                && self.substrate.is_empty(D1)
             {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
@@ -1019,30 +1023,28 @@ impl DenseBoard {
                 }
                 let threats = lazy_threats.unwrap();
                 if !threats[2].0 && !threats[3].0 && !threats[4].0 {
-                    targets_on_board.push(BoardPosition(2));
+                    targets_on_board.insert(C1);
                 }
             }
         }
         if self.controlling_player == PlayerColor::White && self.castling.white_king_side {
             // Check if the spaces are empty
-            if self.substrate.is_empty(BoardPosition(5))
-                && self.substrate.is_empty(BoardPosition(6))
-            {
+            if self.substrate.is_empty(F1) && self.substrate.is_empty(G1) {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
                     lazy_threats = Some(calc_threats()?);
                 }
                 let threats = lazy_threats.unwrap();
                 if !threats[4].0 && !threats[5].0 && !threats[6].0 {
-                    targets_on_board.push(BoardPosition(6));
+                    targets_on_board.insert(G1);
                 }
             }
         }
         if self.controlling_player == PlayerColor::Black && self.castling.black_queen_side {
             // Check if the spaces are empty
-            if self.substrate.is_empty(BoardPosition(57))
-                && self.substrate.is_empty(BoardPosition(58))
-                && self.substrate.is_empty(BoardPosition(59))
+            if self.substrate.is_empty(B8)
+                && self.substrate.is_empty(C8)
+                && self.substrate.is_empty(D8)
             {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
@@ -1050,22 +1052,20 @@ impl DenseBoard {
                 }
                 let threats = lazy_threats.unwrap();
                 if !threats[58].0 && !threats[59].0 && !threats[60].0 {
-                    targets_on_board.push(BoardPosition(58));
+                    targets_on_board.insert(C8);
                 }
             }
         }
         if self.controlling_player == PlayerColor::Black && self.castling.black_king_side {
             // Check if the spaces are empty
-            if self.substrate.is_empty(BoardPosition(61))
-                && self.substrate.is_empty(BoardPosition(62))
-            {
+            if self.substrate.is_empty(F8) && self.substrate.is_empty(G8) {
                 // Check that there are no threats
                 if lazy_threats.is_none() {
                     lazy_threats = Some(calc_threats()?);
                 }
                 let threats = lazy_threats.unwrap();
                 if !threats[60].0 && !threats[61].0 && !threats[62].0 {
-                    targets_on_board.push(BoardPosition(62));
+                    targets_on_board.insert(G8);
                 }
             }
         }
@@ -1073,25 +1073,13 @@ impl DenseBoard {
         Ok(targets_on_board)
     }
 
-    fn place_targets_king_without_castling(&self, position: BoardPosition) -> Vec<BoardPosition> {
-        let offsets = [
-            (0, 1),
-            (1, 1),
-            (1, 0),
-            (1, -1),
-            (0, -1),
-            (-1, -1),
-            (-1, 0),
-            (-1, 1),
-        ];
-        let targets_on_board: Vec<BoardPosition> = offsets
+    fn place_targets_king_without_castling(&self, position: BoardPosition) -> BitBoard {
+        KING_TARGETS[position.0 as usize]
             .iter()
-            .filter_map(|d| position.add(*d))
             // Placing the king works like placing a pair, as he can only be
             // placed on empty squares.
             .filter(|p| self.substrate.is_empty(*p))
-            .collect();
-        targets_on_board
+            .collect()
     }
 
     /// Decide whether the current player may place a single lifted piece at the indicated position.
@@ -1112,24 +1100,24 @@ impl DenseBoard {
         (dx, dy): (i8, i8),
         is_pair: bool,
         is_threat_detection: bool,
-    ) -> Vec<BoardPosition> {
-        let mut possible_moves = Vec::new();
+    ) -> BitBoard {
+        let mut possible_moves = BitBoard::default();
         let mut slide = start.add((dx, dy));
 
         // This while loop leaves if we drop off the board or if we hit a target.
         // The is_pair parameter determines, if the first thing we hit is a valid target.
         while let Some(target) = slide {
             if self.substrate.is_empty(target) {
-                possible_moves.push(target);
+                possible_moves.insert(target);
                 slide = target.add((dx, dy));
             } else if !is_pair && self.can_place_single_at(target) {
-                possible_moves.push(target);
+                possible_moves.insert(target);
                 slide = None;
             } else {
                 // If we are only interested in determining threats, then we
                 // also count a square with a single own piece as threatened.
                 if is_threat_detection {
-                    possible_moves.push(target);
+                    possible_moves.insert(target);
                 }
                 slide = None;
             }
@@ -1151,7 +1139,7 @@ impl DenseBoard {
                 Ok(self
                     .place_targets(position, piece, false)?
                     .iter()
-                    .map(|p| PacoAction::Place(*p))
+                    .map(PacoAction::Place)
                     .collect())
             }
             Hand::Pair {
@@ -1159,7 +1147,7 @@ impl DenseBoard {
             } => Ok(self
                 .place_targets(position, piece, true)?
                 .iter()
-                .map(|p| PacoAction::Place(*p))
+                .map(PacoAction::Place)
                 .collect()),
         }
     }
@@ -1256,7 +1244,7 @@ impl PacoBoard for DenseBoard {
                 // discard chaining into a blocked pawn (or similar).
                 self.threat_place_targets(position, piece)
                     .iter()
-                    .map(|p| Place(*p))
+                    .map(Place)
                     .collect()
             }
             Hand::Pair { .. } => vec![],

@@ -120,6 +120,16 @@ impl IntoIterator for BitBoard {
     }
 }
 
+impl FromIterator<BoardPosition> for BitBoard {
+    fn from_iter<T: IntoIterator<Item = BoardPosition>>(iter: T) -> Self {
+        let mut result = BitBoard(0);
+        for pos in iter {
+            result.insert(pos);
+        }
+        result
+    }
+}
+
 impl From<BoardPosition> for BitBoard {
     fn from(pos: BoardPosition) -> Self {
         BitBoard(1u64 << pos.0)
