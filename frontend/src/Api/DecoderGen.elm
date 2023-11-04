@@ -20,11 +20,12 @@ positionAnalysisCompleted =
 
 
 type alias ReplayData =
-    { notation : List Notation.HalfMove, opening : String }
+    { notation : List Notation.HalfMove, opening : String, progress : Float }
 
 
 replayAnalysisCompleted : Decoder ReplayData
 replayAnalysisCompleted =
-    Decode.map2 ReplayData
+    Decode.map3 ReplayData
         (Decode.field "notation" (Decode.list Notation.decodeHalfMove))
         (Decode.field "opening" Decode.string)
+        (Decode.field "progress" Decode.float)
