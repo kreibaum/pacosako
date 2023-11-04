@@ -24,6 +24,7 @@ const BAD_APPLES: [i64; 33] = [183, 288, 301, 374, 376, 377, 431, 484, 914,
 // Note that 1977, 1978, 2892 are really bad.
 
 #[tokio::test]
+#[ignore] // Can't run in CI, because it needs "production" database access
 async fn paco_2_performance() {
     let config = config::load_config();
 
