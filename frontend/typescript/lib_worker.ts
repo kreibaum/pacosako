@@ -52,6 +52,14 @@ function forwardToMq(messageType: string, data: string) {
     postMessage({ type: messageType, data: data });
 }
 
+// Allows the rust code to know the current time.
+// This is only relative to the start of the worker. Otherwise we exceed the
+// 32 bit integer limit.
+let current_timestamp_baseline = Date.now();
+function current_timestamp_ms() {
+    return Date.now() - current_timestamp_baseline;
+}
+
 wasm_bindgen(`/js/lib.wasm?hash=${wasm_hash}`).then(_ => {
     console.log('WASM loaded, worker ready.');
     // Notify the main thread that we are ready.

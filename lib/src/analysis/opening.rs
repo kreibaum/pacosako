@@ -1,5 +1,7 @@
-/// This module contains classifiers for openings.
-use crate::{const_tile::pos, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType};
+//! This module contains classifiers for openings.
+use crate::PlayerColor::White;
+use crate::{const_tile::*, BoardPosition};
+use crate::{substrate::Substrate, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType};
 
 /// Returns all the openings that can be detected on the given replay.
 pub(crate) fn classify_opening(
@@ -41,8 +43,8 @@ pub(crate) fn is_swedish_knights(
 
         // Check if we have a swedish knight
         // Is there a knight on c3 and f4?
-        if board.white[pos("c3").0 as usize] == Some(PieceType::Knight)
-            && board.white[pos("f4").0 as usize] == Some(PieceType::Knight)
+        if board.substrate.is_piece(White, C3, PieceType::Knight)
+            && board.substrate.is_piece(White, F4, PieceType::Knight)
         {
             return Ok(true);
         }
@@ -77,7 +79,7 @@ pub fn is_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<bool
         action_pointer += 1;
 
         // Is there a rook on h3
-        if board.white[pos("h3").0 as usize] == Some(PieceType::Rook) {
+        if board.substrate.is_piece(White, H3, PieceType::Rook) {
             break;
         }
 
@@ -102,18 +104,18 @@ pub fn is_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<bool
         action_pointer += 1;
 
         // Is there a rook on e3
-        if board.white[pos("e3").0 as usize] == Some(PieceType::Rook) {
+        if board.substrate.is_piece(White, E3, PieceType::Rook) {
             // Check if there is a pawn in front of it
-            if board.white[pos("e4").0 as usize] == Some(PieceType::Pawn) {
+            if board.substrate.is_piece(White, E4, PieceType::Pawn) {
                 return Ok(false);
             }
             return Ok(true);
         }
 
         // Is there a rook on f3
-        if board.white[pos("f3").0 as usize] == Some(PieceType::Rook) {
+        if board.substrate.is_piece(White, F3, PieceType::Rook) {
             // Check if there is a pawn in front of it
-            if board.white[pos("f4").0 as usize] == Some(PieceType::Pawn) {
+            if board.substrate.is_piece(White, F4, PieceType::Pawn) {
                 return Ok(false);
             }
             return Ok(true);
@@ -141,9 +143,12 @@ fn is_double_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<b
 
         // How many rooks are on the 3rd row?
         let mut rooks_on_3rd_row = 0;
-        let mut index = pos("a3").0 as usize;
-        while index <= pos("h3").0 as usize {
-            if board.white[index] == Some(PieceType::Rook) {
+        let mut index = A3.0;
+        while index <= H3.0 {
+            if board
+                .substrate
+                .is_piece(White, BoardPosition(index), PieceType::Rook)
+            {
                 rooks_on_3rd_row += 1;
             }
             index += 1;
@@ -173,37 +178,21 @@ pub fn is_default_starting_position(initial_board: &DenseBoard) -> bool {
 /// Tests module
 #[cfg(test)]
 mod tests {
-    use crate::{analysis::history_to_replay_notation, const_tile::pos, DenseBoard, PacoAction::*};
+    use crate::const_tile::*;
+    use crate::{analysis::history_to_replay_notation, DenseBoard, PacoAction::*};
 
     #[test]
     fn test_rai() {
+        #[rustfmt::skip]
         let replay = history_to_replay_notation(
             DenseBoard::new(),
             &[
-                Lift(pos("d2")),
-                Place(pos("d4")),
-                Lift(pos("d7")),
-                Place(pos("d5")),
-                Lift(pos("h2")),
-                Place(pos("h4")),
-                Lift(pos("b8")),
-                Place(pos("c6")),
-                Lift(pos("h1")),
-                Place(pos("h3")),
-                Lift(pos("d8")),
-                Place(pos("d6")),
-                Lift(pos("b1")),
-                Place(pos("c3")),
-                Lift(pos("c8")),
-                Place(pos("f5")),
-                Lift(pos("h3")),
-                Place(pos("e3")),
-                Lift(pos("d6")),
-                Place(pos("b4")),
-                Lift(pos("c1")),
-                Place(pos("d2")),
-                Lift(pos("g8")),
-                Place(pos("f6")),
+                Lift(D2), Place(D4), Lift(D7),Place(D5),
+                Lift(H2), Place(H4), Lift(B8), Place(C6),
+                Lift(H1), Place(H3), Lift(D8), Place(D6),
+                Lift(B1), Place(C3), Lift(C8), Place(F5),
+                Lift(H3), Place(E3), Lift(D6), Place(B4),
+                Lift(C1), Place(D2), Lift(G8), Place(F6),
             ],
         )
         .expect("Error in input data");

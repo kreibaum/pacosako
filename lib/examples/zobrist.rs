@@ -1,13 +1,9 @@
 use std::{fs::File, io::Write};
 
-/// Testing out the zobrist hashing
-use pacosako::{zobrist, DenseBoard};
+/// Generating data for zobrist hashing.
 use rand::RngCore;
 
 fn main() {
-    let board = DenseBoard::new();
-    println!("{}", zobrist::fresh_zobrist(&board));
-
     build_file("data/zobrist.txt", 12 * 64 * 2).unwrap();
 }
 

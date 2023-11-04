@@ -2,7 +2,10 @@ use lazy_static::lazy_static;
 
 use std::collections::HashMap;
 
-use crate::{parser::Square, BoardPosition, Castling, DenseBoard, PacoError, PlayerColor};
+use crate::{
+    parser::Square, substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoError,
+    PlayerColor,
+};
 use lazy_regex::regex_captures;
 
 /// This module implements an extension of X-Fen that can represent settled Paco
@@ -52,7 +55,7 @@ lazy_static! {
         let mut map: HashMap<Square, char> = HashMap::new();
 
         reverse.iter().for_each(|(c, square)| {
-            map.insert(square.clone(), *c);
+            map.insert(*square, *c);
         });
         // By going over lower case characters first, we make sure those get preferred.
         reverse.iter().for_each(|(c, square)| {
@@ -76,8 +79,9 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
                     if position >= 64 {
                         panic!("Position too large: {}", position);
                     }
-                    *result.white.get_mut(position).unwrap() = square.white;
-                    *result.black.get_mut(position).unwrap() = square.black;
+                    result
+                        .substrate
+                        .set_square(BoardPosition(position as u8), *square);
                     h += 1;
                 }
                 // Or look at a number and do many empty squares
@@ -120,10 +124,7 @@ pub fn write_fen(input: &DenseBoard) -> String {
         let mut running_empty_spaces = 0;
         for h in 0..=7 {
             let position = 56 + h - 8 * v;
-            let square = Square {
-                white: *input.white.get(position).unwrap(),
-                black: *input.black.get(position).unwrap(),
-            };
+            let square = input.substrate.get_square(BoardPosition(position as u8));
             if square.is_empty() {
                 running_empty_spaces += 1;
             } else if let Some(char) = SQUARE_TO_CHAR.get(&square) {

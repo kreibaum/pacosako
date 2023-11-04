@@ -12,6 +12,8 @@ mod server;
 mod statistics;
 mod sync_match;
 mod templates;
+#[cfg(test)]
+mod test;
 mod timer;
 mod ws;
 
@@ -188,7 +190,7 @@ fn init_logger() {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Initialize the database Pool and register it as a Rocket state.
-async fn init_database_pool(config: EnvironmentConfig) -> Pool {
+pub async fn init_database_pool(config: EnvironmentConfig) -> Pool {
     info!("Creating database pool");
     let now = std::time::Instant::now();
 

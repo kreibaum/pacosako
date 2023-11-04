@@ -25,7 +25,7 @@ import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Custom.List as List
 import Effect exposing (Effect)
-import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingXY, px, scrollbarY, spacing, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingEach, paddingXY, px, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -91,6 +91,7 @@ type alias InnerModel =
     , sidebarData : List Notation.HalfMove
     , replayMetaData : ReplayMetaDataProcessed
     , opening : String
+    , progress : Float
     , selected : Notation.SectionIndex
     , timeline : Timeline OpaqueRenderData
     , castingDeco : CastingDeco.Model
@@ -125,7 +126,7 @@ init shared params =
 
 
 type alias ReplayData =
-    { notation : List Notation.HalfMove, opening : String }
+    { notation : List Notation.HalfMove, opening : String, progress : Float }
 
 
 {-| Init method that is called once the replay has been processed.
@@ -138,6 +139,7 @@ innerInit model sidebarData =
     , sidebarData = sidebarData.notation
     , replayMetaData = model.replayMetaData
     , opening = sidebarData.opening
+    , progress = sidebarData.progress
     , selected = Notation.initialSectionIndex
     , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
     , castingDeco = CastingDeco.initModel
@@ -156,7 +158,7 @@ type Msg
     | GotReplayMetaData ReplayMetaDataProcessed
     | HttpErrorReplay Http.Error
     | HttpErrorMetaData Http.Error
-    | GotReplayAnalysis { notation : List Notation.HalfMove, opening : String }
+    | GotReplayAnalysis ReplayData
     | PortError String
     | ToShared Shared.Msg
     | GotInnerMsg InnerMsg
@@ -737,6 +739,32 @@ opening model =
         Element.paragraph [] [ Element.text model.opening, Element.text T.replayWithOpening ]
 
 
+progress : InnerModel -> Element a
+progress model =
+    let
+        percentage =
+            round (model.progress * 100)
+    in
+    if percentage < 100 then
+        Element.row
+            [ width fill, height (px 3) ]
+            [ Element.el
+                [ width (fillPortion percentage)
+                , height (px 3)
+                , Background.color (Element.rgb255 100 255 100)
+                ]
+                Element.none
+            , Element.el
+                [ width (fillPortion (100 - percentage))
+                , height (px 3)
+                ]
+                Element.none
+            ]
+
+    else
+        Element.none
+
+
 arrowButtons : Element InnerMsg
 arrowButtons =
     Element.row [ spacing 5, width fill, paddingXY 5 0 ]
@@ -824,8 +852,14 @@ on one action go to to that position.
 -}
 actionList : InnerModel -> Element InnerMsg
 actionList model =
-    Element.column [ width fill, height fill, scrollbarY ]
-        (setupButton model :: List.indexedMap (halfMoveRow model.selected) model.sidebarData)
+    Element.el [ width fill, height fill, scrollbarY, Element.inFront (progress model) ]
+        (Element.column
+            [ width fill
+            , height fill
+            , scrollbarY
+            ]
+            (setupButton model :: List.indexedMap (halfMoveRow model.selected) model.sidebarData)
+        )
 
 
 {-| Button that brings you to actionCount == 0, i.e. an inital board state.
@@ -864,9 +898,32 @@ halfMoveRow currentlySelected halfMoveIndex moveData =
         [ halfMoveRowMainLabel halfMoveIndex moveData
         , Element.wrappedRow [ width (fillPortion 4) ]
             (List.indexedMap (sidebarAction currentlySelected halfMoveIndex) moveData.actions
-                ++ [ givesOpponentPacoOpportunityLabel moveData, missedPacoLabel moveData, givesSakoLabel moveData ]
+                ++ [ givesOpponentPacoOpportunityLabel moveData
+                   , pacoIn2FoundLabel moveData
+                   , pacoIn2MissedLabel moveData
+                   , missedPacoLabel moveData
+                   , givesSakoLabel moveData
+                   ]
             )
         ]
+
+
+pacoIn2FoundLabel : Notation.HalfMove -> Element msg
+pacoIn2FoundLabel moveData =
+    if moveData.metadata.pacoIn2Found then
+        el [ Element.alignRight, paddingXY 2 0, Font.bold, Font.color (Element.rgb255 85 153 85) ] (Element.text "P2")
+
+    else
+        Element.none
+
+
+pacoIn2MissedLabel : Notation.HalfMove -> Element msg
+pacoIn2MissedLabel moveData =
+    if moveData.metadata.pacoIn2Missed then
+        el [ Element.alignRight, paddingXY 2 0, Font.bold, Font.color (Element.rgb255 153 86 86) ] (Element.text "P2")
+
+    else
+        Element.none
 
 
 givesOpponentPacoOpportunityLabel : Notation.HalfMove -> Element msg

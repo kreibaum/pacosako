@@ -1,10 +1,6 @@
 use std::fs::File;
 
-use pacosako::{
-    self,
-    zobrist::{self, Zobrist},
-    DenseBoard, PacoAction, PacoBoard,
-};
+use pacosako::{self, DenseBoard, PacoAction, PacoBoard};
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 
@@ -27,14 +23,23 @@ struct RegressionValidation {
     legal_moves: Vec<Vec<PacoAction>>,
 }
 
-const SLOW_GAMES: &'static [usize] = &[4102, 2038, 4097, 2265, 2534, 3428, 3995, 1865, 3362, 464];
+impl RegressionValidation {
+    fn sort(&mut self) {
+        for legal_moves in &mut self.legal_moves {
+            legal_moves.sort();
+        }
+    }
+}
+
+const SLOW_GAMES: &[usize] = &[4102, 2038, 4097, 2265, 2534, 3428, 3995, 1865, 3362, 464];
 
 #[test]
 fn regression_run() {
     println!("Testing the whole regression database...");
-    let games: Vec<RegressionValidation> = load_regression_database();
+    let mut games: Vec<RegressionValidation> = load_regression_database();
 
-    for game in &games {
+    for game in &mut games {
+        game.sort();
         // Skip all slow games. We don't want to spend too much time on them.
         if SLOW_GAMES.contains(&game.id) {
             continue;
@@ -46,7 +51,8 @@ fn regression_run() {
             id: game.id,
             history: game.history.clone(),
         };
-        let recomputed_game = map_input_to_validation(input);
+        let mut recomputed_game = map_input_to_validation(input);
+        recomputed_game.sort();
         if *game != recomputed_game {
             println!("Regression in game {}", game.id);
             for i in 0..game.legal_moves.len() {
@@ -71,23 +77,21 @@ fn regression_run() {
 /// Validates that the zobrist hash never breaks for any game in the database.
 /// We do this in addition to fuzzing the engine, to make sure we cover also
 /// the likely cases very well.
-#[ignore = "reason"]
 #[test]
 fn validate_zobrist_integrity() {
     let games: Vec<RegressionValidation> = load_regression_database();
     for game in games {
         let mut board = DenseBoard::new();
-        let mut hash = Zobrist::for_placed_pieces(&board);
-        println!("Initial hash: {}", hash);
 
         for action in game.history {
-            hash ^= zobrist::zobrist_step_for_placed_pieces(&board, action);
             board.execute(action).expect("Error executing action");
-            let recomputed_hash = Zobrist::for_placed_pieces(&board);
+
             assert_eq!(
-                recomputed_hash, hash,
+                board.substrate.get_zobrist_hash(),
+                board.substrate.recompute_zobrist_hash(),
                 "Hash broken for game {} after action {:?}",
-                game.id, action
+                game.id,
+                action
             );
         }
     }
@@ -101,7 +105,7 @@ fn load_regression_database() -> Vec<RegressionValidation> {
     serde_json::from_str(&contents).unwrap()
 }
 
-const FILTERED_OUT: &'static [usize] = &[218, 219];
+const FILTERED_OUT: &[usize] = &[218, 219];
 
 #[ignore = "This is not a real test, but rather the utility used to build the regression database"]
 #[test]
@@ -143,12 +147,15 @@ fn map_input_to_validation(input: RegressionInput) -> RegressionValidation {
     // moves in the result.
     // We can ignore the legal moves on the empty board as they are the same
     // all the time.
-    for action in input.history {
-        board
-            .execute(action)
-            .unwrap_or_else(|e| panic!("Error executing: {:?}, {:?}", action, e));
+    for (action_index, &action) in input.history.iter().enumerate() {
+        board.execute(action).unwrap_or_else(|e| {
+            panic!(
+                "Game {}, Action {action_index}, Error executing: {:?}, {:?}",
+                input.id, action, e
+            )
+        });
         let legal_moves = board.actions().unwrap();
-        result.legal_moves.push(legal_moves);
+        result.legal_moves.push(legal_moves.iter().collect());
     }
 
     result

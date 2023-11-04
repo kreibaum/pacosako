@@ -3,16 +3,19 @@
 use core::fmt::Debug;
 use fxhash::{FxHashMap, FxHashSet};
 use std::{
+    borrow::Cow,
     collections::{hash_map::Entry, VecDeque},
     fmt::Formatter,
     ops::Add,
 };
-use tinyset::SetU32;
 
 // TODO: This can get more performance by switching from Set<u32> to Set<{0..63}>
 // and using a bit board for implementation.
 
-use crate::{BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor};
+use crate::{
+    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
+    BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
+};
 
 use super::tree;
 
@@ -32,6 +35,12 @@ impl Debug for ExploredStateAmazon {
             .as_str(),
         )
     }
+}
+
+pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
+    let tree = explore_paco_tree(board, for_player)?;
+
+    Ok(!tree.paco_positions.is_empty())
 }
 
 pub fn find_paco_sequences(
@@ -69,8 +78,20 @@ pub fn explore_paco_tree(
         ));
     }
 
+    // Required for e.g. r2q1Ck1/ppp1n2p/4f2c/3d4/1b1o1e1P/2E1P3/P1P2PP1/2KR1B2 w 1 AHah - -
+    // Or 3P4/1k1l1p2/5D2/aaEd1v1C/3e1acd/8/D3L3/4K3 w 7 - - -
+    // We want to avoid cloning the board if we don't have to. So we'll use a
+    // Cow here.
+    let board = if board.required_action.is_promote() {
+        let mut board = board.clone();
+        board.execute(PacoAction::Promote(PieceType::Queen))?;
+        Cow::Owned(board)
+    } else {
+        Cow::Borrowed(board)
+    };
+
     // First, find out if we actually need to do anything.
-    let search = reverse_amazon_squares(board, attacking_player)?;
+    let search = reverse_amazon_squares(&board, attacking_player)?;
     if search.starting_tiles.is_empty() {
         return Ok(ExploredStateAmazon {
             paco_positions: FxHashSet::default(),
@@ -83,13 +104,14 @@ pub fn explore_paco_tree(
     let mut paco_positions: FxHashSet<DenseBoard> = FxHashSet::default();
     let mut found_via: FxHashMap<DenseBoard, Vec<(PacoAction, DenseBoard)>> = FxHashMap::default();
 
-    // Clone the board and correctly set the controlling player.
-    let mut board = board.clone();
+    // Clone the board (if not already cloned) and correctly set the controlling player.
+    let mut board: DenseBoard = board.into_owned();
     board.controlling_player = attacking_player;
 
     // The paco positions we are interested in are the one that end with a
     // king capture.
-    let king_capture_action = PacoAction::Place(board.king_position(attacking_player.other())?);
+    let king_capture_action =
+        PacoAction::Place(board.substrate.find_king(attacking_player.other())?);
 
     // Add the starting positions to the todo list.
     todo_list.push_back(board);
@@ -99,13 +121,13 @@ pub fn explore_paco_tree(
         // Execute all actions within the chaining_tiles.
         'action_loop: for action in todo.actions()? {
             if let PacoAction::Lift(p) = action {
-                if !search.starting_tiles.contains(p.0 as u32) {
+                if !search.starting_tiles.contains(p) {
                     continue 'action_loop;
                 }
             } else if let PacoAction::Place(p) = action {
                 // Skip actions that are not in the chaining_tiles.
                 // Promotions are never skipped.
-                if !search.chaining_tiles.contains(p.0 as u32) {
+                if !search.chaining_tiles.contains(p) {
                     continue 'action_loop;
                 }
             }
@@ -144,20 +166,23 @@ pub fn explore_paco_tree(
 /// Holds information which squares are relevant for a paco search.
 #[derive(Debug)]
 pub struct ReverseAmazonSearchResult {
-    pub chaining_tiles: SetU32,
-    pub starting_tiles: SetU32,
+    pub chaining_tiles: BitBoard,
+    pub starting_tiles: BitBoard,
 }
 
 /// Tracks all the information that we need during a search.
 struct AmazonContext<'a> {
     board: &'a DenseBoard,
     attacking_player: PlayerColor,
-    tiles_seen: SetU32,
-    todo_list: SetU32,
-    starting_tiles: SetU32,
-    chaining_tiles: SetU32,
+    attacking_pieces: BitBoard,
+    defending_pieces: BitBoard,
+    tiles_seen: BitBoard,
+    todo_list: BitBoard,
+    starting_tiles: BitBoard,
+    chaining_tiles: BitBoard,
     en_passant_tile: Option<BoardPosition>,
     en_passant_slide_from: Option<BoardPosition>,
+    en_passant_bb: BitBoard,
     lifted_tile: Option<BoardPosition>,
     lifted_type: Option<PieceType>,
 }
@@ -174,7 +199,11 @@ impl<'a> AmazonContext<'a> {
                 .advance_pawn(attacking_player.other())
                 .expect("The en-passant square should never be at the border.");
             // Check if this is a pair. Otherwise we don't care.
-            if board.get(attacking_player, en_passant_slide_from).is_some() {
+            // We need our own piece in the pair there to chain into it.
+            if board
+                .substrate
+                .has_piece(attacking_player, en_passant_slide_from)
+            {
                 (Some(pos), Some(en_passant_slide_from))
             } else {
                 (None, None)
@@ -183,19 +212,22 @@ impl<'a> AmazonContext<'a> {
             (None, None)
         };
 
-        let mut todo_list = SetU32::default();
-        let king_position = board.king_position(attacking_player.other())?;
-        todo_list.insert(king_position.0 as u32);
+        let mut todo_list = BitBoard::default();
+        let king_position = board.substrate.find_king(attacking_player.other())?;
+        todo_list.insert(king_position);
 
         Ok(AmazonContext {
             board,
+            attacking_pieces: board.substrate.bitboard_color(attacking_player),
+            defending_pieces: board.substrate.bitboard_color(attacking_player.other()),
             attacking_player,
-            tiles_seen: SetU32::default(),
+            tiles_seen: BitBoard::default(),
             todo_list,
-            starting_tiles: SetU32::default(),
-            chaining_tiles: SetU32::default(),
+            starting_tiles: BitBoard::default(),
+            chaining_tiles: BitBoard::default(),
             en_passant_tile,
             en_passant_slide_from,
+            en_passant_bb: en_passant_tile.into(),
             lifted_tile: board.lifted_piece.position(),
             lifted_type: board.lifted_piece.piece(),
         })
@@ -204,7 +236,7 @@ impl<'a> AmazonContext<'a> {
     /// Takes an arbitrary tile from the todo list that was not visited yet and
     /// pops if off the todo list.
     /// We then also track that it has been visited and can be chained through.
-    fn pop_todo(&mut self) -> Option<u32> {
+    fn pop_todo(&mut self) -> Option<BoardPosition> {
         while !self.todo_list.is_empty() {
             // Get an entry and remove it from the todo list.
             let p = self.todo_list.iter().next().expect("len > 0");
@@ -250,9 +282,7 @@ pub fn reverse_amazon_squares(
     // positions that are reachable with amazon chains.
     let mut ctx = AmazonContext::new(board, attacking_player)?;
 
-    while let Some(p) = ctx.pop_todo() {
-        let from = BoardPosition(p as u8);
-
+    while let Some(from) = ctx.pop_todo() {
         knight_targets(&mut ctx, from);
 
         slide_targets(&mut ctx, from);
@@ -295,7 +325,7 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 
                 // We can still break here, because the en-passant tile
                 // is also a chaining tile. That will take care of sliding through.
-                ctx.todo_list.insert(current.0 as u32);
+                ctx.todo_list.insert(current);
                 break 'sliding;
             }
 
@@ -311,11 +341,14 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                 )
             {
                 // We can also start from the lifted square.
-                ctx.starting_tiles.insert(current.0 as u32);
+                ctx.starting_tiles.insert(current);
             }
 
-            let attacking_piece = ctx.board.get(ctx.attacking_player, current);
-            let defending_piece = ctx.board.get(ctx.attacking_player.other(), current);
+            let attacking_piece = ctx.board.substrate.get_piece(ctx.attacking_player, current);
+            let defending_piece = ctx
+                .board
+                .substrate
+                .get_piece(ctx.attacking_player.other(), current);
 
             match (attacking_piece, defending_piece) {
                 (None, None) => {
@@ -335,7 +368,7 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                     // But we still need a plausibility check if this piece can
                     // actually move to the "from" position.
                     if we_can_start_from_here(ctx, attacker, dx, dy, distance) {
-                        ctx.starting_tiles.insert(current.0 as u32);
+                        ctx.starting_tiles.insert(current);
                     }
                     // If this is the first time this slide that we encounter a
                     // friendly piece, we can still slide through it.
@@ -349,7 +382,7 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
                     // This is a pair, we can chain from here.
                     // Since chaining can change the piece that is on here,
                     // we can't check anything based on the piece type.
-                    ctx.todo_list.insert(current.0 as u32);
+                    ctx.todo_list.insert(current);
                     break 'sliding;
                 }
             }
@@ -389,43 +422,30 @@ fn we_can_start_from_here(
 // Knight moves and slides are substantially different, because there is no
 // inner "sliding" loop. We just check the position and then we are done.
 fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
-    let offsets = vec![
-        (1, 2),
-        (2, 1),
-        (2, -1),
-        (1, -2),
-        (-1, -2),
-        (-2, -1),
-        (-2, 1),
-        (-1, 2),
-    ];
+    let all_targets = KNIGHT_TARGETS[from.0 as usize];
 
-    let targets_on_board = offsets.iter().filter_map(|d| from.add(*d));
+    // Places the knight can come from, which have either a pair or the en_passant tile.
+    let chain_options =
+        all_targets & ((ctx.attacking_pieces & ctx.defending_pieces) | ctx.en_passant_bb);
+    ctx.todo_list.insert_all(chain_options);
 
-    for target in targets_on_board {
-        // If en-passant is possible, the en-passant square may take part in a
-        // chain. Starting from the en-passant square is not possible.
-        if ctx.en_passant_tile == Some(target) {
-            ctx.todo_list.insert(target.0 as u32);
-            continue;
-        }
-
-        if let Some(attacker) = ctx.board.get(ctx.attacking_player, target) {
-            if ctx
-                .board
-                .get(ctx.attacking_player.other(), target)
-                .is_none()
-            {
-                // Only knights can start the attack with a knight move.
-                if ctx.lifted_tile.is_none() && attacker == PieceType::Knight {
-                    ctx.starting_tiles.insert(target.0 as u32);
-                }
-            } else {
-                ctx.todo_list.insert(target.0 as u32);
-            }
-        } else if Some(target) == ctx.lifted_tile && Some(PieceType::Knight) == ctx.lifted_type {
+    // Places the knight can start from
+    // Ideally we would already filter this for "knight only", but we don't have
+    // a bitboard for that yet.
+    let start_options = all_targets & ctx.attacking_pieces & !ctx.defending_pieces;
+    for target in start_options {
+        // Special case, if we are already working with a lifted piece.
+        if Some(target) == ctx.lifted_tile && Some(PieceType::Knight) == ctx.lifted_type {
             // We can also start from the lifted square.
-            ctx.starting_tiles.insert(target.0 as u32);
+            ctx.starting_tiles.insert(target);
+        } else {
+            let is_knight =
+                ctx.board
+                    .substrate
+                    .is_piece(ctx.attacking_player, target, PieceType::Knight);
+            if is_knight && ctx.lifted_tile.is_none() {
+                ctx.starting_tiles.insert(target);
+            }
         }
     }
 }
@@ -434,7 +454,7 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 #[cfg(test)]
 mod tests {
     use crate::{
-        analysis::reverse_amazon_search::find_paco_sequences, const_tile::pos, fen, DenseBoard,
+        analysis::reverse_amazon_search::find_paco_sequences, const_tile::*, fen, DenseBoard,
         PacoAction, PacoBoard, PlayerColor,
     };
     use ntest::timeout;
@@ -448,7 +468,7 @@ mod tests {
 
         assert!(search.starting_tiles.is_empty());
         assert_eq!(search.chaining_tiles.len(), 1);
-        assert!(search.chaining_tiles.contains(60));
+        assert!(search.chaining_tiles.contains(E8));
     }
 
     #[test]
@@ -458,7 +478,7 @@ mod tests {
 
         assert!(search.starting_tiles.is_empty());
         assert_eq!(search.chaining_tiles.len(), 1);
-        assert!(search.chaining_tiles.contains(4));
+        assert!(search.chaining_tiles.contains(E1));
     }
 
     #[test]
@@ -471,16 +491,17 @@ mod tests {
             .expect("Error in reverse amazon search.");
 
         assert_eq!(search.starting_tiles.len(), 2);
-        assert!(search.starting_tiles.contains(10));
-        assert!(search.starting_tiles.contains(29));
+        assert!(search.starting_tiles.contains(C2));
+        assert!(search.starting_tiles.contains(F4));
         assert_eq!(search.chaining_tiles.len(), 7);
-        assert!(search.chaining_tiles.contains(12));
-        assert!(search.chaining_tiles.contains(19));
-        assert!(search.chaining_tiles.contains(25));
-        assert!(search.chaining_tiles.contains(26));
-        assert!(search.chaining_tiles.contains(43));
-        assert!(search.chaining_tiles.contains(50));
-        assert!(search.chaining_tiles.contains(58));
+        println!("{:?}", search.chaining_tiles);
+        assert!(search.chaining_tiles.contains(E2));
+        assert!(search.chaining_tiles.contains(D3));
+        assert!(search.chaining_tiles.contains(B4));
+        assert!(search.chaining_tiles.contains(C4));
+        assert!(search.chaining_tiles.contains(D6));
+        assert!(search.chaining_tiles.contains(C7));
+        assert!(search.chaining_tiles.contains(C8));
     }
 
     #[test]
@@ -494,16 +515,16 @@ mod tests {
 
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 2);
-        assert!(search.starting_tiles.contains(28));
-        assert!(search.starting_tiles.contains(35));
+        assert!(search.starting_tiles.contains(E4));
+        assert!(search.starting_tiles.contains(D5));
         assert_eq!(search.chaining_tiles.len(), 7);
-        assert!(search.chaining_tiles.contains(5));
-        assert!(search.chaining_tiles.contains(12));
-        assert!(search.chaining_tiles.contains(19));
-        assert!(search.chaining_tiles.contains(25));
-        assert!(search.chaining_tiles.contains(26));
-        assert!(search.chaining_tiles.contains(43));
-        assert!(search.chaining_tiles.contains(50));
+        assert!(search.chaining_tiles.contains(F1));
+        assert!(search.chaining_tiles.contains(E2));
+        assert!(search.chaining_tiles.contains(D3));
+        assert!(search.chaining_tiles.contains(B4));
+        assert!(search.chaining_tiles.contains(C4));
+        assert!(search.chaining_tiles.contains(D6));
+        assert!(search.chaining_tiles.contains(C7));
     }
 
     #[test]
@@ -513,21 +534,21 @@ mod tests {
             fen::parse_fen("rnbqkb1r/ppf2p1p/6p1/3D3d/2Bp4/8/PPPP1PPP/RNB1K2R b 0 AHah - -")
                 .expect("Error in fen parsing.");
 
-        board.execute_trusted(PacoAction::Lift(pos("c7"))).unwrap();
-        board.execute_trusted(PacoAction::Place(pos("c5"))).unwrap();
+        board.execute_trusted(PacoAction::Lift(C7)).unwrap();
+        board.execute_trusted(PacoAction::Place(C5)).unwrap();
 
         let search = reverse_amazon_squares(&board, PlayerColor::White)
             .expect("Error in reverse amazon search.");
 
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 1);
-        assert!(search.starting_tiles.contains(26));
+        assert!(search.starting_tiles.contains(C4));
         assert_eq!(search.chaining_tiles.len(), 5);
-        assert!(search.chaining_tiles.contains(34));
-        assert!(search.chaining_tiles.contains(35));
-        assert!(search.chaining_tiles.contains(39));
-        assert!(search.chaining_tiles.contains(42));
-        assert!(search.chaining_tiles.contains(60));
+        assert!(search.chaining_tiles.contains(C5));
+        assert!(search.chaining_tiles.contains(D5));
+        assert!(search.chaining_tiles.contains(H5));
+        assert!(search.chaining_tiles.contains(C6));
+        assert!(search.chaining_tiles.contains(E8));
     }
 
     #[test]
@@ -546,13 +567,13 @@ mod tests {
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 0);
         assert_eq!(search.chaining_tiles.len(), 7);
-        assert!(search.chaining_tiles.contains(pos("b1").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("h1").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("a3").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("d3").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("h3").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("d4").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("h4").0 as u32));
+        assert!(search.chaining_tiles.contains(B1));
+        assert!(search.chaining_tiles.contains(H1));
+        assert!(search.chaining_tiles.contains(A3));
+        assert!(search.chaining_tiles.contains(D3));
+        assert!(search.chaining_tiles.contains(H3));
+        assert!(search.chaining_tiles.contains(D4));
+        assert!(search.chaining_tiles.contains(H4));
     }
 
     #[test]
@@ -566,13 +587,13 @@ mod tests {
 
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 3);
-        assert!(search.starting_tiles.contains(pos("d2").0 as u32));
-        assert!(search.starting_tiles.contains(pos("f2").0 as u32));
-        assert!(search.starting_tiles.contains(pos("e4").0 as u32));
+        assert!(search.starting_tiles.contains(D2));
+        assert!(search.starting_tiles.contains(F2));
+        assert!(search.starting_tiles.contains(E4));
         assert_eq!(search.chaining_tiles.len(), 3);
-        assert!(search.chaining_tiles.contains(pos("e3").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("f5").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("e8").0 as u32));
+        assert!(search.chaining_tiles.contains(E3));
+        assert!(search.chaining_tiles.contains(F5));
+        assert!(search.chaining_tiles.contains(E8));
     }
 
     #[test]
@@ -587,7 +608,7 @@ mod tests {
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 0);
         assert_eq!(search.chaining_tiles.len(), 1);
-        assert!(search.chaining_tiles.contains(pos("e1").0 as u32));
+        assert!(search.chaining_tiles.contains(E1));
     }
 
     #[test]
@@ -607,8 +628,8 @@ mod tests {
 
         assert_eq!(sequences.len(), 1);
         assert_eq!(sequences[0].len(), 2);
-        assert_eq!(sequences[0][0], PacoAction::Lift(pos("f6")));
-        assert_eq!(sequences[0][1], PacoAction::Place(pos("e8")));
+        assert_eq!(sequences[0][0], PacoAction::Lift(F6));
+        assert_eq!(sequences[0][1], PacoAction::Place(E8));
     }
 
     #[test]
@@ -622,18 +643,18 @@ mod tests {
 
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 2);
-        assert!(search.starting_tiles.contains(pos("c3").0 as u32));
-        assert!(search.starting_tiles.contains(pos("b5").0 as u32));
+        assert!(search.starting_tiles.contains(C3));
+        assert!(search.starting_tiles.contains(B5));
         assert_eq!(search.chaining_tiles.len(), 9);
-        assert!(search.chaining_tiles.contains(pos("f1").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("f2").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("g3").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("e4").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("d5").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("e5").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("h5").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("g7").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("g8").0 as u32));
+        assert!(search.chaining_tiles.contains(F1));
+        assert!(search.chaining_tiles.contains(F2));
+        assert!(search.chaining_tiles.contains(G3));
+        assert!(search.chaining_tiles.contains(E4));
+        assert!(search.chaining_tiles.contains(D5));
+        assert!(search.chaining_tiles.contains(E5));
+        assert!(search.chaining_tiles.contains(H5));
+        assert!(search.chaining_tiles.contains(G7));
+        assert!(search.chaining_tiles.contains(G8));
 
         let mut sequences = find_paco_sequences(&board, PlayerColor::White)
             .expect("Error in paco sequence search.");
@@ -642,61 +663,68 @@ mod tests {
         // Sort the sequences by length.
         sequences.sort_by_key(|a| a.len());
 
+        // Please note that the algorithm returns all possible end state where
+        // the king is captured. And for each such end state we also get one
+        // shortest path to it. However, there can be multiple shortest paths
+        // and we don't really guarantee which one we get.
+        // If we reorder in which order we inspect the moves, positions are
+        // found in a different order and the returned sequences change.
+
         assert_eq!(sequences.len(), 3);
         assert_eq!(sequences[0].len(), 15);
-        assert_eq!(sequences[0][0], PacoAction::Lift(pos("c3")));
-        assert_eq!(sequences[0][1], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[0][2], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[0][3], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[0][4], PacoAction::Place(pos("g3")));
-        assert_eq!(sequences[0][5], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[0][6], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[0][7], PacoAction::Place(pos("g7")));
-        assert_eq!(sequences[0][8], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[0][9], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[0][10], PacoAction::Place(pos("g3")));
-        assert_eq!(sequences[0][11], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[0][12], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[0][13], PacoAction::Place(pos("g7")));
-        assert_eq!(sequences[0][14], PacoAction::Place(pos("g8")));
+        assert_eq!(sequences[0][0], PacoAction::Lift(C3));
+        assert_eq!(sequences[0][1], PacoAction::Place(E4));
+        assert_eq!(sequences[0][2], PacoAction::Place(E5));
+        assert_eq!(sequences[0][3], PacoAction::Place(E4));
+        assert_eq!(sequences[0][4], PacoAction::Place(G3));
+        assert_eq!(sequences[0][5], PacoAction::Place(E4));
+        assert_eq!(sequences[0][6], PacoAction::Place(E5));
+        assert_eq!(sequences[0][7], PacoAction::Place(G7));
+        assert_eq!(sequences[0][8], PacoAction::Place(E5));
+        assert_eq!(sequences[0][9], PacoAction::Place(E4));
+        assert_eq!(sequences[0][10], PacoAction::Place(G3));
+        assert_eq!(sequences[0][11], PacoAction::Place(E4));
+        assert_eq!(sequences[0][12], PacoAction::Place(E5));
+        assert_eq!(sequences[0][13], PacoAction::Place(G7));
+        assert_eq!(sequences[0][14], PacoAction::Place(G8));
 
         assert_eq!(sequences[1].len(), 16);
-        assert_eq!(sequences[1][0], PacoAction::Lift(pos("c3")));
-        assert_eq!(sequences[1][1], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[1][2], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[1][3], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[1][4], PacoAction::Place(pos("g3")));
-        assert_eq!(sequences[1][5], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[1][6], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[1][7], PacoAction::Place(pos("g7")));
-        assert_eq!(sequences[1][8], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[1][9], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[1][10], PacoAction::Place(pos("f2")));
-        assert_eq!(sequences[1][11], PacoAction::Place(pos("g3")));
-        assert_eq!(sequences[1][12], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[1][13], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[1][14], PacoAction::Place(pos("g7")));
-        assert_eq!(sequences[1][15], PacoAction::Place(pos("g8")));
+        assert_eq!(sequences[1][0], PacoAction::Lift(C3));
+        assert_eq!(sequences[1][1], PacoAction::Place(E4));
+        assert_eq!(sequences[1][2], PacoAction::Place(E5));
+        assert_eq!(sequences[1][3], PacoAction::Place(E4));
+        assert_eq!(sequences[1][4], PacoAction::Place(F2));
+        assert_eq!(sequences[1][5], PacoAction::Place(G3));
+        assert_eq!(sequences[1][6], PacoAction::Place(E4));
+        assert_eq!(sequences[1][7], PacoAction::Place(E5));
+        assert_eq!(sequences[1][8], PacoAction::Place(G7));
+        assert_eq!(sequences[1][9], PacoAction::Place(E5));
+        assert_eq!(sequences[1][10], PacoAction::Place(E4));
+        assert_eq!(sequences[1][11], PacoAction::Place(F2));
+        assert_eq!(sequences[1][12], PacoAction::Place(E4));
+        assert_eq!(sequences[1][13], PacoAction::Place(E5));
+        assert_eq!(sequences[1][14], PacoAction::Place(G7));
+        assert_eq!(sequences[1][15], PacoAction::Place(G8));
 
         assert_eq!(sequences[2].len(), 18);
-        assert_eq!(sequences[2][0], PacoAction::Lift(pos("c3")));
-        assert_eq!(sequences[2][1], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[2][2], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[2][3], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[2][4], PacoAction::Place(pos("g3")));
-        assert_eq!(sequences[2][5], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[2][6], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[2][7], PacoAction::Place(pos("g7")));
-        assert_eq!(sequences[2][8], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[2][9], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[2][10], PacoAction::Place(pos("g3")));
-        assert_eq!(sequences[2][11], PacoAction::Place(pos("f1")));
-        assert_eq!(sequences[2][12], PacoAction::Place(pos("f2")));
-        assert_eq!(sequences[2][13], PacoAction::Place(pos("g3")));
-        assert_eq!(sequences[2][14], PacoAction::Place(pos("e4")));
-        assert_eq!(sequences[2][15], PacoAction::Place(pos("e5")));
-        assert_eq!(sequences[2][16], PacoAction::Place(pos("g7")));
-        assert_eq!(sequences[2][17], PacoAction::Place(pos("g8")));
+        assert_eq!(sequences[2][0], PacoAction::Lift(C3));
+        assert_eq!(sequences[2][1], PacoAction::Place(E4));
+        assert_eq!(sequences[2][2], PacoAction::Place(E5));
+        assert_eq!(sequences[2][3], PacoAction::Place(E4));
+        assert_eq!(sequences[2][4], PacoAction::Place(G3));
+        assert_eq!(sequences[2][5], PacoAction::Place(E4));
+        assert_eq!(sequences[2][6], PacoAction::Place(E5));
+        assert_eq!(sequences[2][7], PacoAction::Place(G7));
+        assert_eq!(sequences[2][8], PacoAction::Place(E5));
+        assert_eq!(sequences[2][9], PacoAction::Place(E4));
+        assert_eq!(sequences[2][10], PacoAction::Place(F2));
+        assert_eq!(sequences[2][11], PacoAction::Place(G3));
+        assert_eq!(sequences[2][12], PacoAction::Place(F1));
+        assert_eq!(sequences[2][13], PacoAction::Place(F2));
+        assert_eq!(sequences[2][14], PacoAction::Place(E4));
+        assert_eq!(sequences[2][15], PacoAction::Place(E5));
+        assert_eq!(sequences[2][16], PacoAction::Place(G7));
+        assert_eq!(sequences[2][17], PacoAction::Place(G8));
     }
 
     #[test]
@@ -713,17 +741,17 @@ mod tests {
 
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 1);
-        assert!(search.starting_tiles.contains(pos("g4").0 as u32));
+        assert!(search.starting_tiles.contains(G4));
         assert_eq!(search.chaining_tiles.len(), 9);
-        assert!(search.chaining_tiles.contains(pos("e1").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("e2").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("e3").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("f3").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("d4").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("h4").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("f7").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("e8").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("h8").0 as u32));
+        assert!(search.chaining_tiles.contains(E1));
+        assert!(search.chaining_tiles.contains(E2));
+        assert!(search.chaining_tiles.contains(E3));
+        assert!(search.chaining_tiles.contains(F3));
+        assert!(search.chaining_tiles.contains(D4));
+        assert!(search.chaining_tiles.contains(H4));
+        assert!(search.chaining_tiles.contains(F7));
+        assert!(search.chaining_tiles.contains(E8));
+        assert!(search.chaining_tiles.contains(H8));
     }
 
     #[test]
@@ -738,13 +766,13 @@ mod tests {
 
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 2);
-        assert!(search.starting_tiles.contains(pos("d6").0 as u32));
-        assert!(search.starting_tiles.contains(pos("h5").0 as u32));
+        assert!(search.starting_tiles.contains(D6));
+        assert!(search.starting_tiles.contains(H5));
         assert_eq!(search.chaining_tiles.len(), 4);
-        assert!(search.chaining_tiles.contains(pos("e1").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("b4").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("g4").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("f8").0 as u32));
+        assert!(search.chaining_tiles.contains(E1));
+        assert!(search.chaining_tiles.contains(B4));
+        assert!(search.chaining_tiles.contains(G4));
+        assert!(search.chaining_tiles.contains(F8));
 
         board.execute_trusted(PacoAction::Lift(pos("d6"))).unwrap();
 
@@ -753,11 +781,11 @@ mod tests {
 
         println!("{:?}", search);
         assert_eq!(search.starting_tiles.len(), 1);
-        assert!(search.starting_tiles.contains(pos("d6").0 as u32));
+        assert!(search.starting_tiles.contains(D6));
         assert_eq!(search.chaining_tiles.len(), 3);
-        assert!(search.chaining_tiles.contains(pos("e1").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("b4").0 as u32));
-        assert!(search.chaining_tiles.contains(pos("f8").0 as u32));
+        assert!(search.chaining_tiles.contains(E1));
+        assert!(search.chaining_tiles.contains(B4));
+        assert!(search.chaining_tiles.contains(F8));
 
         let sequences = find_paco_sequences(&board, PlayerColor::Black)
             .expect("Error in paco sequence search.");
@@ -765,8 +793,8 @@ mod tests {
         println!("{:?}", sequences);
         assert_eq!(sequences.len(), 1);
         assert_eq!(sequences[0].len(), 2);
-        assert_eq!(sequences[0][0], PacoAction::Place(pos("b4")));
-        assert_eq!(sequences[0][1], PacoAction::Place(pos("e1")));
+        assert_eq!(sequences[0][0], PacoAction::Place(B4));
+        assert_eq!(sequences[0][1], PacoAction::Place(E1));
     }
 
     #[test]
@@ -789,16 +817,16 @@ mod tests {
         println!("{:?}", sequences);
         assert_eq!(sequences.len(), 3);
         assert_eq!(sequences[0].len(), 2);
-        assert_eq!(sequences[0][0], PacoAction::Place(pos("c4")));
-        assert_eq!(sequences[0][1], PacoAction::Place(pos("e2")));
+        assert_eq!(sequences[0][0], PacoAction::Place(C4));
+        assert_eq!(sequences[0][1], PacoAction::Place(E2));
         assert_eq!(sequences[1].len(), 3);
-        assert_eq!(sequences[1][0], PacoAction::Place(pos("c4")));
-        assert_eq!(sequences[1][1], PacoAction::Place(pos("e6")));
-        assert_eq!(sequences[1][2], PacoAction::Place(pos("e2")));
+        assert_eq!(sequences[1][0], PacoAction::Place(C4));
+        assert_eq!(sequences[1][1], PacoAction::Place(E6));
+        assert_eq!(sequences[1][2], PacoAction::Place(E2));
         assert_eq!(sequences[2].len(), 4);
-        assert_eq!(sequences[2][0], PacoAction::Place(pos("c4")));
-        assert_eq!(sequences[2][1], PacoAction::Place(pos("e6")));
-        assert_eq!(sequences[2][2], PacoAction::Place(pos("c4")));
-        assert_eq!(sequences[2][3], PacoAction::Place(pos("e2")));
+        assert_eq!(sequences[2][0], PacoAction::Place(C4));
+        assert_eq!(sequences[2][1], PacoAction::Place(E6));
+        assert_eq!(sequences[2][2], PacoAction::Place(C4));
+        assert_eq!(sequences[2][3], PacoAction::Place(E2));
     }
 }

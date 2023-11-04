@@ -6,14 +6,14 @@ use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::fmt::Display;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PieceType {
-    Pawn,
-    Rook,
-    Knight,
-    Bishop,
-    Queen,
-    King,
+    Pawn = 0,
+    Rook = 1,
+    Knight = 2,
+    Bishop = 3,
+    Queen = 4,
+    King = 5,
 }
 
 impl PieceType {
@@ -29,12 +29,25 @@ impl PieceType {
             King => "K",
         }
     }
+    pub fn from_u8(value: u8) -> Self {
+        use PieceType::*;
+
+        match value {
+            0 => Pawn,
+            1 => Rook,
+            2 => Knight,
+            3 => Bishop,
+            4 => Queen,
+            5 => King,
+            _ => panic!("Invalid piece type: {}", value),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PlayerColor {
-    White,
-    Black,
+    White = 0,
+    Black = 1,
 }
 
 impl PlayerColor {
@@ -71,7 +84,7 @@ impl PlayerColor {
 
 // TODO: This should really be renamed "Tile" to match the frontend.
 // That is also less ambiguous.
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct BoardPosition(pub u8);
 
 impl Add<(i8, i8)> for BoardPosition {
