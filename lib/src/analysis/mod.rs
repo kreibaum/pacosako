@@ -1,17 +1,17 @@
+//! Analysis methods for paco sako. This can be used to analyze a game and
+//! give information about interesting moments. E.g. missed opportunities.
+
 pub mod chasing_paco;
 mod opening;
 pub mod puzzle;
 pub mod reverse_amazon_search;
 pub(crate) mod tree;
 
-/// Analysis methods for paco sako. This can be used to analyze a game and
-/// give information about interesting moments. E.g. missed opportunities.
-use serde::Serialize;
-
 use crate::{
     determine_all_threats, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoAction,
     PacoBoard, PacoError, PieceType, PlayerColor,
 };
+use serde::Serialize;
 #[derive(Serialize, PartialEq, Eq, Debug)]
 pub struct ReplayData {
     notation: Vec<HalfMove>,
@@ -381,9 +381,9 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
 // Test module
 #[cfg(test)]
 mod tests {
-    use crate::{fen, testdata::REPLAY_13103};
-
     use super::*;
+    use crate::const_tile::*;
+    use crate::{fen, testdata::REPLAY_13103};
 
     #[test]
     fn empty_list() {
@@ -491,10 +491,10 @@ mod tests {
             initial_board,
             &[
                 PacoAction::Lift("h2".try_into().unwrap()),
-                PacoAction::Place("h8".try_into().unwrap()),
+                PacoAction::Place(H8),
                 PacoAction::Promote(PieceType::Knight),
-                PacoAction::Lift("h1".try_into().unwrap()),
-                PacoAction::Place("h8".try_into().unwrap()),
+                PacoAction::Lift(H1),
+                PacoAction::Place(H8),
                 PacoAction::Place("g6".try_into().unwrap()),
             ],
         )
@@ -548,7 +548,7 @@ mod tests {
                 PacoAction::Lift("e8".try_into().unwrap()),
                 PacoAction::Place("c8".try_into().unwrap()),
                 PacoAction::Lift("g1".try_into().unwrap()),
-                PacoAction::Place("h1".try_into().unwrap()),
+                PacoAction::Place(H1),
                 PacoAction::Lift("c8".try_into().unwrap()),
                 PacoAction::Place("d7".try_into().unwrap()),
             ],
@@ -636,6 +636,4 @@ mod tests {
 
         Ok(())
     }
-
-    // TODO: Add an integration test were we test all games that were ever played.
 }

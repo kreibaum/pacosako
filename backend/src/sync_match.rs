@@ -130,7 +130,7 @@ impl CurrentMatchState {
             legal_actions: if victory_state.is_over() {
                 vec![]
             } else {
-                board.actions()?
+                board.actions()?.iter().collect()
             },
             controlling_player: board.controlling_player(),
             timer: sync_match.timer.clone(),

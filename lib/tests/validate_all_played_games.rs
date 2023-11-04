@@ -31,7 +31,7 @@ impl RegressionValidation {
     }
 }
 
-const SLOW_GAMES: &'static [usize] = &[4102, 2038, 4097, 2265, 2534, 3428, 3995, 1865, 3362, 464];
+const SLOW_GAMES: &[usize] = &[4102, 2038, 4097, 2265, 2534, 3428, 3995, 1865, 3362, 464];
 
 #[test]
 fn regression_run() {
@@ -105,7 +105,7 @@ fn load_regression_database() -> Vec<RegressionValidation> {
     serde_json::from_str(&contents).unwrap()
 }
 
-const FILTERED_OUT: &'static [usize] = &[218, 219];
+const FILTERED_OUT: &[usize] = &[218, 219];
 
 #[ignore = "This is not a real test, but rather the utility used to build the regression database"]
 #[test]
@@ -155,7 +155,7 @@ fn map_input_to_validation(input: RegressionInput) -> RegressionValidation {
             )
         });
         let legal_moves = board.actions().unwrap();
-        result.legal_moves.push(legal_moves);
+        result.legal_moves.push(legal_moves.iter().collect());
     }
 
     result

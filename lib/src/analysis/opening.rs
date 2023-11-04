@@ -143,8 +143,8 @@ fn is_double_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<b
 
         // How many rooks are on the 3rd row?
         let mut rooks_on_3rd_row = 0;
-        let mut index = pos("a3").0;
-        while index <= pos("h3").0 {
+        let mut index = A3.0;
+        while index <= H3.0 {
             if board
                 .substrate
                 .is_piece(White, BoardPosition(index), PieceType::Rook)
@@ -178,37 +178,21 @@ pub fn is_default_starting_position(initial_board: &DenseBoard) -> bool {
 /// Tests module
 #[cfg(test)]
 mod tests {
-    use crate::{analysis::history_to_replay_notation, const_tile::pos, DenseBoard, PacoAction::*};
+    use crate::const_tile::*;
+    use crate::{analysis::history_to_replay_notation, DenseBoard, PacoAction::*};
 
     #[test]
     fn test_rai() {
+        #[rustfmt::skip]
         let replay = history_to_replay_notation(
             DenseBoard::new(),
             &[
-                Lift(pos("d2")),
-                Place(pos("d4")),
-                Lift(pos("d7")),
-                Place(pos("d5")),
-                Lift(pos("h2")),
-                Place(pos("h4")),
-                Lift(pos("b8")),
-                Place(pos("c6")),
-                Lift(pos("h1")),
-                Place(pos("h3")),
-                Lift(pos("d8")),
-                Place(pos("d6")),
-                Lift(pos("b1")),
-                Place(pos("c3")),
-                Lift(pos("c8")),
-                Place(pos("f5")),
-                Lift(pos("h3")),
-                Place(pos("e3")),
-                Lift(pos("d6")),
-                Place(pos("b4")),
-                Lift(pos("c1")),
-                Place(pos("d2")),
-                Lift(pos("g8")),
-                Place(pos("f6")),
+                Lift(D2), Place(D4), Lift(D7),Place(D5),
+                Lift(H2), Place(H4), Lift(B8), Place(C6),
+                Lift(H1), Place(H3), Lift(D8), Place(D6),
+                Lift(B1), Place(C3), Lift(C8), Place(F5),
+                Lift(H3), Place(E3), Lift(D6), Place(B4),
+                Lift(C1), Place(D2), Lift(G8), Place(F6),
             ],
         )
         .expect("Error in input data");

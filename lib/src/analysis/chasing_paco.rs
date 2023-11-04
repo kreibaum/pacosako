@@ -4,7 +4,6 @@
 //! the number of positions we need to analyze.
 
 use crate::{
-    analysis::{self},
     determine_all_moves, trace_first_move, DenseBoard, PacoAction, PacoBoard, PacoError,
     PlayerColor, VictoryState,
 };

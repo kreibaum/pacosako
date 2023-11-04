@@ -31,9 +31,9 @@ plt.axvline(p95, color='green', linestyle='dashed', linewidth=1)
 # plt.axvline(average_timing, color='purple', linestyle='dashed', linewidth=1)
 
 # Annotate the lines
-plt.text(p50+10, plt.ylim()[1]*0.95, f'P50: {round(p50)}', color='black')
-plt.text(p90+10, plt.ylim()[1]*0.9, f'P90: {round(p90)}', color='red')
-plt.text(p95+10, plt.ylim()[1]*0.85, f'P95: {round(p95)}', color='green')
+plt.text(p50+1, plt.ylim()[1]*0.95, f'P50: {round(p50)}', color='black')
+plt.text(p90+1, plt.ylim()[1]*0.9, f'P90: {round(p90)}', color='red')
+plt.text(p95+1, plt.ylim()[1]*0.85, f'P95: {round(p95)}', color='green')
 # plt.text(average_timing+10, plt.ylim()[1]*0.8,
 #         f'Mean: {round(average_timing)}', color='purple')
 

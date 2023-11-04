@@ -204,17 +204,17 @@ async fn expand_node(
         current_player,
     };
 
-    let logit_noise = logit_normal(all_actions.len(), noise);
+    let logit_noise = logit_normal(all_actions.len() as usize, noise);
 
     // Sum up the model policy to normalize it, only looking at the actions
     // that are actually possible.
     let mut model_policy_sum = MCTS_EPSILON;
     for (i, action) in all_actions.iter().enumerate() {
-        let action_index = action_to_action_index(*action);
+        let action_index = action_to_action_index(action);
         model_policy_sum += model_response[action_index as usize] + logit_noise[i];
     }
 
-    for (i, &action) in all_actions.iter().enumerate() {
+    for (i, action) in all_actions.iter().enumerate() {
         let action_index = action_to_action_index(action);
         // Add random noise for symmetry breaking.
         let noise: f32 = rand::random();

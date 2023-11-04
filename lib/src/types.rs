@@ -29,6 +29,19 @@ impl PieceType {
             King => "K",
         }
     }
+    pub fn from_u8(value: u8) -> Self {
+        use PieceType::*;
+
+        match value {
+            0 => Pawn,
+            1 => Rook,
+            2 => Knight,
+            3 => Bishop,
+            4 => Queen,
+            5 => King,
+            _ => panic!("Invalid piece type: {}", value),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

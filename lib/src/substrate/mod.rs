@@ -58,17 +58,9 @@ pub trait Substrate {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct BitBoard(pub u64);
 
-pub struct BitBoardIter {
-    bits: u64,
-    current: u8,
-}
-
 impl BitBoard {
     pub fn iter(self) -> BitBoardIter {
-        BitBoardIter {
-            bits: self.0,
-            current: 0,
-        }
+        BitBoardIter { bits: self.0 }
     }
     pub fn is_empty(self) -> bool {
         self.0 == 0
@@ -92,19 +84,28 @@ impl BitBoard {
     }
 }
 
+pub struct BitBoardIter {
+    bits: u64,
+}
+
 impl Iterator for BitBoardIter {
     type Item = BoardPosition;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.current < 64 {
-            if (self.bits & (1u64 << self.current)) != 0 {
-                let result = self.current;
-                self.current += 1;
-                return Some(BoardPosition(result));
-            }
-            self.current += 1;
+        if self.bits == 0 {
+            None
+        } else {
+            // Get the index of the least significant set bit.
+            let trailing_zeros = self.bits.trailing_zeros() as u8;
+            // Clear the bit so that it's not considered in the next call.
+            self.bits &= !(1 << trailing_zeros);
+            Some(BoardPosition(trailing_zeros))
         }
-        None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.bits.count_ones() as usize;
+        (len, Some(len))
     }
 }
 
@@ -113,10 +114,7 @@ impl IntoIterator for BitBoard {
     type IntoIter = BitBoardIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        BitBoardIter {
-            bits: self.0,
-            current: 0,
-        }
+        BitBoardIter { bits: self.0 }
     }
 }
 
