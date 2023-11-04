@@ -25,14 +25,14 @@ pub fn my_is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, P
 pub fn is_chasing_paco_in_2(
     board: &DenseBoard,
     attacker: PlayerColor,
-) -> Result<Vec<Vec<PacoAction>>, PacoError> {
+) -> Result<Vec<(DenseBoard, Vec<PacoAction>)>, PacoError> {
     // We are looking for a move which puts the opponent in Ŝako.
     // We want to enumerate all of them.
     assert!(
         board.is_settled(),
         "Board must be settled to determine chasing paco in 2"
     );
-    let mut result = vec![];
+    let mut result: Vec<(DenseBoard, Vec<PacoAction>)> = vec![];
 
     let mut board = board.clone();
     board.controlling_player = attacker;
@@ -81,7 +81,7 @@ pub fn is_chasing_paco_in_2(
             // We note down the move that got us here.
             let trace = trace_first_move(*attack_hash, &explored_attacks.found_via)
                 .expect("All settled states in an ExploredMoves must have a trace");
-            result.push(trace);
+            result.push((attack_board.clone(), trace));
         }
     }
 
@@ -123,7 +123,8 @@ mod tests {
         let setup = "r2q2k1/ppp1n2p/4c2e/3f1C2/1b1O1p1P/2S1P3/PPP2PP1/2KR1B2 w 0 AHah - -";
         let board = fen::parse_fen(setup).unwrap();
 
-        let mut good_white_attacks = is_chasing_paco_in_2(&board, PlayerColor::White)?;
+        let mut good_white_attacks =
+            strip_board_information(is_chasing_paco_in_2(&board, PlayerColor::White)?);
         good_white_attacks.sort_by_key(|x| x.len());
 
         for good_attack in &good_white_attacks {
@@ -146,7 +147,8 @@ mod tests {
         let setup = "1k3b2/p3ppp1/e1d2r2/1S1rP2p/P2P4/4A3/1PP1I1PP/2s2YRK w 0 AHah - -";
         let board = fen::parse_fen(setup).unwrap();
 
-        let mut good_black_attacks = is_chasing_paco_in_2(&board, PlayerColor::Black)?;
+        let mut good_black_attacks =
+            strip_board_information(is_chasing_paco_in_2(&board, PlayerColor::Black)?);
         good_black_attacks.sort_by_key(|x| x.len());
 
         for good_attack in &good_black_attacks {
@@ -177,6 +179,12 @@ mod tests {
         // I believe this is chasing paco in 3, so a good test case for later.
         assert!(is_chasing_paco_in_2(&board, PlayerColor::White)?.is_empty());
         Ok(())
+    }
+
+    fn strip_board_information(
+        attacks: Vec<(DenseBoard, Vec<PacoAction>)>,
+    ) -> Vec<Vec<PacoAction>> {
+        attacks.into_iter().map(|(_, a)| a).collect()
     }
 
     #[test]

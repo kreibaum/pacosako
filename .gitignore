@@ -36,3 +36,4 @@ backend/Secrets.toml
 lib/libpacosako.h
 julia/data
 frontend/typescript/static_assets.ts
+backend/paco_2_performance.csv

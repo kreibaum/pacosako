@@ -1,15 +1,15 @@
 mod utils;
 mod websocket;
 
-use serde::{Deserialize, Serialize};
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-
 use pacosako::{
-    analysis::{self, puzzle, ReplayData},
+    analysis::{incremental_replay, puzzle, ReplayData},
     editor, fen,
     setup_options::SetupOptions,
-    PacoAction, PacoBoard, PacoError,
+    PacoAction, PacoError,
 };
+use serde::Deserialize;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+extern crate console_error_panic_hook;
 
 /// This module provides all the methods that should be available on the wasm
 /// version of the library. Any encoding & decoding is handled in here.
@@ -17,6 +17,7 @@ use pacosako::{
 #[wasm_bindgen]
 extern "C" {
     fn forwardToMq(messageType: &str, data: &str);
+    fn current_timestamp_ms() -> u32;
 }
 
 #[wasm_bindgen(js_name = "generateRandomPosition")]
@@ -63,16 +64,23 @@ struct AnalyzeReplayData {
 
 #[wasm_bindgen(js_name = "analyzeReplay")]
 pub fn analyze_replay(data: String) -> Result<(), JsValue> {
+    console_error_panic_hook::set_once();
     let data: AnalyzeReplayData = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
     let analysis = history_to_replay_notation(&data.board_fen, &data.action_history, &data.setup)
         .map_err(|e| e.to_string())?;
 
-    let analysis = serde_json::to_string(&analysis).map_err(|e| e.to_string())?;
-
-    forwardToMq("replayAnalysisCompleted", &analysis);
+    analyze_replay_respond(&analysis);
 
     Ok(())
+}
+
+/// This function will report the replay data to Elm. This is extracted into a
+/// separate method in order to be able to call it from the incremental replay.
+pub fn analyze_replay_respond(analysis: &ReplayData) {
+    if let Ok(analysis) = serde_json::to_string(analysis).map_err(|e| e.to_string()) {
+        forwardToMq("replayAnalysisCompleted", &analysis);
+    }
 }
 
 fn history_to_replay_notation(
@@ -87,7 +95,12 @@ fn history_to_replay_notation(
     // Apply setup options to the initial board
     initial_board.draw_state.draw_after_n_repetitions = setup.draw_after_n_repetitions;
 
-    analysis::history_to_replay_notation(initial_board, action_history)
+    incremental_replay::history_to_replay_notation_incremental(
+        &initial_board,
+        action_history,
+        current_timestamp_ms,
+        analyze_replay_respond,
+    )
 }
 
 ////////////////////////////////////////////////////////////////////////////////
