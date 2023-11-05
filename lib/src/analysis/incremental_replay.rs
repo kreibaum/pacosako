@@ -77,9 +77,9 @@ pub fn history_to_replay_notation_incremental(
             }
         }
 
-        // Check if at least a second has passed. If so, call the callback.
+        // Check if at least 1/60 second has passed. If so, call the callback.
         let now = current_timestamp_ms();
-        if now - last_callback_called > 1000 {
+        if now - last_callback_called > 16 {
             progress_callback(&ReplayData {
                 notation: half_moves.clone(),
                 opening: opening.clone(),
