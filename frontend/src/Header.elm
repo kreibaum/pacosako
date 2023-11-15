@@ -6,7 +6,7 @@ module Header exposing (..)
 import Api.LocalStorage exposing (Permission(..))
 import Api.Websocket
 import Colors
-import Custom.Element exposing (icon)
+import Custom.Element exposing (icon, showIf)
 import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, padding, paddingEach, paddingXY, paragraph, px, row, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
@@ -144,15 +144,6 @@ pageHeaderV2Phone model headerData =
             ]
             |> showIf model.isHeaderOpen
         ]
-
-
-showIf : Bool -> Element msg -> Element msg
-showIf condition element =
-    if condition then
-        element
-
-    else
-        Element.none
 
 
 pageHeaderV2Desktop : Shared.Model -> HeaderData -> Element Msg

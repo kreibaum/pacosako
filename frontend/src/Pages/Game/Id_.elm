@@ -11,7 +11,7 @@ import Browser.Events
 import CastingDeco
 import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
-import Custom.Element exposing (icon)
+import Custom.Element exposing (icon, showIf)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Dict exposing (Dict)
 import Duration
@@ -21,6 +21,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
@@ -693,7 +694,7 @@ playUiLandscape shared model =
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
             [ playPositionView shared model
-            , sidebar model
+            , sidebarLandscape model
             ]
         )
 
@@ -703,7 +704,7 @@ playUiPortrait shared model =
     Element.column
         [ width fill, height fill ]
         [ playPositionView shared model
-        , sidebar model
+        , sidebarPortrait model
         ]
 
 
@@ -933,14 +934,33 @@ playTimerReplaceViewport =
     }
 
 
-sidebar : Model -> Element Msg
-sidebar model =
+sidebarLandscape : Model -> Element Msg
+sidebarLandscape model =
     Element.column [ spacing 5, width (px 250), height fill, paddingXY 0 40 ]
         [ Components.gameCodeLabel
             (CopyToClipboard (Url.toString model.gameUrl))
             model.gameKey
         , rollbackButton model
-        , maybePromotionButtons model.currentState.legalActions
+        , showIf (canPromote model.currentState.legalActions) promotionButtonGrid
+        , maybeVictoryStateInfo model.currentState.gameState
+        , maybeReplayLink model
+        , Element.el [ padding 10 ] Element.none
+        , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
+        , Element.el [ padding 10 ] Element.none
+        , Element.text T.gamePlayAs
+        , rotationButtons model.rotation
+        , Element.el [ padding 10 ] Element.none
+        ]
+
+
+sidebarPortrait : Model -> Element Msg
+sidebarPortrait model =
+    Element.column [ spacing 5, width fill, height fill, paddingXY 5 0 ]
+        [ showIf (canPromote model.currentState.legalActions) promotionButtonRow
+        , Components.gameCodeLabel
+            (CopyToClipboard (Url.toString model.gameUrl))
+            model.gameKey
+        , rollbackButton model
         , maybeVictoryStateInfo model.currentState.gameState
         , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
@@ -1038,56 +1058,53 @@ castingDecoMessages =
     }
 
 
-maybePromotionButtons : Api.Decoders.LegalActions -> Element Msg
-maybePromotionButtons actions =
-    let
-        canPromote =
-            actions
-                |> getActionList
-                |> List.any
-                    (\a ->
-                        case a of
-                            Sako.Promote _ ->
-                                True
+canPromote : Api.Decoders.LegalActions -> Bool
+canPromote actions =
+    actions
+        |> getActionList
+        |> List.any
+            (\a ->
+                case a of
+                    Sako.Promote _ ->
+                        True
 
-                            _ ->
-                                False
-                    )
-    in
-    if canPromote then
-        promotionButtons
-
-    else
-        Element.none
+                    _ ->
+                        False
+            )
 
 
-promotionButtons : Element Msg
-promotionButtons =
+promotionButtonGrid : Element Msg
+promotionButtonGrid =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
-            [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Queen))
-                [ icon [ centerX ] Solid.chessQueen
-                , Element.el [ centerX ] (Element.text T.queen)
-                ]
-            , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Knight))
-                [ icon [ centerX ] Solid.chessKnight
-                , Element.el [ centerX ] (Element.text T.knight)
-                ]
+            [ promotionButton Sako.Queen Solid.chessQueen T.queen
+            , promotionButton Sako.Knight Solid.chessKnight T.knight
             ]
         , Element.row [ width fill, spacing 5 ]
-            [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Rook))
-                [ icon [ centerX ] Solid.chessRook
-                , Element.el [ centerX ] (Element.text T.rook)
-                ]
-            , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Bishop))
-                [ icon [ centerX ] Solid.chessBishop
-                , Element.el [ centerX ] (Element.text T.bishop)
-                ]
+            [ promotionButton Sako.Rook Solid.chessRook T.rook
+            , promotionButton Sako.Bishop Solid.chessBishop T.bishop
             ]
+        ]
+
+
+promotionButtonRow : Element Msg
+promotionButtonRow =
+    Element.column [ width fill, spacing 5 ]
+        [ Element.row [ width fill, spacing 5 ]
+            [ promotionButton Sako.Queen Solid.chessQueen T.queen
+            , promotionButton Sako.Knight Solid.chessKnight T.knight
+            , promotionButton Sako.Rook Solid.chessRook T.rook
+            , promotionButton Sako.Bishop Solid.chessBishop T.bishop
+            ]
+        ]
+
+
+promotionButton : Sako.Type -> Icon -> String -> Element Msg
+promotionButton pieceType pieceIcon caption =
+    bigRoundedButton (Element.rgb255 200 240 200)
+        (Just (Promote pieceType))
+        [ icon [ centerX ] pieceIcon
+        , Element.el [ centerX ] (Element.text caption)
         ]
 
 
