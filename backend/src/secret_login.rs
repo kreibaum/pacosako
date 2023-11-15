@@ -35,8 +35,6 @@ pub async fn secret_login(
         }
     }
 
-    // No context to insert yet.
-
     let body = tera
         .render("secret_login.html.tera", &context)
         .expect("Could not render secret_login.html");

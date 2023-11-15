@@ -24,6 +24,7 @@ import Request exposing (Request)
 import Time exposing (Posix)
 import Translations exposing (Language(..))
 import Url exposing (Url)
+import User
 
 
 type alias Flags =
@@ -44,6 +45,7 @@ type alias Model =
     , permissions : List LocalStorage.Permission
     , now : Posix
     , oAuthState : String
+    , loggedInUser : Maybe User.LoggedInUserData
     , isHeaderOpen : Bool
     , websocketConnectionState : WebsocketConnectionState
     , lastWebsocketStatusUpdate : Posix
@@ -77,6 +79,7 @@ type Msg
     | AddRecentCustomTimer CustomTimer
     | SetHeaderOpen Bool
     | WebsocketStatusChange WebsocketConnectionState
+    | NavigateTo String
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
@@ -103,6 +106,7 @@ init { url, key } flags =
       , playSounds = ls.data.playSounds
       , now = now
       , oAuthState = oAuthState
+      , loggedInUser = User.parseLoggedInUser flags
       , isHeaderOpen = False
       , websocketConnectionState = Api.Websocket.WebsocketConnecting
       , lastWebsocketStatusUpdate = now
@@ -182,6 +186,9 @@ update _ msg model =
 
         WebsocketStatusChange state ->
             ( { model | websocketConnectionState = state, lastWebsocketStatusUpdate = model.now }, Cmd.none )
+
+        NavigateTo target ->
+            ( model, Browser.Navigation.load target )
 
 
 {-| Adds a custom timer to the history and trigges a "save to local storage" event.

@@ -5,6 +5,7 @@
 /// type checking.
 declare var Elm: any;
 declare var static_assets: any;
+declare var my_user_name, my_user_avatar: string;
 
 // Set up a new mutation observer, that will fire custom events for all
 // svg elements when there is a click event or a motion event.
@@ -101,7 +102,9 @@ var app = Elm.Main.init({
         "windowSize": windowSize,
         "localStorage": localStorageData,
         "now": Date.now(),
-        "oAuthState": setOAuthStateInSessionCookie()
+        "oAuthState": setOAuthStateInSessionCookie(),
+        "myUserName": my_user_name,
+        "myUserAvatar": my_user_avatar
     },
 });
 

@@ -100,6 +100,7 @@ pageHeaderV2Phone model headerData =
         ]
         [ row
             [ width fill
+            , spacing 5
             , paddingEach { top = 10, bottom = 10, left = 15, right = 15 }
             , Border.solid
             , Border.widthEach
@@ -122,6 +123,7 @@ pageHeaderV2Phone model headerData =
                             Solid.bars
                         )
                 }
+            , userAvatar model
             , quickSettingsOpenButton model
             ]
         , column
@@ -169,6 +171,7 @@ pageHeaderV2Desktop model headerData =
                 , top = 0
                 }
             , Border.color (Element.rgb255 200 200 200)
+            , Element.behindContent (el [ centerX, centerY ] pacosakoLogo)
             ]
             (row
                 [ width (Element.maximum 1120 fill)
@@ -176,13 +179,13 @@ pageHeaderV2Desktop model headerData =
                 , Element.paddingXY 10 20
                 , spacing 5
                 ]
-                [ Element.row [ spacing 15, width fill ]
+                [ Element.row [ spacing 15 ]
                     [ pageHeaderButtonV2 Route.Home_ T.headerPlayPacoSako headerData.isRouteHighlighted
                     , pageHeaderButtonV2 Route.Tutorial T.headerTutorial headerData.isRouteHighlighted
                     , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles headerData.isRouteHighlighted
                     ]
-                , el [] pacosakoLogo
-                , el [ width fill ] (quickSettingsOpenButton model)
+                , userAvatar model
+                , el [ alignRight ] (quickSettingsOpenButton model)
                 ]
             )
         , el
@@ -196,6 +199,29 @@ pageHeaderV2Desktop model headerData =
             (quickSettings model)
             |> showIf model.isHeaderOpen
         ]
+
+
+userAvatar : Shared.Model -> Element Shared.Msg
+userAvatar model =
+    case model.loggedInUser of
+        Nothing ->
+            Element.none
+
+        Just user ->
+            Input.button
+                [ alignRight
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , padding 2
+                , Border.rounded 5
+                ]
+                { onPress = Just (NavigateTo "/secret_login")
+                , label =
+                    Element.image
+                        [ width (px 30)
+                        , height (px 30)
+                        ]
+                        { src = user.userAvatar, description = user.userName }
+                }
 
 
 quickSettingsOpenButton : Model -> Element Shared.Msg
@@ -216,16 +242,16 @@ quickSettingsOpenButton model =
             { onPress = Just (SetHeaderOpen (not model.isHeaderOpen))
             , label =
                 row []
-                    [ icon
+                    [ flagForLanguage T.compiledLanguage
+                    , icon
                         [ paddingEach
                             { bottom = 1
-                            , left = 0
-                            , right = 10
+                            , left = 10
+                            , right = 0
                             , top = 0
                             }
                         ]
                         Solid.cog
-                    , flagForLanguage T.compiledLanguage
                     ]
             }
         ]
