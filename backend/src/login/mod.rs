@@ -24,7 +24,7 @@ use tower_cookies::{cookie::SameSite, Cookie, Cookies};
 
 use self::session::SessionData;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct UserId(i64);
 #[derive(Debug)]
 pub struct SessionId(String);

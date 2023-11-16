@@ -4,6 +4,7 @@ pub mod wake_up_queue;
 use crate::{
     actors::websocket::SocketId,
     db,
+    protection::SideProtection,
     sync_match::{CurrentMatchState, SynchronizedMatch},
     ServerError,
 };
@@ -102,7 +103,8 @@ impl ServerState {
         let room = self.rooms.entry(key.to_string()).or_insert(GameRoom {
             key: key.to_string(),
             connected: HashSet::new(),
-            protection: ProtectionState::NoPlayers,
+            white_player: SideProtection::Unlocked,
+            black_player: SideProtection::Unlocked,
         });
         room.connected.insert(asked_by);
         room
@@ -124,10 +126,8 @@ impl ServerState {
 struct GameRoom {
     key: String,
     connected: HashSet<SocketId>,
-    /// The UUIDs that are allowed to make moves on this board.
-    /// This is not persisted for now, so after a server restart the game
-    /// can be hijacked in principle.
-    protection: ProtectionState,
+    white_player: SideProtection,
+    black_player: SideProtection,
 }
 
 /// All allowed messages that may be send by the client to the server.
@@ -370,15 +370,6 @@ async fn handle_subscribe_to_match(
     Ok(())
 }
 
-/// Possible states the game protection can be. Note that "No game protection"
-/// must be managed externally.
-#[derive(Debug, Clone)]
-enum ProtectionState {
-    NoPlayers,
-    OnePlayer(String),
-    TwoPlayers { white: String, black: String },
-}
-
 /// If the game is running in safe mode, this will check if the sender is allowed
 /// to perform actions in the game. Or if there is still space for another player
 /// in the room, then the uuid will be tracked in the room.
@@ -398,32 +389,19 @@ fn ensure_uuid_is_allowed(
     }
 
     let white_is_moving = game.current_state()?.controlling_player == PlayerColor::White;
-    match &room.protection {
-        ProtectionState::NoPlayers => {
-            room.protection = ProtectionState::OnePlayer(uuid);
-            return Ok(());
-        }
-        ProtectionState::OnePlayer(p1) => {
-            if *p1 != uuid {
-                if white_is_moving {
-                    room.protection = ProtectionState::TwoPlayers {
-                        white: uuid,
-                        black: p1.clone(),
-                    };
-                } else {
-                    room.protection = ProtectionState::TwoPlayers {
-                        white: p1.clone(),
-                        black: uuid,
-                    };
-                }
-            }
-        }
-        ProtectionState::TwoPlayers { white, black } => {
-            if (white_is_moving && *white != uuid) || (!white_is_moving && *black != uuid) {
-                anyhow::bail!("Your browser is not allowed to make moves in this game.");
-            }
-        }
+
+    let side_protection = if white_is_moving {
+        &mut room.white_player
+    } else {
+        &mut room.black_player
+    };
+
+    let is_allowed = side_protection.test_and_assign(&uuid, None);
+
+    if !is_allowed {
+        anyhow::bail!("Your browser is not allowed to make moves for the current player.");
     }
+
     Ok(())
 }
 

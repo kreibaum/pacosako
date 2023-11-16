@@ -7,6 +7,7 @@ mod actors;
 mod game;
 mod language;
 mod login;
+mod protection;
 mod replay_data;
 mod server;
 mod statistics;
