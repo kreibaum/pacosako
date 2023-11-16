@@ -51,7 +51,8 @@ pub async fn load_session(
 ) -> Result<SessionData, anyhow::Error> {
     let res = sqlx::query!(r"select user_id from session where id = ?", session_id.0)
         .fetch_one(connection)
-        .await?;
+        .await;
+    let res = res.map_err(|e| anyhow::anyhow!("Session not found: {:?}", e))?;
     res.user_id
         .map(|user_id| SessionData {
             user_id: UserId(user_id),
