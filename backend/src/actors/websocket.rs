@@ -3,7 +3,7 @@ use std::sync::atomic;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        WebSocketUpgrade,
+        Query, WebSocketUpgrade,
     },
     response::Response,
 };
@@ -13,21 +13,36 @@ use futures_util::{
     stream::{SplitSink, SplitStream, StreamExt},
 };
 use lazy_static::lazy_static;
+use serde::Deserialize;
 use tokio::{
     sync::mpsc::{Receiver, Sender},
     task::AbortHandle,
 };
 
-use crate::ws::{to_logic, LogicMsg};
+use crate::{
+    login::{session::SessionData, UserId},
+    ws::{to_logic, LogicMsg},
+};
 
 /// Identifies a websocket connection across the server.
 /// This is used to send messages to a specific socket.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SocketId(usize);
 
+#[derive(Deserialize)]
+pub struct UuidQuery {
+    uuid: String,
+}
+
 /// Handler for websocket connections to be used in axum routes.
-pub async fn websocket_handler(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(handle_socket)
+pub async fn websocket_handler(
+    session: Option<SessionData>,
+    Query(params): Query<UuidQuery>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    let user_id = session.map(|s| s.user_id);
+
+    ws.on_upgrade(move |websocket| handle_socket(websocket, params.uuid, user_id))
 }
 
 /// Lots of static methods to interact with the AllSockets instance.
@@ -80,6 +95,12 @@ impl SocketId {
     pub fn count_connections() -> usize {
         ALL_SOCKETS.len()
     }
+
+    /// Gets the owner from the data
+    pub fn get_owner(self) -> Option<(String, Option<UserId>)> {
+        let entry = ALL_SOCKETS.get(&self)?;
+        Some((entry.uuid.clone(), entry.user_id))
+    }
 }
 
 lazy_static! {
@@ -93,11 +114,13 @@ struct SocketData {
     to_client: Sender<Message>,
     writer_task_abort_handle: AbortHandle,
     reader_task_abort_handle: AbortHandle,
+    uuid: String,
+    user_id: Option<UserId>,
 }
 
 /// Handles a new websocket connection, setting up the tasks that read and
 /// write to the socket. This also registers the socket on its id.
-async fn handle_socket(socket: WebSocket) {
+async fn handle_socket(socket: WebSocket, uuid: String, user_id: Option<UserId>) {
     let (sender, receiver) = socket.split();
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);
@@ -111,6 +134,8 @@ async fn handle_socket(socket: WebSocket) {
         to_client: tx,
         writer_task_abort_handle,
         reader_task_abort_handle,
+        uuid,
+        user_id,
     };
 
     id.with_data(socket_data);

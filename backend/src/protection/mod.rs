@@ -53,4 +53,8 @@ impl SideProtection {
             Self::UserLock(current_user) => user == Some(*current_user),
         }
     }
+
+    pub fn is_unclaimed(&self) -> bool {
+        matches!(self, Self::Unlocked)
+    }
 }

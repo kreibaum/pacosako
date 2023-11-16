@@ -294,7 +294,7 @@ class WebsocketWrapper {
         let port = window.location.port
         let port_str = port ? `:${port}` : ""
 
-        let websocket_url = `${protocol}://${hostname}${port_str}/websocket`
+        let websocket_url = `${protocol}://${hostname}${port_str}/websocket?uuid=${getUUID()}`
         return this.try_connect(websocket_url)
     }
 
@@ -350,16 +350,11 @@ class WebsocketWrapper {
     private onopen(ev: Event) {
         console.log("Websocket connection established.");
         console.log(`There are ${this.queue.length} messages waiting to be send.`)
-        this.registerUUID();
         let messages = this.queue;
         this.queue = [];
         messages.forEach(msg => {
             this.trySend(msg)
         });
-    }
-
-    private registerUUID() {
-        this.trySend({ "SetUUID": { "uuid": getUUID() } })
     }
 
     private onmessage(ev: MessageEvent<any>) {

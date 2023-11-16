@@ -93,7 +93,6 @@ async fn loop_logic_server(
 #[derive(Debug, Default)]
 pub struct ServerState {
     rooms: HashMap<String, GameRoom>,
-    uuids: HashMap<SocketId, String>,
 }
 
 impl ServerState {
@@ -114,12 +113,6 @@ impl ServerState {
     fn destroy_room(&mut self, key: &String) {
         self.rooms.remove(key);
     }
-
-    fn get_uuid(&self, sender: SocketId) -> String {
-        self.uuids
-            .get(&sender)
-            .map_or("None".to_owned(), |s| s.clone())
-    }
 }
 
 #[derive(Debug)]
@@ -136,9 +129,6 @@ enum ClientMessage {
     DoAction { key: String, action: PacoAction },
     Rollback { key: String },
     TimeDriftCheck { send: DateTime<Utc> },
-    SetUUID { uuid: String },
-    // Ask for the socket uuid by sending "GetUUID" as json. For debugging.
-    GetUUID,
 }
 
 #[derive(Deserialize)]
@@ -161,10 +151,6 @@ pub enum ServerMessage {
     TimeDriftResponse {
         send: DateTime<Utc>,
         bounced: DateTime<Utc>,
-    },
-    /// Returns the socket uuid. For debugging.
-    SocketUUID {
-        uuid: String,
     },
 }
 
@@ -274,7 +260,6 @@ async fn handle_client_message(
 ) -> Result<(), anyhow::Error> {
     match msg {
         ClientMessage::DoAction { key, action } => {
-            let uuid = server_state.get_uuid(sender);
             let room = server_state.room(&key, sender);
 
             let game = fetch_game(&room.key, conn).await;
@@ -284,7 +269,7 @@ async fn handle_client_message(
                 return Ok(());
             };
 
-            ensure_uuid_is_allowed(room, &game, uuid)?;
+            ensure_uuid_is_allowed(room, &game, sender)?;
 
             let state = progress_the_timer(&mut game, key.clone())?;
 
@@ -299,12 +284,11 @@ async fn handle_client_message(
             broadcast_state(room, &state).await;
         }
         ClientMessage::Rollback { key } => {
-            let uuid = server_state.get_uuid(sender);
             let room = server_state.room(&key, sender);
 
             let mut game = fetch_game(&room.key, conn).await?;
 
-            ensure_uuid_is_allowed(room, &game, uuid)?;
+            ensure_uuid_is_allowed(room, &game, sender)?;
 
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.
@@ -332,14 +316,6 @@ async fn handle_client_message(
                 &sender,
             )
             .await;
-        }
-        ClientMessage::SetUUID { uuid } => {
-            server_state.uuids.insert(sender, uuid);
-        }
-        ClientMessage::GetUUID => {
-            let uuid: String = server_state.get_uuid(sender);
-            let msg = ServerMessage::SocketUUID { uuid };
-            send_msg(msg, &sender).await;
         }
     }
     Ok(())
@@ -382,7 +358,7 @@ async fn handle_subscribe_to_match(
 fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
     game: &SynchronizedMatch,
-    uuid: String,
+    sender: SocketId,
 ) -> Result<(), anyhow::Error> {
     if !game.setup_options.safe_mode {
         return Ok(());
@@ -396,13 +372,16 @@ fn ensure_uuid_is_allowed(
         &mut room.black_player
     };
 
-    let is_allowed = side_protection.test_and_assign(&uuid, None);
+    if let Some((uuid, user_id)) = sender.get_owner() {
+        let is_allowed = side_protection.test_and_assign(&uuid, user_id);
 
-    if !is_allowed {
-        anyhow::bail!("Your browser is not allowed to make moves for the current player.");
+        if is_allowed {
+            return Ok(());
+        }
+    } else if side_protection.is_unclaimed() {
+        return Ok(());
     }
-
-    Ok(())
+    anyhow::bail!("Your browser is not allowed to make moves for the current player.");
 }
 
 async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState) {
