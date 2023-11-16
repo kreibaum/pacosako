@@ -20,7 +20,7 @@ use tokio::{
 };
 
 use crate::{
-    login::{session::SessionData, UserId},
+    login::{session::SessionData, SessionId},
     ws::{to_logic, LogicMsg},
 };
 
@@ -40,9 +40,9 @@ pub async fn websocket_handler(
     Query(params): Query<UuidQuery>,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let user_id = session.map(|s| s.user_id);
+    let session_id = session.map(|s| s.session_id);
 
-    ws.on_upgrade(move |websocket| handle_socket(websocket, params.uuid, user_id))
+    ws.on_upgrade(move |websocket| handle_socket(websocket, params.uuid, session_id))
 }
 
 /// Lots of static methods to interact with the AllSockets instance.
@@ -97,9 +97,9 @@ impl SocketId {
     }
 
     /// Gets the owner from the data
-    pub fn get_owner(self) -> Option<(String, Option<UserId>)> {
+    pub fn get_owner(self) -> Option<(String, Option<SessionId>)> {
         let entry = ALL_SOCKETS.get(&self)?;
-        Some((entry.uuid.clone(), entry.user_id))
+        Some((entry.uuid.clone(), entry.session_id.clone()))
     }
 }
 
@@ -115,12 +115,12 @@ struct SocketData {
     writer_task_abort_handle: AbortHandle,
     reader_task_abort_handle: AbortHandle,
     uuid: String,
-    user_id: Option<UserId>,
+    session_id: Option<SessionId>,
 }
 
 /// Handles a new websocket connection, setting up the tasks that read and
 /// write to the socket. This also registers the socket on its id.
-async fn handle_socket(socket: WebSocket, uuid: String, user_id: Option<UserId>) {
+async fn handle_socket(socket: WebSocket, uuid: String, session_id: Option<SessionId>) {
     let (sender, receiver) = socket.split();
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);
@@ -135,7 +135,7 @@ async fn handle_socket(socket: WebSocket, uuid: String, user_id: Option<UserId>)
         writer_task_abort_handle,
         reader_task_abort_handle,
         uuid,
-        user_id,
+        session_id,
     };
 
     id.with_data(socket_data);

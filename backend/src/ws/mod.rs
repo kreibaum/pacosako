@@ -4,6 +4,7 @@ pub mod wake_up_queue;
 use crate::{
     actors::websocket::SocketId,
     db,
+    login::session,
     protection::SideProtection,
     sync_match::{CurrentMatchState, SynchronizedMatch},
     ServerError,
@@ -269,7 +270,7 @@ async fn handle_client_message(
                 return Ok(());
             };
 
-            ensure_uuid_is_allowed(room, &game, sender)?;
+            ensure_uuid_is_allowed(room, &game, sender, conn).await?;
 
             let state = progress_the_timer(&mut game, key.clone())?;
 
@@ -288,7 +289,7 @@ async fn handle_client_message(
 
             let mut game = fetch_game(&room.key, conn).await?;
 
-            ensure_uuid_is_allowed(room, &game, sender)?;
+            ensure_uuid_is_allowed(room, &game, sender, conn).await?;
 
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.
@@ -355,10 +356,11 @@ async fn handle_subscribe_to_match(
 ///
 /// Please note that currently game protection is not persisted across server
 /// restart. This means it is possible that the first move is done by black.
-fn ensure_uuid_is_allowed(
+async fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
     game: &SynchronizedMatch,
     sender: SocketId,
+    conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
     if !game.setup_options.safe_mode {
         return Ok(());
@@ -372,7 +374,13 @@ fn ensure_uuid_is_allowed(
         &mut room.black_player
     };
 
-    if let Some((uuid, user_id)) = sender.get_owner() {
+    if let Some((uuid, session_id)) = sender.get_owner() {
+        let mut user_id = None;
+        if let Some(session_id) = session_id {
+            let session_data = session::load_session(session_id, conn).await?;
+            user_id = Some(session_data.user_id);
+        }
+
         let is_allowed = side_protection.test_and_assign(&uuid, user_id);
 
         if is_allowed {

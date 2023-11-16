@@ -45,7 +45,7 @@ pub async fn create_session(
     Ok(SessionId(uuid))
 }
 
-async fn load_session(
+pub async fn load_session(
     session_id: SessionId,
     connection: &mut Connection,
 ) -> Result<SessionData, anyhow::Error> {

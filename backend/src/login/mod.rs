@@ -26,7 +26,7 @@ use self::session::SessionData;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct UserId(i64);
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SessionId(String);
 
 #[derive(Deserialize)]
