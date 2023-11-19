@@ -106,7 +106,6 @@ impl ServerState {
     /// to the room automatically.
     fn room(&mut self, game: &SynchronizedMatch, asked_by: SocketId) -> &mut GameRoom {
         let room = self.rooms.entry(game.key.clone()).or_insert(GameRoom {
-            key: game.key.clone(),
             connected: HashSet::new(),
             white_player: SideProtection::for_user(game.white_player),
             black_player: SideProtection::for_user(game.black_player),
@@ -123,7 +122,6 @@ impl ServerState {
 
 #[derive(Debug)]
 struct GameRoom {
-    key: String,
     connected: HashSet<SocketId>,
     white_player: SideProtection,
     black_player: SideProtection,
@@ -152,7 +150,7 @@ struct SubscribeToMatchSocketData {
 /// Messages that may be send by the server to the client.
 #[derive(Clone, Serialize, Debug)]
 pub enum ServerMessage {
-    CurrentMatchState(CurrentMatchStateClient),
+    CurrentMatchState(Box<CurrentMatchStateClient>),
     Error(String),
     TimeDriftResponse {
         send: DateTime<Utc>,
@@ -358,7 +356,7 @@ async fn handle_subscribe_to_match(
         }
     }
     let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
-    let response = ServerMessage::CurrentMatchState(client_state);
+    let response = ServerMessage::CurrentMatchState(Box::new(client_state));
     send_msg(response, &sender).await;
     Ok(())
 }
@@ -424,7 +422,11 @@ async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchStateClient) {
     for target in &room.connected {
         // Remove participants that have disconnected.
         if target.is_alive() {
-            send_msg(ServerMessage::CurrentMatchState(state.clone()), target).await;
+            send_msg(
+                ServerMessage::CurrentMatchState(Box::new(state.clone())),
+                target,
+            )
+            .await;
         } else {
             offenders.push(*target);
         }
