@@ -8,6 +8,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     time::{Duration, Instant},
 };
+use tokio::sync::mpsc::Sender;
 
 use crate::ws::{to_logic, LogicMsg};
 
@@ -22,14 +23,14 @@ pub fn spawn_sleeper_thread() {
     });
 }
 
-pub fn put_utc(key: impl Into<String>, wake_up: chrono::DateTime<Utc>) {
+pub async fn put_utc(key: impl Into<String>, wake_up: chrono::DateTime<Utc>) {
     let wake_up = wake_up - Utc::now();
     let wake_up = std::time::Instant::now() + wake_up.to_std().unwrap_or(Duration::from_secs(0));
 
-    put(key, wake_up);
+    put(key, wake_up).await;
 }
 
-pub fn put(key: impl Into<String>, wake_up: Instant) {
+pub async fn put(key: impl Into<String>, wake_up: Instant) {
     if let Err(e) = WAKE_UP_SENDER
         .get()
         .expect("WAKE_UP_SENDER not initialized")
@@ -37,6 +38,7 @@ pub fn put(key: impl Into<String>, wake_up: Instant) {
             key: key.into(),
             wake_up,
         })
+        .await
     {
         warn!("Failed to send wake up entry: {}", e);
     }
@@ -50,17 +52,17 @@ async fn sleep_until(entry: WakeUpEntry) {
     }
 }
 
-static WAKE_UP_SENDER: OnceCell<kanal::Sender<WakeUpEntry>> = OnceCell::new();
+static WAKE_UP_SENDER: OnceCell<Sender<WakeUpEntry>> = OnceCell::new();
 
 /// Runs the wake up queue as a tokio task.
 async fn sleeper_task() {
-    let (sender, receiver) = kanal::bounded_async(20);
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(100);
 
     let mut wake_ups: BTreeSet<WakeUpEntry> = BTreeSet::new();
     let mut wake_up_for_key: BTreeMap<String, WakeUpEntry> = BTreeMap::new();
 
     WAKE_UP_SENDER
-        .set(sender.clone_sync())
+        .set(sender)
         .expect("Failed to set wake up sender");
 
     loop {
@@ -72,7 +74,7 @@ async fn sleeper_task() {
             let new_wake_up = receiver.recv();
             tokio::select! {
                 _ = sleep => {
-                    trigger_up_wake_ups(&mut wake_ups, &mut wake_up_for_key);
+                    trigger_up_wake_ups(&mut wake_ups, &mut wake_up_for_key).await;
                 }
                 new_wake_up = new_wake_up => {
                     let new_wake_up = new_wake_up.expect("Wake up receiver closed");
@@ -99,7 +101,7 @@ fn update_wake_up(
     wake_up_for_key.insert(new_wake_up.key.clone(), new_wake_up);
 }
 
-fn trigger_up_wake_ups(
+async fn trigger_up_wake_ups(
     wake_ups: &mut BTreeSet<WakeUpEntry>,
     wake_up_for_key: &mut BTreeMap<String, WakeUpEntry>,
 ) {
@@ -119,7 +121,8 @@ fn trigger_up_wake_ups(
                 to_logic(LogicMsg::Timeout {
                     key: entry.key,
                     timestamp: Utc::now(),
-                });
+                })
+                .await;
             }
         } else {
             // There are no more wake ups. We are done.

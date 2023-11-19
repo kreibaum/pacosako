@@ -12,7 +12,6 @@ use crate::{
 use anyhow::bail;
 use axum::extract::ws::Message;
 use chrono::{DateTime, Utc};
-use kanal::{Receiver, Sender};
 use log::{info, warn};
 use once_cell::sync::OnceCell;
 use pacosako::{PacoAction, PlayerColor};
@@ -20,18 +19,24 @@ use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string;
 use std::collections::{HashMap, HashSet};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 // Everything can send messages to the logic. The logic is a singleton.
 pub static TO_LOGIC: OnceCell<Sender<LogicMsg>> = OnceCell::new();
 
-pub fn to_logic(msg: LogicMsg) {
-    if let Err(e) = TO_LOGIC.get().expect("Logic not initialized.").send(msg) {
+pub async fn to_logic(msg: LogicMsg) {
+    if let Err(e) = TO_LOGIC
+        .get()
+        .expect("Logic not initialized.")
+        .send(msg)
+        .await
+    {
         warn!("Error sending message to logic: {}", e);
     }
 }
 
 pub fn run_server(pool: db::Pool) {
-    let (to_logic, message_queue) = kanal::unbounded();
+    let (to_logic, message_queue) = tokio::sync::mpsc::channel(100);
     TO_LOGIC
         .set(to_logic)
         .expect("Error setting up the TO_LOGIC static variable.");
@@ -76,12 +81,12 @@ fn run_logic_server(message_queue: Receiver<LogicMsg>, pool: db::Pool) {
 
 /// Simple loop that reacts to all the messages.
 async fn loop_logic_server(
-    message_queue: Receiver<LogicMsg>,
+    mut message_queue: Receiver<LogicMsg>,
     pool: db::Pool,
 ) -> Result<(), ServerError> {
     let mut server_state = ServerState::default();
 
-    while let Ok(msg) = message_queue.recv() {
+    while let Some(msg) = message_queue.recv().await {
         let mut conn = pool.0.acquire().await?;
         let res = handle_message(msg, &mut server_state, &mut conn).await;
         if let Err(e) = res {
@@ -202,7 +207,7 @@ async fn handle_message(
 
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&game.key) {
@@ -213,7 +218,7 @@ async fn handle_message(
         LogicMsg::AiAction { key, action } => {
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -233,7 +238,7 @@ async fn handle_message(
     }
 }
 
-fn progress_the_timer(
+async fn progress_the_timer(
     game: &mut SynchronizedMatch,
     key: String,
 ) -> Result<CurrentMatchState, anyhow::Error> {
@@ -243,7 +248,7 @@ fn progress_the_timer(
                 return Ok(state);
             } else if let Some(timer) = &mut state.timer {
                 let next_reminder = timer.timeout(state.controlling_player);
-                wake_up_queue::put_utc(key, next_reminder);
+                wake_up_queue::put_utc(key, next_reminder).await;
             }
             Ok(state)
         }
@@ -272,7 +277,7 @@ async fn handle_client_message(
 
             ensure_uuid_is_allowed(room, &game, sender, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -296,7 +301,7 @@ async fn handle_client_message(
                 return Ok(());
             }
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -339,7 +344,7 @@ async fn handle_subscribe_to_match(
     if let Some(ref timer) = state.timer {
         if !timer.get_state().is_finished() {
             let next_reminder = timer.timeout(state.controlling_player);
-            wake_up_queue::put_utc(&key, next_reminder);
+            wake_up_queue::put_utc(&key, next_reminder).await;
         }
     }
     let response = ServerMessage::CurrentMatchState(state);

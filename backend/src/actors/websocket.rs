@@ -150,7 +150,8 @@ async fn read(mut receiver: SplitStream<WebSocket>, id: SocketId) {
                 to_logic(LogicMsg::Websocket {
                     data: msg,
                     source: id,
-                });
+                })
+                .await;
             }
             Err(e) => {
                 error!("Error reading from websocket {}: {}", id.0, e);

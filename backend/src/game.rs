@@ -61,7 +61,8 @@ async fn post_action_to_game(Path(key): Path<String>, action: Json<pacosako::Pac
     ws::to_logic(ws::LogicMsg::AiAction {
         key,
         action: action.0,
-    });
+    })
+    .await;
 }
 
 async fn recently_created_games(
