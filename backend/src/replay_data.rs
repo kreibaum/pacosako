@@ -38,19 +38,19 @@ pub async fn get_metadata(Path(key): Path<String>) -> Json<Vec<ReplayMetaData>> 
             game: key.clone(),
             action_index: 4,
             category: "Weight Arrow".to_owned(),
-            data: r##"{"type":"arrow", "tail":13, "head":21, "weight" : 1 }"##.to_owned(),
+            data: r#"{"type":"arrow", "tail":13, "head":21, "weight" : 1 }"#.to_owned(),
         },
         ReplayMetaData {
             game: key.clone(),
             action_index: 4,
             category: "Weight Arrow".to_owned(),
-            data: r##"{"type":"arrow", "tail":14, "head":22, "weight" : 2 }"##.to_owned(),
+            data: r#"{"type":"arrow", "tail":14, "head":22, "weight" : 2 }"#.to_owned(),
         },
         ReplayMetaData {
             game: key.clone(),
             action_index: 4,
             category: "Weight Arrow".to_owned(),
-            data: r##"{"type":"arrow", "tail":15, "head":23, "weight" : 3 }"##.to_owned(),
+            data: r#"{"type":"arrow", "tail":15, "head":23, "weight" : 3 }"#.to_owned(),
         },
     ])
 }

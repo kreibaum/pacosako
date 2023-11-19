@@ -6,7 +6,7 @@ use crate::{
     db,
     login::session,
     protection::SideProtection,
-    sync_match::{CurrentMatchState, SynchronizedMatch},
+    sync_match::{CurrentMatchState, CurrentMatchStateClient, SynchronizedMatch},
     ServerError,
 };
 use anyhow::bail;
@@ -152,7 +152,7 @@ struct SubscribeToMatchSocketData {
 /// Messages that may be send by the server to the client.
 #[derive(Clone, Serialize, Debug)]
 pub enum ServerMessage {
-    CurrentMatchState(CurrentMatchState),
+    CurrentMatchState(CurrentMatchStateClient),
     Error(String),
     TimeDriftResponse {
         send: DateTime<Utc>,
@@ -207,11 +207,13 @@ async fn handle_message(
 
             let mut game = fetch_game(&key, conn).await?;
 
+            // TODO: Figure out where to load the additional metadata.
             let state = progress_the_timer(&mut game, key.clone()).await?;
 
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&game.key) {
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
             }
             Ok(())
         }
@@ -223,14 +225,17 @@ async fn handle_message(
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
                 if let Some(room) = server_state.rooms.get_mut(&key) {
-                    broadcast_state(room, &state).await;
+                    let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                    broadcast_state(room, &client_state).await;
                 }
+                return Ok(()); // Do not do the AI action if the game is over.
             }
 
             let state = game.do_action(action)?;
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&key) {
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
             }
 
             Ok(())
@@ -281,13 +286,15 @@ async fn handle_client_message(
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
                 return Ok(());
             }
 
             let state = game.do_action(action)?;
             store_game(&game, conn).await?;
-            broadcast_state(room, &state).await;
+            let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+            broadcast_state(room, &client_state).await;
         }
         ClientMessage::Rollback { key } => {
             let mut game = fetch_game(&key, conn).await?;
@@ -304,13 +311,15 @@ async fn handle_client_message(
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
                 return Ok(());
             }
 
             let state = game.rollback()?;
             store_game(&game, conn).await?;
-            broadcast_state(room, &state).await;
+            let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+            broadcast_state(room, &client_state).await;
         }
         ClientMessage::TimeDriftCheck { send } => {
             send_msg(
@@ -348,7 +357,8 @@ async fn handle_subscribe_to_match(
             wake_up_queue::put_utc(&key, next_reminder).await;
         }
     }
-    let response = ServerMessage::CurrentMatchState(state);
+    let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+    let response = ServerMessage::CurrentMatchState(client_state);
     send_msg(response, &sender).await;
     Ok(())
 }
@@ -409,7 +419,7 @@ async fn ensure_uuid_is_allowed(
     anyhow::bail!("Your browser is not allowed to make moves for the current player.");
 }
 
-async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState) {
+async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchStateClient) {
     let mut offenders = vec![];
     for target in &room.connected {
         // Remove participants that have disconnected.

@@ -1,4 +1,5 @@
-use crate::db;
+use crate::db::{self, Connection};
+use crate::login::user::{load_user_data_for_game, PublicUserData};
 use crate::login::UserId;
 use crate::timer::{Timer, TimerConfig, TimerState};
 use chrono::{DateTime, Utc};
@@ -107,7 +108,7 @@ async fn _store_to_db(
 /// clients whenever the game state changes. As it is only a list of some
 /// actions, it should be lightweight enough that sending around the whole
 /// history is not a bottleneck.
-#[derive(Serialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct CurrentMatchState {
     key: String,
     actions: Vec<StampedAction>,
@@ -116,6 +117,22 @@ pub struct CurrentMatchState {
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
     pub setup_options: SetupOptions,
+}
+
+/// An extension of the current match state that contains the player metadata.
+/// Only this one is actually serializable, to make sure we don't send the
+/// data object missing this metadata to the client.
+#[derive(Serialize, Clone, Debug)]
+pub struct CurrentMatchStateClient {
+    key: String,
+    actions: Vec<StampedAction>,
+    legal_actions: Vec<PacoAction>,
+    pub controlling_player: pacosako::PlayerColor,
+    pub timer: Option<Timer>,
+    pub victory_state: pacosako::VictoryState,
+    pub setup_options: SetupOptions,
+    pub white_player: Option<PublicUserData>,
+    pub black_player: Option<PublicUserData>,
 }
 
 impl CurrentMatchState {
@@ -152,6 +169,29 @@ impl CurrentMatchState {
             }
         }
         board.victory_state()
+    }
+}
+
+impl CurrentMatchStateClient {
+    /// For a current match state that is already prepared for export, this
+    /// function loads the player metadata from the database.
+    pub async fn try_new(
+        data: CurrentMatchState,
+        connection: &mut Connection,
+    ) -> Result<Self, sqlx::Error> {
+        let (white_player, black_player) = load_user_data_for_game(&data.key, connection).await?;
+
+        Ok(Self {
+            key: data.key,
+            actions: data.actions,
+            legal_actions: data.legal_actions,
+            controlling_player: data.controlling_player,
+            timer: data.timer,
+            victory_state: data.victory_state,
+            setup_options: data.setup_options,
+            white_player,
+            black_player,
+        })
     }
 }
 

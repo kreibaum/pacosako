@@ -9,9 +9,12 @@ use hyper::{header, HeaderMap, StatusCode};
 use lazy_static::lazy_static;
 use regex::Regex;
 use reqwest;
+use serde::Serialize;
 extern crate regex;
 use super::UserId;
 
+/// This struct holds data about a user that everyone (even unauthenticated users) can see.
+#[derive(Serialize, Clone, Debug)]
 pub struct PublicUserData {
     pub name: String,
     pub avatar: String,
@@ -20,7 +23,7 @@ pub struct PublicUserData {
 pub async fn load_public_user_data(
     user_id: UserId,
     connection: &mut Connection,
-) -> Result<PublicUserData, anyhow::Error> {
+) -> Result<PublicUserData, sqlx::Error> {
     let res = sqlx::query!("select name, avatar from user where id = ?", user_id.0)
         .fetch_one(connection)
         .await?;
@@ -29,6 +32,35 @@ pub async fn load_public_user_data(
         name: res.name.unwrap_or("Anonymous".to_string()),
         avatar: res.avatar,
     })
+}
+
+pub async fn load_user_data_for_game(
+    game_key: &str,
+    connection: &mut Connection,
+) -> Result<(Option<PublicUserData>, Option<PublicUserData>), sqlx::Error> {
+    // SQLite is running in the same process. There is no need to reduce the
+    // number of queries. So we first get the user ids and then load the user
+    // data.
+    let res = sqlx::query!(
+        "select white_player, black_player from game where id = ?",
+        game_key
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+
+    let white_player = if let Some(white_player) = res.white_player {
+        Some(load_public_user_data(UserId(white_player), &mut *connection).await?)
+    } else {
+        None
+    };
+
+    let black_player = if let Some(black_player) = res.black_player {
+        Some(load_public_user_data(UserId(black_player), &mut *connection).await?)
+    } else {
+        None
+    };
+
+    Ok((white_player, black_player))
 }
 
 /// Proxies a call to /p/identicon:204bedcd9a44b3e1db26e7619bca694d to
