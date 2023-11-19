@@ -104,12 +104,12 @@ pub struct ServerState {
 impl ServerState {
     /// Returns a room, creating it if required. The socket that asked is added
     /// to the room automatically.
-    fn room(&mut self, key: &str, asked_by: SocketId) -> &mut GameRoom {
-        let room = self.rooms.entry(key.to_string()).or_insert(GameRoom {
-            key: key.to_string(),
+    fn room(&mut self, game: &SynchronizedMatch, asked_by: SocketId) -> &mut GameRoom {
+        let room = self.rooms.entry(game.key.clone()).or_insert(GameRoom {
+            key: game.key.clone(),
             connected: HashSet::new(),
-            white_player: SideProtection::Unlocked,
-            black_player: SideProtection::Unlocked,
+            white_player: SideProtection::for_user(game.white_player),
+            black_player: SideProtection::for_user(game.black_player),
         });
         room.connected.insert(asked_by);
         room
@@ -266,16 +266,16 @@ async fn handle_client_message(
 ) -> Result<(), anyhow::Error> {
     match msg {
         ClientMessage::DoAction { key, action } => {
-            let room = server_state.room(&key, sender);
-
-            let game = fetch_game(&room.key, conn).await;
+            let game = fetch_game(&key, conn).await;
             let Ok(mut game) = game else {
                 server_state.destroy_room(&key);
                 send_error(format!("Game {key} not found"), &sender).await;
                 return Ok(());
             };
 
-            ensure_uuid_is_allowed(room, &game, sender, conn).await?;
+            let room = server_state.room(&game, sender);
+
+            ensure_uuid_is_allowed(room, &mut game, sender, conn).await?;
 
             let state = progress_the_timer(&mut game, key.clone()).await?;
 
@@ -290,11 +290,10 @@ async fn handle_client_message(
             broadcast_state(room, &state).await;
         }
         ClientMessage::Rollback { key } => {
-            let room = server_state.room(&key, sender);
+            let mut game = fetch_game(&key, conn).await?;
+            let room = server_state.room(&game, sender);
 
-            let mut game = fetch_game(&room.key, conn).await?;
-
-            ensure_uuid_is_allowed(room, &game, sender, conn).await?;
+            ensure_uuid_is_allowed(room, &mut game, sender, conn).await?;
 
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.
@@ -333,7 +332,6 @@ async fn handle_subscribe_to_match(
     server_state: &mut ServerState,
     conn: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
 ) -> Result<(), anyhow::Error> {
-    server_state.room(&key, sender);
     let game = fetch_game(&key, conn).await?;
     let state = game.current_state();
     let Ok(state) = state else {
@@ -341,6 +339,9 @@ async fn handle_subscribe_to_match(
         send_error(format!("Could not connect to game {key}"), &sender).await;
         return Ok(());
     };
+
+    server_state.room(&game, sender);
+
     if let Some(ref timer) = state.timer {
         if !timer.get_state().is_finished() {
             let next_reminder = timer.timeout(state.controlling_player);
@@ -353,8 +354,11 @@ async fn handle_subscribe_to_match(
 }
 
 /// If the game is running in safe mode, this will check if the sender is allowed
-/// to perform actions in the game. Or if there is still space for another player
-/// in the room, then the uuid will be tracked in the room.
+/// to perform actions in the game. Or if the current player slot is no assigned
+/// yet, then the sender will be assigned to the slot.
+///
+/// In case of a UserId assigned as side protection, we also update the game
+/// to persist this on the database.
 ///
 /// If there are two different players connected, then the first player can only
 /// control white while the second player can only control black.
@@ -363,7 +367,7 @@ async fn handle_subscribe_to_match(
 /// restart. This means it is possible that the first move is done by black.
 async fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
-    game: &SynchronizedMatch,
+    game: &mut SynchronizedMatch,
     sender: SocketId,
     conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
@@ -387,6 +391,14 @@ async fn ensure_uuid_is_allowed(
         }
 
         let is_allowed = side_protection.test_and_assign(&uuid, user_id);
+
+        if let Some(user_id) = side_protection.get_user() {
+            if white_is_moving {
+                game.white_player = Some(user_id);
+            } else {
+                game.black_player = Some(user_id);
+            }
+        }
 
         if is_allowed {
             return Ok(());

@@ -57,4 +57,20 @@ impl SideProtection {
     pub fn is_unclaimed(&self) -> bool {
         matches!(self, Self::Unlocked)
     }
+
+    pub fn get_user(&self) -> Option<UserId> {
+        match self {
+            Self::Unlocked => None,
+            Self::UuidLock(_) => None,
+            Self::UserLock(user) => Some(*user),
+        }
+    }
+
+    pub fn for_user(player: Option<UserId>) -> SideProtection {
+        if let Some(player) = player {
+            SideProtection::UserLock(player)
+        } else {
+            SideProtection::Unlocked
+        }
+    }
 }
