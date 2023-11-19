@@ -1,4 +1,5 @@
 use crate::db;
+use crate::login::UserId;
 use crate::timer::{Timer, TimerConfig, TimerState};
 use chrono::{DateTime, Utc};
 use pacosako::setup_options::SetupOptions;
@@ -55,6 +56,8 @@ pub struct SynchronizedMatch {
     pub actions: Vec<StampedAction>,
     pub timer: Option<Timer>,
     pub setup_options: SetupOptions,
+    pub white_player: Option<UserId>,
+    pub black_player: Option<UserId>,
 }
 
 /// Message that may be send by the client to the server.
@@ -165,6 +168,8 @@ impl SynchronizedMatch {
             actions: Vec::default(),
             timer: params.timer.map(|t| t.into()),
             setup_options,
+            white_player: None,
+            black_player: None,
         }
     }
 

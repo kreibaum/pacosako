@@ -1,6 +1,7 @@
 use pacosako::setup_options::SetupOptionsAllOptional;
 
 use crate::db::Connection;
+use crate::login::UserId;
 use crate::timer::Timer;
 use crate::{sync_match::SynchronizedMatch, ServerError};
 
@@ -18,11 +19,16 @@ pub async fn insert(
     };
     let setup = serde_json::to_string(&game.setup_options)?;
 
+    let white_player = game.white_player.map(|u| u.0);
+    let black_player = game.black_player.map(|u| u.0);
+
     let id = sqlx::query!(
-        "insert into game (action_history, timer, safe_mode, setup) values (?, ?, 1, ?)",
+        "insert into game (action_history, timer, safe_mode, setup, white_player, black_player) values (?, ?, 1, ?, ?, ?)",
         action_history,
         timer,
         setup,
+        white_player,
+        black_player
     )
     .execute(conn)
     .await?
@@ -45,12 +51,17 @@ pub async fn update(game: &SynchronizedMatch, conn: &mut Connection) -> Result<(
         None
     };
 
+    let white_player = game.white_player.map(|u| u.0);
+    let black_player = game.black_player.map(|u| u.0);
+
     sqlx::query!(
-        r"update game 
-        set action_history = ?, timer = ?
+        r"update game
+        set action_history = ?, timer = ?, white_player = ?, black_player = ?
         where id = ?",
         action_history,
         timer,
+        white_player,
+        black_player,
         id
     )
     .execute(conn)
@@ -65,7 +76,7 @@ pub async fn select(
 ) -> Result<Option<SynchronizedMatch>, ServerError> {
     let raw_game = sqlx::query_as!(
         RawGame,
-        "select id, action_history, timer, setup from game where id = ?",
+        "select id, action_history, timer, setup, white_player, black_player from game where id = ?",
         id
     )
     .fetch_optional(conn)
@@ -81,7 +92,7 @@ pub async fn select(
 pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, ServerError> {
     let raw_games = sqlx::query_as!(
         RawGame,
-        r"select id, action_history, timer, setup from game
+        r"select id, action_history, timer, setup, white_player, black_player from game
         order by id desc
         limit 5"
     )
@@ -103,6 +114,8 @@ struct RawGame {
     action_history: String,
     timer: Option<String>,
     setup: String,
+    white_player: Option<i64>,
+    black_player: Option<i64>,
 }
 
 impl RawGame {
@@ -121,6 +134,8 @@ impl RawGame {
             actions: serde_json::from_str(&self.action_history)?,
             timer,
             setup_options: setup_options.into(),
+            white_player: self.white_player.map(UserId),
+            black_player: self.black_player.map(UserId),
         })
     }
 }
