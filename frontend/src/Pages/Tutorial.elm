@@ -1,11 +1,12 @@
 module Pages.Tutorial exposing (Model, Msg, page)
 
 import Animation exposing (Timeline)
+import Components
 import Content.References
 import Custom.Element exposing (icon)
 import Dict exposing (Dict)
 import Effect exposing (Effect)
-import Element exposing (Element, centerX, centerY, el, fill, height, maximum, padding, paddingEach, paddingXY, paragraph, px, spacing, text, width)
+import Element exposing (Element, centerX, centerY, fill, height, maximum, padding, paddingEach, paddingXY, paragraph, px, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -13,7 +14,6 @@ import Element.Input as Input
 import Embed.Youtube as Youtube
 import Embed.Youtube.Attributes as YoutubeA
 import Fen
-import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
@@ -141,16 +141,8 @@ view shared model =
             { isRouteHighlighted = \r -> r == Route.Tutorial
             , isWithBackground = True
             }
-            (textPageWrapper (englishTutorial shared model))
+            (Layout.textPageWrapper (englishTutorial shared model))
     }
-
-
-textPageWrapper : List (Element msg) -> Element msg
-textPageWrapper content =
-    Layout.vScollBox
-        [ Element.column [ width (fill |> maximum 1000), centerX, padding 10, spacing 10 ]
-            content
-        ]
 
 
 grayBox : List (Element msg) -> Element msg
@@ -455,15 +447,15 @@ animationEmbed shared model key =
 animationEmbedInner : Shared.Model -> String -> Bool -> Timeline OpaqueRenderData -> Element Msg
 animationEmbedInner shared key isStarted timeline =
     let
-        (overlayIcon, ovenlayColor) =
+        ( overlayIcon, ovenlayColor ) =
             if not isStarted then
-                (Just Solid.play, (Element.rgba 1 1 1 0.7))
+                ( Just Solid.play, Element.rgba 1 1 1 0.7 )
 
             else if not (Animation.isRunning timeline) then
-                (Just Solid.redo, (Element.rgba 1 1 1 0.5))
+                ( Just Solid.redo, Element.rgba 1 1 1 0.5 )
 
             else
-                (Nothing, (Element.rgba 1 1 1 0.7))
+                ( Nothing, Element.rgba 1 1 1 0.7 )
 
         overlayIconAttribute =
             overlayIcon

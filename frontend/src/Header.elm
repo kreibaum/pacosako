@@ -205,7 +205,20 @@ userAvatar : Shared.Model -> Element Shared.Msg
 userAvatar model =
     case model.loggedInUser of
         Nothing ->
-            Element.none
+            Input.button
+                [ alignRight
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , padding 2
+                , Border.rounded 5
+                ]
+                { onPress = Just (NavigateTo "/me")
+                , label =
+                    el
+                        [ width (px 30)
+                        , height (px 30)
+                        ]
+                        (icon [ centerX, centerY ] Solid.signInAlt)
+                }
 
         Just user ->
             Input.button
@@ -214,7 +227,7 @@ userAvatar model =
                 , padding 2
                 , Border.rounded 5
                 ]
-                { onPress = Just (NavigateTo "/secret_login")
+                { onPress = Just (NavigateTo "/me")
                 , label =
                     Element.image
                         [ width (px 30)
