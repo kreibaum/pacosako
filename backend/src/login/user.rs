@@ -71,9 +71,8 @@ pub async fn proxy_avatar_route(Path(avatar): Path<String>) -> Response {
     };
 
     // The target URL
-    let url = format!(
-        "https://seccdn.libravatar.org/avatar/{avatar}?s=200&forcedefault=y&default=identicon"
-    );
+    let url =
+        format!("https://seccdn.libravatar.org/avatar/{avatar}?s=200&forcedefault=y&default=retro");
 
     let client = reqwest::Client::new();
     let resp = client.get(url).send().await.unwrap();
