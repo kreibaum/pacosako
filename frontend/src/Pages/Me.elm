@@ -9,6 +9,8 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import FontAwesome.Attributes
+import FontAwesome.Icon
 import FontAwesome.Solid as Solid
 import Gen.Params.Me exposing (Params)
 import Header
@@ -49,14 +51,19 @@ init : Shared.Model -> ( Model, Effect Msg )
 init shared =
     case shared.loggedInUser of
         Nothing ->
-            ( NotLoggedIn { usernameRaw = "", passwordRaw = "", withError = False }
+            ( NotLoggedIn
+                { usernameRaw = ""
+                , passwordRaw = ""
+                , withError = False
+                , withLoadingSpinner = False
+                }
             , Effect.none
             )
 
         Just userData ->
             ( LoggedIn { user = userData }
             , Effect.none
-              -- TODO: Load data
+              -- TODO: Load private data about yourself.
             )
 
 
@@ -64,6 +71,7 @@ type alias NotLoggedInModel =
     { usernameRaw : String
     , passwordRaw : String
     , withError : Bool
+    , withLoadingSpinner : Bool
     }
 
 
@@ -100,10 +108,15 @@ update msg model =
             ( model, Effect.fromCmd focusPasswordInput )
 
         SignIn username password ->
-            ( model, Effect.fromCmd (loginCmd username password) )
+            updateNotLoggedIn model
+                (\m ->
+                    ( { m | withLoadingSpinner = True }
+                    , Effect.fromCmd (loginCmd username password)
+                    )
+                )
 
         SignInError ->
-            updateNotLoggedIn model (\m -> ( { m | withError = True }, Effect.none ))
+            updateNotLoggedIn model (\m -> ( { m | withError = True, withLoadingSpinner = False }, Effect.none ))
 
         SignOut ->
             ( model, Effect.fromCmd logoutCmd )
@@ -140,7 +153,6 @@ focusPasswordInput =
 
 loginCmd : String -> String -> Cmd Msg
 loginCmd username password =
-    -- TODO: loading spinner or something...
     Http.post
         { url = "/api/username_password"
         , body =
@@ -180,7 +192,7 @@ logoutCmd =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.none
 
 
@@ -197,25 +209,25 @@ view shared model =
             { isRouteHighlighted = \_ -> False
             , isWithBackground = True
             }
-            (Layout.textPageWrapper (profilePageView shared model))
+            (Layout.textPageWrapper (profilePageView model))
     }
 
 
 {-| Decides which mode of the profile page to show based on whether the user is
 logged in and whether their profile data is available.
 -}
-profilePageView : Shared.Model -> Model -> List (Element Msg)
-profilePageView shared model =
+profilePageView : Model -> List (Element Msg)
+profilePageView model =
     case model of
         NotLoggedIn notLoggedInModel ->
-            notLoggedInView shared notLoggedInModel
+            notLoggedInView notLoggedInModel
 
         LoggedIn loggedInModel ->
-            loggedInView shared loggedInModel
+            loggedInView loggedInModel
 
 
-notLoggedInView : Shared.Model -> NotLoggedInModel -> List (Element Msg)
-notLoggedInView shared model =
+notLoggedInView : NotLoggedInModel -> List (Element Msg)
+notLoggedInView model =
     [ row
         [ spacing 10
         , padding 10
@@ -302,17 +314,44 @@ notLoggedInView shared model =
                         , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
                         , spacing 5
                         ]
-                        [ el [ width (px 20) ] (icon [ centerX ] Solid.arrowCircleRight)
+                        [ el [ width (px 20) ]
+                            (if model.withLoadingSpinner then
+                                Element.el []
+                                    (Element.html
+                                        (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.spin ]
+                                            Solid.spinner
+                                        )
+                                    )
+
+                             else
+                                icon [ centerX ] Solid.arrowCircleRight
+                            )
                         , Element.text "Sign in"
                         ]
                 }
             ]
         ]
+    , row
+        [ spacing 10
+        , padding 10
+        , Background.color (Element.rgba 1 1 1 0.6)
+        , Border.rounded 5
+        , width fill
+        , Font.size 20
+        ]
+        [ column [ width fill, spacing 10 ]
+            [ paragraph [ Font.bold ] [ text "Privacy Note:" ]
+            , paragraph [] [ text "Any games you play and all other things you create on this page are public and permanent." ]
+            , paragraph [] [ text "Your account is visible for everyone, even to users without accounts." ]
+            , paragraph []
+                [ text "You can delete your account at any point. The games and other things you have created will stay publicly available, but will no longer be linked to you." ]
+            ]
+        ]
     ]
 
 
-loggedInView : Shared.Model -> LoggedInModel -> List (Element Msg)
-loggedInView shared model =
+loggedInView : LoggedInModel -> List (Element Msg)
+loggedInView model =
     [ row
         [ spacing 10
         , padding 10

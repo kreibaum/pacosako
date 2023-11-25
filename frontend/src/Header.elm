@@ -101,7 +101,7 @@ pageHeaderV2Phone model headerData =
         [ row
             [ width fill
             , spacing 5
-            , paddingEach { top = 10, bottom = 10, left = 15, right = 15 }
+            , paddingEach { top = 10, bottom = 10, left = 5, right = 5 }
             , Border.solid
             , Border.widthEach
                 { bottom = 1
@@ -112,16 +112,31 @@ pageHeaderV2Phone model headerData =
             , Border.color (Element.rgb255 200 200 200)
             , Element.behindContent (el [ centerX, centerY ] pacosakoLogo)
             ]
-            [ Input.button [ width (px 20) ]
+            [ Input.button
+                [ width (px 20)
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , Border.rounded 5
+                , paddingXY 20 10
+                ]
                 { onPress = Just (SetHeaderOpen (not model.isHeaderOpen))
                 , label =
-                    icon [ centerX, centerY, paddingXY 10 10 ]
+                    icon [ centerX, centerY ]
                         (if model.isHeaderOpen then
                             Solid.times
 
                          else
                             Solid.bars
                         )
+                }
+            , Element.link
+                [ width (px 20)
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , Border.rounded 5
+                , paddingXY 20 10
+                ]
+                { url = Route.toHref Route.Home_
+                , label =
+                    icon [ centerX, centerY ] Solid.home
                 }
             , userAvatar model
             , quickSettingsOpenButton model
