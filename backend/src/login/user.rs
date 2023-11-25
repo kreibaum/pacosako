@@ -70,21 +70,14 @@ pub async fn proxy_avatar_route(Path(avatar): Path<String>) -> Response {
         return (StatusCode::NOT_FOUND).into_response();
     };
 
-    // The target URL
-    let url =
-        format!("https://seccdn.libravatar.org/avatar/{avatar}?s=200&forcedefault=y&default=retro");
+    let mut body: Vec<u8> = Vec::with_capacity(2000);
 
-    let client = reqwest::Client::new();
-    let resp = client.get(url).send().await.unwrap();
-
-    let content_type = easy_header_value(resp.headers(), "content-type");
-
-    let body = resp.bytes().await.unwrap();
+    avatargen::identicon(&avatar, &mut body);
 
     (
         [
-            (header::CONTENT_TYPE, content_type),
-            (header::CACHE_CONTROL, "public, max-age=60480".to_owned()),
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, "public, max-age=60480"),
         ],
         body,
     )
