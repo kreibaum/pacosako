@@ -1,6 +1,8 @@
 module Pages.Me exposing (Model, Msg, page)
 
+import Browser.Dom
 import Custom.Element exposing (icon)
+import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Effect exposing (Effect)
 import Element exposing (Element, centerX, centerY, column, el, fill, height, image, maximum, padding, paragraph, px, rgb255, row, spacing, text, width)
 import Element.Background as Background
@@ -10,6 +12,7 @@ import Element.Input as Input
 import FontAwesome.Solid as Solid
 import Gen.Params.Me exposing (Params)
 import Header
+import Html.Attributes
 import Http
 import Json.Encode as Encode
 import Layout
@@ -17,6 +20,7 @@ import Page
 import Request
 import Shared
 import Svg.Discord
+import Task
 import Url exposing (Protocol(..))
 import User
 import View exposing (View)
@@ -45,7 +49,7 @@ init : Shared.Model -> ( Model, Effect Msg )
 init shared =
     case shared.loggedInUser of
         Nothing ->
-            ( NotLoggedIn { usernameRaw = "", passwordRaw = "" }
+            ( NotLoggedIn { usernameRaw = "", passwordRaw = "", withError = False }
             , Effect.none
             )
 
@@ -59,6 +63,7 @@ init shared =
 type alias NotLoggedInModel =
     { usernameRaw : String
     , passwordRaw : String
+    , withError : Bool
     }
 
 
@@ -73,7 +78,10 @@ type alias LoggedInModel =
 
 type Msg
     = ToShared Shared.Msg
+    | NoOp
+    | UsernameComplete
     | SignIn String String
+    | SignInError
     | SignOut
     | SetRawUsername String
     | SetRawPassword String
@@ -85,27 +93,49 @@ update msg model =
         ToShared outMsg ->
             ( model, Effect.fromShared outMsg )
 
+        NoOp ->
+            ( model, Effect.none )
+
+        UsernameComplete ->
+            ( model, Effect.fromCmd focusPasswordInput )
+
         SignIn username password ->
             ( model, Effect.fromCmd (loginCmd username password) )
+
+        SignInError ->
+            updateNotLoggedIn model (\m -> ( { m | withError = True }, Effect.none ))
 
         SignOut ->
             ( model, Effect.fromCmd logoutCmd )
 
         SetRawUsername rawUsername ->
-            case model of
-                NotLoggedIn notLoggedInModel ->
-                    ( NotLoggedIn { notLoggedInModel | usernameRaw = rawUsername }, Effect.none )
-
-                _ ->
-                    ( model, Effect.none )
+            updateNotLoggedIn model (\m -> ( { m | usernameRaw = rawUsername }, Effect.none ))
 
         SetRawPassword rawPassword ->
-            case model of
-                NotLoggedIn notLoggedInModel ->
-                    ( NotLoggedIn { notLoggedInModel | passwordRaw = rawPassword }, Effect.none )
+            updateNotLoggedIn model (\m -> ( { m | passwordRaw = rawPassword }, Effect.none ))
 
-                _ ->
-                    ( model, Effect.none )
+
+{-| This method applies the update to the "Not Logged In" Model if applicable
+and propagate effects. If the model is in any other state, the inner update
+function is skipped.
+-}
+updateNotLoggedIn : Model -> (NotLoggedInModel -> ( NotLoggedInModel, Effect Msg )) -> ( Model, Effect Msg )
+updateNotLoggedIn model innerUpdate =
+    case model of
+        NotLoggedIn innerModel ->
+            let
+                ( newInnerModel, effects ) =
+                    innerUpdate innerModel
+            in
+            ( NotLoggedIn newInnerModel, effects )
+
+        _ ->
+            ( model, Effect.none )
+
+
+focusPasswordInput : Cmd Msg
+focusPasswordInput =
+    Task.attempt (\_ -> NoOp) (Browser.Dom.focus "password-input")
 
 
 loginCmd : String -> String -> Cmd Msg
@@ -125,11 +155,14 @@ loginCmd username password =
                 (\res ->
                     case res of
                         Ok _ ->
+                            -- On success, we can just reload the page and it
+                            -- will then have information about the user.
+                            -- As most assets are cached, this does not take
+                            -- long.
                             ToShared Shared.TriggerReload
 
                         Err _ ->
-                            -- TODO: Error handling
-                            ToShared Shared.TriggerReload
+                            SignInError
                 )
         }
 
@@ -230,15 +263,25 @@ notLoggedInView shared model =
             , width fill
             , height fill
             ]
-            [ Input.text [ width fill ]
-                -- TODO: On Enter, go to password field
+            [ if model.withError then
+                row [ Font.color (rgb255 200 0 0), spacing 5 ]
+                    [ icon [ Font.color (rgb255 200 0 0) ] Solid.exclamationTriangle
+                    , text "Invalid username or password"
+                    ]
+
+              else
+                Element.none
+            , Input.text [ width fill, onKeyUpAttr [ forKey "Enter" |> fireMsg UsernameComplete ] ]
                 { onChange = SetRawUsername
                 , text = model.usernameRaw
                 , placeholder = Nothing
                 , label = Input.labelAbove [] (text "Username")
                 }
-            , Input.currentPassword [ width fill ]
-                -- TODO: On Enter, submit form
+            , Input.currentPassword
+                [ width fill
+                , onKeyUpAttr [ forKey "Enter" |> fireMsg (SignIn model.usernameRaw model.passwordRaw) ]
+                , Element.htmlAttribute (Html.Attributes.id "password-input")
+                ]
                 { onChange = SetRawPassword
                 , text = model.passwordRaw
                 , placeholder = Nothing
