@@ -38,6 +38,7 @@ end # module Url
 module Api
 
   using HTTP
+  using URIs
 
   using ...JtacPacoSako
   import ..PacoPlay
@@ -49,6 +50,29 @@ module Api
 
     @assert resp.status == 200 "Creating game failed: $(resp.status)"
     parse(Int, String(resp.body))
+  end
+
+  function sign_in(username, password; domain = :dev)
+    url = PacoPlay.Url.server(; domain) * "/api/username_password"
+    data = """{"username":"$username","password":"$password"}"""
+    headers = ["Content-Type" => "application/json"]
+
+    @show url
+
+    # With cookies = true, the cookies are stored in HTTP.COOKIEJAR
+    response = HTTP.post(url, headers, data; cookies = true)
+    
+    # Check if the response status is successful
+    if response.status != 200
+        println("Error: Received status code $(response.status)")
+        throw(ArgumentError("Could not sign in with the provided credentials"))
+    end
+
+    # Extract cookie from cookie jar
+    uri = parse(URIs.URI, url)
+    session_cookie = HTTP.Cookies.getcookies!(HTTP.COOKIEJAR, uri)[1].value
+    println("Signed in with session cookie: $session_cookie")
+    session_cookie
   end
 
 end # module Api
@@ -270,8 +294,16 @@ function play( player :: Player.AbstractPlayer
     log("Created game: $url")
   end
 
+  sessionCookie = nothing
+  if !isnothing(username) && !isnothing(password)
+    log("Signing in...")
+    sessionCookie = Api.sign_in(username, password; domain)
+  end
+
   log("Connecting...")
-  HTTP.WebSockets.open(ws_url) do ws
+  # HTTP.WebSockets.open does not properly use the CookieJar, so we manually
+  # set the cookie header.
+  HTTP.WebSockets.open(ws_url; headers = ["Cookie" => "session=$sessionCookie"]) do ws
 
     log("Subscribing...")
     # Try to connect to the websocket and hope that it responds as anticipated

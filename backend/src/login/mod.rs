@@ -48,7 +48,7 @@ pub async fn username_password_route(
     dto: Json<UsernamePasswordDTO>,
 ) -> Response {
     match username_password(pool, config, cookies, dto).await {
-        Ok(_) => (StatusCode::ACCEPTED).into_response(),
+        Ok(_) => (StatusCode::OK).into_response(),
         Err(_) => (StatusCode::UNAUTHORIZED).into_response(),
     }
 }
