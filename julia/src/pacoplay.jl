@@ -6,8 +6,20 @@ module Url
   function server(; domain = :dev)
     if domain in [:official, nothing]
       "https://pacoplay.com"
+    elseif domain in [:localhost]
+      "http://localhost:8000"
     else
       "https://$domain.pacoplay.com"
+    end
+  end
+
+  function websocket(uuid :: String; domain = :dev)
+    if domain in [:official, nothing]
+      "wss://pacoplay.com/websocket?uuid=$uuid"
+    elseif domain in [:localhost]
+      "ws://localhost:8000/websocket?uuid=$uuid"
+    else
+      "wss://$domain.pacoplay.com/websocket?uuid=$uuid"
     end
   end
 
@@ -20,11 +32,6 @@ module Url
 
   game(; domain = :dev) = server(; domain) * "/game"
   game(match :: Int; domain = :dev) = game(; domain) * "/$match"
-
-  function websocket(; domain = :dev)
-    base = server(; domain)[9:end]
-    "wss://" * base * "/websocket"
-  end
 
 end # module Url
 
@@ -240,7 +247,10 @@ function play( player :: Player.AbstractPlayer
              , match :: Int = -1
              ; color = :white
              , domain = :dev
-             , delay :: Float64 = 0.25 )
+             , delay :: Float64 = 0.25
+             , uuid :: String = "lpdyrmi3m3e1txe09dh"
+             , username = nothing
+             , password = nothing )
 
   if color in [:white, :White, :w, :W, "white", "White", "w", "W", 1]
     color = 1
@@ -251,7 +261,7 @@ function play( player :: Player.AbstractPlayer
   end
 
   server_url = Url.server(; domain)
-  ws_url = Url.websocket(; domain)
+  ws_url = Url.websocket(uuid ; domain)
 
   if match <= 0
     log("Requesting new game from $server_url...")
