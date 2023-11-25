@@ -139,5 +139,11 @@
     "mePagePrivacyNoteL1": "Any games you play and all other things you create on this page are public and permanent.",
     "mePagePrivacyNoteL2": "Your account is visible for everyone, even to users without accounts.",
     "mePagePrivacyNoteL3": "You can delete your account at any point. The games and other things you have created will stay publicly available, but will no longer be linked to you.",
-    "mePageProfileImageAltText": "Your current profile image"
+    "mePageProfileImageAltText": "Your current profile image",
+    "meChangeAvatar": "Change Avatar",
+    "meChoseNewAvatar": "Chose a new avatar",
+    "meChoseNewAvatarL1": "Here are some avatars for you to pick from:",
+    "meNewSuggestions": "New Suggestions",
+    "meUpdateAvatar": "Update Avatar",
+    "cancel" : "Cancel"
 }

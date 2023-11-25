@@ -1,23 +1,52 @@
 //! Module to load user information from the database
 
-use crate::db::Connection;
 use axum::{
-    extract::Path,
+    extract::{Path, State},
     response::{IntoResponse, Response},
 };
-use hyper::{header, HeaderMap, StatusCode};
+use hyper::{header, Body, StatusCode};
 use lazy_static::lazy_static;
 use regex::Regex;
-use reqwest;
 use serde::Serialize;
 extern crate regex;
-use super::UserId;
+use super::{session::SessionData, UserId};
+use crate::db::{Connection, Pool};
 
 /// This struct holds data about a user that everyone (even unauthenticated users) can see.
 #[derive(Serialize, Clone, Debug)]
 pub struct PublicUserData {
     pub name: String,
     pub avatar: String,
+}
+
+/// Allows a logged in user to change their avatar by calling /api/me/avatar
+pub async fn set_avatar(
+    session: SessionData,
+    State(pool): State<Pool>,
+    avatar: String,
+) -> Response {
+    if parse_avatar(&avatar).is_none() {
+        return (StatusCode::BAD_REQUEST, "Invalid avatar").into_response();
+    }
+
+    let mut connection = pool
+        .0
+        .acquire()
+        .await
+        .expect("Failed to acquire connection");
+
+    // Write avatar to the database
+    sqlx::query!(
+        "update user set avatar = ? where id = ?",
+        avatar,
+        session.user_id.0
+    )
+    .execute(&mut connection)
+    .await
+    .unwrap();
+
+    // Return an empty OK response
+    (StatusCode::OK, "").into_response()
 }
 
 pub async fn load_public_user_data(
@@ -82,13 +111,6 @@ pub async fn proxy_avatar_route(Path(avatar): Path<String>) -> Response {
         body,
     )
         .into_response()
-}
-
-fn easy_header_value(headers: &HeaderMap, header: &str) -> String {
-    match headers.get(header) {
-        Some(value) => value.to_str().unwrap_or("").to_owned(),
-        None => "".to_owned(),
-    }
 }
 
 fn parse_avatar(avatar: &str) -> Option<String> {

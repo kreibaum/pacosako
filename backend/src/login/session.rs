@@ -8,7 +8,8 @@ use axum::{
 };
 use tower_cookies::Cookies;
 
-// An authenticated session
+/// An authenticated session. When you access this from an extractor, it has been
+/// verified that the session is valid by checking against the database.
 pub struct SessionData {
     pub user_id: UserId,
     pub session_id: SessionId,

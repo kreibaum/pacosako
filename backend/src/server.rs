@@ -35,7 +35,8 @@ pub async fn run(state: AppState) {
         .route("/language", post(language::set_user_language))
         .route("/username_password", post(login::username_password_route))
         .route("/logout", get(login::logout_route))
-        .route("/replay_meta_data/:game", get(replay_data::get_metadata));
+        .route("/replay_meta_data/:game", get(replay_data::get_metadata))
+        .route("/me/avatar", post(user::set_avatar));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();

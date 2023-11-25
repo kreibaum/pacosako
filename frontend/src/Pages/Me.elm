@@ -4,7 +4,7 @@ import Browser.Dom
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Effect exposing (Effect)
-import Element exposing (Element, centerX, centerY, column, el, fill, height, image, maximum, padding, paragraph, px, rgb255, row, spacing, text, width)
+import Element exposing (Element, centerX, centerY, column, el, fill, height, image, maximum, padding, paragraph, px, rgb255, row, spacing, text, width, wrappedRow)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -19,10 +19,13 @@ import Http
 import Json.Encode as Encode
 import Layout
 import Page
+import Random exposing (Generator)
+import Random.Char
+import Random.String
 import Request
 import Shared
 import Svg.Discord
-import Task
+import Task exposing (Task)
 import Translations as T
 import Url exposing (Protocol(..))
 import User
@@ -62,7 +65,12 @@ init shared =
             )
 
         Just userData ->
-            ( LoggedIn { user = userData }
+            ( LoggedIn
+                { user = userData
+                , newAvatarsSuggested = []
+                , selectedAvatarSuggestion = ""
+                , avatarLoadingSpinner = False
+                }
             , Effect.none
               -- TODO: Load private data about yourself.
             )
@@ -78,6 +86,9 @@ type alias NotLoggedInModel =
 
 type alias LoggedInModel =
     { user : User.LoggedInUserData
+    , newAvatarsSuggested : List String
+    , selectedAvatarSuggestion : String
+    , avatarLoadingSpinner : Bool
     }
 
 
@@ -94,6 +105,10 @@ type Msg
     | SignOut
     | SetRawUsername String
     | SetRawPassword String
+    | RandomizeAvatarSuggestions
+    | UpdateAvatarSuggestions (List String)
+    | SelectAvatarSuggestion String
+    | UpdateAvatar String
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -128,6 +143,28 @@ update msg model =
         SetRawPassword rawPassword ->
             updateNotLoggedIn model (\m -> ( { m | passwordRaw = rawPassword }, Effect.none ))
 
+        RandomizeAvatarSuggestions ->
+            ( model, Effect.fromCmd generateRandomStrings )
+
+        UpdateAvatarSuggestions suggestions ->
+            updateLoggedIn model (\m -> ( { m | newAvatarsSuggested = suggestions, avatarLoadingSpinner = False }, Effect.none ))
+
+        SelectAvatarSuggestion suggestion ->
+            updateLoggedIn model (\m -> ( { m | selectedAvatarSuggestion = suggestion, avatarLoadingSpinner = False }, Effect.none ))
+
+        UpdateAvatar newAvatar ->
+            updateLoggedIn model
+                (\m ->
+                    ( { m | avatarLoadingSpinner = True }
+                    , Http.post
+                        { url = "/api/me/avatar"
+                        , body = Http.stringBody "text/plain" newAvatar
+                        , expect = Http.expectWhatever (\_ -> ToShared Shared.TriggerReload)
+                        }
+                        |> Effect.fromCmd
+                    )
+                )
+
 
 {-| This method applies the update to the "Not Logged In" Model if applicable
 and propagate effects. If the model is in any other state, the inner update
@@ -142,6 +179,20 @@ updateNotLoggedIn model innerUpdate =
                     innerUpdate innerModel
             in
             ( NotLoggedIn newInnerModel, effects )
+
+        _ ->
+            ( model, Effect.none )
+
+
+updateLoggedIn : Model -> (LoggedInModel -> ( LoggedInModel, Effect Msg )) -> ( Model, Effect Msg )
+updateLoggedIn model innerUpdate =
+    case model of
+        LoggedIn innerModel ->
+            let
+                ( newInnerModel, effects ) =
+                    innerUpdate innerModel
+            in
+            ( LoggedIn newInnerModel, effects )
 
         _ ->
             ( model, Effect.none )
@@ -301,34 +352,20 @@ notLoggedInView model =
                 , label = Input.labelAbove [] (text T.mePagePassword)
                 , show = False
                 }
-            , Input.button
-                [ Background.color (Element.rgb255 51 191 255)
-                , Element.mouseOver [ Background.color (Element.rgb255 102 206 255) ]
-                , Border.rounded 5
-                , width fill
-                ]
-                { onPress = Just (SignIn model.usernameRaw model.passwordRaw)
-                , label =
-                    Element.row
-                        [ height fill
-                        , centerX
-                        , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                        , spacing 5
-                        ]
-                        [ el [ width (px 20) ]
-                            (if model.withLoadingSpinner then
-                                Element.el []
-                                    (Element.html
-                                        (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.spin ]
-                                            Solid.spinner
-                                        )
-                                    )
-
-                             else
-                                icon [ centerX ] Solid.arrowCircleRight
+            , colorButton [ width fill ]
+                { background = Element.rgb255 51 191 255
+                , backgroundHover = Element.rgb255 102 206 255
+                , onPress = Just (SignIn model.usernameRaw model.passwordRaw)
+                , buttonIcon =
+                    if model.withLoadingSpinner then
+                        Element.html
+                            (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.spin ]
+                                Solid.spinner
                             )
-                        , Element.text T.mePageSignIn
-                        ]
+
+                    else
+                        icon [ centerX ] Solid.arrowCircleRight
+                , caption = T.mePageSignIn
                 }
             ]
         ]
@@ -359,9 +396,91 @@ loggedInView model =
         , Border.rounded 5
         , width fill
         ]
-        [ image [ width (px 100), height (px 100) ] { src = model.user.userAvatar, description = T.mePageProfileImageAltText }
-        , el [ Font.size 32 ] (text model.user.userName)
+        [ image [ width (px 100), height (px 100) ]
+            { src = model.user.userAvatar, description = T.mePageProfileImageAltText }
+        , column []
+            [ el [ Font.size 32 ] (text model.user.userName)
+            , Input.button []
+                { onPress = Just RandomizeAvatarSuggestions
+                , label =
+                    row
+                        [ spacing 10
+                        , padding 5
+                        , Background.color (Element.rgb255 220 220 220)
+                        , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                        , Border.rounded 5
+                        ]
+                        [ icon [] Solid.pen
+                        , text T.meChangeAvatar
+                        ]
+                }
+            ]
         ]
+    , if List.isEmpty model.newAvatarsSuggested then
+        Element.none
+
+      else
+        column
+            [ spacing 10
+            , padding 10
+            , Background.color (Element.rgba 1 1 1 0.6)
+            , Border.rounded 5
+            , width fill
+            ]
+            [ paragraph [ Font.bold ] [ text T.meChoseNewAvatar ]
+            , paragraph [] [ text T.meChoseNewAvatarL1 ]
+            , wrappedRow [ width fill, spacing 10 ]
+                (List.map
+                    (\avatar -> avatarSuggestion avatar (avatar == model.selectedAvatarSuggestion))
+                    model.newAvatarsSuggested
+                )
+            , wrappedRow [ spacing 10 ]
+                [ colorButton []
+                    { background = Element.rgb255 51 191 255
+                    , backgroundHover = Element.rgb255 102 206 255
+                    , onPress = Just RandomizeAvatarSuggestions
+                    , buttonIcon = icon [ centerX ] Solid.dice
+                    , caption = T.meNewSuggestions
+                    }
+                , if not (List.member model.selectedAvatarSuggestion model.newAvatarsSuggested) then
+                    colorButton [ Font.color (rgb255 100 100 100) ]
+                        { background = Element.rgb255 200 200 200
+                        , backgroundHover = Element.rgb255 200 200 200
+                        , onPress = Nothing
+                        , buttonIcon = icon [ centerX ] Solid.checkCircle
+                        , caption = T.meUpdateAvatar
+                        }
+
+                  else if model.avatarLoadingSpinner then
+                    colorButton []
+                        { background = Element.rgb255 51 191 255
+                        , backgroundHover = Element.rgb255 102 206 255
+                        , onPress = Nothing
+                        , buttonIcon =
+                            Element.html
+                                (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.spin ]
+                                    Solid.spinner
+                                )
+                        , caption = T.meUpdateAvatar
+                        }
+
+                  else
+                    colorButton []
+                        { background = Element.rgb255 51 191 255
+                        , backgroundHover = Element.rgb255 102 206 255
+                        , onPress = Just (UpdateAvatar model.selectedAvatarSuggestion)
+                        , buttonIcon = icon [ centerX ] Solid.check
+                        , caption = T.meUpdateAvatar
+                        }
+                , colorButton []
+                    { background = Element.rgb255 255 68 51
+                    , backgroundHover = Element.rgb255 255 102 102
+                    , onPress = Just (UpdateAvatarSuggestions [])
+                    , buttonIcon = icon [] Solid.times
+                    , caption = T.cancel
+                    }
+                ]
+            ]
     , Input.button [ width fill ]
         { onPress = Just SignOut
         , label =
@@ -378,3 +497,65 @@ loggedInView model =
                 ]
         }
     ]
+
+
+colorButton :
+    List (Element.Attribute msg)
+    ->
+        { background : Element.Color
+        , backgroundHover : Element.Color
+        , onPress : Maybe msg
+        , buttonIcon : Element msg
+        , caption : String
+        }
+    -> Element msg
+colorButton attrs { background, backgroundHover, onPress, buttonIcon, caption } =
+    Input.button
+        ([ Background.color background
+         , Element.mouseOver [ Background.color backgroundHover ]
+         , Border.rounded 5
+         ]
+            ++ attrs
+        )
+        { onPress = onPress
+        , label =
+            Element.row
+                [ height fill
+                , centerX
+                , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                , spacing 5
+                ]
+                [ el [ width (px 20) ] buttonIcon
+                , Element.text caption
+                ]
+        }
+
+
+avatarSuggestion : String -> Bool -> Element Msg
+avatarSuggestion avatar isSelected =
+    Input.button []
+        { onPress = Just (SelectAvatarSuggestion avatar)
+        , label =
+            row
+                [ spacing 10
+                , padding 5
+                , if isSelected then
+                    Background.color (Element.rgb255 180 180 180)
+
+                  else
+                    Background.color (Element.rgb255 220 220 220)
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , Border.rounded 5
+                ]
+                [ image [ width (px 50), height (px 50) ]
+                    { src = "/p/" ++ avatar, description = T.mePageProfileImageAltText }
+                ]
+        }
+
+
+generateRandomStrings : Cmd Msg
+generateRandomStrings =
+    Random.String.string 32 Random.Char.lowerCaseLatin
+        |> Random.map (\s -> "identicon:" ++ s)
+        |> Random.list 30
+        |> Random.generate UpdateAvatarSuggestions
