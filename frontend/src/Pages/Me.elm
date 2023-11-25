@@ -23,6 +23,7 @@ import Request
 import Shared
 import Svg.Discord
 import Task
+import Translations as T
 import Url exposing (Protocol(..))
 import User
 import View exposing (View)
@@ -202,7 +203,7 @@ subscriptions _ =
 
 view : Shared.Model -> Model -> View Msg
 view shared model =
-    { title = "Me"
+    { title = T.mePageTitle
     , element =
         Header.wrapWithHeaderV2 shared
             ToShared
@@ -237,10 +238,10 @@ notLoggedInView model =
         , Font.size 20
         ]
         [ column [ width fill, spacing 10 ]
-            [ paragraph [ Font.bold ] [ text "You are not logged in right now." ]
-            , paragraph [] [ text "New accounts will be set up by logging in with Discord. (Still under construction)" ]
+            [ paragraph [ Font.bold ] [ text T.mePageNotLoggedIn ]
+            , paragraph [] [ text T.mePageDiscordExplanation ]
             , paragraph []
-                [ text "A user account helps you keep track of the games you have played and the people you have played with. But you'll always be able to play on our site without creating an account." ]
+                [ text T.mePageAccountExplanation ]
             ]
         ]
     , row [ width fill, spacing 10 ]
@@ -265,7 +266,7 @@ notLoggedInView model =
                 , centerX
                 , centerY
                 ]
-                (paragraph [] [ text "Log in with Discord (Under construction)" ])
+                (paragraph [] [ text T.mePageDiscordSignIn ])
             ]
         , column
             [ spacing 10
@@ -278,7 +279,7 @@ notLoggedInView model =
             [ if model.withError then
                 row [ Font.color (rgb255 200 0 0), spacing 5 ]
                     [ icon [ Font.color (rgb255 200 0 0) ] Solid.exclamationTriangle
-                    , text "Invalid username or password"
+                    , text T.mePageSignInError
                     ]
 
               else
@@ -287,7 +288,7 @@ notLoggedInView model =
                 { onChange = SetRawUsername
                 , text = model.usernameRaw
                 , placeholder = Nothing
-                , label = Input.labelAbove [] (text "Username")
+                , label = Input.labelAbove [] (text T.mePageUsername)
                 }
             , Input.currentPassword
                 [ width fill
@@ -297,7 +298,7 @@ notLoggedInView model =
                 { onChange = SetRawPassword
                 , text = model.passwordRaw
                 , placeholder = Nothing
-                , label = Input.labelAbove [] (text "Password")
+                , label = Input.labelAbove [] (text T.mePagePassword)
                 , show = False
                 }
             , Input.button
@@ -326,7 +327,7 @@ notLoggedInView model =
                              else
                                 icon [ centerX ] Solid.arrowCircleRight
                             )
-                        , Element.text "Sign in"
+                        , Element.text T.mePageSignIn
                         ]
                 }
             ]
@@ -340,11 +341,10 @@ notLoggedInView model =
         , Font.size 20
         ]
         [ column [ width fill, spacing 10 ]
-            [ paragraph [ Font.bold ] [ text "Privacy Note:" ]
-            , paragraph [] [ text "Any games you play and all other things you create on this page are public and permanent." ]
-            , paragraph [] [ text "Your account is visible for everyone, even to users without accounts." ]
-            , paragraph []
-                [ text "You can delete your account at any point. The games and other things you have created will stay publicly available, but will no longer be linked to you." ]
+            [ paragraph [ Font.bold ] [ text T.mePagePrivacyNote ]
+            , paragraph [] [ text T.mePagePrivacyNoteL1 ]
+            , paragraph [] [ text T.mePagePrivacyNoteL2 ]
+            , paragraph [] [ text T.mePagePrivacyNoteL3 ]
             ]
         ]
     ]
@@ -359,7 +359,7 @@ loggedInView model =
         , Border.rounded 5
         , width fill
         ]
-        [ image [ width (px 100), height (px 100) ] { src = model.user.userAvatar, description = "Your current profile picture" }
+        [ image [ width (px 100), height (px 100) ] { src = model.user.userAvatar, description = T.mePageProfileImageAltText }
         , el [ Font.size 32 ] (text model.user.userName)
         ]
     , Input.button [ width fill ]
@@ -374,7 +374,7 @@ loggedInView model =
                 , Font.size 20
                 ]
                 [ icon [ Font.color (rgb255 200 0 0) ] Solid.signOutAlt
-                , text "Sign out"
+                , text T.mePageSignOut
                 ]
         }
     ]
