@@ -79,6 +79,7 @@ async fn username_password(
         .http_only(true)
         .secure(!config.dev_mode)
         .same_site(SameSite::Strict)
+        .max_age(time::Duration::days(14))
         .finish();
     cookies.add(session_cookie);
 
