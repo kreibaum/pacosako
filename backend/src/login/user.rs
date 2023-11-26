@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     response::{IntoResponse, Response},
 };
-use hyper::{header, Body, StatusCode};
+use hyper::{header, StatusCode};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Serialize;
@@ -16,6 +16,7 @@ use crate::db::{Connection, Pool};
 #[derive(Serialize, Clone, Debug)]
 pub struct PublicUserData {
     pub name: String,
+    pub user_id: UserId,
     pub avatar: String,
 }
 
@@ -59,6 +60,7 @@ pub async fn load_public_user_data(
 
     Ok(PublicUserData {
         name: res.name.unwrap_or("Anonymous".to_string()),
+        user_id,
         avatar: res.avatar,
     })
 }
@@ -124,4 +126,59 @@ fn parse_avatar(avatar: &str) -> Option<String> {
         }
     }
     None
+}
+
+pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Response {
+    if !session.can_delete {
+        return (
+            StatusCode::FORBIDDEN,
+            r#"User needs to do a special login first and trigger actual deletion fast! See "Danger Zone" in /me."#,
+        )
+            .into_response();
+    }
+
+    let mut connection = pool
+        .0
+        .acquire()
+        .await
+        .expect("Failed to acquire connection");
+
+    // update game set white_player = NULL where white_player = 3;
+    // update game set black_player = NULL where black_player = 3;
+    // delete from session where user_id = 3;
+    // delete from login where user_id = 3;
+    // delete from user where id = 3;
+
+    sqlx::query!(
+        "update game set white_player = NULL where white_player = ?",
+        session.user_id.0
+    )
+    .execute(&mut *connection)
+    .await
+    .expect("Error removing user from games");
+
+    sqlx::query!(
+        "update game set black_player = NULL where black_player = ?",
+        session.user_id.0
+    )
+    .execute(&mut *connection)
+    .await
+    .expect("Error removing user from games");
+
+    sqlx::query!("delete from session where user_id = ?", session.user_id.0)
+        .execute(&mut *connection)
+        .await
+        .expect("Error removing sessions for user.");
+
+    sqlx::query!("delete from login where user_id = ?", session.user_id.0)
+        .execute(&mut *connection)
+        .await
+        .expect("Error removing login for user.");
+
+    sqlx::query!("delete from user where id = ?", session.user_id.0)
+        .execute(&mut *connection)
+        .await
+        .expect("Error removing user.");
+
+    (StatusCode::OK, "").into_response()
 }

@@ -13,6 +13,7 @@ use tower_cookies::Cookies;
 pub struct SessionData {
     pub user_id: UserId,
     pub session_id: SessionId,
+    pub can_delete: bool,
 }
 
 #[async_trait]
@@ -32,13 +33,15 @@ impl FromRequestParts<AppState> for SessionData {
 
 pub async fn create_session(
     user_id: UserId,
+    can_delete: bool,
     connection: &mut Connection,
 ) -> Result<SessionId, anyhow::Error> {
     let uuid = uuid::Uuid::new_v4().to_string();
     sqlx::query!(
-        r"insert into session (id, user_id, expires_at) values (?, ?, datetime(CURRENT_TIMESTAMP, '+14 days'))",
+        r"insert into session (id, user_id, expires_at, can_delete) values (?, ?, datetime(CURRENT_TIMESTAMP, '+14 days'), ?)",
         uuid,
-        user_id.0
+        user_id.0,
+        can_delete
     )
     .execute(connection)
     .await?;
@@ -50,14 +53,26 @@ pub async fn load_session(
     session_id: SessionId,
     connection: &mut Connection,
 ) -> Result<SessionData, anyhow::Error> {
-    let res = sqlx::query!(r"select user_id from session where id = ?", session_id.0)
-        .fetch_one(connection)
-        .await;
+    sqlx::query!(
+        r"update session set can_delete = 0
+        where id = ? and can_delete = 1 and CURRENT_TIMESTAMP > datetime(created_at, '+1 minutes')",
+        session_id.0
+    )
+    .execute(&mut *connection)
+    .await?;
+
+    let res = sqlx::query!(
+        r"select user_id, can_delete as can_delete from session where id = ?",
+        session_id.0
+    )
+    .fetch_one(connection)
+    .await;
     let res = res.map_err(|e| anyhow::anyhow!("Session not found: {:?}", e))?;
     res.user_id
         .map(|user_id| SessionData {
             user_id: UserId(user_id),
             session_id,
+            can_delete: res.can_delete,
         })
         .ok_or_else(|| anyhow::anyhow!("Session not found"))
 }

@@ -18,6 +18,7 @@
         "bitboards",
         "ccall",
         "dashmap",
+        "datetime",
         "DYNLIB",
         "Førre",
         "fxhash",

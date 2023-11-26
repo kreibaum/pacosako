@@ -36,7 +36,8 @@ pub async fn run(state: AppState) {
         .route("/username_password", post(login::username_password_route))
         .route("/logout", get(login::logout_route))
         .route("/replay_meta_data/:game", get(replay_data::get_metadata))
-        .route("/me/avatar", post(user::set_avatar));
+        .route("/me/avatar", post(user::set_avatar))
+        .route("/me/delete", get(user::delete_user));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();
@@ -130,11 +131,13 @@ async fn index(
         .expect("Could not get connection from pool");
 
     context.insert("name", "");
+    context.insert("user_id", "-1");
     context.insert("avatar", "");
 
     if let Some(session) = session {
         if let Ok(user_data) = load_public_user_data(session.user_id, &mut connection).await {
             context.insert("name", &user_data.name);
+            context.insert("user_id", &user_data.user_id);
             context.insert("avatar", &user_data.avatar);
         }
     }

@@ -145,5 +145,14 @@
     "meChoseNewAvatarL1": "Here are some avatars for you to pick from:",
     "meNewSuggestions": "New Suggestions",
     "meUpdateAvatar": "Update Avatar",
-    "cancel" : "Cancel"
+    "cancel" : "Cancel",
+    "deleteAccountDanger": "Danger Zone",
+    "deleteAccountDangerLoginAnnounce" : "After signing in, you can delete your account for one minute.",
+    "deleteAccountDelete": "Delete Account",
+    "deleteAccountL1": "Deleting your account will permanently remove it from the server. This action cannot be undone.",
+    "deleteAccountL2": "For security reasons, you need to sign in again before you can delete your account.",
+    "deleteAccountL3": "You only have one minute before this button stops working.",
+    "deleteAccountSignIn": "Sign in for deletion",
+    "deleteAccountBack": "Take Me Back",
+    "deleteAccountConfirm": "Confirm Deletion"
 }

@@ -3,6 +3,7 @@ module Pages.Me exposing (Model, Msg, page)
 import Browser.Dom
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
+import Dict exposing (Dict)
 import Effect exposing (Effect)
 import Element exposing (Element, centerX, centerY, column, el, fill, height, image, maximum, padding, paragraph, px, rgb255, row, spacing, text, width, wrappedRow)
 import Element.Background as Background
@@ -19,13 +20,13 @@ import Http
 import Json.Encode as Encode
 import Layout
 import Page
-import Random exposing (Generator)
+import Random
 import Random.Char
 import Random.String
 import Request
 import Shared
 import Svg.Discord
-import Task exposing (Task)
+import Task
 import Translations as T
 import Url exposing (Protocol(..))
 import User
@@ -33,9 +34,9 @@ import View exposing (View)
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
-page shared _ =
+page shared { query } =
     Page.advanced
-        { init = init shared
+        { init = init shared query
         , update = update
         , view = view shared
         , subscriptions = subscriptions
@@ -51,8 +52,14 @@ type Model
     | LoggedIn LoggedInModel
 
 
-init : Shared.Model -> ( Model, Effect Msg )
-init shared =
+init : Shared.Model -> Dict String String -> ( Model, Effect Msg )
+init shared query =
+    let
+        -- Parse the "delete_user" query parameter.
+        withIntentToDelete =
+            Dict.get "delete_user" query
+                |> Maybe.andThen String.toInt
+    in
     case shared.loggedInUser of
         Nothing ->
             ( NotLoggedIn
@@ -60,6 +67,7 @@ init shared =
                 , passwordRaw = ""
                 , withError = False
                 , withLoadingSpinner = False
+                , withIntentToDelete = withIntentToDelete
                 }
             , Effect.none
             )
@@ -70,6 +78,14 @@ init shared =
                 , newAvatarsSuggested = []
                 , selectedAvatarSuggestion = ""
                 , avatarLoadingSpinner = False
+                , withIntentToDelete =
+                    withIntentToDelete
+                        |> Maybe.map (\_ -> True)
+                        |> Maybe.withDefault False
+                , dangerZoneUnfolded =
+                    withIntentToDelete
+                        |> Maybe.map (\_ -> True)
+                        |> Maybe.withDefault False
                 }
             , Effect.none
               -- TODO: Load private data about yourself.
@@ -81,6 +97,7 @@ type alias NotLoggedInModel =
     , passwordRaw : String
     , withError : Bool
     , withLoadingSpinner : Bool
+    , withIntentToDelete : Maybe Int
     }
 
 
@@ -89,6 +106,8 @@ type alias LoggedInModel =
     , newAvatarsSuggested : List String
     , selectedAvatarSuggestion : String
     , avatarLoadingSpinner : Bool
+    , dangerZoneUnfolded : Bool
+    , withIntentToDelete : Bool
     }
 
 
@@ -99,16 +118,22 @@ type alias LoggedInModel =
 type Msg
     = ToShared Shared.Msg
     | NoOp
+      -- Login flow, Password
     | UsernameComplete
     | SignIn String String
     | SignInError
     | SignOut
     | SetRawUsername String
     | SetRawPassword String
+      -- Updating the avatar
     | RandomizeAvatarSuggestions
     | UpdateAvatarSuggestions (List String)
     | SelectAvatarSuggestion String
     | UpdateAvatar String
+      -- Danger zone
+    | DangerZoneUnfolded Bool
+    | SignInForDeletion
+    | DeleteAccount
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -127,7 +152,7 @@ update msg model =
             updateNotLoggedIn model
                 (\m ->
                     ( { m | withLoadingSpinner = True }
-                    , Effect.fromCmd (loginCmd username password)
+                    , Effect.fromCmd (loginCmd username password m.withIntentToDelete)
                     )
                 )
 
@@ -164,6 +189,41 @@ update msg model =
                         |> Effect.fromCmd
                     )
                 )
+
+        DangerZoneUnfolded unfolded ->
+            updateLoggedIn model (\m -> ( { m | dangerZoneUnfolded = unfolded }, Effect.none ))
+
+        SignInForDeletion ->
+            updateLoggedIn model
+                (\m ->
+                    ( m
+                    , Effect.fromCmd
+                        (Http.get
+                            { url = "/api/logout"
+                            , expect = Http.expectWhatever (\_ -> ToShared (Shared.NavigateTo ("/me?delete_user=" ++ String.fromInt m.user.userId)))
+                            }
+                        )
+                    )
+                )
+
+        DeleteAccount ->
+            ( model
+            , Effect.fromCmd
+                (Http.get
+                    { url = "/api/me/delete"
+                    , expect =
+                        Http.expectWhatever
+                            (\res ->
+                                case res of
+                                    Ok _ ->
+                                        ToShared (Shared.NavigateTo "/")
+
+                                    Err _ ->
+                                        ToShared (Shared.NavigateTo "/me")
+                            )
+                    }
+                )
+            )
 
 
 {-| This method applies the update to the "Not Logged In" Model if applicable
@@ -203,10 +263,19 @@ focusPasswordInput =
     Task.attempt (\_ -> NoOp) (Browser.Dom.focus "password-input")
 
 
-loginCmd : String -> String -> Cmd Msg
-loginCmd username password =
+loginCmd : String -> String -> Maybe Int -> Cmd Msg
+loginCmd username password withIntentToDelete =
+    let
+        url =
+            case withIntentToDelete of
+                Just id ->
+                    "/api/username_password?delete_user=" ++ String.fromInt id
+
+                Nothing ->
+                    "/api/username_password"
+    in
     Http.post
-        { url = "/api/username_password"
+        { url = url
         , body =
             Http.jsonBody
                 (Encode.object
@@ -280,14 +349,19 @@ profilePageView model =
 
 notLoggedInView : NotLoggedInModel -> List (Element Msg)
 notLoggedInView model =
-    [ row
-        [ spacing 10
-        , padding 10
-        , Background.color (Element.rgba 1 1 1 0.6)
-        , Border.rounded 5
-        , width fill
-        , Font.size 20
-        ]
+    [ case model.withIntentToDelete of
+        Just _ ->
+            column panelAttributes
+                [ row [ spacing 10 ]
+                    [ icon [ Font.color (rgb255 200 0 0) ] Solid.skullCrossbones
+                    , el [ Font.bold ] (text T.deleteAccountDanger)
+                    ]
+                , paragraph [] [ text T.deleteAccountDangerLoginAnnounce ]
+                ]
+
+        _ ->
+            Element.none
+    , row (Font.size 20 :: panelAttributes)
         [ column [ width fill, spacing 10 ]
             [ paragraph [ Font.bold ] [ text T.mePageNotLoggedIn ]
             , paragraph [] [ text T.mePageDiscordExplanation ]
@@ -296,14 +370,7 @@ notLoggedInView model =
             ]
         ]
     , row [ width fill, spacing 10 ]
-        [ column
-            [ width fill
-            , height fill
-            , centerX
-            , spacing 7
-            , padding 10
-            , Background.color (Element.rgba 1 1 1 0.6)
-            ]
+        [ column (centerX :: height fill :: panelAttributes)
             [ el
                 [ width (fill |> maximum 400)
                 , padding 10
@@ -319,14 +386,7 @@ notLoggedInView model =
                 ]
                 (paragraph [] [ text T.mePageDiscordSignIn ])
             ]
-        , column
-            [ spacing 10
-            , padding 10
-            , Background.color (Element.rgba 1 1 1 0.6)
-            , Border.rounded 5
-            , width fill
-            , height fill
-            ]
+        , column (height fill :: panelAttributes)
             [ if model.withError then
                 row [ Font.color (rgb255 200 0 0), spacing 5 ]
                     [ icon [ Font.color (rgb255 200 0 0) ] Solid.exclamationTriangle
@@ -369,14 +429,7 @@ notLoggedInView model =
                 }
             ]
         ]
-    , row
-        [ spacing 10
-        , padding 10
-        , Background.color (Element.rgba 1 1 1 0.6)
-        , Border.rounded 5
-        , width fill
-        , Font.size 20
-        ]
+    , row (Font.size 20 :: panelAttributes)
         [ column [ width fill, spacing 10 ]
             [ paragraph [ Font.bold ] [ text T.mePagePrivacyNote ]
             , paragraph [] [ text T.mePagePrivacyNoteL1 ]
@@ -389,13 +442,7 @@ notLoggedInView model =
 
 loggedInView : LoggedInModel -> List (Element Msg)
 loggedInView model =
-    [ row
-        [ spacing 10
-        , padding 10
-        , Background.color (Element.rgba 1 1 1 0.6)
-        , Border.rounded 5
-        , width fill
-        ]
+    [ row panelAttributes
         [ image [ width (px 100), height (px 100) ]
             { src = model.user.userAvatar, description = T.mePageProfileImageAltText }
         , column []
@@ -420,13 +467,7 @@ loggedInView model =
         Element.none
 
       else
-        column
-            [ spacing 10
-            , padding 10
-            , Background.color (Element.rgba 1 1 1 0.6)
-            , Border.rounded 5
-            , width fill
-            ]
+        column panelAttributes
             [ paragraph [ Font.bold ] [ text T.meChoseNewAvatar ]
             , paragraph [] [ text T.meChoseNewAvatarL1 ]
             , wrappedRow [ width fill, spacing 10 ]
@@ -481,24 +522,104 @@ loggedInView model =
                     }
                 ]
             ]
-    , Input.button [ width fill ]
-        { onPress = Just SignOut
-        , label =
-            row
-                [ spacing 10
-                , padding 10
-                , Background.color (Element.rgba 1 1 1 0.6)
-                , Border.rounded 5
-                , width fill
-                , Font.size 20
+    , panelButton (Just SignOut)
+        [ icon [ Font.color (rgb255 200 0 0) ] Solid.signOutAlt
+        , text T.mePageSignOut
+        ]
+    , if not model.dangerZoneUnfolded then
+        panelButton (Just (DangerZoneUnfolded True))
+            [ icon [ Font.color (rgb255 200 0 0) ] Solid.skullCrossbones
+            , el [ Font.bold ] (text T.deleteAccountDanger)
+            , text ("- " ++ T.deleteAccountDelete)
+            ]
+
+      else if not model.withIntentToDelete then
+        column panelAttributes
+            [ row [ width fill, spacing 10 ]
+                [ icon [ Font.color (rgb255 200 0 0) ] Solid.skullCrossbones
+                , el [ Font.bold ] (text T.deleteAccountDanger)
+                , text ("- " ++ T.deleteAccountDelete)
                 ]
-                [ icon [ Font.color (rgb255 200 0 0) ] Solid.signOutAlt
-                , text T.mePageSignOut
+            , paragraph [] [ text T.deleteAccountL1 ]
+            , paragraph [] [ text T.mePagePrivacyNoteL3 ]
+            , paragraph [] [ text T.deleteAccountL2 ]
+            , wrappedRow [ spacing 10 ]
+                [ colorButton []
+                    { background = Element.rgb255 255 68 51
+                    , backgroundHover = Element.rgb255 255 102 102
+                    , onPress = Just SignInForDeletion
+                    , buttonIcon = icon [] Solid.exclamationTriangle
+                    , caption = T.deleteAccountSignIn
+                    }
+                , colorButton []
+                    { background = Element.rgb255 41 204 57
+                    , backgroundHover = Element.rgb255 68 229 84
+                    , onPress = Just (DangerZoneUnfolded False)
+                    , buttonIcon = icon [ centerX ] Solid.arrowLeft
+                    , caption = T.deleteAccountBack
+                    }
                 ]
-        }
+            ]
+
+      else
+        column panelAttributes
+            [ row [ width fill, spacing 10 ]
+                [ icon [ Font.color (rgb255 200 0 0) ] Solid.skullCrossbones
+                , el [ Font.bold ] (text T.deleteAccountDanger)
+                , text ("- " ++ T.deleteAccountDelete)
+                ]
+            , paragraph [] [ text T.deleteAccountL1 ]
+            , paragraph [] [ text T.mePagePrivacyNoteL3 ]
+            , paragraph [ Font.bold ] [ text T.deleteAccountL3 ]
+            , wrappedRow [ spacing 10 ]
+                [ colorButton []
+                    { background = Element.rgb255 255 68 51
+                    , backgroundHover = Element.rgb255 255 102 102
+                    , onPress = Just DeleteAccount
+                    , buttonIcon = icon [] Solid.skullCrossbones
+                    , caption = T.deleteAccountConfirm
+                    }
+                , colorButton []
+                    { background = Element.rgb255 41 204 57
+                    , backgroundHover = Element.rgb255 68 229 84
+                    , onPress = Just (ToShared (Shared.NavigateTo "/me"))
+                    , buttonIcon = icon [ centerX ] Solid.arrowLeft
+                    , caption = T.deleteAccountBack
+                    }
+                ]
+            ]
     ]
 
 
+panelAttributes : List (Element.Attribute msg)
+panelAttributes =
+    [ spacing 10
+    , padding 10
+    , Background.color (Element.rgba 1 1 1 0.6)
+    , Border.rounded 5
+    , width fill
+    ]
+
+
+{-| A button, that is visually a panel. The whole panel acts as the button.
+-}
+panelButton : Maybe Msg -> List (Element Msg) -> Element Msg
+panelButton onPress label =
+    Input.button [ width fill ]
+        { onPress = onPress
+        , label =
+            row
+                (panelAttributes
+                    ++ [ Element.mouseOver [ Background.color (Element.rgba 1 1 1 0.8) ]
+                       , Font.size 20
+                       ]
+                )
+                label
+        }
+
+
+{-| A button with a specific color and an icon. I reacts to hovers with a color change.
+-}
 colorButton :
     List (Element.Attribute msg)
     ->

@@ -10,6 +10,7 @@ import Json.Decode as Decode exposing (Decoder, Value)
 -}
 type alias LoggedInUserData =
     { userName : String
+    , userId : Int
     , userAvatar : String
     }
 
@@ -30,8 +31,9 @@ parseLoggedInUser flags =
 
 decodeLoggedInUser : Decoder LoggedInUserData
 decodeLoggedInUser =
-    Decode.map2 LoggedInUserData
+    Decode.map3 LoggedInUserData
         (Decode.field "myUserName" Decode.string)
+        (Decode.field "myUserId" Decode.int)
         (Decode.field "myUserAvatar" Decode.string)
 
 

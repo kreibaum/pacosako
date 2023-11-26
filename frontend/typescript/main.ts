@@ -6,6 +6,7 @@
 declare var Elm: any;
 declare var static_assets: any;
 declare var my_user_name, my_user_avatar: string;
+declare var my_user_id: number;
 
 // Set up a new mutation observer, that will fire custom events for all
 // svg elements when there is a click event or a motion event.
@@ -96,16 +97,18 @@ let localStorageData = JSON.parse(localStorage.getItem('localStorage'));
 
 // Pass the window size to elm on init. This way we already know it on startup.
 let windowSize = { "width": window.innerWidth, "height": window.innerHeight };
+let elmFlags = {
+    "windowSize": windowSize,
+    "localStorage": localStorageData,
+    "now": Date.now(),
+    "oAuthState": setOAuthStateInSessionCookie(),
+    "myUserName": my_user_name,
+    "myUserId": my_user_id,
+    "myUserAvatar": my_user_avatar
+};
 var app = Elm.Main.init({
     node: document.getElementById("elm"),
-    flags: {
-        "windowSize": windowSize,
-        "localStorage": localStorageData,
-        "now": Date.now(),
-        "oAuthState": setOAuthStateInSessionCookie(),
-        "myUserName": my_user_name,
-        "myUserAvatar": my_user_avatar
-    },
+    flags: elmFlags,
 });
 
 if (app.ports.writeToLocalStorage) {

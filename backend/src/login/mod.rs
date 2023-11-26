@@ -14,18 +14,19 @@ use argon2::{
     Argon2,
 };
 use axum::{
-    extract::State,
+    extract::{Query, State},
     response::{IntoResponse, Response},
     Json,
 };
 use reqwest::StatusCode;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tower_cookies::{cookie::SameSite, Cookie, Cookies};
 
 use self::session::SessionData;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct UserId(pub i64);
+
 #[derive(Debug, Clone)]
 pub struct SessionId(String);
 
@@ -37,23 +38,30 @@ pub struct UsernamePasswordDTO {
 
 const SESSION_COOKIE: &str = "session";
 
+#[derive(Deserialize)]
+pub struct DeleteUserQuery {
+    delete_user: Option<UserId>,
+}
+
 /// POST a username and password to this endpoint to login.
 /// The response will redirect you to "/" if the login was successful.
 /// You'll also get a (http-only) cookie with the encrypted session id.
 /// Username/password is expected as a JSON object in the body.
 pub async fn username_password_route(
+    Query(query): Query<DeleteUserQuery>,
     pool: State<Pool>,
     config: State<EnvironmentConfig>,
     cookies: Cookies,
     dto: Json<UsernamePasswordDTO>,
 ) -> Response {
-    match username_password(pool, config, cookies, dto).await {
+    match username_password(query.delete_user, pool, config, cookies, dto).await {
         Ok(_) => (StatusCode::OK).into_response(),
         Err(_) => (StatusCode::UNAUTHORIZED).into_response(),
     }
 }
 
 async fn username_password(
+    delete_user: Option<UserId>,
     pool: State<Pool>,
     config: State<EnvironmentConfig>,
     cookies: Cookies,
@@ -63,6 +71,8 @@ async fn username_password(
     let mut connection = pool.conn().await.expect("No connection available");
     let Ok(user_id) = get_user_for_login(&dto, &mut connection).await else {
         if config.dev_mode {
+            // It is important that this is only enabled in dev mode, otherwise
+            // the production server would log hashes of slightly wrong passwords.
             info!(
                 "Password could hash to {}",
                 generate_password_hash(&dto.password)
@@ -71,7 +81,22 @@ async fn username_password(
         anyhow::bail!("Login failed");
     };
 
-    let session = session::create_session(user_id, &mut connection).await?;
+    let can_delete = if let Some(delete_user) = delete_user {
+        if delete_user != user_id {
+            warn!("User {} tried to delete user {}", user_id.0, delete_user.0);
+            anyhow::bail!("Unauthorized");
+        } else {
+            info!(
+                "User {} signing in to a session with delete rights",
+                user_id.0
+            );
+            true
+        }
+    } else {
+        false
+    };
+
+    let session = session::create_session(user_id, can_delete, &mut connection).await?;
     let client_session = crypto::encrypt_session_key(&session, &config.secret_key)?;
 
     let session_cookie = Cookie::build(SESSION_COOKIE, client_session)
