@@ -145,5 +145,14 @@
     "mePageSignIn": "Iniciar sesión",
     "mePagePassword": "Contraseña",
     "meNewSuggestions": "Nuevas sugerencias",
-    "meChoseNewAvatarL1": "Aquí tienes algunos avatares para elegir:"
+    "meChoseNewAvatarL1": "Aquí tienes algunos avatares para elegir:",
+    "deleteAccountSignIn": "Iniciar sesión para eliminar",
+    "deleteAccountDangerLoginAnnounce": "Después de iniciar sesión, puedes borrar tu cuenta durante un minuto.",
+    "deleteAccountL1": "La eliminación de su cuenta la eliminará permanentemente del servidor. Esta acción no se puede deshacer.",
+    "deleteAccountBack": "Llévame de vuelta",
+    "deleteAccountL2": "Por razones de seguridad, tienes que volver a iniciar sesión antes de poder eliminar tu cuenta.",
+    "deleteAccountDelete": "Eliminar la cuenta",
+    "deleteAccountDanger": "Zona peligrosa",
+    "deleteAccountL3": "Sólo tienes un minuto antes de que este botón deje de funcionar.",
+    "deleteAccountConfirm": "Confirmar el borrado"
 }
