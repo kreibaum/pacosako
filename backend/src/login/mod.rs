@@ -78,7 +78,7 @@ async fn username_password(
         .path("/")
         .http_only(true)
         .secure(!config.dev_mode)
-        .same_site(SameSite::Strict)
+        .same_site(SameSite::Lax) // So links from other sites work
         .max_age(time::Duration::days(14))
         .finish();
     cookies.add(session_cookie);
