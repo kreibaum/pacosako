@@ -1,15 +1,18 @@
 name = "JtacPacoSako"
 uuid = "e3b14c4e-8e3e-41df-bb37-0c4a418d7b7d"
 authors = ["Rolf Kreibaum and Thomas Staudt <tscode@posteo.net>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 Jtac = "ff1b8621-ed28-5f2d-82b1-1136b8fa4e8d"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 LazyJSON = "fc18253b-5e1b-504c-a4a2-9ece4944c004"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
 
 [compat]
 julia = "^1.6"
+Jtac = "^0.2"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

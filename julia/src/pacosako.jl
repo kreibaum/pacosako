@@ -1,6 +1,6 @@
 
 """
-PacoSako game state. Wrapper around the rust type TODO:???.
+PacoSako game state. Wrapper of a rust pacosako state object.
 """
 mutable struct PacoSako <: Game.AbstractGame
   ptr :: Ptr{Nothing}
@@ -8,38 +8,38 @@ mutable struct PacoSako <: Game.AbstractGame
 end
 
 function Pack.pack(io :: IO, ps :: PacoSako) :: Nothing
-  Pack.pack(io, Pack.Bytes(serialize(ps))) 
+  Pack.pack(io, serialize(ps), Pack.BinaryFormat()) 
 end
 
 function Pack.unpack(io :: IO, :: Type{PacoSako}) :: PacoSako
-  bytes = Pack.unpack(io, Pack.Bytes)
-  deserialize(bytes.data)
+  bytes = Pack.unpack(io, Pack.BinaryFormat())
+  deserialize(bytes)
 end
-
 
 """
     destroy!(ps)
 
-Destructor function for a paco sako game state `ps`. After `destroy!` has been
-called, `ps` must not be used anymore.
+Destroy the paco sako game state `ps`. Afterwards, `ps` must not be used
+anymore.
 
-This function should never be called manually.
+!!! This function is part of the finalizer of `PacoSako` values and should not
+!!! be called manually.
 """
 function destroy!(ps :: PacoSako)
-  libcall(:drop, Nothing, (Ptr{Nothing},), ps.ptr)
+  ccall((:drop, lib), Nothing, (Ptr{Nothing},), ps.ptr)
 end
 
 """
-    wrap_pacosako_ptr(ptr) 
+    PacoSako(ptr) 
 
-Wrap the pointer `ptr`, which must point to a valid pacosako object, as
-[`PacoSako`](@ref) struct.
+Wrap the pointer `ptr`, which must point to a valid pacosako object, and return
+a [`PacoSako`](@ref) object.
 """
-function wrap_pacosako_ptr(ptr :: Ptr{Nothing}) :: PacoSako
-  @assert ptr != C_NULL "Cannot wrap a nullpointer as PacoSako state"
-  ps = PacoSako(ptr, UInt8[], 0)
+function PacoSako(ptr :: Ptr{Nothing})
+  @assert ptr != C_NULL "Cannot accept null pointer as PacoSako state"
+  ps = PacoSako(ptr, 0)
   finalizer(destroy!, ps)
-  status = libcall(:status, Int64, (Ptr{Nothing},), ps.ptr)
+  status = ccall((:status, lib), Int64, (Ptr{Nothing},), ps.ptr)
   if length(Game.legalactions(ps)) == 0 && status == 42
       ps.forfeit_by = Game.activeplayer(ps)
   end
@@ -50,54 +50,54 @@ end
     PacoSako()
     PacoSako(fen)
 
-Create a new `PacoSako` instance. If no fen-notated string `fen` is provided,
-the returned game is in the default initial state.
+Create a new [`PacoSako`](@ref) instance. If no fen-notated string `fen` is
+provided, the returned game is in the default initial state.
 """
 function PacoSako() :: PacoSako
-  ptr = libcall(:new, Ptr{Nothing}, ())
-  wrap_pacosako_ptr(ptr)
+  ptr = ccall((:new, lib), Ptr{Nothing}, ())
+  PacoSako(ptr)
 end
 
 function PacoSako(fen :: String) :: PacoSako
   bytes = Vector{UInt8}(fen)
-  ptr = libcall(
-    :parse_fen,
+  ptr = ccall(
+    (:parse_fen, lib),
     Ptr{Nothing},
     (Ptr{UInt8}, Int64),
     bytes,
-    length(bytes)
+    length(bytes),
   )
-  @assert ptr != C_NULL "invalid fen string"
-  wrap_pacosako_ptr(ptr)
+  @assert ptr != C_NULL "Invalid fen string"
+  PacoSako(ptr)
 end
 
-function Game.status(ps :: PacoSako) :: Int64
+function Game.status(ps :: PacoSako) :: Game.Status
   if ps.forfeit_by != 0
-    -ps.forfeit_by
+    Game.Status(-ps.forfeit_by)
   else
-    libcall(:status, Int64, (Ptr{Nothing},), ps.ptr)
+    s = ccall((:status, lib), Int64, (Ptr{Nothing},), ps.ptr)
+    Game.Status(s)
   end
 end
 
 function Game.activeplayer(ps :: PacoSako) :: Int64
-  libcall(:current_player, Int64, (Ptr{Nothing},), ps.ptr)
+  ccall((:current_player, lib), Int64, (Ptr{Nothing},), ps.ptr)
 end
 
-Game.policylength(::Type{PacoSako})::Int = 132
+Game.policylength(:: Type{PacoSako}) :: Int = 132
 
 function Game.legalactions(ps :: PacoSako)
   # While there are 132 possible actions (64+64+4) there can be at most 64
   # actions that are legal at any point.
   out = zeros(UInt8, 64)
-  libcall(:legal_actions, Nothing, (Ptr{Nothing}, Ptr{UInt8}), ps.ptr, out)
-  # TODO: this is not particularly nice code...
-  Int.(collect(Iterators.takewhile(x -> x > 0, out)))
+  ccall((:legal_actions, lib), Nothing, (Ptr{Nothing}, Ptr{UInt8}), ps.ptr, out)
+  actions = Iterators.takewhile(x -> x > 0, out)
+  [Int(a) for a in actions]
 end
 
 function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
-
-  status_code = libcall(
-    :apply_action_bang,
+  status_code = ccall(
+    (:apply_action_bang, lib),
     Int64,
     (Ptr{Nothing}, UInt8),
     ps.ptr,
@@ -106,7 +106,7 @@ function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
   @assert status_code == 0 "Error during move!"
 
   actions = Game.legalactions(ps)
-  raw_status = libcall(:status, Int64, (Ptr{Nothing},), ps.ptr)
+  raw_status = ccall((:status, lib), Int64, (Ptr{Nothing},), ps.ptr)
   if length(actions) == 0 && raw_status == 42
       ps.forfeit_by = Game.activeplayer(ps)
   end
@@ -157,8 +157,8 @@ function Game.array!(buf, games :: Vector{PacoSako})
   for (index, ps) in enumerate(games)
 
     # Get the index representation of this game
-    libcall(
-      :get_idxrepr,
+    ccall(
+      (:get_idxrepr, lib),
       Int64,
       (Ptr{Nothing}, Ptr{Nothing}, Int64),
       ps.ptr,
@@ -168,8 +168,8 @@ function Game.array!(buf, games :: Vector{PacoSako})
 
     # Extract scatter indices and layer values for this game
     offset = (index - 1) * game_length
-    scatter_indices[:, i] .= 1 .+ tmp[1:33] .+ offset
-    layer_values[:, i] .= tmp[34:38]
+    scatter_indices[:, index] .= 1 .+ tmp[1:33] .+ offset
+    layer_values[:, index] .= tmp[34:38]
   end
 
   # Set the buffer to 1 at the 33 scatter index locations
@@ -187,18 +187,11 @@ function Game.array!(buf, games :: Vector{PacoSako})
   nothing
 end
 
-"""
-    random_position()
-
-Returns a random Paco Sako game state that is legal and not yet over.
-"""
-function random_position() :: PacoSako
-  ptr = libcall(:random_position, Ptr{Nothing}, ())
+function Game.randominstance(:: Type{PacoSako})
+  ptr = ccall((:random_position, lib), Ptr{Nothing}, ())
   @assert ptr != C_NULL "Error in the random generator for PacoSako"
-  wrap_pacosako_ptr(ptr)
+  PacoSako(ptr)
 end
-
-Game.randominstance(:: Type{PacoSako}) = random_position()
 
 """
     serialize(ps) 
@@ -206,10 +199,10 @@ Game.randominstance(:: Type{PacoSako}) = random_position()
 Serialize the paco sako game state `ps`. Returns a byte vector.
 """
 function serialize(ps :: PacoSako) :: Vector{UInt8}
-  len = libcall(:serialize_len, Int64, (Ptr{Nothing},), ps.ptr)
+  len = ccall((:serialize_len, lib), Int64, (Ptr{Nothing},), ps.ptr)
   out = zeros(UInt8, len)
-  status_code = libcall(
-    :serialize,
+  status_code = ccall(
+    (:serialize, lib),
     Int64,
     (Ptr{Nothing}, Ptr{UInt8}, Int64),
     ps.ptr,
@@ -226,154 +219,192 @@ end
 Deserialize a paco sako game state from the byte vector `bytes`.
 """
 function deserialize(bincode :: Vector{UInt8}) :: PacoSako
-  ptr = libcall(
-    :deserialize,
+  ptr = ccall(
+    (:deserialize, lib),
     Ptr{Nothing},
     (Ptr{UInt8}, Int64),
     bincode,
     length(bincode)
   )
   @assert ptr != C_NULL "Deserialization error for PacoSako game"
-  wrap_pacosako_ptr(ptr)
+  PakoSako(ptr)
 end
-
-################################################################################
-## Helpers #####################################################################
-################################################################################
 
 function Game.hash(ps :: PacoSako) :: UInt64
-  libcall(:hash, UInt64, (Ptr{Nothing},), ps.ptr)
+  ccall((:hash, lib), UInt64, (Ptr{Nothing},), ps.ptr)
 end
 
-function Game.draw(ps::PacoSako)
-  libcall(:print, Nothing, (Ptr{Nothing},), ps.ptr)
+function Game.visualize(ps::PacoSako)
+  ccall((:print, lib), Nothing, (Ptr{Nothing},), ps.ptr)
 end
-
 
 function Base.:(==)(ps1 :: PacoSako, ps2 :: PacoSako) :: Bool
-  libcall(:equals, Int64, (Ptr{Nothing}, Ptr{Nothing}), ps1.ptr, ps2.ptr) == 0
+  ccall(
+    (:equals, lib),
+    Int64,
+    (Ptr{Nothing}, Ptr{Nothing}),
+    ps1.ptr,
+    ps2.ptr
+  ) == 0
+end
+
+function statusmsg(game)
+  if Game.isover(game)
+    s = Game.status(game)
+    if s == Game.draw
+      "draw"
+    elseif s == Game.win
+      "white won"
+    elseif s == Game.loss
+      "black won"
+    end
+  else
+    if Game.activeplayer(game) == 1
+      "white moving"
+    else
+      "black moving"
+    end
+  end
 end
 
 function Base.show(io :: IO, game :: PacoSako)
-  if Game.isover(game)
-    print(io, "PacoSako($(Game.status(game)) won)")
-  else
-    print(io, "PacoSako($(Game.activeplayer(game)) moving)")
-  end
+  print(io, "PacoSako($(statusmsg(game)))")
 end
 
 function Base.show(io :: IO, :: MIME"text/plain", game :: PacoSako)
-  pacoplay_editor_url = PacoPlay.Url.editor(game)
-  if Game.isover(game)
-    println(io, "PacoSako($(Game.status(game)) won)")
-    print(io, "  link: $pacoplay_editor_url")
-  else
-    println(io, "PacoSako($(Game.activeplayer(game)) moving)")
-    print(io, "  link: $pacoplay_editor_url")
-  end
+  pacoplay_editor_url = PacoPlay.Urls.editor(game)
+  println(io, "PacoSako($(statusmsg(game)))")
+  print(io, "  link: $pacoplay_editor_url")
 end
 
 function Base.size(:: Type{PacoSako})
-  layer_count = libcall(:repr_layer_count, Int64, ())
+  layer_count = ccall((:repr_layer_count, lib), Int64, ())
   @assert layer_count > 0 "Layer count must be positive"
   (8, 8, layer_count)
 end
 
 function Base.copy(ps :: PacoSako) :: PacoSako
-  ptr = libcall(:clone, Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
-  wrap_pacosako_ptr(ptr)
+  ptr = ccall((:clone, lib), Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
+  PacoSako(ptr)
 end
 
-"""
-Given a Paco Ŝako position, this returns a vector that contains all possible
-chains for the current player to unite with the opponents king. (Only direct
-chains, no "Paco in 2").
-
-A chain has type Vector{Int64}, so we return Vector{"Chain"}.
-
-If there are more than 30 chains or they are longer than 30 actions, these are
-not returned.
-"""
-function find_paco_sequences(ps::PacoSako)::Vector{Vector{Int64}}
-    memory = zeros(UInt8, 1000)
-
-    status_code = libcall(:find_paco_sequences, Int64,
-        (Ptr{Nothing}, Ptr{UInt8}, Int64),
-        ps.ptr, memory, length(memory))
-    @assert status_code == 0 "Error when trying to find sequences $(fen(ps))"
-
-    # Now we need to split this along the 0
-    out = Vector()
-    chain = Vector()
-    for action in memory
-        if action != 0
-            push!(chain, action)
-        elseif length(chain) > 0
-            push!(out, chain)
-            chain = Vector()
-        end
-    end
-    out
-end
+#
+# Paco sako specific functionality
+#
 
 """
-Given a Paco Ŝako position, this finds out if the current player is in Ŝako and
-needs to defend.
-"""
-function is_sako_for_other_player(ps::PacoSako)::Bool
-    libcall(:is_sako_for_other_player, Bool, (Ptr{Nothing},), ps.ptr)
-end
+    fen(ps)
 
-"""
-Given a Paco Ŝako position, count how many tiles can be attacked by the
-current player.
-"""
-function my_threat_count(ps::PacoSako)::Int64
-    libcall(:my_threat_count, Int64, (Ptr{Nothing},), ps.ptr)
-end
-
-"""
-    fen(pacosako)
-
-Returns the fen string of the `PacoSako` game state `pacosako`.
+Returns the fen notation string of the [`PacoSako`](@ref) game state `ps`.
 """
 function fen(ps::PacoSako)
-    tmp = zeros(UInt8, 100)
-    len = libcall(:write_fen, Int64, (Ptr{Nothing}, Ptr{UInt8}, Int64), ps.ptr, tmp, length(tmp))
-    @assert len != 0 && len <= length(tmp) "fen string did not fit in allocated memory"
-    String(@view tmp[1:len])
+  tmp = zeros(UInt8, 100)
+  len = ccall(
+    (:write_fen, lib),
+    Int64,
+    (Ptr{Nothing}, Ptr{UInt8}, Int64),
+    ps.ptr,
+    tmp,
+    length(tmp)
+  )
+  @assert len != 0 && len <= length(tmp) """
+  Fen string did not fit in allocated memory. This should be impossible.
+  """
+  String(@view tmp[1:len])
+end
+
+"""
+    sako(ps)
+
+Returns whether the [`PacoSako`](@ref) game state `ps` can be finished within
+the next chain of the currently active player.
+"""
+sako(ps :: PacoSako) :: Bool = !isempty(sakochains(ps))
+
+"""
+    sakothreat(ps)
+
+Returns whether the [`PacoSako`](@ref) game state `ps` can be finished with one
+the next chain of the currently inactive player
+"""
+function sakothreat(ps :: PacoSako)
+  ccall((:is_sako_for_other_player, lib), Bool, (Ptr{Nothing},), ps.ptr)
+end
+
+"""
+    attackcount(ps)
+
+Count how many tiles can be attacked by the current player in a [`PacoSako`]
+(@ref) game state `ps`.
+"""
+function attackcount(ps :: PacoSako) :: Int64
+  ccall((:my_threat_count, lib), Int64, (Ptr{Nothing},), ps.ptr)
 end
 
 
-
-################################################################################
-## Generates states where the best policy is known. ############################
-################################################################################
-
 """
-Returns a vector of positions together with a single action that is optimal
-in this situation. This may return the same position twice if there is more than
-one optimal action. (i.e. two ways to capture the king.)
-"""
-function find_simple_positions(; tries=100)::Data.DataSet{PacoSako}
-    result = Data.DataSet(PacoSako, Target.defaults(PacoSako))
-    for _ in 1:tries
-        ps = random_position()
-        solutions = find_paco_sequences(ps)
-        for chain in solutions
-            ps2 = copy(ps)
-            for action in chain
-                push!(result.games, copy(ps2))
-                plabel = zeros(Float32, Game.policy_length(ps2))
-                plabel[action] = 1
-                vlabel = Float32[1]
-                push!(result.labels[1], vlabel)
-                push!(result.labels[2], plabel)
+    sakochains(ps)
 
-                Game.apply_action!(ps2, action)
-            end
-        end
+Given the [`PacoSako`](@ref) game state `ps`, return all possible action
+sequences for the current player to unite with the opponent king.
+
+Only direct chains are found, so "Sako in two" is not included. Returns
+at most 30 chains, and does not return chains that are longer than 30 actions.
+"""
+function sakochains(ps :: PacoSako) :: Vector{Vector{Int64}}
+  buffer = zeros(UInt8, 1000)
+  status_code = ccall(
+    (:find_paco_sequences, lib),
+    Int64,
+    (Ptr{Nothing}, Ptr{UInt8}, Int64),
+    ps.ptr,
+    buffer,
+    length(buffer),
+  )
+  @assert status_code == 0 "Error when trying to find sako chains for $(fen(ps))"
+
+  # Split the result at each returned 0s
+  chains = Vector{Int64}[]
+  chain = Int64[]
+  for action in buffer
+    if action != 0
+      push!(chain, action)
+    elseif length(chain) > 0
+      push!(chains, chain)
+      chain = Int64[]
     end
-    result
+  end
+  chains
+end
+
+
+"""
+    sakodata(; tries = 100)
+
+Return a [`DataSet`](@ref) of [`PacoSako`](@ref) game states equipped with
+corresponding value and policy labels that are known to be optimal.
+
+May return the same game state twice if there is more than one optimal action
+(i.e. several ways to capture the king).
+"""
+function sakodata(; tries=100) :: DataSet{PacoSako}
+  ds = DataSet(PacoSako, Target.defaulttargets(PacoSako))
+  for _ in 1:tries
+    ps = Game.randominstance(PacoSako)
+    for chain in sakochains(ps)
+      ps2 = copy(ps)
+      for action in chain
+        push!(ds.games, copy(ps2))
+        plabel = zeros(Float32, Game.policylength(ps2))
+        plabel[action] = 1
+        vlabel = Float32[1]
+        push!(ds.target_labels[1], vlabel)
+        push!(ds.target_labels[2], plabel)
+        Game.move!(ps2, action)
+      end
+    end
+  end
+  @assert Training.isconsistent(ds) """Dataset consistency check failed"""
+  ds
 end
 
