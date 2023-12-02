@@ -2,16 +2,18 @@
 
 use crate::{
     db::{self, Pool},
+    login::session::SessionData,
     sync_match::{CurrentMatchStateClient, MatchParameters, SynchronizedMatch},
     timer::TimerConfig,
     ws, AppState, ServerError,
 };
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Adds the game management API to the given router.
 /// This is expected to be nested at "/api".
@@ -22,6 +24,7 @@ pub fn add_to_router(api_router: Router<AppState>) -> Router<AppState> {
         .route("/ai/game/:key", post(post_action_to_game))
         .route("/game/recent", get(recently_created_games))
         .route("/branch_game", post(branch_game))
+        .route("/me/games", get(my_games))
 }
 
 /// Create a match on the database and return the id.
@@ -73,12 +76,60 @@ async fn recently_created_games(
     let mut conn = pool.conn().await?;
     let games = db::game::latest(&mut conn).await?;
 
+    Ok(Json(add_metadata_for_client(games, conn).await?))
+}
+
+/// Essentially this is just a specific `map`, but I need to be able to await and use `?`.
+async fn add_metadata_for_client(
+    games: Vec<SynchronizedMatch>,
+    mut conn: sqlx::pool::PoolConnection<sqlx::Sqlite>,
+) -> Result<Vec<CurrentMatchStateClient>, ServerError> {
     let mut result = Vec::with_capacity(games.len());
     for game in games {
         result.push(CurrentMatchStateClient::try_new(game.current_state()?, &mut conn).await?);
     }
 
-    Ok(Json(result))
+    Ok(result)
+}
+
+#[derive(Deserialize)]
+struct PagingQuery {
+    /// Offset must be >= 0.
+    offset: u32,
+    /// Limit must be between 1 and 100.
+    limit: u32,
+}
+
+#[derive(Serialize)]
+struct PagedGames {
+    games: Vec<CurrentMatchStateClient>,
+    total_games: usize,
+}
+
+async fn my_games(
+    State(pool): State<Pool>,
+    session: SessionData,
+    Query(params): Query<PagingQuery>,
+) -> Result<Json<PagedGames>, ServerError> {
+    let mut conn = pool.conn().await?;
+
+    if params.limit < 1 || params.limit > 100 {
+        return Err(ServerError::BadRequest);
+    }
+
+    let games: Vec<SynchronizedMatch> = db::game::for_player(
+        session.user_id.0,
+        params.offset as i64,
+        params.limit as i64,
+        &mut conn,
+    )
+    .await?;
+
+    let total_games = db::game::count_for_player(session.user_id.0, &mut conn).await? as usize;
+
+    let games = add_metadata_for_client(games, conn).await?;
+
+    Ok(Json(PagedGames { games, total_games }))
 }
 
 #[derive(Deserialize, Clone)]
