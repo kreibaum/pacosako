@@ -49,6 +49,8 @@ pub enum ServerError {
     IoError(#[from] std::io::Error),
     #[error("Error parsing Integer")]
     ParseIntError(#[from] std::num::ParseIntError),
+    #[error("Error parsing request")]
+    BadRequest,
 }
 
 impl IntoResponse for ServerError {

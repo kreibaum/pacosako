@@ -264,10 +264,12 @@ pub unsafe extern "C" fn deserialize(bincode_ptr: *mut u8, reserved_space: i64) 
     let bincode_slice = std::slice::from_raw_parts(bincode_ptr, reserved_space as usize);
 
     let board: Result<DenseBoard, _> = bincode::deserialize(bincode_slice);
-    if let Ok(board) = board {
-        leak_to_julia(board)
-    } else {
-        std::ptr::null_mut()
+    match board {
+        Err(e) => {
+            println!("Deserialization Error: {:?}", e);
+            std::ptr::null_mut()
+        }
+        Ok(board) => leak_to_julia(board),
     }
 }
 
@@ -540,5 +542,32 @@ pub unsafe extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) ->
                 std::ptr::null_mut()
             }
         }
+    }
+}
+
+/// Test module
+#[cfg(test)]
+mod tests {
+
+    use crate::{substrate::dense::DenseSubstrate, DenseBoard};
+
+    /// Checks if a DenseBoard can be serialized and deserialized without
+    /// breaking. Thomas reported this as broken on 2023-12-02.
+    /// The error can be provoked entirely in rust without any julia code.
+    #[test]
+    fn serialize_deserialize() {
+        let board = DenseBoard::new();
+        let serialized = bincode::serialize(&board).unwrap();
+        println!("Serialized Board: {:?}", serialized);
+        let _deserialized: DenseBoard = bincode::deserialize(&serialized).unwrap();
+    }
+
+    #[test]
+    fn serialize_deserialize_experimental() {
+        let board = DenseSubstrate::default();
+
+        let serialized = bincode::serialize(&board).unwrap();
+        println!("Serialized Substrate: {:?}", serialized);
+        let _deserialized: DenseSubstrate = bincode::deserialize(&serialized).unwrap();
     }
 }

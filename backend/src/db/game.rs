@@ -99,12 +99,43 @@ pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, Ser
     .fetch_all(conn)
     .await?;
 
-    let mut result = Vec::with_capacity(raw_games.len());
-    for raw_game in raw_games {
-        result.push(raw_game.into_match()?);
-    }
+    raw_games.into_iter().map(|raw| raw.into_match()).collect()
+}
 
-    Ok(result)
+pub async fn for_player(
+    user_id: i64,
+    offset: i64,
+    limit: i64,
+    conn: &mut Connection,
+) -> Result<Vec<SynchronizedMatch>, ServerError> {
+    let raw_games = sqlx::query_as!(
+        RawGame,
+        r"select id, action_history, timer, setup, white_player, black_player from game
+        where white_player = ? or black_player = ?
+        order by id desc
+        limit ? offset ?",
+        user_id,
+        user_id,
+        limit,
+        offset,
+    )
+    .fetch_all(conn)
+    .await?;
+
+    raw_games.into_iter().map(|raw| raw.into_match()).collect()
+}
+
+pub async fn count_for_player(user_id: i64, conn: &mut Connection) -> Result<i32, ServerError> {
+    Ok(sqlx::query!(
+        r"select count(*) as count from game
+            where white_player = ? or black_player = ?",
+        user_id,
+        user_id
+    )
+    .fetch_one(conn)
+    .await?
+    .count
+    .unwrap_or(0))
 }
 
 // Database representation of a sync_match::SynchronizedMatch
