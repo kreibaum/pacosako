@@ -42,6 +42,28 @@ impl PieceType {
             _ => panic!("Invalid piece type: {}", value),
         }
     }
+    /// Support function for explicit binary serialization. See dense.rs.
+    pub fn to_u8_optional(t: Option<PieceType>) -> u8 {
+        match t {
+            Some(t) => t as u8,
+            None => 6,
+        }
+    }
+    /// Support function for explicit binary deserialization. See dense.rs.
+    pub fn from_u8_optional(value: u8) -> Option<Self> {
+        use PieceType::*;
+
+        match value {
+            0 => Some(Pawn),
+            1 => Some(Rook),
+            2 => Some(Knight),
+            3 => Some(Bishop),
+            4 => Some(Queen),
+            5 => Some(King),
+            6 => None,
+            _ => panic!("Invalid piece type: {}", value),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

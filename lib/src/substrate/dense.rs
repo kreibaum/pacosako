@@ -193,7 +193,9 @@ where
 
     let mut seq = serializer.serialize_seq(Some(64))?;
     for elem in array.iter() {
-        seq.serialize_element(elem)?;
+        // For unknown reasons, asking this to serialize an Option<PieceType>
+        // directly does not work properly. Using a byte instead.
+        seq.serialize_element(&PieceType::to_u8_optional(*elem))?;
     }
     seq.end()
 }
@@ -223,10 +225,13 @@ where
         {
             let mut array = [None; 64];
             for i in 0..64 {
-                array[i] = seq.next_element()?;
-                if array[i].is_none() {
+                // For unknown reasons, asking this to deserialize an Option<PieceType>
+                // directly does not work properly. Using a byte instead.
+                let next_byte = seq.next_element::<u8>()?;
+                if next_byte.is_none() {
                     return Err(serde::de::Error::invalid_length(i, &self));
                 }
+                array[i] = PieceType::from_u8_optional(next_byte.unwrap());
             }
             Ok(array)
         }
