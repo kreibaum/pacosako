@@ -32,14 +32,17 @@ function Model.assist(model :: Luna, game :: PacoSako)
   (;)
 end
 
-function Model.apply(model :: Luna, game :: PacoSako)
+function Model.apply(model :: Luna, game :: PacoSako; targets = (:value, :policy))
+  @assert issubset(targets, [:value, :policy]) """
+  Luna model can only evaluate targets :value and :policy.
+  """
   hint = Model.assist(model, game)
   value = get(hint, :value, 0)
 
   if haskey(hint, :policy)
     policy = hint.policy
   else
-    policy = ones(Float32, policylength(game))
+    policy = ones(Float32, Game.policylength(game))
     policy ./= length(policy)
   end
 

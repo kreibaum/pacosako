@@ -3,8 +3,8 @@
 arch = "x86_64"
 libc = "glibc"
 os = "linux"
-git-tree-sha1 = "790d3a72ff181dfc5f9fbba810338cf69b3b899a"
+git-tree-sha1 = "fe4e9f9adecae0e36960db48c68a91a59617af7e"
 
   [[libpacosako.download]]
-  url = "https://github.com/kreibaum/pacosako/releases/download/v0.1.0-library-so/libpacosako.tag.gz"
-  sha256 = "85ab82096cc99bccfb6ccfb8c0709b84e937f9e4d1035bdb00e28c6bbd76300a"
+  url = "https://github.com/kreibaum/pacosako/releases/download/v0.1.1-library-so/libpacosako.tar.gz"
+  sha256 = "8006aaed2b3ce97585040206be570ee5bdeed52e4b2c9b4c59649f7a42aceec1"

@@ -67,8 +67,8 @@ export PacoPlay
 
 
 function __init__()
-  dynlib_path = if haskey(ENV, "LIBPAKOSAKO")
-    ENV["LIBPAKOSAKO"]
+  dynlib_path = if haskey(ENV, "LIBPACOSAKO")
+    ENV["LIBPACOSAKO"]
   else
     joinpath(dirname(@__DIR__), "../lib/target/release/libpacosako.so")
   end
@@ -77,7 +77,7 @@ function __init__()
     LIBPACOSAKO[] = Libdl.dlopen(dynlib_path)
     @info "Using local copy of libpacosako: $dynlib_path"
   else
-    path = joinpath(artifact"libpacosako", "libpacosako", "libpacosako")
+    path = joinpath(artifact"libpacosako", "libpacosako")
     LIBPACOSAKO[] = Libdl.dlopen(path)
   end
 

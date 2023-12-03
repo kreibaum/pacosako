@@ -227,7 +227,7 @@ function deserialize(bincode :: Vector{UInt8}) :: PacoSako
     length(bincode)
   )
   @assert ptr != C_NULL "Deserialization error for PacoSako game"
-  PakoSako(ptr)
+  PacoSako(ptr)
 end
 
 function Game.hash(ps :: PacoSako) :: UInt64

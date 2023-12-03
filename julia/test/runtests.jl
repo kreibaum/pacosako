@@ -33,15 +33,19 @@ import JtacPacoSako: fen, sakodata, sakochains, Luna
   p = Pack.pack(ds)
   u = Pack.unpack(p, Training.DataSet)
   @test all(ds.games .== u.games)
-  @test all(ds.labels .== u.labels)
+  @test all(ds.target_names .== u.target_names)
   @test all(ds.targets .== u.targets)
+  @test all(ds.target_labels[1] .== u.target_labels[1])
+  @test all(ds.target_labels[2] .== u.target_labels[2])
 end
 
 @testset "Luna" begin
   m1 = Luna()
+  @test m1 isa Model.AbstractModel{PacoSako}
   m2 = Model.Zoo.ZeroConv(PacoSako, blocks = 2, filters = 64)
   m2 = Model.configure(m2, assist = m1)
-  p1 = Player.MCTSPlayer(m1, power = 1000)
-  p2 = Player.MCTSPlayer(m2, power = 200)
-  @test pvp(p1, p2) isa Game.Status
+  p1 = Player.MCTSPlayer(m1, power = 50)
+  p2 = Player.MCTSPlayer(m2, power = 10)
+  @test Player.pvp(p1, p2) isa Game.Status
+  @test Pack.unpack(Pack.pack(m1), Model.AbstractModel) == Luna()
 end
