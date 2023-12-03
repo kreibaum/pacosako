@@ -26,7 +26,7 @@ anymore.
 !!! be called manually.
 """
 function destroy!(ps :: PacoSako)
-  ccall((:drop, lib), Nothing, (Ptr{Nothing},), ps.ptr)
+  @pscall(:drop, Nothing, (Ptr{Nothing},), ps.ptr)
 end
 
 """
@@ -39,7 +39,7 @@ function PacoSako(ptr :: Ptr{Nothing})
   @assert ptr != C_NULL "Cannot accept null pointer as PacoSako state"
   ps = PacoSako(ptr, 0)
   finalizer(destroy!, ps)
-  status = ccall((:status, lib), Int64, (Ptr{Nothing},), ps.ptr)
+  status = @pscall(:status, Int64, (Ptr{Nothing}, ), ps.ptr)
   if length(Game.legalactions(ps)) == 0 && status == 42
       ps.forfeit_by = Game.activeplayer(ps)
   end
@@ -54,14 +54,14 @@ Create a new [`PacoSako`](@ref) instance. If no fen-notated string `fen` is
 provided, the returned game is in the default initial state.
 """
 function PacoSako() :: PacoSako
-  ptr = ccall((:new, lib), Ptr{Nothing}, ())
+  ptr = @pscall(:new, Ptr{Nothing}, ())
   PacoSako(ptr)
 end
 
 function PacoSako(fen :: String) :: PacoSako
   bytes = Vector{UInt8}(fen)
-  ptr = ccall(
-    (:parse_fen, lib),
+  ptr = @pscall(
+    :parse_fen,
     Ptr{Nothing},
     (Ptr{UInt8}, Int64),
     bytes,
@@ -75,13 +75,13 @@ function Game.status(ps :: PacoSako) :: Game.Status
   if ps.forfeit_by != 0
     Game.Status(-ps.forfeit_by)
   else
-    s = ccall((:status, lib), Int64, (Ptr{Nothing},), ps.ptr)
+    s = @pscall(:status, Int64, (Ptr{Nothing},), ps.ptr)
     Game.Status(s)
   end
 end
 
 function Game.activeplayer(ps :: PacoSako) :: Int64
-  ccall((:current_player, lib), Int64, (Ptr{Nothing},), ps.ptr)
+  @pscall(:current_player, Int64, (Ptr{Nothing},), ps.ptr)
 end
 
 Game.policylength(:: Type{PacoSako}) :: Int = 132
@@ -90,14 +90,14 @@ function Game.legalactions(ps :: PacoSako)
   # While there are 132 possible actions (64+64+4) there can be at most 64
   # actions that are legal at any point.
   out = zeros(UInt8, 64)
-  ccall((:legal_actions, lib), Nothing, (Ptr{Nothing}, Ptr{UInt8}), ps.ptr, out)
+  @pscall(:legal_actions, Nothing, (Ptr{Nothing}, Ptr{UInt8}), ps.ptr, out)
   actions = Iterators.takewhile(x -> x > 0, out)
   [Int(a) for a in actions]
 end
 
 function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
-  status_code = ccall(
-    (:apply_action_bang, lib),
+  status_code = @pscall(
+    :apply_action_bang,
     Int64,
     (Ptr{Nothing}, UInt8),
     ps.ptr,
@@ -106,7 +106,7 @@ function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
   @assert status_code == 0 "Error during move!"
 
   actions = Game.legalactions(ps)
-  raw_status = ccall((:status, lib), Int64, (Ptr{Nothing},), ps.ptr)
+  raw_status = @pscall(:status, Int64, (Ptr{Nothing},), ps.ptr)
   if length(actions) == 0 && raw_status == 42
       ps.forfeit_by = Game.activeplayer(ps)
   end
@@ -157,8 +157,8 @@ function Game.array!(buf, games :: Vector{PacoSako})
   for (index, ps) in enumerate(games)
 
     # Get the index representation of this game
-    ccall(
-      (:get_idxrepr, lib),
+    @pscall(
+      :get_idxrepr,
       Int64,
       (Ptr{Nothing}, Ptr{Nothing}, Int64),
       ps.ptr,
@@ -188,7 +188,7 @@ function Game.array!(buf, games :: Vector{PacoSako})
 end
 
 function Game.randominstance(:: Type{PacoSako})
-  ptr = ccall((:random_position, lib), Ptr{Nothing}, ())
+  ptr = @pscall(:random_position, Ptr{Nothing}, ())
   @assert ptr != C_NULL "Error in the random generator for PacoSako"
   PacoSako(ptr)
 end
@@ -199,10 +199,10 @@ end
 Serialize the paco sako game state `ps`. Returns a byte vector.
 """
 function serialize(ps :: PacoSako) :: Vector{UInt8}
-  len = ccall((:serialize_len, lib), Int64, (Ptr{Nothing},), ps.ptr)
+  len = @pscall(:serialize_len, Int64, (Ptr{Nothing},), ps.ptr)
   out = zeros(UInt8, len)
-  status_code = ccall(
-    (:serialize, lib),
+  status_code = @pscall(
+    :serialize,
     Int64,
     (Ptr{Nothing}, Ptr{UInt8}, Int64),
     ps.ptr,
@@ -219,8 +219,8 @@ end
 Deserialize a paco sako game state from the byte vector `bytes`.
 """
 function deserialize(bincode :: Vector{UInt8}) :: PacoSako
-  ptr = ccall(
-    (:deserialize, lib),
+  ptr = @pscall(
+    :deserialize,
     Ptr{Nothing},
     (Ptr{UInt8}, Int64),
     bincode,
@@ -231,21 +231,15 @@ function deserialize(bincode :: Vector{UInt8}) :: PacoSako
 end
 
 function Game.hash(ps :: PacoSako) :: UInt64
-  ccall((:hash, lib), UInt64, (Ptr{Nothing},), ps.ptr)
+  @pscall(:hash, UInt64, (Ptr{Nothing},), ps.ptr)
 end
 
 function Game.visualize(ps::PacoSako)
-  ccall((:print, lib), Nothing, (Ptr{Nothing},), ps.ptr)
+  @pscall(:print, Nothing, (Ptr{Nothing},), ps.ptr)
 end
 
 function Base.:(==)(ps1 :: PacoSako, ps2 :: PacoSako) :: Bool
-  ccall(
-    (:equals, lib),
-    Int64,
-    (Ptr{Nothing}, Ptr{Nothing}),
-    ps1.ptr,
-    ps2.ptr
-  ) == 0
+  @pscall(:equals, Int64, (Ptr{Nothing}, Ptr{Nothing}), ps1.ptr, ps2.ptr) == 0
 end
 
 function statusmsg(game)
@@ -278,13 +272,13 @@ function Base.show(io :: IO, :: MIME"text/plain", game :: PacoSako)
 end
 
 function Base.size(:: Type{PacoSako})
-  layer_count = ccall((:repr_layer_count, lib), Int64, ())
+  layer_count = @pscall(:repr_layer_count, Int64, ())
   @assert layer_count > 0 "Layer count must be positive"
   (8, 8, layer_count)
 end
 
 function Base.copy(ps :: PacoSako) :: PacoSako
-  ptr = ccall((:clone, lib), Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
+  ptr = @pscall(:clone, Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
   PacoSako(ptr)
 end
 
@@ -299,8 +293,8 @@ Returns the fen notation string of the [`PacoSako`](@ref) game state `ps`.
 """
 function fen(ps::PacoSako)
   tmp = zeros(UInt8, 100)
-  len = ccall(
-    (:write_fen, lib),
+  len = @pscall(
+    :write_fen,
     Int64,
     (Ptr{Nothing}, Ptr{UInt8}, Int64),
     ps.ptr,
@@ -328,7 +322,7 @@ Returns whether the [`PacoSako`](@ref) game state `ps` can be finished with one
 the next chain of the currently inactive player
 """
 function sakothreat(ps :: PacoSako)
-  ccall((:is_sako_for_other_player, lib), Bool, (Ptr{Nothing},), ps.ptr)
+  @pscall(:is_sako_for_other_player, Bool, (Ptr{Nothing},), ps.ptr)
 end
 
 """
@@ -338,7 +332,7 @@ Count how many tiles can be attacked by the current player in a [`PacoSako`]
 (@ref) game state `ps`.
 """
 function attackcount(ps :: PacoSako) :: Int64
-  ccall((:my_threat_count, lib), Int64, (Ptr{Nothing},), ps.ptr)
+  @pscall(:my_threat_count, Int64, (Ptr{Nothing},), ps.ptr)
 end
 
 
@@ -353,8 +347,8 @@ at most 30 chains, and does not return chains that are longer than 30 actions.
 """
 function sakochains(ps :: PacoSako) :: Vector{Vector{Int64}}
   buffer = zeros(UInt8, 1000)
-  status_code = ccall(
-    (:find_paco_sequences, lib),
+  status_code = @pscall(
+    :find_paco_sequences,
     Int64,
     (Ptr{Nothing}, Ptr{UInt8}, Int64),
     ps.ptr,

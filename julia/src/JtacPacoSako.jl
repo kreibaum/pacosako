@@ -8,7 +8,8 @@ which is Alpha Zero inspired boardgame training package.
 """
 module JtacPacoSako
 
-import Libdl: dlopen, RTLD_GLOBAL
+using Artifacts
+import Libdl
 
 using Jtac
 import Jtac.Training: DataSet
@@ -26,8 +27,23 @@ export Jtac,
 
 export PacoSako, Luna
 
-# TODO: Replace this via the artifact system
-const lib = joinpath(dirname(@__DIR__), "../lib/target/release/libpacosako.so")
+"""
+Reference to the currently loaded instance of libpacosako.
+"""
+const LIBPACOSAKO = Ref{Ptr{Nothing}}()
+
+"""
+    @pscall(symbol, args...)
+
+Convenient way to run `ccall(ptr, args...)`, where `ptr` is the resolved
+function pointer `ptr = Libdl.dlsym(LIBPACOSAKO[], symbol)`.
+
+Has to be a macro since `ccall` is syntax and not a normal julia function.
+"""
+macro pscall(symbol, return_type, signature, args...)
+  ptr = :(Libdl.dlsym(LIBPACOSAKO[], $symbol))
+  Expr(:call, :ccall, ptr, return_type, signature, args...) |> esc
+end
 
 # Jtac.Game.AbstractGame implementation of PacoSako
 include("pacosako.jl")
@@ -48,5 +64,24 @@ module PacoPlay
 end # module PacoPlay
 
 export PacoPlay
+
+
+function __init__()
+  dynlib_path = if haskey(ENV, "LIBPAKOSAKO")
+    ENV["LIBPAKOSAKO"]
+  else
+    joinpath(dirname(@__DIR__), "../lib/target/release/libpacosako.so")
+  end
+
+  if isfile(dynlib_path)
+    LIBPACOSAKO[] = Libdl.dlopen(dynlib_path)
+    @info "Using local copy of libpacosako: $dynlib_path"
+  else
+    path = joinpath(artifact"libpacosako", "libpacosako", "libpacosako")
+    LIBPACOSAKO[] = Libdl.dlopen(path)
+  end
+
+end
+
 
 end # module JtacPacoSako
