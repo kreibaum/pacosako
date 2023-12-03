@@ -1049,8 +1049,15 @@ maybeEditorUi : Shared.Model -> Model -> Element Msg
 maybeEditorUi shared model =
     case model.query of
         QueryError ->
-            Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-                { url = Route.toHref Route.Editor, label = Element.text T.editorPageNotFound }
+            Input.button
+                [ padding 20
+                , Font.underline
+                , Font.color (Element.rgb 0 0 1)
+                , centerX
+                ]
+                { onPress = Just (ToShared (Shared.NavigateTo "/editor"))
+                , label = Element.text T.editorPageNotFound
+                }
 
         _ ->
             editorUi shared model

@@ -7,6 +7,7 @@ mod actors;
 mod game;
 mod language;
 mod login;
+mod protection;
 mod replay_data;
 mod server;
 mod statistics;
@@ -59,100 +60,6 @@ impl IntoResponse for ServerError {
         }
     }
 }
-
-// ////////////////////////////////////////////////////////////////////////////////
-// // User Authentication /////////////////////////////////////////////////////////
-// ////////////////////////////////////////////////////////////////////////////////
-
-// /// Request guard that makes it easy to define routes that are only available
-// /// to logged in members of the website.
-// #[derive(Serialize)]
-// pub struct User {
-//     user_id: i64,
-//     username: String,
-// }
-
-// #[rocket::async_trait]
-// impl<'r> FromRequest<'r> for User {
-//     type Error = ();
-
-//     async fn from_request(request: &'r Request<'_>) -> request::Outcome<User, ()> {
-//         use rocket::outcome::try_outcome;
-
-//         let pool: &State<db::Pool> = try_outcome!(request.guard::<&State<db::Pool>>().await);
-//         let conn = pool.conn().await;
-
-//         if conn.is_err() {
-//             return request::Outcome::Failure((rocket::http::Status::InternalServerError, ()));
-//         }
-//         let mut conn = conn.unwrap();
-
-//         let cookies = request.cookies();
-//         let session_id = cookies.get_private("session_id");
-
-//         if let Some(session_id) = session_id {
-//             let user = discord::get_user_for_session_id(session_id.value(), &mut conn).await;
-
-//             if user.is_err() {
-//                 return request::Outcome::Failure((rocket::http::Status::InternalServerError, ()));
-//             }
-//             let user = user.unwrap();
-//             if let Some(user) = user {
-//                 return request::Outcome::Success(User {
-//                     user_id: user.id,
-//                     username: user.username,
-//                 });
-//             }
-//         }
-
-//         request::Outcome::Forward(())
-//     }
-// }
-
-// /// Retrieve the user's ID, if any.
-// #[get("/user_id")]
-// fn user_id(user: Option<User>) -> Json<Option<User>> {
-//     Json(user)
-// }
-
-// #[get("/oauth/discord_client_id")]
-// async fn discord_client_id(config: &State<CustomConfig>) -> Json<String> {
-//     Json(config.discord_client_id.clone())
-// }
-
-// #[get("/oauth/redirect?<code>&<state>")]
-// async fn authorize_discord_oauth_code(
-//     config: &State<CustomConfig>,
-//     code: &str,
-//     state: &str,
-//     jar: &CookieJar<'_>,
-//     pool: &State<Pool>,
-// ) -> Flash<Redirect> {
-//     let conn = pool.conn().await;
-//     if conn.is_err() {
-//         return Flash::error(Redirect::to("/"), "Database error");
-//     }
-//     let mut conn = conn.unwrap();
-
-//     let res = discord::authorize_oauth_code(config, code, state, jar, &mut conn).await;
-//     match res {
-//         Ok(_) => Flash::success(Redirect::to("/"), "Login successful"),
-//         Err(e) => {
-//             warn!("Login failed: {}", e);
-//             Flash::error(
-//                 Redirect::to("/login"),
-//                 "Error during authentication. Please try again.",
-//             )
-//         }
-//     }
-// }
-
-// /// Remove the `user_id` cookie.
-// #[get("/logout")]
-// fn logout(jar: &CookieJar<'_>) -> Flash<Redirect> {
-//     jar.remove_private(Cookie::named("session_id"));
-//     Flash::success(Redirect::to("/"), "Successfully logged out.")
-// }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Game management /////////////////////////////////////////////////////////////

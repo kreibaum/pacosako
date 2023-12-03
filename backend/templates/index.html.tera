@@ -14,6 +14,9 @@
       var lib_worker_hash = "{{ lib_worker_hash }}";
       var wasm_js_hash = "{{ wasm_js_hash }}";
       var wasm_hash = "{{ wasm_hash }}";
+      var my_user_name = "{{ name }}";
+      var my_user_id = {{ user_id }};
+      var my_user_avatar = "/p/{{ avatar }}";
     </script>
     <script src="/js/elm.min.js?hash={{ elm_hash }}&lang={{ lang }}"></script>
     <script src="/js/main.min.js?hash={{ main_hash }}" defer></script>

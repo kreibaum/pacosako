@@ -79,7 +79,6 @@ init shared =
       , repetitionDraw = True
       , recentGames = RemoteData.Loading
       , key = shared.key
-      , login = shared.user
       }
     , refreshRecentGames |> Effect.fromCmd
     )
@@ -114,7 +113,6 @@ type alias Model =
     , repetitionDraw : Bool
     , recentGames : WebData (List CurrentMatchState)
     , key : Browser.Navigation.Key
-    , login : Maybe User
     }
 
 

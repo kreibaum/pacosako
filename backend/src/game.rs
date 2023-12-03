@@ -2,7 +2,7 @@
 
 use crate::{
     db::{self, Pool},
-    sync_match::{CurrentMatchState, MatchParameters, SynchronizedMatch},
+    sync_match::{CurrentMatchStateClient, MatchParameters, SynchronizedMatch},
     timer::TimerConfig,
     ws, AppState, ServerError,
 };
@@ -46,12 +46,14 @@ async fn create_game(
 async fn get_game(
     Path(key): Path<String>,
     pool: State<Pool>,
-) -> Result<Json<CurrentMatchState>, ServerError> {
+) -> Result<Json<CurrentMatchStateClient>, ServerError> {
     let key: i64 = key.parse()?;
     let mut conn = pool.conn().await?;
 
     if let Some(game) = db::game::select(key, &mut conn).await? {
-        Ok(Json(game.current_state()?))
+        Ok(Json(
+            CurrentMatchStateClient::try_new(game.current_state()?, &mut conn).await?,
+        ))
     } else {
         Err(ServerError::NotFound)
     }
@@ -61,17 +63,22 @@ async fn post_action_to_game(Path(key): Path<String>, action: Json<pacosako::Pac
     ws::to_logic(ws::LogicMsg::AiAction {
         key,
         action: action.0,
-    });
+    })
+    .await;
 }
 
 async fn recently_created_games(
     pool: State<Pool>,
-) -> Result<Json<Vec<CurrentMatchState>>, ServerError> {
-    let games = db::game::latest(&mut pool.conn().await?).await?;
+) -> Result<Json<Vec<CurrentMatchStateClient>>, ServerError> {
+    let mut conn = pool.conn().await?;
+    let games = db::game::latest(&mut conn).await?;
 
-    let vec: Result<Vec<CurrentMatchState>, _> = games.iter().map(|m| m.current_state()).collect();
+    let mut result = Vec::with_capacity(games.len());
+    for game in games {
+        result.push(CurrentMatchStateClient::try_new(game.current_state()?, &mut conn).await?);
+    }
 
-    Ok(Json(vec?))
+    Ok(Json(result))
 }
 
 #[derive(Deserialize, Clone)]

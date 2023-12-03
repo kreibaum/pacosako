@@ -6,7 +6,7 @@ module Header exposing (..)
 import Api.LocalStorage exposing (Permission(..))
 import Api.Websocket
 import Colors
-import Custom.Element exposing (icon)
+import Custom.Element exposing (icon, showIf)
 import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, padding, paddingEach, paddingXY, paragraph, px, row, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
@@ -100,7 +100,8 @@ pageHeaderV2Phone model headerData =
         ]
         [ row
             [ width fill
-            , paddingEach { top = 10, bottom = 10, left = 15, right = 15 }
+            , spacing 5
+            , paddingEach { top = 10, bottom = 10, left = 5, right = 5 }
             , Border.solid
             , Border.widthEach
                 { bottom = 1
@@ -111,10 +112,15 @@ pageHeaderV2Phone model headerData =
             , Border.color (Element.rgb255 200 200 200)
             , Element.behindContent (el [ centerX, centerY ] pacosakoLogo)
             ]
-            [ Input.button [ width (px 20) ]
+            [ Input.button
+                [ width (px 20)
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , Border.rounded 5
+                , paddingXY 20 10
+                ]
                 { onPress = Just (SetHeaderOpen (not model.isHeaderOpen))
                 , label =
-                    icon [ centerX, centerY, paddingXY 10 10 ]
+                    icon [ centerX, centerY ]
                         (if model.isHeaderOpen then
                             Solid.times
 
@@ -122,6 +128,17 @@ pageHeaderV2Phone model headerData =
                             Solid.bars
                         )
                 }
+            , Element.link
+                [ width (px 20)
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , Border.rounded 5
+                , paddingXY 20 10
+                ]
+                { url = Route.toHref Route.Home_
+                , label =
+                    icon [ centerX, centerY ] Solid.home
+                }
+            , userAvatar model
             , quickSettingsOpenButton model
             ]
         , column
@@ -144,15 +161,6 @@ pageHeaderV2Phone model headerData =
             ]
             |> showIf model.isHeaderOpen
         ]
-
-
-showIf : Bool -> Element msg -> Element msg
-showIf condition element =
-    if condition then
-        element
-
-    else
-        Element.none
 
 
 pageHeaderV2Desktop : Shared.Model -> HeaderData -> Element Msg
@@ -178,6 +186,7 @@ pageHeaderV2Desktop model headerData =
                 , top = 0
                 }
             , Border.color (Element.rgb255 200 200 200)
+            , Element.behindContent (el [ centerX, centerY ] pacosakoLogo)
             ]
             (row
                 [ width (Element.maximum 1120 fill)
@@ -185,13 +194,13 @@ pageHeaderV2Desktop model headerData =
                 , Element.paddingXY 10 20
                 , spacing 5
                 ]
-                [ Element.row [ spacing 15, width fill ]
+                [ Element.row [ spacing 15 ]
                     [ pageHeaderButtonV2 Route.Home_ T.headerPlayPacoSako headerData.isRouteHighlighted
                     , pageHeaderButtonV2 Route.Tutorial T.headerTutorial headerData.isRouteHighlighted
                     , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles headerData.isRouteHighlighted
                     ]
-                , el [] pacosakoLogo
-                , el [ width fill ] (quickSettingsOpenButton model)
+                , userAvatar model
+                , el [ alignRight ] (quickSettingsOpenButton model)
                 ]
             )
         , el
@@ -205,6 +214,42 @@ pageHeaderV2Desktop model headerData =
             (quickSettings model)
             |> showIf model.isHeaderOpen
         ]
+
+
+userAvatar : Shared.Model -> Element Shared.Msg
+userAvatar model =
+    case model.loggedInUser of
+        Nothing ->
+            Input.button
+                [ alignRight
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , padding 2
+                , Border.rounded 5
+                ]
+                { onPress = Just (NavigateTo "/me")
+                , label =
+                    el
+                        [ width (px 30)
+                        , height (px 30)
+                        ]
+                        (icon [ centerX, centerY ] Solid.signInAlt)
+                }
+
+        Just user ->
+            Input.button
+                [ alignRight
+                , Element.mouseOver [ Background.color (Element.rgb255 200 200 200) ]
+                , padding 2
+                , Border.rounded 5
+                ]
+                { onPress = Just (NavigateTo "/me")
+                , label =
+                    Element.image
+                        [ width (px 30)
+                        , height (px 30)
+                        ]
+                        { src = user.userAvatar, description = user.userName }
+                }
 
 
 quickSettingsOpenButton : Model -> Element Shared.Msg
@@ -225,16 +270,16 @@ quickSettingsOpenButton model =
             { onPress = Just (SetHeaderOpen (not model.isHeaderOpen))
             , label =
                 row []
-                    [ icon
+                    [ flagForLanguage T.compiledLanguage
+                    , icon
                         [ paddingEach
                             { bottom = 1
-                            , left = 0
-                            , right = 10
+                            , left = 10
+                            , right = 0
                             , top = 0
                             }
                         ]
                         Solid.cog
-                    , flagForLanguage T.compiledLanguage
                     ]
             }
         ]

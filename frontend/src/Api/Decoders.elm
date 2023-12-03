@@ -1,4 +1,4 @@
-module Api.Decoders exposing (CurrentMatchState, LegalActions(..), decodeMatchState, getActionList)
+module Api.Decoders exposing (CurrentMatchState, LegalActions(..), PublicUserData, decodeMatchState, getActionList)
 
 import Json.Decode as Decode exposing (Decoder)
 import Sako
@@ -12,12 +12,20 @@ type alias CurrentMatchState =
     , controllingPlayer : Sako.Color
     , timer : Maybe Timer.Timer
     , gameState : Sako.VictoryState
+    , whitePlayer : Maybe PublicUserData
+    , blackPlayer : Maybe PublicUserData
     }
 
 
 type LegalActions
     = ActionsNotLoaded
     | ActionsLoaded (List Sako.Action)
+
+
+type alias PublicUserData =
+    { name : String
+    , avatar : String
+    }
 
 
 getActionList : LegalActions -> List Sako.Action
@@ -35,14 +43,16 @@ endpoints. This is the file for those.
 -}
 decodeMatchState : Decoder CurrentMatchState
 decodeMatchState =
-    Decode.map6
-        (\key actionHistory legalActions controllingPlayer timer gameState ->
+    Decode.map8
+        (\key actionHistory legalActions controllingPlayer timer gameState whitePlayer blackPlayer ->
             { key = key
             , actionHistory = actionHistory
             , legalActions = ActionsLoaded legalActions
             , controllingPlayer = controllingPlayer
             , timer = timer
             , gameState = gameState
+            , whitePlayer = whitePlayer
+            , blackPlayer = blackPlayer
             }
         )
         (Decode.field "key" Decode.string)
@@ -51,3 +61,12 @@ decodeMatchState =
         (Decode.field "controlling_player" Sako.decodeColor)
         (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
         (Decode.field "victory_state" Sako.decodeVictoryState)
+        (Decode.field "white_player" (Decode.nullable decodePublicUserData))
+        (Decode.field "black_player" (Decode.nullable decodePublicUserData))
+
+
+decodePublicUserData : Decoder PublicUserData
+decodePublicUserData =
+    Decode.map2 PublicUserData
+        (Decode.field "name" Decode.string)
+        (Decode.field "avatar" Decode.string)

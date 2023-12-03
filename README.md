@@ -26,14 +26,30 @@ you make changes to rust code. The frontend is already recompiled automatically.
 
 ## Running without Gitpod
 
-If you want to run the development environment locally, you will need to have
-Rust, Elm and [elm-watch](https://github.com/lydell/elm-watch) installed.
-You also need the latest version of [pytrans.py](https://github.com/kreibaum/pytrans.py/releases) on your path.
+#### Installations
 
-Then you run
+If you want to run the development environment locally, you will need to have installed:
+
+* Rust, rustup, [wasm-pack](https://github.com/rustwasm/wasm-pack)
+* Elm and [elm-watch](https://github.com/lydell/elm-watch)
+
+Then run
+
+    cargo build --bin cache_hash --release
+    ./scripts/copy-assets.sh
+
+All other installations are done done in `./gitpod-init.sh`. Modify this file:
+
+* Change the path for all installations from `home/gitpod/bin` to your preferred path (such as `~/Documents/gitpod/bin/`).
+* Change `pytrans.py` to `pytrans.py English` to get the English version of the website.
+
+Run
 
     # Initialize target directory, copy static files
     ./gitpod-init.sh
+
+#### Running 
+Then you run
 
     # Run elm-watch which keeps the frontend up to date & hot reloads
     cd frontend

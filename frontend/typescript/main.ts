@@ -5,6 +5,8 @@
 /// type checking.
 declare var Elm: any;
 declare var static_assets: any;
+declare var my_user_name, my_user_avatar: string;
+declare var my_user_id: number;
 
 // Set up a new mutation observer, that will fire custom events for all
 // svg elements when there is a click event or a motion event.
@@ -95,14 +97,18 @@ let localStorageData = JSON.parse(localStorage.getItem('localStorage'));
 
 // Pass the window size to elm on init. This way we already know it on startup.
 let windowSize = { "width": window.innerWidth, "height": window.innerHeight };
+let elmFlags = {
+    "windowSize": windowSize,
+    "localStorage": localStorageData,
+    "now": Date.now(),
+    "oAuthState": setOAuthStateInSessionCookie(),
+    "myUserName": my_user_name,
+    "myUserId": my_user_id,
+    "myUserAvatar": my_user_avatar
+};
 var app = Elm.Main.init({
     node: document.getElementById("elm"),
-    flags: {
-        "windowSize": windowSize,
-        "localStorage": localStorageData,
-        "now": Date.now(),
-        "oAuthState": setOAuthStateInSessionCookie()
-    },
+    flags: elmFlags,
 });
 
 if (app.ports.writeToLocalStorage) {
@@ -291,7 +297,7 @@ class WebsocketWrapper {
         let port = window.location.port
         let port_str = port ? `:${port}` : ""
 
-        let websocket_url = `${protocol}://${hostname}${port_str}/websocket`
+        let websocket_url = `${protocol}://${hostname}${port_str}/websocket?uuid=${getUUID()}`
         return this.try_connect(websocket_url)
     }
 
@@ -347,16 +353,11 @@ class WebsocketWrapper {
     private onopen(ev: Event) {
         console.log("Websocket connection established.");
         console.log(`There are ${this.queue.length} messages waiting to be send.`)
-        this.registerUUID();
         let messages = this.queue;
         this.queue = [];
         messages.forEach(msg => {
             this.trySend(msg)
         });
-    }
-
-    private registerUUID() {
-        this.trySend({ "SetUUID": { "uuid": getUUID() } })
     }
 
     private onmessage(ev: MessageEvent<any>) {

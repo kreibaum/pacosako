@@ -1,7 +1,7 @@
 module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
-import Api.Decoders exposing (CurrentMatchState, getActionList)
+import Api.Decoders exposing (CurrentMatchState, PublicUserData, getActionList)
 import Api.MessageGen
 import Api.Ports as Ports
 import Api.Websocket
@@ -11,7 +11,7 @@ import Browser.Events
 import CastingDeco
 import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
-import Custom.Element exposing (icon)
+import Custom.Element exposing (icon, showIf)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Dict exposing (Dict)
 import Duration
@@ -21,6 +21,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
@@ -44,14 +45,13 @@ import Time exposing (Posix)
 import Timer
 import Translations as T
 import Url
-import Url.Parser exposing (query)
 import View exposing (View)
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
-page shared { params, query, url } =
+page shared { params, url } =
     Page.advanced
-        { init = init params query url
+        { init = init params url
         , update = update shared
         , subscriptions = subscriptions
         , view = view shared
@@ -76,8 +76,6 @@ type alias Model =
     , castingDeco : CastingDeco.Model
     , inputMode : Maybe CastingDeco.InputMode
     , rotation : BoardRotation
-    , whiteName : String
-    , blackName : String
     , gameUrl : Url.Url
     , timeDriftMillis : Float
     , windowHeight : Int
@@ -86,8 +84,8 @@ type alias Model =
     }
 
 
-init : Params -> Dict String String -> Url.Url -> ( Model, Effect Msg )
-init params query url =
+init : Params -> Url.Url -> ( Model, Effect Msg )
+init params url =
     ( { board = Sako.initialPosition
       , gameKey = params.id
       , currentState =
@@ -97,6 +95,8 @@ init params query url =
             , controllingPlayer = Sako.White
             , timer = Nothing
             , gameState = Sako.Running
+            , whitePlayer = Nothing
+            , blackPlayer = Nothing
             }
       , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
       , focus = Nothing
@@ -104,8 +104,6 @@ init params query url =
       , castingDeco = CastingDeco.initModel
       , inputMode = Nothing
       , rotation = WhiteBottom
-      , whiteName = ""
-      , blackName = ""
       , gameUrl = url
       , timeDriftMillis = 0
       , windowHeight = 500
@@ -150,8 +148,6 @@ type Msg
     | SetRotation BoardRotation
     | WebsocketMsg Api.Websocket.ServerMessage
     | WebsocketErrorMsg Decode.Error
-    | SetWhiteName String
-    | SetBlackName String
     | CopyToClipboard String
     | WebsocketStatusChange Api.Websocket.WebsocketConnectionState
     | ToShared Shared.Msg
@@ -220,12 +216,6 @@ update shared msg model =
 
         WebsocketErrorMsg error ->
             ( model, Ports.logToConsole (Decode.errorToString error) |> Effect.fromCmd )
-
-        SetWhiteName name ->
-            ( { model | whiteName = name }, Effect.none )
-
-        SetBlackName name ->
-            ( { model | blackName = name }, Effect.none )
 
         CopyToClipboard text ->
             ( model, Ports.copy text |> Effect.fromCmd )
@@ -693,7 +683,7 @@ playUiLandscape shared model =
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
             [ playPositionView shared model
-            , sidebar model
+            , sidebarLandscape model
             ]
         )
 
@@ -703,7 +693,7 @@ playUiPortrait shared model =
     Element.column
         [ width fill, height fill ]
         [ playPositionView shared model
-        , sidebar model
+        , sidebarPortrait model
         ]
 
 
@@ -785,14 +775,14 @@ additionalSvg shared model =
         ( whiteY, blackY ) =
             case model.rotation of
                 WhiteBottom ->
-                    ( 850, -40 )
+                    ( 820, -70 )
 
                 BlackBottom ->
-                    ( -40, 850 )
+                    ( -70, 820 )
     in
     [ playTimerSvg shared.now model
-    , playerLabelSvg model.whiteName whiteY
-    , playerLabelSvg model.blackName blackY
+    , Maybe.map (playerLabelSvg whiteY) model.currentState.whitePlayer
+    , Maybe.map (playerLabelSvg blackY) model.currentState.blackPlayer
     ]
         |> List.filterMap identity
         |> Svg.g []
@@ -902,21 +892,22 @@ timerTextSvg fill caption =
         [ Svg.text caption ]
 
 
-playerLabelSvg : String -> Int -> Maybe (Svg a)
-playerLabelSvg name yPos =
-    if String.isEmpty name then
-        Nothing
-
-    else
-        Just
-            (Svg.text_
-                [ SvgA.style "text-anchor:left;font-size:50px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
-                , SvgA.x "300"
-                , SvgA.y (String.fromInt yPos)
-                , SvgA.fill "#595"
-                ]
-                [ Svg.text name ]
-            )
+playerLabelSvg : Int -> PublicUserData -> Svg a
+playerLabelSvg yPos userData =
+    Svg.g [ SvgA.transform ("translate(260 " ++ String.fromInt yPos ++ ")") ]
+        [ Svg.image
+            [ SvgA.xlinkHref ("/p/" ++ userData.avatar)
+            , SvgA.width "50"
+            , SvgA.height "50"
+            ]
+            []
+        , Svg.text_
+            [ SvgA.style "text-anchor:left;font-size:40px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
+            , SvgA.x "60"
+            , SvgA.y "30"
+            ]
+            [ Svg.text userData.name ]
+        ]
 
 
 playTimerReplaceViewport :
@@ -933,14 +924,33 @@ playTimerReplaceViewport =
     }
 
 
-sidebar : Model -> Element Msg
-sidebar model =
+sidebarLandscape : Model -> Element Msg
+sidebarLandscape model =
     Element.column [ spacing 5, width (px 250), height fill, paddingXY 0 40 ]
         [ Components.gameCodeLabel
             (CopyToClipboard (Url.toString model.gameUrl))
             model.gameKey
         , rollbackButton model
-        , maybePromotionButtons model.currentState.legalActions
+        , showIf (canPromote model.currentState.legalActions) promotionButtonGrid
+        , maybeVictoryStateInfo model.currentState.gameState
+        , maybeReplayLink model
+        , Element.el [ padding 10 ] Element.none
+        , CastingDeco.configView castingDecoMessages model.inputMode model.castingDeco
+        , Element.el [ padding 10 ] Element.none
+        , Element.text T.gamePlayAs
+        , rotationButtons model.rotation
+        , Element.el [ padding 10 ] Element.none
+        ]
+
+
+sidebarPortrait : Model -> Element Msg
+sidebarPortrait model =
+    Element.column [ spacing 5, width fill, height fill, paddingXY 5 0 ]
+        [ showIf (canPromote model.currentState.legalActions) promotionButtonRow
+        , Components.gameCodeLabel
+            (CopyToClipboard (Url.toString model.gameUrl))
+            model.gameKey
+        , rollbackButton model
         , maybeVictoryStateInfo model.currentState.gameState
         , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
@@ -1038,56 +1048,53 @@ castingDecoMessages =
     }
 
 
-maybePromotionButtons : Api.Decoders.LegalActions -> Element Msg
-maybePromotionButtons actions =
-    let
-        canPromote =
-            actions
-                |> getActionList
-                |> List.any
-                    (\a ->
-                        case a of
-                            Sako.Promote _ ->
-                                True
+canPromote : Api.Decoders.LegalActions -> Bool
+canPromote actions =
+    actions
+        |> getActionList
+        |> List.any
+            (\a ->
+                case a of
+                    Sako.Promote _ ->
+                        True
 
-                            _ ->
-                                False
-                    )
-    in
-    if canPromote then
-        promotionButtons
-
-    else
-        Element.none
+                    _ ->
+                        False
+            )
 
 
-promotionButtons : Element Msg
-promotionButtons =
+promotionButtonGrid : Element Msg
+promotionButtonGrid =
     Element.column [ width fill, spacing 5 ]
         [ Element.row [ width fill, spacing 5 ]
-            [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Queen))
-                [ icon [ centerX ] Solid.chessQueen
-                , Element.el [ centerX ] (Element.text T.queen)
-                ]
-            , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Knight))
-                [ icon [ centerX ] Solid.chessKnight
-                , Element.el [ centerX ] (Element.text T.knight)
-                ]
+            [ promotionButton Sako.Queen Solid.chessQueen T.queen
+            , promotionButton Sako.Knight Solid.chessKnight T.knight
             ]
         , Element.row [ width fill, spacing 5 ]
-            [ bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Rook))
-                [ icon [ centerX ] Solid.chessRook
-                , Element.el [ centerX ] (Element.text T.rook)
-                ]
-            , bigRoundedButton (Element.rgb255 200 240 200)
-                (Just (Promote Sako.Bishop))
-                [ icon [ centerX ] Solid.chessBishop
-                , Element.el [ centerX ] (Element.text T.bishop)
-                ]
+            [ promotionButton Sako.Rook Solid.chessRook T.rook
+            , promotionButton Sako.Bishop Solid.chessBishop T.bishop
             ]
+        ]
+
+
+promotionButtonRow : Element Msg
+promotionButtonRow =
+    Element.column [ width fill, spacing 5 ]
+        [ Element.row [ width fill, spacing 5 ]
+            [ promotionButton Sako.Queen Solid.chessQueen T.queen
+            , promotionButton Sako.Knight Solid.chessKnight T.knight
+            , promotionButton Sako.Rook Solid.chessRook T.rook
+            , promotionButton Sako.Bishop Solid.chessBishop T.bishop
+            ]
+        ]
+
+
+promotionButton : Sako.Type -> Icon -> String -> Element Msg
+promotionButton pieceType pieceIcon caption =
+    bigRoundedButton (Element.rgb255 200 240 200)
+        (Just (Promote pieceType))
+        [ icon [ centerX ] pieceIcon
+        , Element.el [ centerX ] (Element.text caption)
         ]
 
 

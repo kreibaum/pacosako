@@ -2,7 +2,6 @@ module Shared exposing
     ( Flags
     , Model
     , Msg(..)
-    , User
     , collapseHeader
     , init
     , subscriptions
@@ -24,6 +23,7 @@ import Request exposing (Request)
 import Time exposing (Posix)
 import Translations exposing (Language(..))
 import Url exposing (Url)
+import User
 
 
 type alias Flags =
@@ -34,16 +34,12 @@ type alias Model =
     { url : Url
     , key : Key
     , windowSize : ( Int, Int )
-    , user : Maybe User
-
-    -- Even when not logged in, you can set a username that is shown to other
-    -- people sharing a game with you.
-    , username : String
     , recentCustomTimes : List CustomTimer
     , playSounds : Bool
     , permissions : List LocalStorage.Permission
     , now : Posix
     , oAuthState : String
+    , loggedInUser : Maybe User.LoggedInUserData
     , isHeaderOpen : Bool
     , websocketConnectionState : WebsocketConnectionState
     , lastWebsocketStatusUpdate : Posix
@@ -56,17 +52,10 @@ collapseHeader model =
     { model | isHeaderOpen = False }
 
 
-type alias User =
-    { id : Int
-    , username : String
-    }
-
-
 type Msg
     = TriggerSaveLocalStorage
     | TriggerReload
     | HttpError Http.Error
-    | LoginSuccess User
     | LogoutSuccess
     | UserHidesGamesArePublicHint
     | SetLanguage Language
@@ -77,6 +66,7 @@ type Msg
     | AddRecentCustomTimer CustomTimer
     | SetHeaderOpen Bool
     | WebsocketStatusChange WebsocketConnectionState
+    | NavigateTo String
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
@@ -96,13 +86,12 @@ init { url, key } flags =
     ( { url = url
       , key = key
       , windowSize = parseWindowSize flags
-      , user = Nothing
-      , username = ls.data.username
       , recentCustomTimes = ls.data.recentCustomTimes
       , permissions = ls.permissions
       , playSounds = ls.data.playSounds
       , now = now
       , oAuthState = oAuthState
+      , loggedInUser = User.parseLoggedInUser flags
       , isHeaderOpen = False
       , websocketConnectionState = Api.Websocket.WebsocketConnecting
       , lastWebsocketStatusUpdate = now
@@ -147,11 +136,8 @@ update _ msg model =
         HttpError error ->
             ( model, Api.Ports.logToConsole (Api.Backend.describeError error) )
 
-        LoginSuccess user ->
-            ( { model | user = Just user }, Cmd.none )
-
         LogoutSuccess ->
-            ( { model | user = Nothing }, Cmd.none )
+            ( model, Cmd.none )
 
         UserHidesGamesArePublicHint ->
             userHidesGamesArePublicHint model
@@ -182,6 +168,9 @@ update _ msg model =
 
         WebsocketStatusChange state ->
             ( { model | websocketConnectionState = state, lastWebsocketStatusUpdate = model.now }, Cmd.none )
+
+        NavigateTo target ->
+            ( model, Browser.Navigation.load target )
 
 
 {-| Adds a custom timer to the history and trigges a "save to local storage" event.
@@ -243,7 +232,7 @@ userHidesGamesArePublicHint model =
 triggerSaveLocalStorage : Model -> Cmd msg
 triggerSaveLocalStorage model =
     LocalStorage.store
-        { data = { username = model.username, recentCustomTimes = model.recentCustomTimes, playSounds = model.playSounds, colorConfig = model.colorConfig }
+        { data = { recentCustomTimes = model.recentCustomTimes, playSounds = model.playSounds, colorConfig = model.colorConfig }
         , permissions = model.permissions
         }
 

@@ -4,13 +4,14 @@ pub mod wake_up_queue;
 use crate::{
     actors::websocket::SocketId,
     db,
-    sync_match::{CurrentMatchState, SynchronizedMatch},
+    login::session,
+    protection::SideProtection,
+    sync_match::{CurrentMatchState, CurrentMatchStateClient, SynchronizedMatch},
     ServerError,
 };
 use anyhow::bail;
 use axum::extract::ws::Message;
 use chrono::{DateTime, Utc};
-use kanal::{Receiver, Sender};
 use log::{info, warn};
 use once_cell::sync::OnceCell;
 use pacosako::{PacoAction, PlayerColor};
@@ -18,18 +19,24 @@ use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string;
 use std::collections::{HashMap, HashSet};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 // Everything can send messages to the logic. The logic is a singleton.
 pub static TO_LOGIC: OnceCell<Sender<LogicMsg>> = OnceCell::new();
 
-pub fn to_logic(msg: LogicMsg) {
-    if let Err(e) = TO_LOGIC.get().expect("Logic not initialized.").send(msg) {
+pub async fn to_logic(msg: LogicMsg) {
+    if let Err(e) = TO_LOGIC
+        .get()
+        .expect("Logic not initialized.")
+        .send(msg)
+        .await
+    {
         warn!("Error sending message to logic: {}", e);
     }
 }
 
 pub fn run_server(pool: db::Pool) {
-    let (to_logic, message_queue) = kanal::unbounded();
+    let (to_logic, message_queue) = tokio::sync::mpsc::channel(100);
     TO_LOGIC
         .set(to_logic)
         .expect("Error setting up the TO_LOGIC static variable.");
@@ -74,12 +81,12 @@ fn run_logic_server(message_queue: Receiver<LogicMsg>, pool: db::Pool) {
 
 /// Simple loop that reacts to all the messages.
 async fn loop_logic_server(
-    message_queue: Receiver<LogicMsg>,
+    mut message_queue: Receiver<LogicMsg>,
     pool: db::Pool,
 ) -> Result<(), ServerError> {
     let mut server_state = ServerState::default();
 
-    while let Ok(msg) = message_queue.recv() {
+    while let Some(msg) = message_queue.recv().await {
         let mut conn = pool.0.acquire().await?;
         let res = handle_message(msg, &mut server_state, &mut conn).await;
         if let Err(e) = res {
@@ -92,17 +99,16 @@ async fn loop_logic_server(
 #[derive(Debug, Default)]
 pub struct ServerState {
     rooms: HashMap<String, GameRoom>,
-    uuids: HashMap<SocketId, String>,
 }
 
 impl ServerState {
     /// Returns a room, creating it if required. The socket that asked is added
     /// to the room automatically.
-    fn room(&mut self, key: &str, asked_by: SocketId) -> &mut GameRoom {
-        let room = self.rooms.entry(key.to_string()).or_insert(GameRoom {
-            key: key.to_string(),
+    fn room(&mut self, game: &SynchronizedMatch, asked_by: SocketId) -> &mut GameRoom {
+        let room = self.rooms.entry(game.key.clone()).or_insert(GameRoom {
             connected: HashSet::new(),
-            protection: ProtectionState::NoPlayers,
+            white_player: SideProtection::for_user(game.white_player),
+            black_player: SideProtection::for_user(game.black_player),
         });
         room.connected.insert(asked_by);
         room
@@ -112,22 +118,13 @@ impl ServerState {
     fn destroy_room(&mut self, key: &String) {
         self.rooms.remove(key);
     }
-
-    fn get_uuid(&self, sender: SocketId) -> String {
-        self.uuids
-            .get(&sender)
-            .map_or("None".to_owned(), |s| s.clone())
-    }
 }
 
 #[derive(Debug)]
 struct GameRoom {
-    key: String,
     connected: HashSet<SocketId>,
-    /// The UUIDs that are allowed to make moves on this board.
-    /// This is not persisted for now, so after a server restart the game
-    /// can be hijacked in principle.
-    protection: ProtectionState,
+    white_player: SideProtection,
+    black_player: SideProtection,
 }
 
 /// All allowed messages that may be send by the client to the server.
@@ -136,9 +133,6 @@ enum ClientMessage {
     DoAction { key: String, action: PacoAction },
     Rollback { key: String },
     TimeDriftCheck { send: DateTime<Utc> },
-    SetUUID { uuid: String },
-    // Ask for the socket uuid by sending "GetUUID" as json. For debugging.
-    GetUUID,
 }
 
 #[derive(Deserialize)]
@@ -156,15 +150,11 @@ struct SubscribeToMatchSocketData {
 /// Messages that may be send by the server to the client.
 #[derive(Clone, Serialize, Debug)]
 pub enum ServerMessage {
-    CurrentMatchState(CurrentMatchState),
+    CurrentMatchState(Box<CurrentMatchStateClient>),
     Error(String),
     TimeDriftResponse {
         send: DateTime<Utc>,
         bounced: DateTime<Utc>,
-    },
-    /// Returns the socket uuid. For debugging.
-    SocketUUID {
-        uuid: String,
     },
 }
 
@@ -215,30 +205,35 @@ async fn handle_message(
 
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            // TODO: Figure out where to load the additional metadata.
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&game.key) {
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
             }
             Ok(())
         }
         LogicMsg::AiAction { key, action } => {
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
                 if let Some(room) = server_state.rooms.get_mut(&key) {
-                    broadcast_state(room, &state).await;
+                    let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                    broadcast_state(room, &client_state).await;
                 }
+                return Ok(()); // Do not do the AI action if the game is over.
             }
 
             let state = game.do_action(action)?;
             store_game(&game, conn).await?;
             if let Some(room) = server_state.rooms.get_mut(&key) {
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
             }
 
             Ok(())
@@ -246,7 +241,7 @@ async fn handle_message(
     }
 }
 
-fn progress_the_timer(
+async fn progress_the_timer(
     game: &mut SynchronizedMatch,
     key: String,
 ) -> Result<CurrentMatchState, anyhow::Error> {
@@ -256,7 +251,7 @@ fn progress_the_timer(
                 return Ok(state);
             } else if let Some(timer) = &mut state.timer {
                 let next_reminder = timer.timeout(state.controlling_player);
-                wake_up_queue::put_utc(key, next_reminder);
+                wake_up_queue::put_utc(key, next_reminder).await;
             }
             Ok(state)
         }
@@ -274,54 +269,55 @@ async fn handle_client_message(
 ) -> Result<(), anyhow::Error> {
     match msg {
         ClientMessage::DoAction { key, action } => {
-            let uuid = server_state.get_uuid(sender);
-            let room = server_state.room(&key, sender);
-
-            let game = fetch_game(&room.key, conn).await;
+            let game = fetch_game(&key, conn).await;
             let Ok(mut game) = game else {
                 server_state.destroy_room(&key);
                 send_error(format!("Game {key} not found"), &sender).await;
                 return Ok(());
             };
 
-            ensure_uuid_is_allowed(room, &game, uuid)?;
+            let room = server_state.room(&game, sender);
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            ensure_uuid_is_allowed(room, &mut game, sender, conn).await?;
+
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
                 return Ok(());
             }
 
             let state = game.do_action(action)?;
             store_game(&game, conn).await?;
-            broadcast_state(room, &state).await;
+            let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+            broadcast_state(room, &client_state).await;
         }
         ClientMessage::Rollback { key } => {
-            let uuid = server_state.get_uuid(sender);
-            let room = server_state.room(&key, sender);
+            let mut game = fetch_game(&key, conn).await?;
+            let room = server_state.room(&game, sender);
 
-            let mut game = fetch_game(&room.key, conn).await?;
-
-            ensure_uuid_is_allowed(room, &game, uuid)?;
+            ensure_uuid_is_allowed(room, &mut game, sender, conn).await?;
 
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.
                 return Ok(());
             }
 
-            let state = progress_the_timer(&mut game, key.clone())?;
+            let state = progress_the_timer(&mut game, key.clone()).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
-                broadcast_state(room, &state).await;
+                let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+                broadcast_state(room, &client_state).await;
                 return Ok(());
             }
 
             let state = game.rollback()?;
             store_game(&game, conn).await?;
-            broadcast_state(room, &state).await;
+            let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+            broadcast_state(room, &client_state).await;
         }
         ClientMessage::TimeDriftCheck { send } => {
             send_msg(
@@ -333,14 +329,6 @@ async fn handle_client_message(
             )
             .await;
         }
-        ClientMessage::SetUUID { uuid } => {
-            server_state.uuids.insert(sender, uuid);
-        }
-        ClientMessage::GetUUID => {
-            let uuid: String = server_state.get_uuid(sender);
-            let msg = ServerMessage::SocketUUID { uuid };
-            send_msg(msg, &sender).await;
-        }
     }
     Ok(())
 }
@@ -351,7 +339,6 @@ async fn handle_subscribe_to_match(
     server_state: &mut ServerState,
     conn: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
 ) -> Result<(), anyhow::Error> {
-    server_state.room(&key, sender);
     let game = fetch_game(&key, conn).await?;
     let state = game.current_state();
     let Ok(state) = state else {
@@ -359,80 +346,87 @@ async fn handle_subscribe_to_match(
         send_error(format!("Could not connect to game {key}"), &sender).await;
         return Ok(());
     };
+
+    server_state.room(&game, sender);
+
     if let Some(ref timer) = state.timer {
         if !timer.get_state().is_finished() {
             let next_reminder = timer.timeout(state.controlling_player);
-            wake_up_queue::put_utc(&key, next_reminder);
+            wake_up_queue::put_utc(&key, next_reminder).await;
         }
     }
-    let response = ServerMessage::CurrentMatchState(state);
+    let client_state = CurrentMatchStateClient::try_new(state, conn).await?;
+    let response = ServerMessage::CurrentMatchState(Box::new(client_state));
     send_msg(response, &sender).await;
     Ok(())
 }
 
-/// Possible states the game protection can be. Note that "No game protection"
-/// must be managed externally.
-#[derive(Debug, Clone)]
-enum ProtectionState {
-    NoPlayers,
-    OnePlayer(String),
-    TwoPlayers { white: String, black: String },
-}
-
 /// If the game is running in safe mode, this will check if the sender is allowed
-/// to perform actions in the game. Or if there is still space for another player
-/// in the room, then the uuid will be tracked in the room.
+/// to perform actions in the game. Or if the current player slot is no assigned
+/// yet, then the sender will be assigned to the slot.
+///
+/// In case of a UserId assigned as side protection, we also update the game
+/// to persist this on the database.
 ///
 /// If there are two different players connected, then the first player can only
 /// control white while the second player can only control black.
 ///
 /// Please note that currently game protection is not persisted across server
 /// restart. This means it is possible that the first move is done by black.
-fn ensure_uuid_is_allowed(
+async fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
-    game: &SynchronizedMatch,
-    uuid: String,
+    game: &mut SynchronizedMatch,
+    sender: SocketId,
+    conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
     if !game.setup_options.safe_mode {
         return Ok(());
     }
 
     let white_is_moving = game.current_state()?.controlling_player == PlayerColor::White;
-    match &room.protection {
-        ProtectionState::NoPlayers => {
-            room.protection = ProtectionState::OnePlayer(uuid);
+
+    let side_protection = if white_is_moving {
+        &mut room.white_player
+    } else {
+        &mut room.black_player
+    };
+
+    if let Some((uuid, session_id)) = sender.get_owner() {
+        let mut user_id = None;
+        if let Some(session_id) = session_id {
+            let session_data = session::load_session(session_id, conn).await?;
+            user_id = Some(session_data.user_id);
+        }
+
+        let is_allowed = side_protection.test_and_assign(&uuid, user_id);
+
+        if let Some(user_id) = side_protection.get_user() {
+            if white_is_moving {
+                game.white_player = Some(user_id);
+            } else {
+                game.black_player = Some(user_id);
+            }
+        }
+
+        if is_allowed {
             return Ok(());
         }
-        ProtectionState::OnePlayer(p1) => {
-            if *p1 != uuid {
-                if white_is_moving {
-                    room.protection = ProtectionState::TwoPlayers {
-                        white: uuid,
-                        black: p1.clone(),
-                    };
-                } else {
-                    room.protection = ProtectionState::TwoPlayers {
-                        white: p1.clone(),
-                        black: uuid,
-                    };
-                }
-            }
-        }
-        ProtectionState::TwoPlayers { white, black } => {
-            if (white_is_moving && *white != uuid) || (!white_is_moving && *black != uuid) {
-                anyhow::bail!("Your browser is not allowed to make moves in this game.");
-            }
-        }
+    } else if side_protection.is_unclaimed() {
+        return Ok(());
     }
-    Ok(())
+    anyhow::bail!("Your browser is not allowed to make moves for the current player.");
 }
 
-async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchState) {
+async fn broadcast_state(room: &mut GameRoom, state: &CurrentMatchStateClient) {
     let mut offenders = vec![];
     for target in &room.connected {
         // Remove participants that have disconnected.
         if target.is_alive() {
-            send_msg(ServerMessage::CurrentMatchState(state.clone()), target).await;
+            send_msg(
+                ServerMessage::CurrentMatchState(Box::new(state.clone())),
+                target,
+            )
+            .await;
         } else {
             offenders.push(*target);
         }

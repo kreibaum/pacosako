@@ -32,7 +32,6 @@
     "headerPlayPacoSako": "Jugar Paco Ŝako",
     "headerDesignPuzzles": "Diseñar Rompecabezas",
     "headerTutorial": "Tutorial",
-    "headerLogin": "Iniciar Sesión",
     "hideGamesArePublicHint": "Esconder mensaje.",
     "tutorialPageTitle": "Aprender Paco Ŝako - pacoplay.com",
     "enableGameProtection": "Habilitar Protección de Partida",
@@ -125,5 +124,5 @@
     "tutorial10EnPassant3": "En este sitio web se te ofrecerá el movimiento, siempre que levantes un peón que tenga permitido unirse en passant.",
     "tutorial10EnPassant4": "En Paco Ŝako, en passant está permitido al inicio, en medio y al final de una cadena.",
     "tutorial11MoreAboutChains1": "Aprende más sobre las Cadenas de Felix",
-    "tutorial11MoreAboutChains2": "Puedes aprender más sobre cadenas y bucles con Felix Albers, el creador de Paco Ŝako. Este video, que está en inglés, ofrece un breve resumen de este tutorial y luego aborda más aspectos y situaciones del juego en la segunda parte, a partir del minuto 1:10."}
-
+    "tutorial11MoreAboutChains2": "Puedes aprender más sobre cadenas y bucles con Felix Albers, el creador de Paco Ŝako. Este video, que está en inglés, ofrece un breve resumen de este tutorial y luego aborda más aspectos y situaciones del juego en la segunda parte, a partir del minuto 1:10."
+}

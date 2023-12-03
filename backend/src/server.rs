@@ -2,9 +2,15 @@
 //! We are using Axum as the web framework.
 
 use crate::{
-    caching, game, language,
-    login::{self, user},
-    secret_login, templates, AppState, EnvironmentConfig, replay_data,
+    caching,
+    db::Pool,
+    game, language,
+    login::{
+        self,
+        session::SessionData,
+        user::{self, load_public_user_data},
+    },
+    replay_data, secret_login, templates, AppState, EnvironmentConfig,
 };
 use axum::{
     body::StreamBody,
@@ -29,7 +35,9 @@ pub async fn run(state: AppState) {
         .route("/language", post(language::set_user_language))
         .route("/username_password", post(login::username_password_route))
         .route("/logout", get(login::logout_route))
-        .route("/replay_meta_data/:game", get(replay_data::get_metadata));
+        .route("/replay_meta_data/:game", get(replay_data::get_metadata))
+        .route("/me/avatar", post(user::set_avatar))
+        .route("/me/delete", get(user::delete_user));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();
@@ -70,6 +78,8 @@ async fn index(
     headers: HeaderMap,
     mut cookies: Cookies,
     config: State<EnvironmentConfig>,
+    pool: State<Pool>,
+    session: Option<SessionData>,
 ) -> impl IntoResponse {
     let lang = language::user_language(&headers, &mut cookies);
 
@@ -113,6 +123,24 @@ async fn index(
         "favicon_hash",
         &caching::hash_file("../target/assets/favicon.svg", !config.dev_mode),
     );
+
+    // Check data for currently logged in user.
+    let mut connection = pool
+        .conn()
+        .await
+        .expect("Could not get connection from pool");
+
+    context.insert("name", "");
+    context.insert("user_id", "-1");
+    context.insert("avatar", "");
+
+    if let Some(session) = session {
+        if let Ok(user_data) = load_public_user_data(session.user_id, &mut connection).await {
+            context.insert("name", &user_data.name);
+            context.insert("user_id", &user_data.user_id);
+            context.insert("avatar", &user_data.avatar);
+        }
+    }
 
     let body = templates::get_tera(config.dev_mode)
         .render("index.html.tera", &context)

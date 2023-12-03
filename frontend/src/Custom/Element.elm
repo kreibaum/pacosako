@@ -1,4 +1,4 @@
-module Custom.Element exposing (icon)
+module Custom.Element exposing (icon, showIf)
 
 import Element exposing (Element)
 import FontAwesome.Icon exposing (Icon, viewIcon)
@@ -9,3 +9,12 @@ import FontAwesome.Icon exposing (Icon, viewIcon)
 icon : List (Element.Attribute msg) -> Icon -> Element msg
 icon attributes iconType =
     Element.el attributes (Element.html (viewIcon iconType))
+
+
+showIf : Bool -> Element msg -> Element msg
+showIf condition element =
+    if condition then
+        element
+
+    else
+        Element.none

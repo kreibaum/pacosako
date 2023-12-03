@@ -89,8 +89,7 @@ Data without permission:
 
 -}
 type Permission
-    = Username
-    | HideGamesArePublicHint
+    = HideGamesArePublicHint
 
 
 setPermission : Permission -> Bool -> List Permission -> List Permission
@@ -109,9 +108,6 @@ setPermission entry shouldBeInList list =
 encodePermission : Permission -> Value
 encodePermission p =
     case p of
-        Username ->
-            Encode.string "Username"
-
         HideGamesArePublicHint ->
             Encode.string "HideGamesArePublicHint"
 
@@ -122,9 +118,6 @@ decodePermission =
         |> Decode.andThen
             (\str ->
                 case str of
-                    "Username" ->
-                        Decode.succeed Username
-
                     "HideGamesArePublicHint" ->
                         Decode.succeed HideGamesArePublicHint
 
@@ -158,8 +151,7 @@ type alias Data =
 
 defaultData : Data
 defaultData =
-    { username = ""
-    , recentCustomTimes = []
+    { recentCustomTimes = []
     , playSounds = True
     , colorConfig = Colors.defaultBoardColors
     }
@@ -175,8 +167,7 @@ latestVersion =
 encodeData : Data -> Value
 encodeData data =
     Encode.object
-        [ ( "username", Encode.string data.username )
-        , ( "recentCustomTimes", Encode.list encodeCustomTimer data.recentCustomTimes )
+        [ ( "recentCustomTimes", Encode.list encodeCustomTimer data.recentCustomTimes )
         , ( "playSounds", Encode.bool data.playSounds )
         , ( "colorConfig", Colors.encodeColorConfig data.colorConfig )
         ]
@@ -200,16 +191,17 @@ decodeDataVersioned version =
 
 {-| We don't want to store data where the user has not given us permission to
 store it.
+
+Though there is nothing to do here for now.
+
 -}
 censor : List Permission -> Data -> Data
 censor permissions data =
     data
-        |> censorUser permissions
 
 
 type alias DataV1 =
-    { username : String
-    , recentCustomTimes : List CustomTimer
+    { recentCustomTimes : List CustomTimer
     , playSounds : Bool
     , colorConfig : ColorConfig
     }
@@ -227,19 +219,9 @@ migrateDataV1 dataV1 =
     dataV1
 
 
-censorUser : List Permission -> Data -> Data
-censorUser permissions data =
-    if List.member Username permissions then
-        data
-
-    else
-        { data | username = "" }
-
-
 decodeDataV1 : Decoder DataV1
 decodeDataV1 =
-    Decode.map4 DataV1
-        (Decode.field "username" Decode.string)
+    Decode.map3 DataV1
         (Decode.maybe (Decode.field "recentCustomTimes" (Decode.list decodeCustomTimer))
             |> Decode.map (Maybe.withDefault [])
         )
