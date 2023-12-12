@@ -193,6 +193,22 @@ function Game.randominstance(:: Type{PacoSako})
   PacoSako(ptr)
 end
 
+function Game.visualize(ps::PacoSako)
+  @pscall(:print, Nothing, (Ptr{Nothing},), ps.ptr)
+end
+
+function Base.:(==)(ps1 :: PacoSako, ps2 :: PacoSako) :: Bool
+  @pscall(:equals, Int64, (Ptr{Nothing}, Ptr{Nothing}), ps1.ptr, ps2.ptr) == 0
+end
+
+function Base.hash(ps :: PacoSako) :: UInt64
+  @pscall(:hash, UInt64, (Ptr{Nothing},), ps.ptr)
+end
+
+function Base.isequal(a :: PacoSako, b :: PacoSako)
+  Base.hash(a) == Base.hash(b)
+end
+
 """
     serialize(ps) 
 
@@ -228,18 +244,6 @@ function deserialize(bincode :: Vector{UInt8}) :: PacoSako
   )
   @assert ptr != C_NULL "Deserialization error for PacoSako game"
   PacoSako(ptr)
-end
-
-function Game.hash(ps :: PacoSako) :: UInt64
-  @pscall(:hash, UInt64, (Ptr{Nothing},), ps.ptr)
-end
-
-function Game.visualize(ps::PacoSako)
-  @pscall(:print, Nothing, (Ptr{Nothing},), ps.ptr)
-end
-
-function Base.:(==)(ps1 :: PacoSako, ps2 :: PacoSako) :: Bool
-  @pscall(:equals, Int64, (Ptr{Nothing}, Ptr{Nothing}), ps1.ptr, ps2.ptr) == 0
 end
 
 function statusmsg(game)
