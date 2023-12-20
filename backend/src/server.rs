@@ -4,7 +4,7 @@
 use crate::{
     caching,
     db::Pool,
-    game, language,
+    game, grafana, language,
     login::{
         self,
         session::SessionData,
@@ -37,7 +37,8 @@ pub async fn run(state: AppState) {
         .route("/logout", get(login::logout_route))
         .route("/replay_meta_data/:game", get(replay_data::get_metadata))
         .route("/me/avatar", post(user::set_avatar))
-        .route("/me/delete", get(user::delete_user));
+        .route("/me/delete", get(user::delete_user))
+        .route("/grafana", get(grafana::grafana_handler));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();

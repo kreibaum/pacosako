@@ -10,6 +10,7 @@ pub struct EnvironmentConfig {
     pub database_path: String,
     pub bind: String,
     pub secret_key: String,
+    pub grafana_password: String,
 }
 
 /// Determines from the first command line argument which config file to load.

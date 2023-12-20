@@ -5,6 +5,7 @@ mod secret_login;
 //mod discord;
 mod actors;
 mod game;
+mod grafana;
 mod language;
 mod login;
 mod protection;

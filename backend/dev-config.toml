@@ -8,3 +8,6 @@ database_path = "data/database.sqlite"
 # can be generated with the command `openssl rand -base64 32`.
 # This particular key is used for development purposes only.
 secret_key = "0B25jpNtswUWdkemdxU3B8Fvnm46ISgrawzinUpvLLQ="
+
+# Grafana statistics endpoint
+grafana_password = "localhost"
