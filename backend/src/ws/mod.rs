@@ -31,7 +31,11 @@ pub async fn to_logic(msg: LogicMsg) {
         .send(msg)
         .await
     {
-        warn!("Error sending message to logic: {}", e);
+        error!("Error sending message to logic: {}, this requires a server restart.", e);
+        log::logger().flush();
+        // We can not recover from this error, so we shut down the whole server.
+        // Systemd will restart it.
+        std::process::exit(4);
     }
 }
 
