@@ -1,0 +1,16 @@
+# Production server: pacoplay.com
+pacoplay.com {
+	encode gzip zstd
+	reverse_proxy localhost:8000
+}
+
+# Redirect www.pacoplay.com to pacoplay.com
+www.pacoplay.com {
+	redir https://pacoplay.com{uri}
+}
+
+# Test server: dev.pacoplay.com
+dev.pacoplay.com {
+	encode gzip zstd
+	reverse_proxy localhost:8001
+}

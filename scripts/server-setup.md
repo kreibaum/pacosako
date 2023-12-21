@@ -39,63 +39,41 @@ See for example https://www.cyberciti.biz/faq/how-to-disable-ssh-password-login-
 
 https://askubuntu.com/questions/147241/execute-sudo-without-password
 
-## Nginx setup
+## Caddy setup
 
-Make sure it is installed: `sudo apt install nginx`
+Make sure it is installed. I didn't write down how I did this.
 
-Put the nginx config into /etc/nginx/sites-enabled
+# Storage space issues
 
-```
-# Configuration for the pacoplay.com website
+[My Grafana dashboard](https://kreibaum.grafana.net/d/fc9d6a67-fd43-4045-83c2-fd79126809a3/pacoplay-a-peace-chess-variant-project?orgId=1&refresh=1d)
+to monitor the server will show the current free disk space.
 
-# Production server pacoplay.com
-server {
-    listen 80;
-    listen [::]:80;
+If the disk space is running low, I can investigate what is taking up space.
 
-    server_name pacoplay.com;
-
-    location /websocket {
-        proxy_pass http://localhost:3012;
-    }
-
-    location / {
-        proxy_pass http://localhost:8000;
-    }
-}
-
-# Test server dev.pacoplay.com
-server {
-    listen 80;
-    listen [::]:80;
-
-    server_name dev.pacoplay.com;
-
-    location /websocket {
-        proxy_pass http://localhost:3011;
-    }
-
-    location / {
-        proxy_pass http://localhost:8001;
-    }
-}
+```sh
+du -h --max-depth=2 | sort -hr | head -n 10
 ```
 
-Restart nginx: `sudo service nginx restart`.
-
-## Do the letsencrypt setup with certbot
-
-https://certbot.eff.org/lets-encrypt/ubuntufocal-nginx
+Here is an example of what I may find:
 
 ```
-# Install certbot
-sudo snap install --classic certbot
-
-# link it into the path
-sudo ln -s /snap/bin/certbot /usr/bin/certbot
-
-# Request certificates
-sudo certbot --nginx
+$ cd /
+$ sudo du -h --max-depth=2 | sort -hr | head -n 10
+7.3G	.
+2.7G	./usr
+2.6G	./var
+1.9G	./usr/lib
+1.5G	./snap
+884M	./var/lib
+864M	./var/log
+856M	./var/cache
+589M	./snap/core
+495M	./snap/core22
 ```
 
-You'll note that this updates the nginx configuration.
+Make sure to also run this in `~` as well. A lot of the big things in `/` are
+probably not things I can do anything about. But in `~` I may find some big
+files that I can delete.
+
+You can also run `sudo apt autoremove`, that often gets rid of some stuff and
+is easy to do.
