@@ -13,7 +13,7 @@ use crate::{
     replay_data, secret_login, templates, AppState, EnvironmentConfig,
 };
 use axum::{
-    body::StreamBody,
+    body::Body,
     extract::{Query, State},
     http::{header, HeaderMap},
     middleware,
@@ -29,8 +29,6 @@ use tower_cookies::{CookieManagerLayer, Cookies};
 use tower_http::services::{ServeDir, ServeFile};
 
 pub async fn run(state: AppState) {
-    let socket_addr = state.config.bind.parse().unwrap();
-
     let api: Router<AppState> = game::add_to_router(Router::new())
         .route("/language", post(language::set_user_language))
         .route("/username_password", post(login::username_password_route))
@@ -65,12 +63,14 @@ pub async fn run(state: AppState) {
             ServeFile::new("../target/js/main.min.js"),
         )
         .nest("/api", api)
-        .with_state(state)
+        .with_state(state.clone())
         .layer(middleware::from_fn(caching::caching_middleware_fn))
         .layer(CookieManagerLayer::new());
 
-    axum::Server::bind(&socket_addr)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(&state.config.bind)
+        .await
+        .unwrap();
+    axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }
@@ -171,7 +171,7 @@ async fn elm_js(config: State<EnvironmentConfig>, query: Query<LangQuery>) -> im
         .await
         .unwrap_or_else(|_| panic!("Could not open static file at path: {filename}"));
 
-    let body = StreamBody::new(ReaderStream::new(file));
+    let body = Body::from_stream(ReaderStream::new(file));
 
     let headers = [
         (header::CONTENT_TYPE, "application/javascript"),

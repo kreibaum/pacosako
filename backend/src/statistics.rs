@@ -1,5 +1,5 @@
-use axum::{extract::State, response::IntoResponse};
-use reqwest::header;
+use axum::{body::Body, extract::State, response::IntoResponse};
+use hyper::header;
 
 use crate::{actors::websocket::SocketId, config::EnvironmentConfig, templates};
 
@@ -19,5 +19,9 @@ pub async fn statistics_handler(config: State<EnvironmentConfig>) -> impl IntoRe
         .render("statistics.html.tera", &context)
         .expect("Could not render statistics.html");
 
-    ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], body)
+    (
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        Body::from(body),
+    )
+        .into_response()
 }

@@ -5,6 +5,7 @@ mod crypto;
 pub mod session;
 pub mod user;
 
+use self::session::SessionData;
 use crate::{
     config::EnvironmentConfig,
     db::{Connection, Pool},
@@ -18,11 +19,9 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use reqwest::StatusCode;
+use hyper::StatusCode;
 use serde::{Deserialize, Serialize};
 use tower_cookies::{cookie::SameSite, Cookie, Cookies};
-
-use self::session::SessionData;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct UserId(pub i64);
@@ -99,13 +98,13 @@ async fn username_password(
     let session = session::create_session(user_id, can_delete, &mut connection).await?;
     let client_session = crypto::encrypt_session_key(&session, &config.secret_key)?;
 
-    let session_cookie = Cookie::build(SESSION_COOKIE, client_session)
+    let session_cookie = Cookie::build((SESSION_COOKIE, client_session))
         .path("/")
         .http_only(true)
         .secure(!config.dev_mode)
         .same_site(SameSite::Lax) // So links from other sites work
         .max_age(time::Duration::days(14))
-        .finish();
+        .build();
     cookies.add(session_cookie);
 
     Ok(())
@@ -165,10 +164,10 @@ pub async fn logout_route(
         .expect("Error removing sessions for user.");
 
     cookies.remove(
-        Cookie::build(SESSION_COOKIE, "")
+        Cookie::build((SESSION_COOKIE, ""))
             .path("/")
             .same_site(SameSite::Strict)
-            .finish(),
+            .build(),
     );
 
     format!("Logout for user {}", session.user_id.0)

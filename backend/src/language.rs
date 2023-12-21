@@ -32,9 +32,9 @@ pub fn user_language(headers: &HeaderMap, cookies: &mut Cookies) -> UserLanguage
 pub async fn set_user_language(cookies: Cookies, language: String) -> impl IntoResponse {
     if is_language_supported(&language) {
         cookies.add(
-            Cookie::build(LANGUAGE_COOKIE_NAME, language)
+            Cookie::build((LANGUAGE_COOKIE_NAME, language))
                 .path("/")
-                .finish(),
+                .build(),
         );
     }
 }

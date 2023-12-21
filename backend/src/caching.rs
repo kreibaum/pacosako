@@ -1,5 +1,6 @@
 use axum::{
-    http::{header, HeaderValue, Request},
+    extract::Request,
+    http::{header, HeaderValue},
     middleware::Next,
     response::IntoResponse,
 };
@@ -43,7 +44,7 @@ pub fn hash_file(path: &str, use_cache: bool) -> String {
 /// requested for /a/* or /js/*.
 /// The request must also contain a query parameter "hash" for the cache control
 /// to be applied. It is then valid for one year and public.
-pub async fn caching_middleware_fn<B>(request: Request<B>, next: Next<B>) -> impl IntoResponse {
+pub async fn caching_middleware_fn(request: Request, next: Next) -> impl IntoResponse {
     let path = request.uri().path();
     let is_static_file = path.starts_with("/a/") || path.starts_with("/js/");
     let is_cache_busted = is_static_file

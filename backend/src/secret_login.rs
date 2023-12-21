@@ -1,5 +1,5 @@
 use axum::{extract::State, response::IntoResponse};
-use reqwest::header;
+use hyper::header;
 
 use crate::{
     config::EnvironmentConfig,
