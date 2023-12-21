@@ -10,7 +10,6 @@ use crate::config::EnvironmentConfig;
 use axum::{extract::State, response::IntoResponse, response::Response, Json};
 use axum_auth::AuthBasic;
 use hyper::StatusCode;
-use sysinfo::{DiskExt, System, SystemExt};
 
 #[derive(serde::Serialize)]
 struct GrafanaData {
@@ -29,10 +28,11 @@ pub async fn grafana_handler(
     }
 
     // Create a new System object and refresh disk information
-    let mut sys = System::new_all();
-    sys.refresh_disks();
+    let mut disks = sysinfo::Disks::new();
+    disks.refresh_list();
+    println!("Disks: {:#?}", disks);
 
-    let (total, available) = sys.disks().iter().fold((0, 0), |acc, disk| {
+    let (total, available) = disks.iter().fold((0, 0), |acc, disk| {
         (acc.0 + disk.total_space(), acc.1 + disk.available_space())
     });
 

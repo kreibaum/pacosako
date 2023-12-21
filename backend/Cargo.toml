@@ -45,7 +45,7 @@ sqlx = { version = "0.5", features = [
     "runtime-tokio-rustls",
     "migrate",
 ] }
-sysinfo = "0.29.11"
+sysinfo = "0.30.0"
 tera = "1.19.1"
 thiserror = "1.0"
 time = "0.3.30"
