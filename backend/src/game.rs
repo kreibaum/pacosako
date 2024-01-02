@@ -1,6 +1,7 @@
 //! Game Management API.
 
 use crate::{
+    actors::websocket::UuidQuery,
     db::{self, Pool},
     login::session::SessionData,
     sync_match::{CurrentMatchStateClient, MatchParameters, SynchronizedMatch},
@@ -9,7 +10,6 @@ use crate::{
 };
 use axum::{
     extract::{Path, Query, State},
-    response::Response,
     routing::{get, post},
     Json, Router,
 };
@@ -62,10 +62,17 @@ async fn get_game(
     }
 }
 
-async fn post_action_to_game(Path(key): Path<String>, action: Json<pacosako::PacoAction>) {
+async fn post_action_to_game(
+    session: Option<SessionData>,
+    Path(key): Path<String>,
+    Query(params): Query<UuidQuery>,
+    action: Json<pacosako::PacoAction>,
+) {
     ws::to_logic(ws::LogicMsg::AiAction {
         key,
         action: action.0,
+        uuid: params.uuid,
+        session_id: session.map(|s| s.session_id),
     })
     .await;
 }

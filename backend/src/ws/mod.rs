@@ -4,7 +4,7 @@ pub mod wake_up_queue;
 use crate::{
     actors::websocket::SocketId,
     db,
-    login::session,
+    login::{session, SessionId},
     protection::SideProtection,
     sync_match::{CurrentMatchState, CurrentMatchStateClient, SynchronizedMatch},
     ServerError,
@@ -31,7 +31,10 @@ pub async fn to_logic(msg: LogicMsg) {
         .send(msg)
         .await
     {
-        error!("Error sending message to logic: {}, this requires a server restart.", e);
+        error!(
+            "Error sending message to logic: {}, this requires a server restart.",
+            e
+        );
         log::logger().flush();
         // We can not recover from this error, so we shut down the whole server.
         // Systemd will restart it.
@@ -64,6 +67,8 @@ pub enum LogicMsg {
     AiAction {
         key: String,
         action: PacoAction,
+        uuid: String,
+        session_id: Option<SessionId>,
     },
 }
 
@@ -109,12 +114,16 @@ impl ServerState {
     /// Returns a room, creating it if required. The socket that asked is added
     /// to the room automatically.
     fn room(&mut self, game: &SynchronizedMatch, asked_by: SocketId) -> &mut GameRoom {
+        let room = self.room_without_websocket(game);
+        room.connected.insert(asked_by);
+        room
+    }
+    fn room_without_websocket(&mut self, game: &SynchronizedMatch) -> &mut GameRoom {
         let room = self.rooms.entry(game.key.clone()).or_insert(GameRoom {
             connected: HashSet::new(),
             white_player: SideProtection::for_user(game.white_player),
             black_player: SideProtection::for_user(game.black_player),
         });
-        room.connected.insert(asked_by);
         room
     }
     /// Call this method if we determine that a room is not backed by any game
@@ -219,7 +228,12 @@ async fn handle_message(
             }
             Ok(())
         }
-        LogicMsg::AiAction { key, action } => {
+        LogicMsg::AiAction {
+            key,
+            action,
+            uuid,
+            session_id,
+        } => {
             let mut game = fetch_game(&key, conn).await?;
 
             let state = progress_the_timer(&mut game, key.clone()).await?;
@@ -232,6 +246,10 @@ async fn handle_message(
                 }
                 return Ok(()); // Do not do the AI action if the game is over.
             }
+
+            // TODO: Check with the room if we are allowed to play on this game.
+            let room = server_state.room_without_websocket(&game);
+            ensure_uuid_is_allowed(room, &mut game, Some((uuid, session_id)), conn).await?;
 
             let state = game.do_action(action)?;
             store_game(&game, conn).await?;
@@ -282,7 +300,7 @@ async fn handle_client_message(
 
             let room = server_state.room(&game, sender);
 
-            ensure_uuid_is_allowed(room, &mut game, sender, conn).await?;
+            ensure_uuid_is_allowed(room, &mut game, sender.get_owner(), conn).await?;
 
             let state = progress_the_timer(&mut game, key.clone()).await?;
 
@@ -302,7 +320,7 @@ async fn handle_client_message(
             let mut game = fetch_game(&key, conn).await?;
             let room = server_state.room(&game, sender);
 
-            ensure_uuid_is_allowed(room, &mut game, sender, conn).await?;
+            ensure_uuid_is_allowed(room, &mut game, sender.get_owner(), conn).await?;
 
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.
@@ -380,7 +398,7 @@ async fn handle_subscribe_to_match(
 async fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
     game: &mut SynchronizedMatch,
-    sender: SocketId,
+    sender_metadata: Option<(String, Option<SessionId>)>,
     conn: &mut db::Connection,
 ) -> Result<(), anyhow::Error> {
     if !game.setup_options.safe_mode {
@@ -395,7 +413,7 @@ async fn ensure_uuid_is_allowed(
         &mut room.black_player
     };
 
-    if let Some((uuid, session_id)) = sender.get_owner() {
+    if let Some((uuid, session_id)) = sender_metadata {
         let mut user_id = None;
         if let Some(session_id) = session_id {
             let session_data = session::load_session(session_id, conn).await?;
