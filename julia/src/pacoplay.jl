@@ -42,6 +42,7 @@ module Api
 
   using ...JtacPacoSako
   import ..PacoPlay
+  import ..Json
 
   """
       requestmatch(; domain = :dev)
@@ -82,6 +83,13 @@ module Api
     session_cookie = HTTP.Cookies.getcookies!(HTTP.COOKIEJAR, uri)[1].value
     println("Signed in with session cookie: $session_cookie")
     session_cookie
+  end
+
+  function postaction(match, game, action; domain = :dev)
+    url = PacoPlay.Urls.server(; domain) * "/api/ai/game/$match"
+    action = Json.action(action, Game.activeplayer(game)) 
+    headers = Dict("Content-Type" => "application/json")
+    HTTP.post(url, headers, action)
   end
 
 end # module Api
@@ -271,6 +279,32 @@ function logerr(msg)
   println(stderr, String(take!(buf)) * msg)
 end
 
+function uploadmatch(games :: Vector{PacoSako}; kwargs...)
+  @assert isequal(games[1], PacoSako()) """
+  Can only upload game sequences that start with a default initial state.
+  """
+  actions = Game.reconstructactions(games)
+  uploadmatch(actions; kwargs...)
+end
+
+function uploadmatch( actions :: Vector{Game.ActionIndex}
+                    ; domain = :dev
+                    , uuid :: String = "lpdyrmi3m3e1txe09dh"
+                    , username = nothing
+                    , password = nothing )
+
+  log("Uploading match with $(length(actions)) actions")
+  game = PacoSako()
+  match = Api.requestmatch(; domain)
+  for action in actions
+    Api.postaction(match, game, action)
+    Game.move!(game, action)
+  end
+
+  url = Urls.game(match; domain)
+  log("Uploaded match: $url")
+end
+
 """
     play(player, [matchid]; kwargs...)
 
@@ -449,4 +483,5 @@ function play( player :: Player.AbstractPlayer
   end
   log("Exiting...")
 end
+
 
