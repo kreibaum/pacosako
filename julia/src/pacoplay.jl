@@ -202,6 +202,8 @@ end
 
 # ---------------- PacoPlay play function ------------------------------------ #
 
+import ..JtacPacoSako: PacoSako, fen
+
 function action_string(match, id, active_player :: Int) :: String
   action = Json.action(id, active_player)
   "{\"DoAction\":{\"key\":\"$match\",\"action\":$action}}"
