@@ -151,15 +151,31 @@ Don't forget to commit the changes to the database.
 
 To compile the shared library run `cargo build --release` in ./lib
 
+
+This assumes you have installed Jtac.jl and JtacPacoSako as a development package using
+
+    ]dev {..}/Jtac.jl
+    ]dev {..}/pacosako/julia
+
 Test if everything works
 
 ```
+# Load CUDA and cuDNN
+julia> using cuDNN
 julia> using JtacPacoSako
-julia> G = JtacPacoSako.PacoSako;
+julia> G = PacoSako;
 julia> model = Model.NeuralModel(G, Model.@chain G Dense(50, "relu"));
 julia> player = Player.MCTSPlayer(model, power = 50, temperature=0.1);
-julia> dataset = Player.record(player, 10)
+julia> dataset = Training.record(player, 10)
 DataSet{PacoSako} with 1258 elements and 0 features
+```
+
+Apply a model to a game state
+
+```julia
+# This assumes you are in /julia already
+model = Model.load("models/ludwig-1.0.jtm", async=false, backend=:cuda)
+Model.apply(model, PacoSako())
 ```
 
 Play on the website
@@ -173,15 +189,17 @@ root parallelization and asynchronous MCTS.
 Make sure to always use dilution when using root parallelization.
 
 ```julia
-model = Model.load("julia/models/ludwig-1.0.jtm", gpu=true, async=true)
-player = Player.MCTSPlayer(model, power = 10000, parallel_roots=10, dilution=0.1, temperature=0.1)
+# This assumes you are in /julia already
+model = Model.load("models/ludwig-1.0.jtm", async=false, backend=:cuda)
+player = Player.MCTSPlayer(model, power = 10000, temperature=0.1)
 PacoPlay.play(player, color = :white, domain = :dev)
 ```
 
-This assumes you have installed Jtac.jl and JtacPacoSako as a development package using
+Or to connect to the official server with a username and password
 
-    ]dev {..}/Jtac.jl
-    ]dev {..}/pacosako/julia
+```julia
+PacoPlay.play(player, color = :white, domain = :official, username = "ludwig_ai", password = "hunter2")
+```
 
 # Architecture
 
