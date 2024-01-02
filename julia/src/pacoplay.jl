@@ -239,6 +239,15 @@ function subscribe(ws, match :: Int)
   end
 end
 
+
+"""
+    check_updates(games :: Channel) :: (game, timeout)
+
+Checks if we have received a new game state from the pacoplay server.
+In addition to the game state, it also returns a timeout value that tells us
+if either player has lost by timeout. The timeout value is either `0` (no
+timeout), `-1` (black won by timeout), or `1` (white won by timeout).
+"""
 function check_updates(games :: Channel)
   timeout = nothing
   state = nothing
