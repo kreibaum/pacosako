@@ -49,5 +49,6 @@
         "webassembly",
         "Weblate",
         "websockets"
-    ]
+    ],
+    "julia.environmentPath": "/home/rolf/dev/pacosako"
 }

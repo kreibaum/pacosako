@@ -31,7 +31,7 @@ pub struct SocketId(usize);
 
 #[derive(Deserialize)]
 pub struct UuidQuery {
-    uuid: String,
+    pub uuid: String,
 }
 
 /// Handler for websocket connections to be used in axum routes.
