@@ -1,4 +1,4 @@
-module Api.Decoders exposing (CurrentMatchState, LegalActions(..), PublicUserData, decodeMatchState, getActionList)
+module Api.Decoders exposing (CurrentMatchState, LegalActions(..), PublicUserData, decodeMatchState, decodePublicUserData, getActionList)
 
 import Json.Decode as Decode exposing (Decoder)
 import Sako

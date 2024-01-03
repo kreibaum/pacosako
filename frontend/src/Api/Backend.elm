@@ -7,6 +7,7 @@ module Api.Backend exposing
     , encodeSetupOptions
     , getCurrentLogin
     , getDiscordApplicationId
+    , getJson
     , getLogout
     , getRecentGameKeys
     , getReplay
@@ -14,14 +15,14 @@ module Api.Backend exposing
     , postLoginPassword
     , postMatchRequest
     , postRematchFromActionIndex
-    , postSave, getJson
+    , postSave
     )
 
 {-| Server API. This is a mixed bag of all the GET and POST calls we can make to
 the server api.
 -}
 
-import Api.Decoders exposing (CurrentMatchState, decodeMatchState)
+import Api.Decoders exposing (CurrentMatchState, PublicUserData, decodeMatchState, decodePublicUserData)
 import Http exposing (Error)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
@@ -368,16 +369,20 @@ type alias Replay =
     , timer : Maybe Timer.Timer
     , victoryState : Sako.VictoryState
     , setupOptions : SetupOptions
+    , whitePlayer : Maybe PublicUserData
+    , blackPlayer : Maybe PublicUserData
     }
 
 
 decodeReplay : Decoder Replay
 decodeReplay =
-    Decode.map4 Replay
+    Decode.map6 Replay
         (Decode.field "actions" (Decode.list decodeStampedAction))
         (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
         (Decode.field "victory_state" Sako.decodeVictoryState)
         (Decode.field "setup_options" decodeSetupOptions)
+        (Decode.field "white_player" (Decode.nullable decodePublicUserData))
+        (Decode.field "black_player" (Decode.nullable decodePublicUserData))
 
 
 decodeStampedAction : Decoder ( Sako.Action, Posix )
