@@ -25,7 +25,9 @@ export Jtac,
        Player,
        Training
 
-export PacoSako, Luna
+export PacoSako
+
+export Luna, Ludwig
 
 """
 Reference to the currently loaded instance of libpacosako.
@@ -50,6 +52,9 @@ include("pacosako.jl")
 
 # Luna ai model
 include("luna.jl")
+
+# Pretrained models that are downloaded via the Artifact system
+include("pretrained.jl")
 
 """
 Glue between the JtacPacoSako package and the pacoplay webpage.
@@ -82,6 +87,5 @@ function __init__()
   end
 
 end
-
 
 end # module JtacPacoSako

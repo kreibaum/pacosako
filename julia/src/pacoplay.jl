@@ -35,65 +35,6 @@ module Urls
 
 end # module Urls
 
-module Api
-
-  using HTTP
-  using URIs
-
-  using ...JtacPacoSako
-  import ..PacoPlay
-  import ..Json
-
-  """
-      requestmatch(; domain = :dev)
-
-  Request a new match from the pacoplay subdomain `domain`.
-  """
-  function requestmatch(; domain = :dev) :: Int
-    url = PacoPlay.Urls.server(; domain)
-    body = "{\"timer\":null,\"safe_mode\":true}"
-    resp = HTTP.post(url * "/api/create_game", Dict("Content-Type" => "application/json"); body)
-
-    @assert resp.status == 200 "Creating game failed: $(resp.status)"
-    parse(Int, String(resp.body))
-  end
-
-  """
-      signin(username, password; domain = :dev)
-
-  Sign in into the pacoplay subdomain `domain` with credentials `username` and
-  `password`. Returns the session cookie.
-  """
-  function signin(username, password; domain = :dev)
-    url = PacoPlay.Urls.server(; domain) * "/api/username_password"
-    data = """{"username":"$username","password":"$password"}"""
-    headers = ["Content-Type" => "application/json"]
-
-    # With cookies = true, the cookies are stored in HTTP.COOKIEJAR
-    response = HTTP.post(url, headers, data; cookies = true)
-    
-    # Check if the response status is successful
-    if response.status != 200
-        println("Error: Received status code $(response.status)")
-        throw(ArgumentError("Could not sign in with the provided credentials"))
-    end
-
-    # Extract cookie from cookie jar
-    uri = parse(URIs.URI, url)
-    session_cookie = HTTP.Cookies.getcookies!(HTTP.COOKIEJAR, uri)[1].value
-    println("Signed in with session cookie: $session_cookie")
-    session_cookie
-  end
-
-  function postaction(match, game, action; domain = :dev)
-    url = PacoPlay.Urls.server(; domain) * "/api/ai/game/$match"
-    action = Json.action(action, Game.activeplayer(game)) 
-    headers = Dict("Content-Type" => "application/json")
-    HTTP.post(url, headers, action)
-  end
-
-end # module Api
-
 module Json
 
   using ...JtacPacoSako
@@ -206,7 +147,68 @@ module Json
     end
     parsegame(json)
   end
-end
+
+end # module Json
+
+module Api
+
+  using HTTP
+  using URIs
+
+  using ...JtacPacoSako
+  import ..PacoPlay
+  import ..Json
+
+  """
+      requestmatch(; domain = :dev)
+
+  Request a new match from the pacoplay subdomain `domain`.
+  """
+  function requestmatch(; domain = :dev) :: Int
+    url = PacoPlay.Urls.server(; domain)
+    body = "{\"timer\":null,\"safe_mode\":true}"
+    resp = HTTP.post(url * "/api/create_game", Dict("Content-Type" => "application/json"); body)
+
+    @assert resp.status == 200 "Creating game failed: $(resp.status)"
+    parse(Int, String(resp.body))
+  end
+
+  """
+      signin(username, password; domain = :dev)
+
+  Sign in into the pacoplay subdomain `domain` with credentials `username` and
+  `password`. Returns the session cookie.
+  """
+  function signin(username, password; domain = :dev)
+    url = PacoPlay.Urls.server(; domain) * "/api/username_password"
+    data = """{"username":"$username","password":"$password"}"""
+    headers = ["Content-Type" => "application/json"]
+
+    # With cookies = true, the cookies are stored in HTTP.COOKIEJAR
+    response = HTTP.post(url, headers, data; cookies = true)
+    
+    # Check if the response status is successful
+    if response.status != 200
+        println("Error: Received status code $(response.status)")
+        throw(ArgumentError("Could not sign in with the provided credentials"))
+    end
+
+    # Extract cookie from cookie jar
+    uri = parse(URIs.URI, url)
+    session_cookie = HTTP.Cookies.getcookies!(HTTP.COOKIEJAR, uri)[1].value
+    println("Signed in with session cookie: $session_cookie")
+    session_cookie
+  end
+
+  function postaction(match, game, action; domain = :dev)
+    url = PacoPlay.Urls.server(; domain) * "/api/ai/game/$match"
+    action = Json.action(action, Game.activeplayer(game)) 
+    headers = Dict("Content-Type" => "application/json")
+    HTTP.post(url, headers, action)
+  end
+
+end # module Api
+
 
 # ---------------- PacoPlay play function ------------------------------------ #
 

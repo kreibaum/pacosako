@@ -1,10 +1,17 @@
-
 [[libpacosako]]
 arch = "x86_64"
+git-tree-sha1 = "fe4e9f9adecae0e36960db48c68a91a59617af7e"
 libc = "glibc"
 os = "linux"
-git-tree-sha1 = "fe4e9f9adecae0e36960db48c68a91a59617af7e"
 
-  [[libpacosako.download]]
-  url = "https://github.com/kreibaum/pacosako/releases/download/v0.1.1-library-so/libpacosako.tar.gz"
-  sha256 = "8006aaed2b3ce97585040206be570ee5bdeed52e4b2c9b4c59649f7a42aceec1"
+    [[libpacosako.download]]
+    sha256 = "8006aaed2b3ce97585040206be570ee5bdeed52e4b2c9b4c59649f7a42aceec1"
+    url = "https://github.com/kreibaum/pacosako/releases/download/v0.1.1-library-so/libpacosako.tar.gz"
+
+["model.ludwig-1.0"]
+git-tree-sha1 = "2fb78bae27c750adbd417de6e856db406a01f630"
+lazy = true
+
+    [["model.ludwig-1.0".download]]
+    sha256 = "2e2e47146da21632ea7ac8eb6992a92e0d8569adc788dca0b1a78ce6582900c9"
+    url = "https://static.kreibaum.dev/ludwig-1.0.tar.gz"
