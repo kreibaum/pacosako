@@ -1,7 +1,7 @@
 module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
-import Api.Decoders exposing (CurrentMatchState, PublicUserData, getActionList)
+import Api.Decoders exposing (CurrentMatchState, getActionList)
 import Api.MessageGen
 import Api.Ports as Ports
 import Api.Websocket
@@ -774,6 +774,7 @@ additionalSvg shared model =
             { rotation = model.rotation
             , whitePlayer = model.currentState.whitePlayer
             , blackPlayer = model.currentState.blackPlayer
+            , victoryState = model.currentState.gameState
             }
     )
         |> List.filterMap identity

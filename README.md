@@ -225,7 +225,7 @@ PacoPlay.play(player, color = :white, domain = :official, username = "ludwig_ai"
 
 ## Errors you may encounter
 
-```julia
+```plaintext
 julia> model = Ludwig("1.0-human", async=false, backend=:cuda)
 ERROR: CUDA initialization failed: CUDA error (code 999, CUDA_ERROR_UNKNOWN)
 ```

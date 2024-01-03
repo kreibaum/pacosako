@@ -4,6 +4,7 @@ module Svg.PlayerLabel exposing (both, rotationToYPosition)
 -}
 
 import Api.Decoders exposing (PublicUserData)
+import Sako exposing (VictoryState(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
@@ -13,6 +14,7 @@ type alias DataRequiredForPlayers =
     { rotation : BoardRotation
     , whitePlayer : Maybe PublicUserData
     , blackPlayer : Maybe PublicUserData
+    , victoryState : VictoryState
     }
 
 
@@ -23,16 +25,18 @@ both model =
     let
         yPosition =
             rotationToYPosition model.rotation
+        nameExtension =
+            victoryStateToText model.victoryState
     in
-    [ model.whitePlayer |> Maybe.map (playerLabelSvg yPosition.white)
-    , model.blackPlayer |> Maybe.map (playerLabelSvg yPosition.black)
+    [ model.whitePlayer |> Maybe.map (playerLabelSvg yPosition.white nameExtension.white)
+    , model.blackPlayer |> Maybe.map (playerLabelSvg yPosition.black nameExtension.black)
     ]
 
 
 {-| Renders a single player label SVG.
 -}
-playerLabelSvg : Int -> PublicUserData -> Svg a
-playerLabelSvg yPos userData =
+playerLabelSvg : Int -> String -> PublicUserData -> Svg a
+playerLabelSvg yPos nameExtension userData =
     Svg.g [ SvgA.transform ("translate(0 " ++ String.fromInt yPos ++ ")") ]
         [ Svg.image
             [ SvgA.xlinkHref ("/p/" ++ userData.avatar)
@@ -45,7 +49,7 @@ playerLabelSvg yPos userData =
             , SvgA.x "60"
             , SvgA.y "30"
             ]
-            [ Svg.text userData.name ]
+            [ Svg.text (userData.name ++ nameExtension) ]
         ]
 
 
@@ -61,3 +65,24 @@ rotationToYPosition rotation =
 
         BlackBottom ->
             { white = -70, black = 820 }
+
+
+victoryStateToText : VictoryState -> { white : String, black : String }
+victoryStateToText victoryState =
+    case victoryState of
+        PacoVictory Sako.White ->
+            { white = " 🏆", black = "" }
+
+        PacoVictory Sako.Black ->
+            { white = "", black = " 🏆" }
+
+        TimeoutVictory Sako.White ->
+            { white = " 🏆", black = " 🐌" }
+
+        TimeoutVictory Sako.Black ->
+            { white = " 🐌", black = " 🏆" }
+
+        _ ->
+            { white = "", black = "" }
+
+

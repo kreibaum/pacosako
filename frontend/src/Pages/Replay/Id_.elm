@@ -45,7 +45,7 @@ import Pages.NotFound
 import PositionView exposing (OpaqueRenderData)
 import Reactive
 import Request
-import Sako exposing (Color(..))
+import Sako exposing (Color(..), VictoryState)
 import Set
 import Shared
 import Svg
@@ -85,6 +85,7 @@ type alias Model =
     , key : String
     , navigationKey : Browser.Navigation.Key
     , now : Posix
+    , victoryState : VictoryState
     , whitePlayer : Maybe PublicUserData
     , blackPlayer : Maybe PublicUserData
     }
@@ -104,6 +105,7 @@ type alias InnerModel =
     , inputMode : Maybe CastingDeco.InputMode
     , showMovementIndicators : Bool
     , animationSpeedSetting : AnimationSpeedSetting
+    , victoryState : VictoryState
     , whitePlayer : Maybe PublicUserData
     , blackPlayer : Maybe PublicUserData
     }
@@ -124,6 +126,7 @@ init shared params =
       , key = params.id
       , navigationKey = shared.key
       , now = Time.millisToPosix 0
+      , victoryState = Sako.Running
       , whitePlayer = Nothing
       , blackPlayer = Nothing
       }
@@ -156,6 +159,7 @@ innerInit model sidebarData =
     , inputMode = Nothing
     , showMovementIndicators = True
     , animationSpeedSetting = NormalAnimation
+    , victoryState = model.victoryState
     , whitePlayer = model.whitePlayer
     , blackPlayer = model.blackPlayer
     }
@@ -206,6 +210,7 @@ update msg model =
             ( { model
                 | replay = ProcessingReplayData
                 , actionHistory = removeTimestamps replay.actions
+                , victoryState = replay.victoryState
                 , whitePlayer = replay.whitePlayer
                 , blackPlayer = replay.blackPlayer
               }
@@ -677,6 +682,7 @@ boardViewOk shared model position partialActionHistory =
                 { rotation = WhiteBottom
                 , whitePlayer = model.whitePlayer
                 , blackPlayer = model.blackPlayer
+                , victoryState = model.victoryState
                 }
                 |> List.filterMap identity
                 |> Svg.g []
