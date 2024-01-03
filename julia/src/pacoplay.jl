@@ -382,7 +382,7 @@ function play( player :: Player.AbstractPlayer
   session_cookie = nothing
   if !isnothing(username) && !isnothing(password)
     session_cookie = Api.signin(username, password; domain)
-    log("Signed in with session cookie: $session")
+    log("Signed in with session cookie: $session_cookie")
   end
 
   log("Connecting...")

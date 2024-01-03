@@ -149,8 +149,16 @@ Don't forget to commit the changes to the database.
 
 # Working with Julia
 
-To compile the shared library run `cargo build --release` in ./lib
+To load JtacPacoSako, do the following:
 
+```julia
+# Load CUDA and cuDNN
+julia> # using Revise (Only for development)
+julia> using cuDNN
+julia> using JtacPacoSako
+```
+
+To compile the shared library run `cargo build --release` in ./lib
 
 This assumes you have installed Jtac.jl and JtacPacoSako as a development package using
 
@@ -160,9 +168,6 @@ This assumes you have installed Jtac.jl and JtacPacoSako as a development packag
 Test if everything works
 
 ```
-# Load CUDA and cuDNN
-julia> using cuDNN
-julia> using JtacPacoSako
 julia> G = PacoSako;
 julia> model = Model.NeuralModel(G, Model.@chain G Dense(50, "relu"));
 julia> player = Player.MCTSPlayer(model, power = 50, temperature=0.1);
@@ -170,12 +175,40 @@ julia> dataset = Training.record(player, 10)
 DataSet{PacoSako} with 1258 elements and 0 features
 ```
 
-Apply a model to a game state
+## Loading Models
+
+Models can be used from various sources. If you just want to play with an
+existing model, you can just get it by its name from our artifact storage:
+
+The artifact system is hosted at https://static.kreibaum.dev/
 
 ```julia
-# This assumes you are in /julia already
+# Get the Default model for Ludwig:
+model = Ludwig()
+# Get a specific version of Ludwig, make it run on the GPU:
+model = Ludwig("1.0-human", async=false, backend=:cuda)
+```
+
+If you already have a specific model downloaded, you can load it from a file:
+
+```julia
 model = Model.load("models/ludwig-1.0.jtm", async=false, backend=:cuda)
-Model.apply(model, PacoSako())
+```
+
+## Using models
+
+To apply a model to a single game state, use `Model.apply`:
+
+```julia
+model = Ludwig()
+state = PacoSako()
+Model.apply(model, state)
+```
+
+Turn the model into a player:
+
+```julia
+player = Player.MCTSPlayer(model, power = 3000, temperature=0.01)
 ```
 
 Play on the website
@@ -184,22 +217,21 @@ Play on the website
 PacoPlay.play(player, color = :white, domain = :dev)
 ```
 
-Loading a model (with precomputed weights) and playing on the website with
-root parallelization and asynchronous MCTS.
-Make sure to always use dilution when using root parallelization.
-
-```julia
-# This assumes you are in /julia already
-model = Model.load("models/ludwig-1.0.jtm", async=false, backend=:cuda)
-player = Player.MCTSPlayer(model, power = 10000, temperature=0.1)
-PacoPlay.play(player, color = :white, domain = :dev)
-```
-
 Or to connect to the official server with a username and password
 
 ```julia
 PacoPlay.play(player, color = :white, domain = :official, username = "ludwig_ai", password = "hunter2")
 ```
+
+## Errors you may encounter
+
+```julia
+julia> model = Ludwig("1.0-human", async=false, backend=:cuda)
+ERROR: CUDA initialization failed: CUDA error (code 999, CUDA_ERROR_UNKNOWN)
+```
+
+This may happen when you suspend your computer while the CUDA driver is still
+loaded. To fix this, just restart your computer.
 
 # Architecture
 
