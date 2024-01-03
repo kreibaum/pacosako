@@ -33,6 +33,9 @@ module Urls
   game(; domain = :dev) = server(; domain) * "/game"
   game(match :: Int; domain = :dev) = game(; domain) * "/$match"
 
+  replay(; domain = :dev) = server(; domain) * "/replay"
+  replay(match :: Int; domain = :dev) = replay(; domain) * "/$match"
+
 end # module Urls
 
 module Api
@@ -81,14 +84,22 @@ module Api
     # Extract cookie from cookie jar
     uri = parse(URIs.URI, url)
     session_cookie = HTTP.Cookies.getcookies!(HTTP.COOKIEJAR, uri)[1].value
-    println("Signed in with session cookie: $session_cookie")
     session_cookie
   end
 
-  function postaction(match, game, action; domain = :dev)
-    url = PacoPlay.Urls.server(; domain) * "/api/ai/game/$match"
+  function postaction( match
+                     , game
+                     , action
+                     ; domain = :dev
+                     , session = nothing
+                     , uuid = "lpdyrmi3m3e1txe09dh" )
+
+    url = PacoPlay.Urls.server(; domain) * "/api/ai/game/$(match)?uuid=$uuid"
     action = Json.action(action, Game.activeplayer(game)) 
-    headers = Dict("Content-Type" => "application/json")
+    headers = Dict(
+      "Content-Type" => "application/json",
+      "Cookie" => "session=$session",
+    )
     HTTP.post(url, headers, action)
   end
 
@@ -296,13 +307,19 @@ function uploadmatch( actions :: Vector{Game.ActionIndex}
   log("Uploading match with $(length(actions)) actions")
   game = PacoSako()
   match = Api.requestmatch(; domain)
+
+  if !isnothing(username) && !isnothing(password)
+    session = Api.signin(username, password; domain)
+    log("Signed in with session cookie: $session")
+  end
+
   for action in actions
-    Api.postaction(match, game, action)
+    Api.postaction(match, game, action; domain, uuid, session)
     Game.move!(game, action)
   end
 
-  url = Urls.game(match; domain)
-  log("Uploaded match: $url")
+  url = Urls.replay(match; domain)
+  log("Upload successful: $url")
 end
 
 """
@@ -351,8 +368,8 @@ function play( player :: Player.AbstractPlayer
 
   session_cookie = nothing
   if !isnothing(username) && !isnothing(password)
-    log("Signing in...")
     session_cookie = Api.signin(username, password; domain)
+    log("Signed in with session cookie: $session")
   end
 
   log("Connecting...")
