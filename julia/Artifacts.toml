@@ -15,3 +15,11 @@ lazy = true
     [["model.ludwig-1.0".download]]
     sha256 = "2e2e47146da21632ea7ac8eb6992a92e0d8569adc788dca0b1a78ce6582900c9"
     url = "https://static.kreibaum.dev/ludwig-1.0.tar.gz"
+
+["model.ludwig-1.0-human"]
+git-tree-sha1 = "3a1e0ed2a66aa20929993fa23fa63ff98e8e0a65"
+lazy = true
+
+    [["model.ludwig-1.0-human".download]]
+    sha256 = "b21ac9bbd5f72318aa573b59ecfc9f2830f8f8bec8bb8953416f36b1ee1be7ed"
+    url = "https://static.kreibaum.dev/ludwig-1.0-human.tar.gz"

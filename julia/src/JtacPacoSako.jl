@@ -8,7 +8,7 @@ which is Alpha Zero inspired boardgame training package.
 """
 module JtacPacoSako
 
-using Artifacts
+using Artifacts, LazyArtifacts
 import Libdl
 
 using Jtac
