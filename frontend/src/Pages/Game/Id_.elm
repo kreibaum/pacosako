@@ -816,13 +816,13 @@ justPlayTimerSvg now model timer =
         [ timerTagSvg
             { caption = timeLabel viewData.secondsLeftWhite
             , player = Sako.White
-            , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.White)
+            , at = Svg.Coord 550 (timerLabelYPosition model.rotation Sako.White)
             , increment = increment
             }
         , timerTagSvg
             { caption = timeLabel viewData.secondsLeftBlack
             , player = Sako.Black
-            , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.Black)
+            , at = Svg.Coord 550 (timerLabelYPosition model.rotation Sako.Black)
             , increment = increment
             }
         ]
@@ -894,7 +894,7 @@ timerTextSvg fill caption =
 
 playerLabelSvg : Int -> PublicUserData -> Svg a
 playerLabelSvg yPos userData =
-    Svg.g [ SvgA.transform ("translate(260 " ++ String.fromInt yPos ++ ")") ]
+    Svg.g [ SvgA.transform ("translate(0 " ++ String.fromInt yPos ++ ")") ]
         [ Svg.image
             [ SvgA.xlinkHref ("/p/" ++ userData.avatar)
             , SvgA.width "50"
