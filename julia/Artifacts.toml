@@ -3,6 +3,7 @@ arch = "x86_64"
 git-tree-sha1 = "fe4e9f9adecae0e36960db48c68a91a59617af7e"
 libc = "glibc"
 os = "linux"
+lazy = true
 
     [[libpacosako.download]]
     sha256 = "8006aaed2b3ce97585040206be570ee5bdeed52e4b2c9b4c59649f7a42aceec1"
