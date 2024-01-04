@@ -25,6 +25,13 @@ type LegalActions
 type alias PublicUserData =
     { name : String
     , avatar : String
+    , ai : Maybe AiMetaData
+    }
+
+
+type alias AiMetaData =
+    { modelName : String
+    , modelStrength : Int
     }
 
 
@@ -67,6 +74,14 @@ decodeMatchState =
 
 decodePublicUserData : Decoder PublicUserData
 decodePublicUserData =
-    Decode.map2 PublicUserData
+    Decode.map3 PublicUserData
         (Decode.field "name" Decode.string)
         (Decode.field "avatar" Decode.string)
+        (Decode.field "ai" (Decode.nullable decodeAiMetaData))
+
+
+decodeAiMetaData : Decoder AiMetaData
+decodeAiMetaData =
+    Decode.map2 AiMetaData
+        (Decode.field "model_name" Decode.string)
+        (Decode.field "model_strength" Decode.int)

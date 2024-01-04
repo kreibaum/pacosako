@@ -18,6 +18,14 @@ pub struct PublicUserData {
     pub name: String,
     pub user_id: UserId,
     pub avatar: String,
+    pub ai: Option<AiMetaData>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct AiMetaData {
+    pub model_name: String,
+    pub model_strength: usize,
+    pub model_temperature: f32,
 }
 
 /// Allows a logged in user to change their avatar by calling /api/me/avatar
@@ -62,7 +70,42 @@ pub async fn load_public_user_data(
         name: res.name.unwrap_or("Anonymous".to_string()),
         user_id,
         avatar: res.avatar,
+        ai: None,
     })
+}
+
+pub async fn load_ai_config_for_game(
+    game_key: &str,
+    connection: &mut Connection,
+) -> Result<(Option<AiMetaData>, Option<AiMetaData>), sqlx::Error> {
+    let white = load_one_ai_config_for_game(game_key, "w", connection).await?;
+    let black = load_one_ai_config_for_game(game_key, "b", connection).await?;
+
+    Ok((white, black))
+}
+
+async fn load_one_ai_config_for_game(
+    game_key: &str,
+    color: &str,
+    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+) -> Result<Option<AiMetaData>, sqlx::Error> {
+    let res = sqlx::query!(
+        "select model_name, model_strength, model_temperature from game_aiConfig where game_id = ? and player_color = ?",
+        game_key,
+        color
+    )
+    .fetch_optional(&mut *connection)
+    .await?;
+
+    if let Some(res) = res {
+        Ok(Some(AiMetaData {
+            model_name: res.model_name,
+            model_strength: res.model_strength as usize,
+            model_temperature: res.model_temperature,
+        }))
+    } else {
+        Ok(None)
+    }
 }
 
 pub async fn load_user_data_for_game(
@@ -79,14 +122,22 @@ pub async fn load_user_data_for_game(
     .fetch_one(&mut *connection)
     .await?;
 
+    let (white_ai, black_ai) = load_ai_config_for_game(game_key, &mut *connection).await?;
+
     let white_player = if let Some(white_player) = res.white_player {
-        Some(load_public_user_data(UserId(white_player), &mut *connection).await?)
+        let mut public_user_data =
+            load_public_user_data(UserId(white_player), &mut *connection).await?;
+        public_user_data.ai = white_ai;
+        Some(public_user_data)
     } else {
         None
     };
 
     let black_player = if let Some(black_player) = res.black_player {
-        Some(load_public_user_data(UserId(black_player), &mut *connection).await?)
+        let mut public_user_data =
+            load_public_user_data(UserId(black_player), &mut *connection).await?;
+        public_user_data.ai = black_ai;
+        Some(public_user_data)
     } else {
         None
     };
