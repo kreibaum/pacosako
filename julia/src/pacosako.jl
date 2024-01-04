@@ -270,7 +270,7 @@ function Base.show(io :: IO, game :: PacoSako)
 end
 
 function Base.show(io :: IO, :: MIME"text/plain", game :: PacoSako)
-  pacoplay_editor_url = PacoPlay.Urls.editor(game)
+  pacoplay_editor_url = PacoPlay.Url.editor(game)
   println(io, "PacoSako($(statusmsg(game)))")
   print(io, "  link: $pacoplay_editor_url")
 end

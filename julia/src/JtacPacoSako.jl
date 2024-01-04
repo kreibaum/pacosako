@@ -2,9 +2,6 @@
 """
 Module that wraps the rust pacosako library and makes it accessible to Jtac,
 which is Alpha Zero inspired boardgame training package.
-
-!!! To use this package, you currently have to manually run
-!!! `cargo build --release` in the folder `../lib`.
 """
 module JtacPacoSako
 
@@ -53,7 +50,7 @@ include("pacosako.jl")
 # Luna ai model
 include("luna.jl")
 
-# Pretrained models that are downloaded via the Artifact system
+# Pretrained models that are downloaded on demand via the artifact system
 include("pretrained.jl")
 
 """
@@ -64,12 +61,32 @@ module PacoPlay
   using ..JtacPacoSako
   using HTTP, LazyJSON
 
-  include("pacoplay.jl")
+  module Url
+    using ..JtacPacoSako
+    include("pacoplay/url.jl")
+  end
+
+  module Json
+    using ..JtacPacoSako
+    import LazyJSON
+    include("pacoplay/json.jl")
+  end
+
+  module Api
+    using HTTP, URIs
+    using ..JtacPacoSako
+    import ..PacoPlay
+    import ..Json
+    include("pacoplay/api.jl")
+  end
+
+  include("pacoplay/log.jl")
+  include("pacoplay/upload.jl")
+  include("pacoplay/play.jl")
 
 end # module PacoPlay
 
 export PacoPlay
-
 
 function __init__()
   dynlib_path = if haskey(ENV, "LIBPACOSAKO")
@@ -80,12 +97,11 @@ function __init__()
 
   if isfile(dynlib_path)
     LIBPACOSAKO[] = Libdl.dlopen(dynlib_path)
-    @info "Using local copy of libpacosako: $dynlib_path"
+    @info "Using local copy of libpacosako at $dynlib_path"
   else
     path = joinpath(artifact"libpacosako", "libpacosako")
     LIBPACOSAKO[] = Libdl.dlopen(path)
   end
-
 end
 
 end # module JtacPacoSako
