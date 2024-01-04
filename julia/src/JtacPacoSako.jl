@@ -60,6 +60,7 @@ module PacoPlay
 
   using ..JtacPacoSako
   using HTTP, LazyJSON
+  using DelimitedFiles
 
   module Url
     using ..JtacPacoSako
@@ -83,6 +84,7 @@ module PacoPlay
   include("pacoplay/log.jl")
   include("pacoplay/upload.jl")
   include("pacoplay/play.jl")
+  include("pacoplay/parsedb.jl")
 
 end # module PacoPlay
 
