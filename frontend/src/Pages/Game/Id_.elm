@@ -1,7 +1,7 @@
 module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
-import Api.Decoders exposing (CurrentMatchState, PublicUserData, getActionList)
+import Api.Decoders exposing (CurrentMatchState, getActionList)
 import Api.MessageGen
 import Api.Ports as Ports
 import Api.Websocket
@@ -13,8 +13,6 @@ import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
 import Custom.Element exposing (icon, showIf)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
-import Dict exposing (Dict)
-import Duration
 import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Background as Background
@@ -38,11 +36,11 @@ import Sako exposing (Tile(..))
 import SaveState exposing (SaveState(..))
 import Shared
 import Svg exposing (Svg)
-import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
+import Svg.PlayerLabel
+import Svg.TimerGraphic
 import Task
 import Time exposing (Posix)
-import Timer
 import Translations as T
 import Url
 import View exposing (View)
@@ -705,7 +703,7 @@ playPositionView shared model =
             (Element.maximum
                 (min
                     (model.windowHeight - model.visibleHeaderSize)
-                    (round playTimerReplaceViewport.height)
+                    (round Svg.TimerGraphic.playTimerReplaceViewport.height)
                 )
                 fill
             )
@@ -719,7 +717,7 @@ playPositionView shared model =
             , mouseUp = Just MouseUp
             , mouseMove = Just MouseMove
             , additionalSvg = additionalSvg shared model
-            , replaceViewport = Just playTimerReplaceViewport
+            , replaceViewport = Just Svg.TimerGraphic.playTimerReplaceViewport
             }
             model.timeline
         )
@@ -771,157 +769,17 @@ playViewHighlight model =
 
 additionalSvg : Shared.Model -> Model -> Maybe (Svg a)
 additionalSvg shared model =
-    let
-        ( whiteY, blackY ) =
-            case model.rotation of
-                WhiteBottom ->
-                    ( 820, -70 )
-
-                BlackBottom ->
-                    ( -70, 820 )
-    in
-    [ playTimerSvg shared.now model
-    , Maybe.map (playerLabelSvg whiteY) model.currentState.whitePlayer
-    , Maybe.map (playerLabelSvg blackY) model.currentState.blackPlayer
-    ]
+    (Svg.TimerGraphic.playTimerSvg shared.now model
+        :: Svg.PlayerLabel.both
+            { rotation = model.rotation
+            , whitePlayer = model.currentState.whitePlayer
+            , blackPlayer = model.currentState.blackPlayer
+            , victoryState = model.currentState.gameState
+            }
+    )
         |> List.filterMap identity
         |> Svg.g []
         |> Just
-
-
-playTimerSvg : Posix -> Model -> Maybe (Svg a)
-playTimerSvg now model =
-    let
-        correctedTime =
-            Time.posixToMillis now
-                |> toFloat
-                |> (\n -> n - model.timeDriftMillis)
-                |> round
-                |> Time.millisToPosix
-    in
-    model.currentState.timer
-        |> Maybe.map (justPlayTimerSvg correctedTime model)
-
-
-justPlayTimerSvg : Posix -> Model -> Timer.Timer -> Svg a
-justPlayTimerSvg now model timer =
-    let
-        viewData =
-            Timer.render model.currentState.controllingPlayer now timer
-
-        increment =
-            Maybe.map (Duration.inSeconds >> round) timer.config.increment
-    in
-    Svg.g []
-        [ timerTagSvg
-            { caption = timeLabel viewData.secondsLeftWhite
-            , player = Sako.White
-            , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.White)
-            , increment = increment
-            }
-        , timerTagSvg
-            { caption = timeLabel viewData.secondsLeftBlack
-            , player = Sako.Black
-            , at = Svg.Coord 0 (timerLabelYPosition model.rotation Sako.Black)
-            , increment = increment
-            }
-        ]
-
-
-{-| Determines the Y position of the on-svg timer label. This is required to
-flip the labels when the board is flipped to have Black at the bottom.
--}
-timerLabelYPosition : BoardRotation -> Sako.Color -> Int
-timerLabelYPosition rotation color =
-    case ( rotation, color ) of
-        ( WhiteBottom, Sako.White ) ->
-            820
-
-        ( WhiteBottom, Sako.Black ) ->
-            -70
-
-        ( BlackBottom, Sako.White ) ->
-            -70
-
-        ( BlackBottom, Sako.Black ) ->
-            820
-
-
-{-| Creates a little rectangle with a text which can be used to display the
-timer for one player. Picks colors automatically based on the player.
--}
-timerTagSvg :
-    { caption : String
-    , player : Sako.Color
-    , at : Svg.Coord
-    , increment : Maybe Int
-    }
-    -> Svg msg
-timerTagSvg data =
-    let
-        ( backgroundColor, textColor ) =
-            case data.player of
-                Sako.White ->
-                    ( "#eee", "#333" )
-
-                Sako.Black ->
-                    ( "#333", "#eee" )
-
-        fullCaption =
-            case data.increment of
-                Just seconds ->
-                    data.caption ++ " +" ++ String.fromInt seconds
-
-                Nothing ->
-                    data.caption
-    in
-    Svg.g [ Svg.translate data.at ]
-        [ Svg.rect [ SvgA.width "250", SvgA.height "50", SvgA.fill backgroundColor ] []
-        , timerTextSvg (SvgA.fill textColor) fullCaption
-        ]
-
-
-timerTextSvg : Svg.Attribute msg -> String -> Svg msg
-timerTextSvg fill caption =
-    Svg.text_
-        [ SvgA.style "text-anchor:middle;font-size:40px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
-        , SvgA.x "125"
-        , SvgA.y "30"
-        , fill
-        ]
-        [ Svg.text caption ]
-
-
-playerLabelSvg : Int -> PublicUserData -> Svg a
-playerLabelSvg yPos userData =
-    Svg.g [ SvgA.transform ("translate(260 " ++ String.fromInt yPos ++ ")") ]
-        [ Svg.image
-            [ SvgA.xlinkHref ("/p/" ++ userData.avatar)
-            , SvgA.width "50"
-            , SvgA.height "50"
-            ]
-            []
-        , Svg.text_
-            [ SvgA.style "text-anchor:left;font-size:40px;pointer-events:none;-moz-user-select: none;-webkit-user-select: none;dominant-baseline:middle"
-            , SvgA.x "60"
-            , SvgA.y "30"
-            ]
-            [ Svg.text userData.name ]
-        ]
-
-
-playTimerReplaceViewport :
-    { x : Float
-    , y : Float
-    , width : Float
-    , height : Float
-    }
-playTimerReplaceViewport =
-    { x = -10
-    , y = -80
-    , width = 820
-    , height = 960
-    }
 
 
 sidebarLandscape : Model -> Element Msg
@@ -1160,24 +1018,6 @@ bigRoundedVictoryStateLabel color content =
         (Element.column [ height fill, centerX, padding 15, spacing 5 ]
             content
         )
-
-
-{-| Turns an amount of seconds into a mm:ss label.
--}
-timeLabel : Int -> String
-timeLabel seconds =
-    let
-        data =
-            distributeSeconds seconds
-    in
-    (String.fromInt data.minutes |> String.padLeft 2 '0')
-        ++ ":"
-        ++ (String.fromInt data.seconds |> String.padLeft 2 '0')
-
-
-distributeSeconds : Int -> { seconds : Int, minutes : Int }
-distributeSeconds seconds =
-    { seconds = seconds |> modBy 60, minutes = seconds // 60 }
 
 
 rotationButtons : BoardRotation -> Element Msg

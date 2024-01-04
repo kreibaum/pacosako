@@ -12,11 +12,12 @@ is responsible for displaying it / interacting with it.
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.DecoderGen
+import Api.Decoders exposing (PublicUserData)
 import Api.EncoderGen
 import Api.MessageGen
 import Api.Ports
 import Api.ReplayMetaData exposing (ReplayCue(..), ReplayMetaDataProcessed)
-import Arrow exposing (Arrow)
+import Arrow
 import Browser.Navigation exposing (pushUrl)
 import CastingDeco
 import Colors
@@ -25,7 +26,7 @@ import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Custom.List as List
 import Effect exposing (Effect)
-import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingEach, paddingXY, px, scrollbarY, spacing, width)
+import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingXY, px, scrollbarY, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -44,10 +45,13 @@ import Pages.NotFound
 import PositionView exposing (OpaqueRenderData)
 import Reactive
 import Request
-import Sako exposing (Color(..))
+import Sako exposing (Color(..), VictoryState)
 import Set
 import Shared
+import Svg
 import Svg.Custom as Svg exposing (BoardRotation(..))
+import Svg.PlayerLabel
+import Svg.TimerGraphic
 import Time exposing (Posix)
 import Translations as T
 import Url
@@ -81,6 +85,9 @@ type alias Model =
     , key : String
     , navigationKey : Browser.Navigation.Key
     , now : Posix
+    , victoryState : VictoryState
+    , whitePlayer : Maybe PublicUserData
+    , blackPlayer : Maybe PublicUserData
     }
 
 
@@ -98,6 +105,9 @@ type alias InnerModel =
     , inputMode : Maybe CastingDeco.InputMode
     , showMovementIndicators : Bool
     , animationSpeedSetting : AnimationSpeedSetting
+    , victoryState : VictoryState
+    , whitePlayer : Maybe PublicUserData
+    , blackPlayer : Maybe PublicUserData
     }
 
 
@@ -116,6 +126,9 @@ init shared params =
       , key = params.id
       , navigationKey = shared.key
       , now = Time.millisToPosix 0
+      , victoryState = Sako.Running
+      , whitePlayer = Nothing
+      , blackPlayer = Nothing
       }
     , Cmd.batch
         [ Api.Backend.getReplay params.id HttpErrorReplay GotReplay
@@ -146,6 +159,9 @@ innerInit model sidebarData =
     , inputMode = Nothing
     , showMovementIndicators = True
     , animationSpeedSetting = NormalAnimation
+    , victoryState = model.victoryState
+    , whitePlayer = model.whitePlayer
+    , blackPlayer = model.blackPlayer
     }
 
 
@@ -194,6 +210,9 @@ update msg model =
             ( { model
                 | replay = ProcessingReplayData
                 , actionHistory = removeTimestamps replay.actions
+                , victoryState = replay.victoryState
+                , whitePlayer = replay.whitePlayer
+                , blackPlayer = replay.blackPlayer
               }
             , replay
                 |> stripDownReplay
@@ -658,14 +677,18 @@ boardViewOk shared model position partialActionHistory =
         , mouseDown = Maybe.map MouseDown model.inputMode
         , mouseUp = Maybe.map MouseUp model.inputMode
         , mouseMove = Maybe.map MouseMove model.inputMode
-        , additionalSvg = Nothing
-        , replaceViewport =
-            Just
-                { x = -10
-                , y = -10
-                , width = 820
-                , height = 820
+        , additionalSvg =
+            Svg.PlayerLabel.both
+                { rotation = WhiteBottom
+                , whitePlayer = model.whitePlayer
+                , blackPlayer = model.blackPlayer
+                , victoryState = model.victoryState
                 }
+                |> List.filterMap identity
+                |> Svg.g []
+                |> Just
+        , replaceViewport =
+            Just Svg.TimerGraphic.playTimerReplaceViewport
         }
         model.timeline
 
