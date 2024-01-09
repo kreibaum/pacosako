@@ -6,8 +6,9 @@ use axum::{
 };
 use hyper::{header, StatusCode};
 use lazy_static::lazy_static;
+use pacosako::PlayerColor;
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 extern crate regex;
 use super::{session::SessionData, UserId};
 use crate::db::{Connection, Pool};
@@ -21,7 +22,7 @@ pub struct PublicUserData {
     pub ai: Option<AiMetaData>,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AiMetaData {
     pub model_name: String,
     pub model_strength: usize,
@@ -84,6 +85,10 @@ pub async fn load_ai_config_for_game(
     Ok((white, black))
 }
 
+/// Loads the AI configuration for a single player in a specific game.
+/// This is used to display the AI configuration in the game and replay pages.
+/// It can also be used to inform the browser which AI to load when it is
+/// running the AI itself.
 async fn load_one_ai_config_for_game(
     game_key: &str,
     color: &str,
@@ -106,6 +111,29 @@ async fn load_one_ai_config_for_game(
     } else {
         Ok(None)
     }
+}
+
+/// Writes the AI configuration for a single player in a specific game.
+pub async fn write_one_ai_config_for_game(
+    game_key: &str,
+    color: PlayerColor,
+    ai: &AiMetaData,
+    connection: &mut Connection,
+) -> Result<(), sqlx::Error> {
+    let color_string = match color {
+        PlayerColor::White => "w",
+        PlayerColor::Black => "b",
+    };
+    let model_strength = ai.model_strength as i64; // does not live long enough otherwise
+    sqlx::query!(
+        "insert or replace into game_aiConfig (game_id, player_color, model_name, model_strength, model_temperature) values (?, ?, ?, ?, ?)",
+        game_key,
+        color_string,
+        ai.model_name,
+        model_strength,
+        ai.model_temperature
+    ).execute(&mut *connection).await?;
+    Ok(())
 }
 
 pub async fn load_user_data_for_game(
