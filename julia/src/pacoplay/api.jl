@@ -39,6 +39,28 @@ function signin(username, password; domain = :dev)
 end
 
 """
+    setaimetadata(match_id, color, session_cookie, model_name, model_strength, model_temperature; domain = :dev)
+
+Set the AI metadata for the match with id `match_id` and color `color` to the
+values `model_name`, `model_strength` and `model_temperature`. The session
+cookie `session_cookie` is needed to authenticate the request.
+"""
+function setaimetadata(match_id::Int, color::Int, session_cookie::String, model_name::String
+  ; model_strength::Int=0, model_temperature=0.0, domain=:dev)
+
+  color_name = color == 1 ? "White" : "Black"
+
+  url = PacoPlay.Url.server(; domain) * "/api/ai/game/$(match_id)/metadata/$(color_name)"
+  data = """{"model_name":"$model_name","model_strength":$model_strength,"model_temperature":$model_temperature}"""
+  headers = Dict(
+    "Content-Type" => "application/json",
+    "Cookie" => "session=$session_cookie",
+  )
+  HTTP.post(url, headers, data)
+end
+
+
+"""
     submitaction(match_id, player, action; domain, uuid, session)
     submitaction(match_id, game, action; kwargs...)
 
