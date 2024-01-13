@@ -6,8 +6,9 @@ use axum::{
 };
 use hyper::{header, StatusCode};
 use lazy_static::lazy_static;
+use pacosako::PlayerColor;
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 extern crate regex;
 use super::{session::SessionData, UserId};
 use crate::db::{Connection, Pool};
@@ -18,6 +19,14 @@ pub struct PublicUserData {
     pub name: String,
     pub user_id: UserId,
     pub avatar: String,
+    pub ai: Option<AiMetaData>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AiMetaData {
+    pub model_name: String,
+    pub model_strength: usize,
+    pub model_temperature: f32,
 }
 
 /// Allows a logged in user to change their avatar by calling /api/me/avatar
@@ -62,7 +71,69 @@ pub async fn load_public_user_data(
         name: res.name.unwrap_or("Anonymous".to_string()),
         user_id,
         avatar: res.avatar,
+        ai: None,
     })
+}
+
+pub async fn load_ai_config_for_game(
+    game_key: &str,
+    connection: &mut Connection,
+) -> Result<(Option<AiMetaData>, Option<AiMetaData>), sqlx::Error> {
+    let white = load_one_ai_config_for_game(game_key, "w", connection).await?;
+    let black = load_one_ai_config_for_game(game_key, "b", connection).await?;
+
+    Ok((white, black))
+}
+
+/// Loads the AI configuration for a single player in a specific game.
+/// This is used to display the AI configuration in the game and replay pages.
+/// It can also be used to inform the browser which AI to load when it is
+/// running the AI itself.
+async fn load_one_ai_config_for_game(
+    game_key: &str,
+    color: &str,
+    connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
+) -> Result<Option<AiMetaData>, sqlx::Error> {
+    let res = sqlx::query!(
+        "select model_name, model_strength, model_temperature from game_aiConfig where game_id = ? and player_color = ?",
+        game_key,
+        color
+    )
+    .fetch_optional(&mut *connection)
+    .await?;
+
+    if let Some(res) = res {
+        Ok(Some(AiMetaData {
+            model_name: res.model_name,
+            model_strength: res.model_strength as usize,
+            model_temperature: res.model_temperature,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Writes the AI configuration for a single player in a specific game.
+pub async fn write_one_ai_config_for_game(
+    game_key: &str,
+    color: PlayerColor,
+    ai: &AiMetaData,
+    connection: &mut Connection,
+) -> Result<(), sqlx::Error> {
+    let color_string = match color {
+        PlayerColor::White => "w",
+        PlayerColor::Black => "b",
+    };
+    let model_strength = ai.model_strength as i64; // does not live long enough otherwise
+    sqlx::query!(
+        "insert or replace into game_aiConfig (game_id, player_color, model_name, model_strength, model_temperature) values (?, ?, ?, ?, ?)",
+        game_key,
+        color_string,
+        ai.model_name,
+        model_strength,
+        ai.model_temperature
+    ).execute(&mut *connection).await?;
+    Ok(())
 }
 
 pub async fn load_user_data_for_game(
@@ -79,14 +150,22 @@ pub async fn load_user_data_for_game(
     .fetch_one(&mut *connection)
     .await?;
 
+    let (white_ai, black_ai) = load_ai_config_for_game(game_key, &mut *connection).await?;
+
     let white_player = if let Some(white_player) = res.white_player {
-        Some(load_public_user_data(UserId(white_player), &mut *connection).await?)
+        let mut public_user_data =
+            load_public_user_data(UserId(white_player), &mut *connection).await?;
+        public_user_data.ai = white_ai;
+        Some(public_user_data)
     } else {
         None
     };
 
     let black_player = if let Some(black_player) = res.black_player {
-        Some(load_public_user_data(UserId(black_player), &mut *connection).await?)
+        let mut public_user_data =
+            load_public_user_data(UserId(black_player), &mut *connection).await?;
+        public_user_data.ai = black_ai;
+        Some(public_user_data)
     } else {
         None
     };

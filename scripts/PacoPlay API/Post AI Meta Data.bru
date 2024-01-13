@@ -1,0 +1,19 @@
+meta {
+  name: Post AI Meta Data
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/ai/game/15282/metadata/White
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "model_name": "bjorg.0",
+    "model_strength": 700,
+    "model_temperature": 0.56
+  }
+}

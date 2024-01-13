@@ -99,6 +99,14 @@ function play( player :: Player.AbstractPlayer
     log("Signed in with session cookie: $session_cookie")
   end
 
+  if !isnothing(session_cookie)
+    # POST some ai metadata to the server
+    model_name = Player.name(player)
+    model_strength = hasfield(typeof(player), :power) ? player.power : 0
+    model_temperature = hasfield(typeof(player), :policy) ? (hasfield(typeof(player.policy), :temperature) ? getfield(player.policy, :temperature) : 0.0) : 0.0
+    Api.setaimetadata(match, color, session_cookie, model_name; model_strength, model_temperature, domain)
+  end
+
   log("Connecting...")
   # HTTP.WebSockets.open does not properly use the CookieJar, so we manually
   # set the cookie header.

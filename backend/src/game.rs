@@ -3,7 +3,10 @@
 use crate::{
     actors::websocket::UuidQuery,
     db::{self, Pool},
-    login::session::SessionData,
+    login::{
+        session::SessionData,
+        user::{self, AiMetaData},
+    },
     sync_match::{CurrentMatchStateClient, MatchParameters, SynchronizedMatch},
     timer::TimerConfig,
     ws, AppState, ServerError,
@@ -13,6 +16,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use pacosako::PlayerColor;
 use serde::{Deserialize, Serialize};
 
 /// Adds the game management API to the given router.
@@ -22,6 +26,7 @@ pub fn add_to_router(api_router: Router<AppState>) -> Router<AppState> {
         .route("/create_game", post(create_game))
         .route("/game/:key", get(get_game))
         .route("/ai/game/:key", post(post_action_to_game))
+        .route("/ai/game/:key/metadata/:color", post(post_ai_metadata))
         .route("/game/recent", get(recently_created_games))
         .route("/branch_game", post(branch_game))
         .route("/me/games", get(my_games))
@@ -66,15 +71,26 @@ async fn post_action_to_game(
     session: Option<SessionData>,
     Path(key): Path<String>,
     Query(params): Query<UuidQuery>,
-    action: Json<pacosako::PacoAction>,
+    Json(action): Json<pacosako::PacoAction>,
 ) {
     ws::to_logic(ws::LogicMsg::AiAction {
         key,
-        action: action.0,
+        action,
         uuid: params.uuid,
         session_id: session.map(|s| s.session_id),
     })
     .await;
+}
+
+async fn post_ai_metadata(
+    _session: SessionData, // TODO: Verify that only AIs can call this.
+    Path((key, player_color)): Path<(String, PlayerColor)>,
+    pool: State<Pool>,
+    Json(metadata): Json<AiMetaData>,
+) -> Result<(), ServerError> {
+    let mut conn = pool.conn().await?;
+    user::write_one_ai_config_for_game(&key, player_color, &metadata, &mut conn).await?;
+    Ok(())
 }
 
 async fn recently_created_games(
