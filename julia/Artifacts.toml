@@ -1,13 +1,21 @@
 [[libpacosako]]
 arch = "x86_64"
 git-tree-sha1 = "fe4e9f9adecae0e36960db48c68a91a59617af7e"
+lazy = true
 libc = "glibc"
 os = "linux"
-lazy = true
 
     [[libpacosako.download]]
     sha256 = "8006aaed2b3ce97585040206be570ee5bdeed52e4b2c9b4c59649f7a42aceec1"
     url = "https://github.com/kreibaum/pacosako/releases/download/v0.1.1-library-so/libpacosako.tar.gz"
+
+["model.hedwig-0.1"]
+git-tree-sha1 = "ba8d2cc5fb054bb2539da3fd230c7118161aac4a"
+lazy = true
+
+    [["model.hedwig-0.1".download]]
+    sha256 = "357b0783e2382aa2d0628169b363ef3f705e223adf3b2f4064775565020e67c3"
+    url = "https://static.kreibaum.dev/hedwig-0.1.tar.gz"
 
 ["model.ludwig-1.0"]
 git-tree-sha1 = "2fb78bae27c750adbd417de6e856db406a01f630"

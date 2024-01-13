@@ -13,4 +13,7 @@ function Ludwig(version = "1.0"; kwargs...)
   model_from_artifact("ludwig-$version"; kwargs...)
 end
 
+function Hedwig(version = "0.1"; kwargs...)
+  model_from_artifact("hedwig-$version"; kwargs...)
+end
 

@@ -24,7 +24,7 @@ export Jtac,
 
 export PacoSako
 
-export Luna, Ludwig
+export Luna, Ludwig, Hedwig
 
 """
 Reference to the currently loaded instance of libpacosako.
