@@ -4,6 +4,7 @@ module Svg.PlayerLabel exposing (both, rotationToYPosition)
 -}
 
 import Api.Decoders exposing (PublicUserData)
+import Maybe.Extra as Maybe
 import Sako exposing (VictoryState(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
@@ -16,6 +17,9 @@ type alias DataRequiredForPlayers =
     , blackPlayer : Maybe PublicUserData
     , victoryState : VictoryState
     , isWithTimer : Bool
+
+    -- The player isn't getting calculated in replays yet.
+    , currentPlayer : Maybe Sako.Color
     }
 
 
@@ -31,7 +35,7 @@ both model =
             rotationToYPosition model.rotation
 
         nameExtension =
-            victoryStateToText model.victoryState
+            victoryStateToText model.victoryState model.currentPlayer
     in
     [ model.whitePlayer |> Maybe.map (playerLabelSvg aiXPos yPosition.white nameExtension.white)
     , model.blackPlayer |> Maybe.map (playerLabelSvg aiXPos yPosition.black nameExtension.black)
@@ -103,8 +107,8 @@ rotationToYPosition rotation =
             { white = -70, black = 820 }
 
 
-victoryStateToText : VictoryState -> { white : String, black : String }
-victoryStateToText victoryState =
+victoryStateToText : VictoryState -> Maybe Sako.Color -> { white : String, black : String }
+victoryStateToText victoryState currentPlayer =
     case victoryState of
         PacoVictory Sako.White ->
             { white = " 🏆", black = "" }
@@ -119,4 +123,12 @@ victoryStateToText victoryState =
             { white = " 🐌", black = " 🏆" }
 
         _ ->
-            { white = "", black = "" }
+            case currentPlayer of
+                Just Sako.White ->
+                    { white = " ⏳", black = "" }
+
+                Just Sako.Black ->
+                    { white = "", black = " ⏳" }
+
+                Nothing ->
+                    { white = "", black = "" }
