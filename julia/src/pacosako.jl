@@ -95,6 +95,12 @@ function Game.legalactions(ps :: PacoSako)
   [Int(a) for a in actions]
 end
 
+function dumpgame(game :: PacoSako)
+  fname = "$(time_ns()).pacosako"
+  open(f -> Pack.pack(f, game), fname, "w")
+  fname
+end
+
 function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
   status_code = @pscall(
     :apply_action_bang,
@@ -103,7 +109,10 @@ function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
     ps.ptr,
     UInt8(action)
   )
-  @assert status_code == 0 "Error during move!"
+  if status_code != 0
+    fname = dumpgame(game)
+    error("Error while moving with action $action (game dump: $fname)")
+  end
 
   actions = Game.legalactions(ps)
   raw_status = @pscall(:status, Int64, (Ptr{Nothing},), ps.ptr)
@@ -359,7 +368,10 @@ function sakochains(ps :: PacoSako) :: Vector{Vector{Int64}}
     buffer,
     length(buffer),
   )
-  @assert status_code == 0 "Error when trying to find sako chains for $(fen(ps))"
+  if status_code != 0
+    fname = dumpgame(game)
+    error("Error while trying to find sako chains (game dump: $fname)")
+  end
 
   # Split the result at each returned 0s
   chains = Vector{Int64}[]
