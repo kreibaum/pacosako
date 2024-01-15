@@ -684,6 +684,7 @@ boardViewOk shared model position partialActionHistory =
                 , blackPlayer = model.blackPlayer
                 , victoryState = model.victoryState
                 , isWithTimer = False
+                , currentPlayer = Nothing
                 }
                 |> List.filterMap identity
                 |> Svg.g []

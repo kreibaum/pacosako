@@ -775,17 +775,13 @@ additionalSvg shared model =
             , whitePlayer = model.currentState.whitePlayer
             , blackPlayer = model.currentState.blackPlayer
             , victoryState = model.currentState.gameState
-            , isWithTimer = isJust model.currentState.timer
+            , isWithTimer = Maybe.isJust model.currentState.timer
+            , currentPlayer = Just model.currentState.controllingPlayer
             }
     )
         |> List.filterMap identity
         |> Svg.g []
         |> Just
-
-
-isJust : Maybe a -> Bool
-isJust m =
-    m |> Maybe.map (\_ -> True) |> Maybe.withDefault False
 
 
 sidebarLandscape : Model -> Element Msg
