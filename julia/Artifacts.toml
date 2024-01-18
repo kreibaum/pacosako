@@ -49,6 +49,14 @@ lazy = true
     sha256 = "2330199b5b908003909ee6f077dd4a35bff18c486fb82cb6fa0f6ed535310732"
     url = "https://static.kreibaum.dev/hedwig-0.5.tar.gz"
 
+["model.hedwig-0.6"]
+git-tree-sha1 = "10383f805a52af2b20543db5f4cddcda7dfe0ec0"
+lazy = true
+
+    [["model.hedwig-0.6".download]]
+    sha256 = "5ff33fd65928d15c2d061f5b9402d316aa33f356ee41fedc625a54643ac675fb"
+    url = "https://static.kreibaum.dev/hedwig-0.6.tar.gz"
+
 ["model.ludwig-1.0"]
 git-tree-sha1 = "2fb78bae27c750adbd417de6e856db406a01f630"
 lazy = true
