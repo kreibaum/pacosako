@@ -11,15 +11,14 @@ end
 function subscribe(ws, match :: Int)
   HTTP.send(ws, subscription_string(match))
   response = HTTP.receive(ws)
-  json = nothing
-  try
-    json = LazyJSON.parse(String(response))
+  dict = try
+    JSON.parse(String(response))
   catch _
     logerr("Could not parse server response")
     return nothing
   end
-  if "CurrentMatchState" in keys(json)
-    return json["CurrentMatchState"]
+  if "CurrentMatchState" in keys(dict)
+    return dict["CurrentMatchState"]
   else
     logerr("Could not understand server response: " * String(response))
     return nothing
@@ -135,21 +134,21 @@ function play( player :: Player.AbstractPlayer
       @async while true
         try
           msg = HTTP.receive(ws)
-          json = LazyJSON.parse(String(msg))
-          state = Json.parsegame(json["CurrentMatchState"])
+          dict = JSON.parse(String(msg))
+          state = Json.parsegame(dict["CurrentMatchState"])
           put!(games, state)
           log(match, "Received state $(JtacPacoSako.fen(state[1]))")
         catch err
           if err isa EOFError && !exiting
             logerr("Websocket has closed")
-          elseif err isa LazyJSON.ParseError
-            logerr("Could not parse server message")
           elseif err isa KeyError
             logerr("Could not understand server message")
           elseif err isa ArgumentError
             logerr(err.msg)
-          elseif err isa InvalidStateException && !exiting
+          elseif err isa HTTP.WebSockets.WebSocketError
             # the games channel has been closed
+          else
+            logerr("Some error occurred: $err")
           end
           exiting = true
           close(ws)

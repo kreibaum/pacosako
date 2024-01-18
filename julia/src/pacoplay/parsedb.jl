@@ -32,7 +32,7 @@ function parsedb( csv
     match_id = data[index+1, 1]
 
     ds = Training.DataSet(PacoSako)
-    moves = LazyJSON.parse(data[index+1, 2])
+    moves = JSON.parse(data[index+1, 2])
     game = PacoSako()
 
     # Replay the game

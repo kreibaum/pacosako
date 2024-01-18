@@ -24,7 +24,7 @@ end
 
 Parse the action in `json` from the perspective of `active_player`.
 """
-function parseaction(json :: LazyJSON.Value, active_player :: Int) :: Int
+function parseaction(json :: Dict, active_player :: Int) :: Int
   if "Lift" in keys(json)
     1 + adaptperspective(json["Lift"], active_player)
   elseif "Place" in keys(json)
@@ -45,11 +45,11 @@ end
 
 function parseaction(json_str :: String, active_player :: Int)
   try 
-    json = LazyJSON.parse(json_str)
+    dict = JSON.parse(json_str)
   catch err
     throw(ArgumentError("Invalid json string: $err"))
   end
-  parseaction(json, active_player)
+  parseaction(dict, active_player)
 end
 
 """
@@ -72,24 +72,24 @@ end
 
 
 """
-    parsegame(json) -> (game, timeout)
+    parsegame(json_dict) -> (game, timeout)
 
 Parses the provided json and returns a `game` instance of type `PacoSako`.
 Additionally, it returns a `timeout` value that either has the value `0` (no
 timeout), `-1` (black won by timeout), or `1` (white won by timeout).
 """
-function parsegame(state_json :: LazyJSON.Value)
-  if !("actions" in keys(state_json))
+function parsegame(state :: Dict)
+  if !("actions" in keys(state))
     throw(ArgumentError("Provided JSON has no field 'actions'"))
   end
   game = PacoSako()
-  for pacoplay_action in state_json["actions"]
+  for pacoplay_action in state["actions"]
     action = parseaction(pacoplay_action, Game.activeplayer(game))
     Game.move!(game, action)
   end
 
-  if "TimeoutVictory" in keys(state_json["victory_state"])
-    winner = state_json["victory_state"]["TimeoutVictory"]
+  if "TimeoutVictory" in keys(state["victory_state"])
+    winner = state["victory_state"]["TimeoutVictory"]
     timeout = winner == "White" ? 1 : -1
   else
     timeout = 0
@@ -99,11 +99,33 @@ function parsegame(state_json :: LazyJSON.Value)
 end
 
 function parsegame(json_str :: String)
-  try 
-    json = LazyJSON.parse(json_str)
+  dict = try 
+    JSON.parse(json_str)
   catch err
     throw(ArgumentError("Invalid json string: $err"))
   end
-  parsegame(json)
+  parsegame(dict)
 end
 
+function parsematch(state :: Dict)
+  if !("actions" in keys(state))
+    throw(ArgumentError("Provided JSON has no field 'actions'"))
+  end
+  game = PacoSako()
+  match = map(state["actions"]) do pacoplay_action
+    action = parseaction(pacoplay_action, Game.activeplayer(game))
+    Game.move!(game, action)
+    copy(game)
+  end
+
+  [PacoSako(); match]
+end
+
+function parsematch(json_str :: String)
+  dict = try 
+    JSON.parse(json_str)
+  catch err
+    throw(ArgumentError("Invalid json string: $err"))
+  end
+  parsematch(dict)
+end

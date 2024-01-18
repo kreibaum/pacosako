@@ -59,7 +59,7 @@ Glue between the JtacPacoSako package and the pacoplay webpage.
 module PacoPlay
 
   using ..JtacPacoSako
-  using HTTP, LazyJSON
+  using HTTP, JSON
   using DelimitedFiles
 
   module Url
@@ -69,7 +69,7 @@ module PacoPlay
 
   module Json
     using ..JtacPacoSako
-    import LazyJSON
+    import JSON
     include("pacoplay/json.jl")
   end
 

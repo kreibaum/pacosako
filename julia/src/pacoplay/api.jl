@@ -12,6 +12,20 @@ function requestmatch(; domain = :dev) :: Int
   parse(Int, String(resp.body))
 end
 
+function downloadmatch(match_id; domain = :dev)
+  url = PacoPlay.Url.server(; domain)
+  resp = HTTP.get(url * "/api/game/$match_id")
+  @assert resp.status == 200 "Download of match $match_id failed: $(resp.status)"
+  body = String(resp.body)
+  Json.parsematch(body)
+end
+
+function submitmetadata(match_id, meta_data :: Vector; domain = :dev)
+  url = PacoPlay.Url.server(; domain)
+  body = 
+  resp = HTTP.post(url * "/api/replay_meta_data/$match_id")
+end
+
 """
     signin(username, password; domain = :dev)
 
