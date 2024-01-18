@@ -34,6 +34,7 @@ pub async fn run(state: AppState) {
         .route("/username_password", post(login::username_password_route))
         .route("/logout", get(login::logout_route))
         .route("/replay_meta_data/:game", get(replay_data::get_metadata))
+        // .route("/replay_meta_data/:game", post(replay_data::post_metadata))
         .route("/me/avatar", post(user::set_avatar))
         .route("/me/delete", get(user::delete_user))
         .route("/grafana", get(grafana::grafana_handler));
