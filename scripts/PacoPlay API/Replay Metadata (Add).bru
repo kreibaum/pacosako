@@ -1,0 +1,22 @@
+meta {
+  name: Replay Metadata (Add)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/replay_meta_data/15212
+  body: json
+  auth: none
+}
+
+body:json {
+  [
+    {
+      "game": "15212",
+      "action_index": 2,
+      "category": "Example Arrow",
+      "data": "{\"type\":\"arrow\", \"tail\":11, \"head\":27, \"color\": \"#ffc80080\", \"width\" : 20 }"
+    }
+  ]
+}

@@ -1,7 +1,12 @@
 //! Module for managing `ReplayMetaInformation` in the backend
 
-use axum::{extract::Path, Json};
-use serde::Serialize;
+use axum::{
+    extract::{Path, State},
+    Json,
+};
+use serde::{Deserialize, Serialize};
+
+use crate::{db::Pool, login::session::SessionData, ServerError};
 
 #[derive(Serialize)]
 pub struct ReplayMetaData {
@@ -12,64 +17,62 @@ pub struct ReplayMetaData {
     data: String,
 }
 
-// Get the replay information
-pub async fn get_metadata(Path(key): Path<String>) -> Json<Vec<ReplayMetaData>> {
-    // Disabled for now to make it easy to merge this into the main branch
-    if 2 * 2 > 3 {
-        return Json(vec![]);
+#[derive(Serialize, Deserialize)]
+pub struct ReplayMetaDataInput {
+    action_index: i64,
+    category: String,
+    /// data holds a json encoded payload to render the object.
+    data: String,
+}
+
+pub async fn post_metadata(
+    _session: SessionData, // TODO: Verify that only AIs can call this.
+    Path(key): Path<String>,
+    pool: State<Pool>,
+    Json(data): Json<Vec<ReplayMetaDataInput>>,
+) -> Result<(), ServerError> {
+    let mut conn = pool.conn().await?;
+
+    for ele in data {
+        sqlx::query!(
+            r"INSERT INTO game_replay_metadata
+        (game_id, action_index, category, metadata)
+        VALUES (?, ?, ?, ?)",
+            key,
+            ele.action_index,
+            ele.category,
+            ele.data
+        )
+        .execute(&mut conn)
+        .await?;
     }
-    Json(vec![
-        // If several arrows with the same game, action_index and category are
-        // posted, then all of them are drawn
-        ReplayMetaData {
+
+    Ok(())
+}
+
+// Get the replay information
+pub async fn get_metadata(
+    pool: State<Pool>,
+    Path(key): Path<String>,
+) -> Result<Json<Vec<ReplayMetaData>>, ServerError> {
+    let mut conn = pool.conn().await.unwrap();
+    let data = sqlx::query!(
+        r"SELECT action_index, category, metadata
+        FROM game_replay_metadata
+        WHERE game_id = ?",
+        key
+    )
+    .fetch_all(&mut conn)
+    .await?;
+
+    let mut result = Vec::new();
+    for ele in data {
+        result.push(ReplayMetaData {
             game: key.clone(),
-            action_index: 2,
-            category: "Example Arrow".to_owned(),
-            data:
-                r##"{"type":"arrow", "tail":11, "head":27, "color": "#ffc80080", "width" : 20 }"##
-                    .to_owned(),
-        },
-        ReplayMetaData {
-            game: key.clone(),
-            action_index: 2,
-            category: "Example Arrow".to_owned(),
-            data: r##"{"type":"arrow", "tail":1, "head":18, "color": "#ff0000A0", "width" : 7  }"##
-                .to_owned(),
-        },
-        ReplayMetaData {
-            game: key.clone(),
-            action_index: 4,
-            category: "Weight Arrow".to_owned(),
-            data: r#"{"type":"arrow", "tail":13, "head":21, "weight" : 1 }"#.to_owned(),
-        },
-        ReplayMetaData {
-            game: key.clone(),
-            action_index: 4,
-            category: "Weight Arrow".to_owned(),
-            data: r#"{"type":"arrow", "tail":14, "head":22, "weight" : 2 }"#.to_owned(),
-        },
-        ReplayMetaData {
-            game: key.clone(),
-            action_index: 4,
-            category: "Weight Arrow".to_owned(),
-            data: r#"{"type":"arrow", "tail":15, "head":23, "weight" : 3 }"#.to_owned(),
-        },
-        // If several values with the same game, action_index and category are
-        // posted, then one of them is drawn
-        ReplayMetaData {
-            game: key.clone(),
-            action_index: 4,
-            category: "Value".to_owned(),
-            // evaluation of the game state between -1 and 1, shown via a vertical
-            // bar next to the board
-            data: r#"{"type":"value", "value":0.15}"#.to_owned(),
-        },
-        ReplayMetaData {
-            game: key.clone(),
-            action_index: 6,
-            category: "Value".to_owned(),
-            // if uncertainty is associated to the value, a range can be provided
-            data: r#"{"type":"value", "value":[0.15, 0.25]}"#.to_owned(),
-        },
-    ])
+            action_index: ele.action_index,
+            category: ele.category,
+            data: ele.metadata,
+        });
+    }
+    Ok(Json(result))
 }

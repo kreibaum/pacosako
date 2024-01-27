@@ -30,8 +30,8 @@ you make changes to rust code. The frontend is already recompiled automatically.
 
 If you want to run the development environment locally, you will need to have installed:
 
-* Rust, rustup, [wasm-pack](https://github.com/rustwasm/wasm-pack)
-* Elm and [elm-watch](https://github.com/lydell/elm-watch)
+- Rust, rustup, [wasm-pack](https://github.com/rustwasm/wasm-pack)
+- Elm and [elm-watch](https://github.com/lydell/elm-watch)
 
 Then run
 
@@ -40,15 +40,16 @@ Then run
 
 All other installations are done done in `./gitpod-init.sh`. Modify this file:
 
-* Change the path for all installations from `home/gitpod/bin` to your preferred path (such as `~/Documents/gitpod/bin/`).
-* Change `pytrans.py` to `pytrans.py English` to get the English version of the website.
+- Change the path for all installations from `home/gitpod/bin` to your preferred path (such as `~/Documents/gitpod/bin/`).
+- Change `pytrans.py` to `pytrans.py English` to get the English version of the website.
 
 Run
 
     # Initialize target directory, copy static files
     ./gitpod-init.sh
 
-#### Running 
+#### Running
+
 Then you run
 
     # Run elm-watch which keeps the frontend up to date & hot reloads
@@ -233,6 +234,42 @@ ERROR: CUDA initialization failed: CUDA error (code 999, CUDA_ERROR_UNKNOWN)
 This may happen when you suspend your computer while the CUDA driver is still
 loaded. To fix this, just restart your computer.
 
+# Replay Meta Data
+
+It is possible to attach arbitrary json meta data to a replay. This requires you
+to have access to an ai users api credentials.
+
+Every piece of meta data is associated with a game and an action index. It is
+also sorted into a category. The category is just an arbitrary string that is
+shown in the frontend to group meta data together and to control what is shown.
+
+Of course, the frontend has no way to render arbitrary meta data. So you need to
+conform to an implemented schema. Here is what we currently support:
+
+```json
+{
+  "type": "arrow",
+  "tail": 11,
+  "head": 27,
+  "color": "#ffc80080", // Optional, default #ffc80080
+  "width": 20 // Optional, default 10
+  // "width" may also be replaced by "weight" which scales arrows proportionally
+}
+```
+
+Additionally, we are also planning to implement
+
+```json
+{
+    "type": "value",
+    "value": 0.38,
+    "impact": -0.09, // Optional
+    "best": 0.02,    // Optional
+    "rank": 3,       // Optional
+    "rank_of": 10    // Optional
+}
+```
+
 # Architecture
 
 ![A schematic drawing of the architecture when deployed.](/doc/architecture.png)
@@ -240,7 +277,7 @@ loaded. To fix this, just restart your computer.
 # Deployment and Server Management
 
 This application is set up to run using two systemd services, one for the staging environment and one for
-the production environment. The configuration for these services is available in the `/scripts` directory. 
+the production environment. The configuration for these services is available in the `/scripts` directory.
 
 ## Systemd Services
 
@@ -266,12 +303,12 @@ Replace `servicename` with either `stage` or `prod` depending on which service y
 There are two scripts used to update the staging and production servers:
 
 - `update-stage.sh`: This script is used to deploy a new version to the staging server.
-    It first stops the staging service, removes the existing deployment, installs the new deployment,
-    and then restarts the staging service.
+  It first stops the staging service, removes the existing deployment, installs the new deployment,
+  and then restarts the staging service.
 - `update-prod.sh`: This script is used to promote the staging version to production.
-    It first stops the production service, backs up the current production server and database,
-    removes the existing deployment, installs the new deployment from staging,
-    and then restarts the production service.
+  It first stops the production service, backs up the current production server and database,
+  removes the existing deployment, installs the new deployment from staging,
+  and then restarts the production service.
 
 Each server will update its own database schema when it starts up.
 
