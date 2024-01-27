@@ -246,7 +246,7 @@ shown in the frontend to group meta data together and to control what is shown.
 Of course, the frontend has no way to render arbitrary meta data. So you need to
 conform to an implemented schema. Here is what we currently support:
 
-```json
+```jsonc
 {
   "type": "arrow",
   "tail": 11,
@@ -259,7 +259,7 @@ conform to an implemented schema. Here is what we currently support:
 
 Additionally, we are also planning to implement
 
-```json
+```jsonc
 {
     "type": "value",
     "value": 0.38,
