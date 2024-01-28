@@ -69,12 +69,10 @@ webassembly and Elm ports.
 
 To run an example, just execute `cargo run`.
 
-To build the webassembly file from the library run `wasm-pack build`.
+To build the webassembly file from the library run the `scripts/compile-wasm.sh` script.
+You also get this as part of `scripts/compile-frontend.sh` as well.
 
 See https://rustwasm.github.io/docs/book/game-of-life/hello-world.html for details on wasm.
-
-Note: WASM is a thing I want to use in the future but have not implemented
-anything for yet. Having this in the readme is just a note to myself.
 
 ## Working on translations
 
@@ -261,12 +259,12 @@ Additionally, we are also planning to implement
 
 ```jsonc
 {
-    "type": "value",
-    "value": 0.38,
-    "impact": -0.09, // Optional
-    "best": 0.02,    // Optional
-    "rank": 3,       // Optional
-    "rank_of": 10    // Optional
+  "type": "value",
+  "value": 0.38,
+  "impact": -0.09, // Optional
+  "best": 0.02, // Optional
+  "rank": 3, // Optional
+  "rank_of": 10 // Optional
 }
 ```
 
