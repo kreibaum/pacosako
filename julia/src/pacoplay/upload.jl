@@ -38,7 +38,7 @@ function upload(games :: Vector{PacoSako}; kwargs...)
   @assert isequal(games[1], PacoSako()) """
   Can only upload game sequences that start with a default initial state.
   """
-  actions = Game.reconstructactions(games)
+  actions = Game.deriveactions(games)
   upload(actions; kwargs...)
 end
 

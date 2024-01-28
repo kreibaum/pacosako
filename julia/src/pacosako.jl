@@ -41,7 +41,7 @@ function PacoSako(ptr :: Ptr{Nothing})
   finalizer(destroy!, ps)
   status = @pscall(:status, Int64, (Ptr{Nothing}, ), ps.ptr)
   if length(Game.legalactions(ps)) == 0 && status == 42
-      ps.forfeit_by = Game.activeplayer(ps)
+      ps.forfeit_by = Game.mover(ps)
   end
   ps
 end
@@ -80,8 +80,12 @@ function Game.status(ps :: PacoSako) :: Game.Status
   end
 end
 
-function Game.activeplayer(ps :: PacoSako) :: Int64
+function Game.mover(ps :: PacoSako) :: Int64
   @pscall(:current_player, Int64, (Ptr{Nothing},), ps.ptr)
+end
+
+function Game.moverlabel(ps :: PacoSako) :: String
+  Game.mover(ps) == 1 ? "WHITE" : "BLACK"
 end
 
 Game.policylength(:: Type{PacoSako}) :: Int = 132
@@ -110,14 +114,14 @@ function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
     UInt8(action)
   )
   if status_code != 0
-    fname = dumpgame(game)
+    fname = dumpgame(ps)
     error("Error while moving with action $action (game dump: $fname)")
   end
 
   actions = Game.legalactions(ps)
   raw_status = @pscall(:status, Int64, (Ptr{Nothing},), ps.ptr)
   if length(actions) == 0 && raw_status == 42
-      ps.forfeit_by = Game.activeplayer(ps)
+      ps.forfeit_by = Game.mover(ps)
   end
 
   ps
@@ -266,7 +270,7 @@ function statusmsg(game)
       "black won"
     end
   else
-    if Game.activeplayer(game) == 1
+    if Game.mover(game) == 1
       "white moving"
     else
       "black moving"

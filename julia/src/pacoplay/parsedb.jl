@@ -37,7 +37,7 @@ function parsedb( csv
 
     # Replay the game
     for move in moves
-      action = PacoPlay.Json.parseaction(move, Game.activeplayer(game))
+      action = PacoPlay.Json.parseaction(move, Game.mover(game))
       policy = onehot(action)
       push!(ds.games, copy(game))
       push!(ds.target_labels[2].data, onehot(action)) # store policy targets
@@ -61,7 +61,7 @@ function parsedb( csv
     # Use game result to provide value targets
     status = Game.status(game)
     for game in ds.games
-      active = Game.activeplayer(game)
+      active = Game.mover(game)
       value = Float32[active * Int(status)]
       push!(ds.target_labels[1].data, value)
     end

@@ -84,7 +84,7 @@ function parsegame(state :: Dict)
   end
   game = PacoSako()
   for pacoplay_action in state["actions"]
-    action = parseaction(pacoplay_action, Game.activeplayer(game))
+    action = parseaction(pacoplay_action, Game.mover(game))
     Game.move!(game, action)
   end
 
@@ -113,7 +113,7 @@ function parsematch(state :: Dict)
   end
   game = PacoSako()
   match = map(state["actions"]) do pacoplay_action
-    action = parseaction(pacoplay_action, Game.activeplayer(game))
+    action = parseaction(pacoplay_action, Game.mover(game))
     Game.move!(game, action)
     copy(game)
   end

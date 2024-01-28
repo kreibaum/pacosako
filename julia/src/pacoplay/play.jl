@@ -178,7 +178,7 @@ function play( player :: Player.AbstractPlayer
         # the following could raise exceptions when waiting on games
         # or when trying to write to ws after it was closed
         try 
-          if color != Game.activeplayer(game)
+          if color != Game.mover(game)
             log(match, "Waiting for opponent...")
             game, timeout = wait_updates(games)
             continue
@@ -205,7 +205,7 @@ function play( player :: Player.AbstractPlayer
           log(match, "Submitting actions $(join(chain, ", "))")
           for action in chain
             # do action
-            HTTP.send(ws, action_string(match, action, Game.activeplayer(game)))
+            HTTP.send(ws, action_string(match, action, Game.mover(game)))
             Game.move!(game, action)
             # wait for feedback from the server
             sleep(delay)

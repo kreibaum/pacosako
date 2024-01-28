@@ -99,7 +99,7 @@ function submitaction( match :: Integer
 end
 
 function submitaction(match, game :: PacoSako, action; kwargs...)
-  submitaction(match, Player.activeplayer(game), action; kwargs...)
+  submitaction(match, Player.mover(game), action; kwargs...)
 end
 
 # TODO: Functionality to query the current game in a match
