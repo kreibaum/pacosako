@@ -122,7 +122,7 @@ victoryStateToText victoryState currentPlayer =
         TimeoutVictory Sako.Black ->
             { white = " 🐌", black = " 🏆" }
 
-        _ ->
+        Running ->
             case currentPlayer of
                 Just Sako.White ->
                     { white = " ⏳", black = "" }
@@ -132,3 +132,6 @@ victoryStateToText victoryState currentPlayer =
 
                 Nothing ->
                     { white = "", black = "" }
+
+        _ ->
+            { white = "", black = "" }
