@@ -148,16 +148,10 @@ fn derive_notation(
         if current_player == PlayerColor::White {
             move_number += 1;
         }
-        let mut additional_actions_processed = 0;
 
-        let mut notations = Vec::with_capacity(actions.len());
-        for &action in actions {
-            let notation = apply_action_semantically(&mut board, action)?;
-            additional_actions_processed += 1;
-            notations.push(notation);
-        }
-        let sections = squash_notation_atoms(initial_index, notations);
-        initial_index += additional_actions_processed;
+        let sections = segment_half_move_into_sections(&mut board, actions, initial_index)?;
+
+        initial_index += actions.len();
 
         let half_move = HalfMove {
             move_number,
@@ -170,6 +164,29 @@ fn derive_notation(
         half_moves.push(half_move);
     }
     Ok(half_moves)
+}
+
+/// Applies the given list of actions to a board (mutating it) and returns the
+/// notation for each action. This will usually fuse the first two actions into
+/// one section. (Lift + 1st Place)
+/// This method assumes that control doesn't change during the actions.
+///
+/// The initial index is required, because that information goes into each
+/// notation atom, so they can reference the correct action.
+///
+/// This method is public, because we also use it to derive the notation for
+/// the Ŝako analysis in the editor. And the Julia bindings also want to use it.
+pub fn segment_half_move_into_sections(
+    board: &mut DenseBoard,
+    actions: &[PacoAction],
+    initial_index: usize,
+) -> Result<Vec<super::HalfMoveSection>, PacoError> {
+    let mut notations = Vec::with_capacity(actions.len());
+    for &action in actions {
+        let notation = apply_action_semantically(board, action)?;
+        notations.push(notation);
+    }
+    Ok(squash_notation_atoms(initial_index, notations))
 }
 
 /// Mutates the half moves in place to add information when a player gives
