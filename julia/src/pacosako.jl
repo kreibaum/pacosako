@@ -422,3 +422,32 @@ function sakodata(; tries=100) :: DataSet{PacoSako}
   ds
 end
 
+
+""" 
+    halfmovecount(ps)
+
+Returns the halfmove count of the [`PacoSako`](@ref) game state `ps`.
+"""
+function halfmovecount(ps::PacoSako)
+  @pscall(:half_move_count, Int64, (Ptr{Nothing},), ps.ptr)
+end
+
+
+"""
+    movecount(ps)
+
+Returns the fullmove count of the [`PacoSako`](@ref) game state `ps`.
+"""
+function movecount(ps::PacoSako)
+  @pscall(:move_count, Int64, (Ptr{Nothing},), ps.ptr)
+end
+
+"""
+    actioncount(ps)
+
+Returns the number of actions that have been played in the [`PacoSako`](@ref)
+game state `ps`.
+"""
+function actioncount(ps::PacoSako)
+  @pscall(:action_count, Int64, (Ptr{Nothing},), ps.ptr)
+end

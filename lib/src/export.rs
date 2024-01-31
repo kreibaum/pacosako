@@ -181,6 +181,39 @@ pub unsafe extern "C" fn status(ps: *mut DenseBoard) -> i64 {
     }
 }
 
+/// Returns the half move count of the game.
+///
+/// # Safety
+///
+/// The pointer must point to a valid DenseBoard.
+#[no_mangle]
+pub unsafe extern "C" fn half_move_count(ps: *mut DenseBoard) -> i64 {
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+    ps.half_move_count as i64
+}
+
+/// Returns the full move count of the game.
+/// 
+/// # Safety
+/// 
+/// The pointer must point to a valid DenseBoard.
+#[no_mangle]
+pub unsafe extern "C" fn move_count(ps: *mut DenseBoard) -> i64 {
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+    ps.move_count as i64
+}
+
+/// Returns the number of actions that have been executed in the game.
+///
+/// # Safety
+/// 
+/// The pointer must point to a valid DenseBoard.
+#[no_mangle]
+pub unsafe extern "C" fn action_count(ps: *mut DenseBoard) -> i64 {
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+    ps.action_count as i64
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // (De-)Serialization //////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

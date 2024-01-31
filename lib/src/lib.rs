@@ -127,7 +127,7 @@ pub struct VariantSettings {
 }
 
 /// In a DenseBoard we reserve memory for all positions.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Serialize, Deserialize)]
 pub struct DenseBoard {
     pub substrate: DenseSubstrate,
     pub controlling_player: PlayerColor,
@@ -141,6 +141,48 @@ pub struct DenseBoard {
     pub castling: Castling,
     pub victory_state: VictoryState,
     pub draw_state: DrawState,
+    /// There must be progress every 100 half-moves. Progress is a union (15x) or a
+    /// promotion (2x8x=16x) for a total of 31x. This means the maximum number
+    /// of moves is 100*32=3200. This easily fits into a u16. Starts at 1.
+    pub half_move_count: u16,
+    /// Counts up every time White gets to move. Starts at 1.
+    pub move_count: u16,
+    /// 2^16 = 65536 which means we can have over 20 actions per turn and not
+    /// overflow. This should be enough for any game. Starts at 1.
+    pub action_count: u16,
+}
+
+/// Equals takes all the fields into account except for the move counts.
+/// I am running into infinite loops otherwise.
+/// Ideally I would just correct the respective algorithms, but this is a
+/// more pragmatic solution.
+impl PartialEq for DenseBoard {
+    fn eq(&self, other: &Self) -> bool {
+        self.substrate == other.substrate
+            && self.controlling_player == other.controlling_player
+            && self.required_action == other.required_action
+            && self.lifted_piece == other.lifted_piece
+            && self.en_passant == other.en_passant
+            && self.promotion == other.promotion
+            && self.castling == other.castling
+            && self.victory_state == other.victory_state
+            && self.draw_state == other.draw_state
+    }
+}
+
+/// Hash leaves out the same fields as PartialEq.
+impl Hash for DenseBoard {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.substrate.hash(state);
+        self.controlling_player.hash(state);
+        self.required_action.hash(state);
+        self.lifted_piece.hash(state);
+        self.en_passant.hash(state);
+        self.promotion.hash(state);
+        self.castling.hash(state);
+        self.victory_state.hash(state);
+        self.draw_state.hash(state);
+    }
 }
 
 /// Promotions can happen at the start of your turn if the opponent moved a pair
@@ -334,6 +376,9 @@ impl DenseBoard {
             castling: Castling::new(),
             victory_state: VictoryState::Running,
             draw_state: DrawState::with_options(options),
+            half_move_count: 1,
+            move_count: 1,
+            action_count: 1,
         };
 
         // Board structure
@@ -377,6 +422,9 @@ impl DenseBoard {
             castling: Castling::new(),
             victory_state: VictoryState::Running,
             draw_state: DrawState::default(),
+            half_move_count: 1,
+            move_count: 1,
+            action_count: 1,
         }
     }
 
@@ -586,6 +634,7 @@ impl DenseBoard {
                     } else {
                         self.required_action = RequiredAction::Lift;
                         self.controlling_player = self.controlling_player.other();
+                        self.count_halve_move();
                         draw_state::record_position(self);
                     }
                 }
@@ -620,9 +669,11 @@ impl DenseBoard {
                         self.promotion = Some(target);
                         self.required_action = RequiredAction::PromoteThenLift;
                         self.controlling_player = self.controlling_player.other();
+                        self.count_halve_move();
                     } else {
                         self.required_action = RequiredAction::Lift;
                         self.controlling_player = self.controlling_player.other();
+                        self.count_halve_move();
                         draw_state::record_position(self);
                     }
 
@@ -709,6 +760,7 @@ impl DenseBoard {
         self.castling
             .remove_rights_for_color(self.controlling_player);
         self.controlling_player = self.controlling_player.other();
+        self.count_halve_move();
         self.required_action = RequiredAction::Lift;
 
         // Moving the king does never progress the game and even
@@ -781,6 +833,7 @@ impl DenseBoard {
                 RequiredAction::PromoteThenFinish => {
                     self.required_action = RequiredAction::Lift;
                     self.controlling_player = self.controlling_player.other();
+                    self.count_halve_move();
                     self.en_passant = None;
                     draw_state::record_position(self);
                 }
@@ -1126,6 +1179,17 @@ impl DenseBoard {
             )),
         }
     }
+
+    fn count_halve_move(&mut self) {
+        self.half_move_count += 1;
+        if self.controlling_player == PlayerColor::White {
+            self.move_count += 1;
+        }
+    }
+
+    fn count_action(&mut self) {
+        self.action_count += 1;
+    }
 }
 
 /// For a given move of the king, determines if this would trigger a castling.
@@ -1160,6 +1224,7 @@ impl PacoBoard for DenseBoard {
     }
     fn execute_trusted(&mut self, action: PacoAction) -> Result<&mut Self, PacoError> {
         use PacoAction::*;
+        self.count_action();
         match action {
             Lift(position) => self.lift(position),
             Place(position) => {
