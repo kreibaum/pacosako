@@ -55,6 +55,7 @@ Let `player` play a paco sako match  on the pacoplay website under the id
 `matchid`. By default, a new match is requested.
 
 # Arguments
+* `anneal`: The anneal function for the match.
 * `color = :white`: The color assumed by `player`.
 * `domain = :dev`: The pacoplay domain the player is connected to. Setting \
   `domain = :official` will use the production server.
@@ -67,12 +68,15 @@ Let `player` play a paco sako match  on the pacoplay website under the id
 """
 function play( player :: Player.AbstractPlayer
              , match :: Int = -1
-             ; color = :white
+             ; anneal = _ -> 1f0
+             , color = :white
              , domain = :dev
              , delay :: Float64 = 0.25
              , uuid :: String = "lpdyrmi3m3e1txe09dh"
              , username = nothing
              , password = nothing )
+
+  anneal = Player.annealf(anneal)
 
   if color in [:white, :White, :w, :W, "white", "White", "w", "W", 1]
     color = 1
@@ -129,6 +133,7 @@ function play( player :: Player.AbstractPlayer
     @sync begin
 
       exiting = false
+      moves = 0 # count the player moves
 
       # listen to pacoplay changes of the game state and fill the games channel
       @async while true
@@ -159,7 +164,6 @@ function play( player :: Player.AbstractPlayer
 
       # think about next action(s) to take and submit them
       @async while true
-
         if timeout != 0 || Game.isover(game)
           if timeout != 0
             str = "Winner: $(COLORS[timeout]) (by timeout)"
@@ -185,7 +189,12 @@ function play( player :: Player.AbstractPlayer
           end
 
           log(match, "Thinking...")
-          chain = Player.decidechain(player, game)
+          temperature = anneal(moves)
+          chain = try
+          Player.decideturn(player, game; temperature)
+      catch err
+        println(err)
+      end
 
           # since finding the decision might have taken some time, we
           # check if the game state has changed by human intervention
@@ -215,6 +224,7 @@ function play( player :: Player.AbstractPlayer
               log(match, "Info: Game state has changed while player was acting")
               break
             end
+            moves += 1
             game = new_game
             timeout = tout
           end
