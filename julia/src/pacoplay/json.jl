@@ -117,8 +117,7 @@ function parsematch(state :: Dict)
     Game.move!(game, action)
     copy(game)
   end
-
-  [PacoSako(); match]
+  Game.Match(PacoSako[PacoSako(); match])
 end
 
 function parsematch(json_str :: String)
