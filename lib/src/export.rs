@@ -12,7 +12,9 @@ use crate::{
     analysis::{self, reverse_amazon_search},
     determine_all_threats, fen,
     setup_options::SetupOptions,
-    BoardPosition, DenseBoard, PacoAction, PacoBoard, PlayerColor, VictoryState,
+    BoardPosition, DenseBoard, PacoAction, PacoBoard,
+    PieceType::*,
+    PlayerColor, VictoryState,
 };
 
 #[no_mangle]
@@ -80,6 +82,41 @@ pub unsafe extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
         crate::PlayerColor::White => 1,
         crate::PlayerColor::Black => -1,
     }
+}
+
+/// Writes a label for the action as a utf8 string into the given buffer.
+/// The buffer should have two byes of space. The length of the string is
+/// returned. If the buffer is too small, 0 is returned.
+///
+/// # Safety
+///
+/// The ps pointer must be valid. The out pointer must be valid and the
+/// reserved_space must really be available.
+#[no_mangle]
+pub unsafe extern "C" fn movelabel(
+    ps: *mut DenseBoard,
+    action: u8,
+    out: *mut u8,
+    reserved_space: i64,
+) -> i64 {
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
+
+    let Some(action) = action_index_to_action(action) else {
+        return -1;
+    };
+
+    let action = action.align(ps.controlling_player());
+    let label = match action {
+        PacoAction::Lift(p) => format!("{}", p),
+        PacoAction::Place(p) => format!("{}", p),
+        PacoAction::Promote(Queen) => "=Q".to_string(),
+        PacoAction::Promote(Rook) => "=R".to_string(),
+        PacoAction::Promote(Bishop) => "=B".to_string(),
+        PacoAction::Promote(Knight) => "=N".to_string(),
+        _ => "??".to_string(),
+    };
+
+    write_byte_string(&label, out, reserved_space)
 }
 
 /// Stores a 0 terminated array into the array given by the out pointer. The
@@ -193,9 +230,9 @@ pub unsafe extern "C" fn half_move_count(ps: *mut DenseBoard) -> i64 {
 }
 
 /// Returns the full move count of the game.
-/// 
+///
 /// # Safety
-/// 
+///
 /// The pointer must point to a valid DenseBoard.
 #[no_mangle]
 pub unsafe extern "C" fn move_count(ps: *mut DenseBoard) -> i64 {
@@ -206,7 +243,7 @@ pub unsafe extern "C" fn move_count(ps: *mut DenseBoard) -> i64 {
 /// Returns the number of actions that have been executed in the game.
 ///
 /// # Safety
-/// 
+///
 /// The pointer must point to a valid DenseBoard.
 #[no_mangle]
 pub unsafe extern "C" fn action_count(ps: *mut DenseBoard) -> i64 {
@@ -526,19 +563,23 @@ pub unsafe extern "C" fn write_fen(ps: *mut DenseBoard, out: *mut u8, reserved_s
     let ps: &DenseBoard = unsafe { &*ps };
 
     let fen_string = fen::write_fen(ps);
-    let fen_string = fen_string.as_bytes();
-    if fen_string.len() as i64 > reserved_space {
+    write_byte_string(&fen_string, out, reserved_space)
+}
+
+unsafe fn write_byte_string(string: &str, out: *mut u8, reserved_space: i64) -> i64 {
+    let string = string.as_bytes();
+    if string.len() as i64 > reserved_space {
         return 0;
     }
 
-    for (i, c) in fen_string.iter().enumerate() {
+    for (i, c) in string.iter().enumerate() {
         unsafe {
             let cell = out.add(i);
             *cell = *c;
         }
     }
 
-    fen_string.len() as i64
+    string.len() as i64
 }
 
 /// Parses a FEN string into a DenseBoard.
