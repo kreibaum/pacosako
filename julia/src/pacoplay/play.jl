@@ -76,7 +76,7 @@ function play( player :: Player.AbstractPlayer
              , username = nothing
              , password = nothing )
 
-  anneal = Player.annealf(anneal)
+  anneal = Player.annealfunction(anneal)
 
   if color in [:white, :White, :w, :W, "white", "White", "w", "W", 1]
     color = 1
