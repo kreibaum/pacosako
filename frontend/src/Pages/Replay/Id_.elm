@@ -728,6 +728,9 @@ oneMetaDataDecoration cue =
         CueArrow arrow ->
             Just (PositionView.CastingArrow arrow)
 
+        CueValue { valueAfter } ->
+            Just (PositionView.ValueBar valueAfter)
+
 
 
 --------------------------------------------------------------------------------

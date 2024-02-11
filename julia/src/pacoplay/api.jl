@@ -54,6 +54,19 @@ function replayjson(match_id, action_index, turnanalysis::Jtac.Analysis.TurnAnal
     from = to
   end
 
+  a = turnanalysis
+  inner = """{\\"type\\":\\"value\\","""
+  inner *= """\\"value_before\\":$(a.move_analyses[1].game_analysis.value),"""
+  inner *= """\\"value_after\\":$(a.move_analyses[end].value_after),"""
+  inner *= """\\"impact\\" : $(Jtac.Analysis.impact(a)),"""
+  inner *= """\\"impact_alt\\" : $(Jtac.Analysis.bestturn(a)[2]),"""
+  inner *= """\\"surprise\\" : $(Jtac.Analysis.surprise(a)),"""
+  inner *= """\\"kendall\\" : $(Jtac.Analysis.kendall(a))"""
+  inner = inner * "}"
+
+  outer = """{"game":$match_id, "action_index":$action_index, "category":"Analysis", "data":"$inner"}"""
+  push!(result, outer)
+
   result
 end
 
@@ -76,7 +89,8 @@ end
     mirror_tile(tile::Int)::Int
 
 Return the tile index of the mirrored tile of `tile`.
-We need this, because we flip the board in the board rotation.
+We need this, because we flip the board in the representation of the game
+if black (-1) is the mover.
 """
 function mirror_tile(tile::Int)::Int
   mirrored = [
