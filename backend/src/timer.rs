@@ -39,6 +39,16 @@ impl TimerConfig {
             increment,
         }
     }
+
+    pub(crate) fn is_legal(&self) -> bool {
+        if self.time_budget_white <= Duration::zero()
+            || self.time_budget_black <= Duration::zero()
+            || self.increment.is_some_and(|i| i < Duration::zero())
+        {
+            return false;
+        }
+        true
+    }
 }
 
 /// Ensure that all values of the timer config are below 1000000. This
@@ -61,7 +71,7 @@ pub struct Timer {
     )]
     time_left_black: Duration,
     timer_state: TimerState,
-    config: TimerConfig,
+    pub config: TimerConfig,
 }
 
 /// There is no default implementation for `serde::Serialize` for `Duration`, so we

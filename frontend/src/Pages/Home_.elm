@@ -61,12 +61,6 @@ view shared model =
     }
 
 
-type alias User =
-    { id : Int
-    , username : String
-    }
-
-
 init : Shared.Model -> ( Model, Effect Msg )
 init shared =
     ( { rawMatchId = ""
@@ -478,26 +472,54 @@ setupOnlineMatchUi shared model =
             , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
             , el [ centerX ] (Element.paragraph [] [ safeModeToggle model ])
             , el [ centerX ] (Element.paragraph [] [ repetitionDrawToggle model ])
-            , Input.button
-                [ Background.color (Element.rgb255 41 204 57)
-                , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
-                , centerX
-                , Border.rounded 5
-                ]
-                { onPress = Just CreateMatch
-                , label =
-                    Element.row
-                        [ height fill
+            , if isTimerOk (buildTimerConfig model.speedSetting) then
+                Input.button
+                    [ Background.color (Element.rgb255 41 204 57)
+                    , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
+                    , centerX
+                    , Border.rounded 5
+                    ]
+                    { onPress = Just CreateMatch
+                    , label =
+                        Element.row
+                            [ height fill
+                            , centerX
+                            , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                            , spacing 5
+                            ]
+                            [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
+                            , Element.text T.createMatch
+                            ]
+                    }
+
+              else
+                column [ centerX, spacing 7 ]
+                    [ el [ centerX ] (Element.paragraph [ Font.bold ] [ Element.text T.timerMustBePositive ])
+                    , el
+                        [ Background.color (Element.rgb255 200 200 200)
                         , centerX
-                        , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                        , spacing 5
+                        , Border.rounded 5
                         ]
-                        [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
-                        , Element.text T.createMatch
-                        ]
-                }
+                        (Element.row
+                            [ height fill
+                            , centerX
+                            , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                            , spacing 5
+                            ]
+                            [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
+                            , Element.text T.createMatch
+                            ]
+                        )
+                    ]
             ]
         )
+
+
+isTimerOk : Maybe Timer.TimerConfig -> Bool
+isTimerOk timerConfig =
+    timerConfig
+        |> Maybe.map (\t -> Timer.isTimerOk t)
+        |> Maybe.withDefault True
 
 
 {-| If the user has previously used a custom timer, they probably want to use it

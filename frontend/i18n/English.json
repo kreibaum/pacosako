@@ -12,6 +12,7 @@
     "rapid": "Rapid",
     "relaxed": "Relaxed",
     "custom": "Custom",
+    "timerMustBePositive": "The timer can't start at/below zero!",
     "noTimer": "No Timer",
     "createMatch": "Create Match",
     "playWithoutTimeLimit": "Play without time limit",

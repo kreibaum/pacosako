@@ -1,4 +1,4 @@
-module Timer exposing (Timer, TimerConfig, TimerState(..), TimerViewData, decodeTimer, encodeConfig, render, secondsConfig)
+module Timer exposing (Timer, TimerConfig, TimerState(..), TimerViewData, decodeTimer, encodeConfig, isTimerOk, render, secondsConfig)
 
 {-| Timer implementation that represents the server state of a Paco Ŝako game
 timer. This timer will not be updated every second, instead it is rendered
@@ -54,6 +54,13 @@ type alias TimerConfig =
     , timeBudgetBlack : Duration
     , increment : Maybe Duration
     }
+
+
+isTimerOk : TimerConfig -> Bool
+isTimerOk config =
+    (Duration.inSeconds config.timeBudgetWhite > 0)
+        && (Duration.inSeconds config.timeBudgetBlack > 0)
+        && (Maybe.withDefault 0 (Maybe.map Duration.inSeconds config.increment) >= 0)
 
 
 {-| A simple way to build a timer configuration object without having to deal

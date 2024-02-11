@@ -151,12 +151,16 @@ struct RawGame {
 
 impl RawGame {
     fn into_match(self) -> Result<SynchronizedMatch, ServerError> {
-        let timer = if let Some(ref timer) = self.timer {
+        let mut timer = if let Some(ref timer) = self.timer {
             let timer: Timer = serde_json::from_str(timer)?;
             Some(timer.sanitize())
         } else {
             None
         };
+
+        if timer.as_ref().is_some_and(|t| !t.config.is_legal()) {
+            timer = None;
+        }
 
         let setup_options: SetupOptionsAllOptional = serde_json::from_str(&self.setup)?;
 
