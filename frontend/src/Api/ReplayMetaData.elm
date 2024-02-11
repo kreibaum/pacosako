@@ -1,4 +1,4 @@
-module Api.ReplayMetaData exposing (ReplayCue(..), ReplayMetaDataProcessed, empty, error, filter, getReplayMetaData)
+module Api.ReplayMetaData exposing (CueValueData, ReplayCue(..), ReplayMetaDataProcessed, empty, error, filter, getReplayMetaData)
 
 import Api.Backend exposing (Api, getJson)
 import Arrow exposing (Arrow)

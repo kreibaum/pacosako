@@ -41,6 +41,7 @@ decorations some more.
 -}
 
 import Animation exposing (Timeline)
+import Api.ReplayMetaData exposing (CueValueData)
 import Arrow exposing (Arrow)
 import Colors exposing (ColorOptions)
 import Custom.Events as Events exposing (BoardMousePosition)
@@ -352,11 +353,17 @@ highlightSvg rotation ( tile, highlight ) =
         []
 
 
-valueBarSvg : BoardRotation -> Float -> Svg a
-valueBarSvg _ value =
+valueBarSvg : BoardRotation -> CueValueData -> Svg a
+valueBarSvg _ valueData =
     let
         midpoint =
-            400 * (value + 1)
+            400 * (1 - valueData.valueAfter)
+
+        valueAlt =
+            valueData.valueBefore + valueData.impactAlt
+
+        midpointAlt =
+            400 * (1 - valueAlt)
     in
     Svg.g []
         [ Svg.rect
@@ -371,8 +378,15 @@ valueBarSvg _ value =
             [ SvgA.x "802"
             , SvgA.y (String.fromFloat midpoint)
             , SvgA.width "6"
-            , SvgA.height (String.fromFloat (800-midpoint))
+            , SvgA.height (String.fromFloat (800 - midpoint))
             , SvgA.fill "rgb(255, 255, 255)"
+            ]
+            []
+        , Svg.circle
+            [ SvgA.cx "805"
+            , SvgA.cy (String.fromFloat midpointAlt)
+            , SvgA.r "5"
+            , SvgA.fill "rgba(80, 80, 255, 126)"
             ]
             []
         ]
@@ -529,7 +543,7 @@ type BoardDecoration
     | CastingHighlight Tile
     | CastingArrow Arrow
     | PastMovementIndicator Tile
-    | ValueBar Float
+    | ValueBar CueValueData
 
 
 {-| This record is used to teach the Decorator module about Board Decorations
@@ -597,11 +611,11 @@ getPastMovementIndicator decoration =
             Nothing
 
 
-getValueBar : BoardDecoration -> Maybe Float
+getValueBar : BoardDecoration -> Maybe CueValueData
 getValueBar decoration =
     case decoration of
-        ValueBar value ->
-            Just value
+        ValueBar valueData ->
+            Just valueData
 
         _ ->
             Nothing
