@@ -193,7 +193,11 @@ decodeValue =
         (Decode.field "impact" Decode.float)
         (Decode.field "impact_alt" Decode.float)
         (Decode.field "surprise" Decode.float)
-        (Decode.field "kendall" Decode.float)
+        (Decode.oneOf
+            [ Decode.field "kendall" Decode.float
+            , Decode.succeed (0 / 0) -- NaN
+            ]
+        )
         |> Decode.map CueValueRaw
 
 

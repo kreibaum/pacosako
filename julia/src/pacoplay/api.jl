@@ -61,13 +61,22 @@ function replayjson(match_id, action_index, turnanalysis::Jtac.Analysis.TurnAnal
   inner *= """\\"impact\\" : $(Jtac.Analysis.impact(a)),"""
   inner *= """\\"impact_alt\\" : $(Jtac.Analysis.bestturn(a)[2]),"""
   inner *= """\\"surprise\\" : $(Jtac.Analysis.surprise(a)),"""
-  inner *= """\\"kendall\\" : $(Jtac.Analysis.kendall(a))"""
+  inner *= """\\"kendall\\" : $(nan_to_null(Jtac.Analysis.kendall(a)))"""
   inner = inner * "}"
 
   outer = """{"game":$match_id, "action_index":$action_index, "category":"Analysis", "data":"$inner"}"""
   push!(result, outer)
 
   result
+end
+
+# NaN is not a valid JSON value, so we need to convert it to null
+function nan_to_null(x)
+  if isnan(x)
+    "null"
+  else
+    x
+  end
 end
 
 function tile(tile::Int, mover::Int)::Int
