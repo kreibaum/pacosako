@@ -33,7 +33,10 @@ impl MatchParameters {
     }
 
     pub fn is_legal(&self) -> bool {
-        self.timer.as_ref().is_some_and(|t| t.is_legal())
+        let Some(timer) = &self.timer else {
+            return true;
+        };
+        timer.is_legal()
     }
 }
 
