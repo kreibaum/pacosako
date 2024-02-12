@@ -23,7 +23,7 @@ frontend/.elm-tflt/linked/
 frontend/.asset-list/StaticAssets.elm
 
 # Server log
-/backend/server.log
+/backend/server.log*
 
 # Secrets
 /scripts/deployment-key.pem

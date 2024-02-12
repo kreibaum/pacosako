@@ -31,6 +31,10 @@ impl MatchParameters {
             draw_after_n_repetitions: self.draw_after_n_repetitions,
         }
     }
+
+    pub fn is_legal(&self) -> bool {
+        self.timer.as_ref().is_some_and(|t| t.is_legal())
+    }
 }
 
 /// A paco sako action together with a timestamp that remembers when it was done.

@@ -704,6 +704,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "file-rotate"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddf221ceec4517f3cb764dae3541b2bd87666fc8832e51322fbb97250b468c71"
+dependencies = [
+ "chrono",
+ "flate2",
+]
+
+[[package]]
 name = "finl_unicode"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1588,6 +1598,7 @@ dependencies = [
  "cached",
  "chrono",
  "dashmap",
+ "file-rotate",
  "futures-util",
  "hyper 1.1.0",
  "lazy_static",

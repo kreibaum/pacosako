@@ -29,7 +29,6 @@ use axum::{
 };
 use config::EnvironmentConfig;
 use db::Pool;
-use std::fs::File;
 
 /// This enum holds all errors that can be returned by the API.
 #[derive(Debug, thiserror::Error)]
@@ -65,10 +64,6 @@ impl IntoResponse for ServerError {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Game management /////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
 // Set up logging //////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +72,17 @@ fn init_logger() {
         ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
     };
 
+    use file_rotate::suffix::{AppendTimestamp, FileLimit};
+    use file_rotate::{compression::Compression, ContentLimit, FileRotate};
+
+    let log_with_rotation = FileRotate::new(
+        "server.log",
+        AppendTimestamp::default(FileLimit::MaxFiles(10)),
+        ContentLimit::BytesSurpassed(10_000_000), // 10MB
+        Compression::OnRotate(0),
+        None,
+    );
+
     CombinedLogger::init(vec![
         TermLogger::new(
             LevelFilter::Info,
@@ -84,11 +90,7 @@ fn init_logger() {
             TerminalMode::Mixed,
             ColorChoice::Auto,
         ),
-        WriteLogger::new(
-            LevelFilter::Debug,
-            Config::default(),
-            File::create("server.log").unwrap(),
-        ),
+        WriteLogger::new(LevelFilter::Info, Config::default(), log_with_rotation),
     ])
     .unwrap();
 

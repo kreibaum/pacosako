@@ -38,11 +38,15 @@ pub fn add_to_router(api_router: Router<AppState>) -> Router<AppState> {
 /// server a bit.
 async fn create_game(
     pool: State<Pool>,
-    game_parameters: Json<MatchParameters>,
+    Json(game_parameters): Json<MatchParameters>,
 ) -> Result<String, ServerError> {
+    if !game_parameters.is_legal() {
+        return Err(ServerError::BadRequest);
+    }
+
     info!("Creating a new game on client request.");
     let mut conn = pool.conn().await?;
-    let mut game = SynchronizedMatch::new_with_key("0", game_parameters.0.sanitize());
+    let mut game = SynchronizedMatch::new_with_key("0", game_parameters.sanitize());
     db::game::insert(&mut game, &mut conn).await?;
 
     info!("Game created with id {}.", game.key);

@@ -88,6 +88,29 @@ function Game.moverlabel(ps :: PacoSako) :: String
   Game.mover(ps) == 1 ? "WHITE" : "BLACK"
 end
 
+
+"""
+    movelabel(game, action)
+
+Return a string representation of the action `action` at game state `game`.
+"""
+function Game.movelabel(ps :: PacoSako, action :: Int) :: String
+  tmp = zeros(UInt8, 2)
+  len = @pscall(
+    :movelabel,
+    Int64,
+    (Ptr{Nothing}, UInt8, Ptr{UInt8}, Int64),
+    ps.ptr,
+    UInt8(action),
+    tmp,
+    length(tmp)
+  )
+  @assert len != 0 && len <= length(tmp) """
+  Label string did not fit in allocated memory. This should be impossible.
+  """
+  String(@view tmp[1:len])
+end
+
 Game.policylength(:: Type{PacoSako}) :: Int = 132
 
 function Game.legalactions(ps :: PacoSako)

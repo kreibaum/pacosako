@@ -713,7 +713,7 @@ metaDataDecoration model =
         actionIndex =
             Notation.actionIndexForSectionIndex model.sidebarData model.selected
     in
-    Api.ReplayMetaData.filter (Set.fromList [ "Example Arrow", "Weight Arrow" ])
+    Api.ReplayMetaData.filter (Set.fromList [ "Analysis" ])
         actionIndex
         model.replayMetaData
         |> List.filterMap oneMetaDataDecoration
@@ -727,6 +727,9 @@ oneMetaDataDecoration cue =
 
         CueArrow arrow ->
             Just (PositionView.CastingArrow arrow)
+
+        CueValue valueData ->
+            Just (PositionView.ValueBar valueData)
 
 
 

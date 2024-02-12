@@ -1,17 +1,22 @@
-module Api.ReplayMetaData exposing (empty, error, filter, ReplayMetaDataProcessed, ReplayCue(..), getReplayMetaData)
+module Api.ReplayMetaData exposing (CueValueData, ReplayCue(..), ReplayMetaDataProcessed, empty, error, filter, getReplayMetaData)
 
-import Json.Decode as Decode exposing (Decoder)
-import Dict exposing (Dict)
-import Set exposing (Set)
 import Api.Backend exposing (Api, getJson)
-import Sako
 import Arrow exposing (Arrow)
+import Dict exposing (Dict)
+import Json.Decode as Decode exposing (Decoder)
+import Sako
+import Set exposing (Set)
+
 
 empty : ReplayMetaDataProcessed
-empty = Dict.empty
+empty =
+    Dict.empty
+
 
 error : ReplayMetaDataProcessed
-error = Dict.singleton "Error" ( Dict.singleton 0 [ CueString "Error downloading replay meta data."] )
+error =
+    Dict.singleton "Error" (Dict.singleton 0 [ CueString "Error downloading replay meta data." ])
+
 
 {-| Filters and retrieves a list of `ReplayCue` based on a set of allowed categories and an action index.
 
@@ -28,13 +33,19 @@ filter allowedCategories actionIndex replayMetaData =
         |> Dict.filter (\category _ -> Set.member category allowedCategories)
         |> Dict.foldl (accumulateCuesForAction actionIndex) []
 
+
 accumulateCuesForAction : Int -> String -> Dict Int (List ReplayCue) -> List ReplayCue -> List ReplayCue
 accumulateCuesForAction actionIndex _ categoryDict accumulator =
     case Dict.get actionIndex categoryDict of
-        Just cues -> cues ++ accumulator
-        Nothing -> accumulator
+        Just cues ->
+            cues ++ accumulator
 
-{-| Transport and serialisation type -}
+        Nothing ->
+            accumulator
+
+
+{-| Transport and serialisation type
+-}
 type alias ReplayMetaData =
     { actionIndex : Int
     , category : String
@@ -42,23 +53,39 @@ type alias ReplayMetaData =
     }
 
 
-{-| Type we actually want to use for the replay -}
-type alias ReplayMetaDataProcessed = Dict String (Dict Int (List ReplayCue))
+{-| Type we actually want to use for the replay
+-}
+type alias ReplayMetaDataProcessed =
+    Dict String (Dict Int (List ReplayCue))
 
 
-{-| Same as ReplayMetaDataProcessed, but "Raw" i.e. no data transforms -}
-type alias ReplayMetaDataProcessedStage1 = Dict String (Dict Int (List ReplayCueRaw))
+{-| Same as ReplayMetaDataProcessed, but "Raw" i.e. no data transforms
+-}
+type alias ReplayMetaDataProcessedStage1 =
+    Dict String (Dict Int (List ReplayCueRaw))
 
 
 type ReplayCue
     = CueString String
     | CueArrow Arrow
+    | CueValue CueValueData
+
+
+type alias CueValueData =
+    { valueBefore : Float
+    , valueAfter : Float
+    , impact : Float
+    , impactAlt : Float
+    , surprise : Float
+    , kendall : Float
+    }
 
 
 {-| Process a list of ReplayMetaData into the desired ReplayMetaDataProcessed format.
-    
-    This function works by folding over the list of ReplayMetaData and updating the 
+
+    This function works by folding over the list of ReplayMetaData and updating the
     ReplayMetaDataProcessed dictionary one item at a time using the processReplayItem function.
+
 -}
 processReplayMetaData : List ReplayMetaData -> ReplayMetaDataProcessed
 processReplayMetaData replayList =
@@ -76,11 +103,13 @@ processReplayMetaData replayList =
         a. If it doesn't, create a new list with the ReplayCue.
         b. If it does, append the ReplayCue to the existing list for that action index.
     3. Return the updated ReplayMetaDataProcessed dictionary.
+
 -}
 processReplayItem : ReplayMetaData -> ReplayMetaDataProcessedStage1 -> ReplayMetaDataProcessedStage1
 processReplayItem replayItem processed =
     let
-        newCue = parseReplayCue replayItem.data
+        newCue =
+            parseReplayCue replayItem.data
 
         categoryDict =
             Dict.get replayItem.category processed
@@ -101,9 +130,11 @@ getReplayMetaData : String -> Api ReplayMetaDataProcessed msg
 getReplayMetaData key =
     getJson
         { url = "/api/replay_meta_data/" ++ key
-        , decoder = (Decode.list decodeReplayMetaData)
-            |> Decode.map processReplayMetaData
+        , decoder =
+            Decode.list decodeReplayMetaData
+                |> Decode.map processReplayMetaData
         }
+
 
 decodeReplayMetaData : Decoder ReplayMetaData
 decodeReplayMetaData =
@@ -118,24 +149,30 @@ parseReplayCue input =
     Decode.decodeString decodeReplayCue input
         |> Result.withDefault (CueStringRaw input)
 
+
 decodeReplayCue : Decoder ReplayCueRaw
 decodeReplayCue =
-    Decode.oneOf [
-        guardType "arrow" decodeArrow
-    ]
+    Decode.oneOf
+        [ guardType "arrow" decodeArrow
+        , guardType "value" decodeValue
+        ]
+
 
 {-| Ensure the "type" field matches the expected value. If it does, proceed with the given decoder.
-    If it doesn't, fail the decoding.
+If it doesn't, fail the decoding.
 -}
 guardType : String -> Decoder a -> Decoder a
 guardType expectedType nextDecoder =
     Decode.field "type" Decode.string
-        |> Decode.andThen (\actualType ->
-            if actualType == expectedType then
-                nextDecoder
-            else
-                Decode.fail ("Expected type '" ++ expectedType ++ "' but got '" ++ actualType ++ "'")
-           )
+        |> Decode.andThen
+            (\actualType ->
+                if actualType == expectedType then
+                    nextDecoder
+
+                else
+                    Decode.fail ("Expected type '" ++ expectedType ++ "' but got '" ++ actualType ++ "'")
+            )
+
 
 decodeArrow : Decoder ReplayCueRaw
 decodeArrow =
@@ -147,23 +184,38 @@ decodeArrow =
         (decodeWithDefault 0 (Decode.field "weight" Decode.float))
         |> Decode.map CueArrowRaw
 
+
+decodeValue : Decoder ReplayCueRaw
+decodeValue =
+    Decode.map6 CueValueData
+        (Decode.field "value_before" Decode.float)
+        (Decode.field "value_after" Decode.float)
+        (Decode.field "impact" Decode.float)
+        (Decode.field "impact_alt" Decode.float)
+        (Decode.field "surprise" Decode.float)
+        (Decode.field "kendall" Decode.float)
+        |> Decode.map CueValueRaw
+
+
 decodeWithDefault : a -> Decoder a -> Decoder a
 decodeWithDefault default decoder =
     Decode.maybe decoder
         |> Decode.map (Maybe.withDefault default)
+
+
 
 --------------------------------------------------------------------------------
 -- Raw types and transformations -----------------------------------------------
 --------------------------------------------------------------------------------
 
 
-
 {-| Unprocessed replay cue. There are some preprocessing steps like the
-    weight -> width transformation that are applied at this stage.
+weight -> width transformation that are applied at this stage.
 -}
 type ReplayCueRaw
     = CueStringRaw String
     | CueArrowRaw ArrowRaw
+    | CueValueRaw CueValueData
 
 
 type alias ArrowRaw =
@@ -179,8 +231,9 @@ mapByGrouping : (a -> b) -> Dict String (Dict Int a) -> Dict String (Dict Int b)
 mapByGrouping f dictDict =
     Dict.map (\_ d -> Dict.map (\_ l -> f l) d) dictDict
 
+
 {-| This is just an elaborate `map cookCue` on a monad stack.
-    Used to turn a raw cue into a non-raw cue inside the processed replay meta data.
+Used to turn a raw cue into a non-raw cue inside the processed replay meta data.
 -}
 cookCues : ReplayMetaDataProcessedStage1 -> ReplayMetaDataProcessed
 cookCues categories =
@@ -190,32 +243,53 @@ cookCues categories =
 cookCue : ReplayCueRaw -> ReplayCue
 cookCue cue =
     case cue of
-        CueStringRaw x -> CueString x
-        CueArrowRaw x -> CueArrow (Arrow.Arrow x.head x.tail x.width x.color)
+        CueStringRaw x ->
+            CueString x
+
+        CueArrowRaw x ->
+            CueArrow (Arrow.Arrow x.head x.tail x.width x.color)
+
+        CueValueRaw x ->
+            CueValue x
 
 
 weightToDistribute : Float
-weightToDistribute = 30
+weightToDistribute =
+    30
 
 
 {-| Takes a certain total width and distributes it amongs all arrows that have
-    a positive "weight" value. This allows you to display a policy without
-    determining the weights yourself.
+a positive "weight" value. This allows you to display a policy without
+determining the weights yourself.
 -}
 weightDistribution : List ReplayCueRaw -> List ReplayCueRaw
 weightDistribution arrows =
     let
-        total = arrows
-            |> List.filterMap (\cue ->
-                case cue of
-                    CueArrowRaw arrow -> Just arrow.weight
-                    _ -> Nothing
-                )
-            |> List.filter (\x -> x > 0)
-            |> List.sum
+        total =
+            arrows
+                |> List.filterMap
+                    (\cue ->
+                        case cue of
+                            CueArrowRaw arrow ->
+                                Just arrow.weight
+
+                            _ ->
+                                Nothing
+                    )
+                |> List.filter (\x -> x > 0)
+                |> List.sum
     in
     arrows
-        |> List.map (\cue ->
-            case cue of
-                CueArrowRaw arrow -> if arrow.weight > 0 then CueArrowRaw { arrow | width = weightToDistribute * arrow.weight / total } else cue 
-                c -> c )
+        |> List.map
+            (\cue ->
+                case cue of
+                    CueArrowRaw arrow ->
+                        if arrow.weight > 0 then
+                            CueArrowRaw { arrow | width = weightToDistribute * arrow.weight / total }
+
+                        else
+                            cue
+
+                    c ->
+                        c
+            )

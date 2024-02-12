@@ -41,6 +41,7 @@ decorations some more.
 -}
 
 import Animation exposing (Timeline)
+import Api.ReplayMetaData exposing (CueValueData)
 import Arrow exposing (Arrow)
 import Colors exposing (ColorOptions)
 import Custom.Events as Events exposing (BoardMousePosition)
@@ -136,6 +137,7 @@ viewStatic config renderData =
         , pastMovementIndicatorLayer config.colorScheme renderData.rotation config.decoration
         , castingHighlightLayer renderData.rotation config.decoration
         , highlightLayer renderData.rotation config.decoration
+        , valueBarLayer renderData.rotation config.decoration
         , dropTargetLayer renderData.rotation config.decoration
         , piecesSvg config.colorScheme renderData.pieces
         , castingArrowLayer renderData.rotation config.decoration
@@ -262,6 +264,15 @@ highlightLayer rotation decorations =
         |> Svg.g []
 
 
+valueBarLayer : BoardRotation -> List BoardDecoration -> Svg a
+valueBarLayer rotation decorations =
+    decorations
+        |> List.filterMap getValueBar
+        |> List.take 1
+        |> List.map (valueBarSvg rotation)
+        |> Svg.g []
+
+
 pastMovementIndicatorLayer : ColorOptions -> BoardRotation -> List BoardDecoration -> Svg a
 pastMovementIndicatorLayer colors rotation decorations =
     decorations
@@ -340,6 +351,45 @@ highlightSvg rotation ( tile, highlight ) =
         , SvgA.fill "rgb(255, 255, 100)"
         ]
         []
+
+
+valueBarSvg : BoardRotation -> CueValueData -> Svg a
+valueBarSvg _ valueData =
+    let
+        midpoint =
+            400 * (1 - valueData.valueAfter)
+
+        valueAlt =
+            valueData.valueBefore + valueData.impactAlt
+
+        midpointAlt =
+            400 * (1 - valueAlt)
+    in
+    Svg.g []
+        [ Svg.rect
+            [ SvgA.x "802"
+            , SvgA.y "0"
+            , SvgA.width "6"
+            , SvgA.height (String.fromFloat midpoint)
+            , SvgA.fill "rgb(0, 0, 0)"
+            ]
+            []
+        , Svg.rect
+            [ SvgA.x "802"
+            , SvgA.y (String.fromFloat midpoint)
+            , SvgA.width "6"
+            , SvgA.height (String.fromFloat (800 - midpoint))
+            , SvgA.fill "rgb(255, 255, 255)"
+            ]
+            []
+        , Svg.circle
+            [ SvgA.cx "805"
+            , SvgA.cy (String.fromFloat midpointAlt)
+            , SvgA.r "5"
+            , SvgA.fill "rgba(80, 80, 255, 126)"
+            ]
+            []
+        ]
 
 
 dropTargetLayer : BoardRotation -> List BoardDecoration -> Svg a
@@ -493,6 +543,7 @@ type BoardDecoration
     | CastingHighlight Tile
     | CastingArrow Arrow
     | PastMovementIndicator Tile
+    | ValueBar CueValueData
 
 
 {-| This record is used to teach the Decorator module about Board Decorations
@@ -555,6 +606,16 @@ getPastMovementIndicator decoration =
     case decoration of
         PastMovementIndicator tile ->
             Just tile
+
+        _ ->
+            Nothing
+
+
+getValueBar : BoardDecoration -> Maybe CueValueData
+getValueBar decoration =
+    case decoration of
+        ValueBar valueData ->
+            Just valueData
 
         _ ->
             Nothing
