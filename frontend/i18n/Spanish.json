@@ -154,5 +154,6 @@
     "deleteAccountDelete": "Eliminar la cuenta",
     "deleteAccountDanger": "Zona peligrosa",
     "deleteAccountL3": "Sólo tienes un minuto antes de que este botón deje de funcionar.",
-    "deleteAccountConfirm": "Confirmar el borrado"
+    "deleteAccountConfirm": "Confirmar el borrado",
+    "timerMustBePositive": "¡El temporizador no puede comenzar en/por debajo de cero!"
 }
