@@ -87,13 +87,29 @@ async fn post_action_to_game(
 }
 
 async fn post_ai_metadata(
-    _session: SessionData, // TODO: Verify that only AIs can call this.
+    session: SessionData, // TODO: Verify that only AIs can call this.
     Path((key, player_color)): Path<(String, PlayerColor)>,
     pool: State<Pool>,
     Json(metadata): Json<AiMetaData>,
 ) -> Result<(), ServerError> {
     let mut conn = pool.conn().await?;
     user::write_one_ai_config_for_game(&key, player_color, &metadata, &mut conn).await?;
+
+    // If this side of the game does not have player protection yet, we set it
+    // to this ai player from the session.
+
+    
+    // update game set white_player = ? where id = ? // or black_player
+    let key: i64 = key.parse()?;
+    if let Some(game) = db::game::select(key, &mut conn).await? {
+        if game.white_player.is_none() && player_color == PlayerColor::White {
+            db::game::set_player(key, player_color, session.user_id, &mut conn).await?;
+        } else if game.black_player.is_none() && player_color == PlayerColor::Black {
+            db::game::set_player(key, player_color,  session.user_id, &mut conn).await?;
+        }
+    }
+
+
     Ok(())
 }
 

@@ -1,4 +1,5 @@
 use pacosako::setup_options::SetupOptionsAllOptional;
+use pacosako::PlayerColor;
 
 use crate::db::Connection;
 use crate::login::UserId;
@@ -173,4 +174,33 @@ impl RawGame {
             black_player: self.black_player.map(UserId),
         })
     }
+}
+
+/// Set the player for a game, either white or black. This does not check if the
+/// player is already set. The intention is to use this for the AI api.
+pub async fn set_player(
+    key: i64,
+    player_color: PlayerColor,
+    user_id: UserId,
+    conn: &mut Connection,
+) -> Result<(), ServerError> {
+    if player_color == PlayerColor::White {
+        sqlx::query!(
+            r"update game set white_player = ? where id = ?",
+            user_id.0,
+            key
+        )
+        .execute(conn)
+        .await?;
+    } else {
+        sqlx::query!(
+            r"update game set black_player = ? where id = ?",
+            user_id.0,
+            key
+        )
+        .execute(conn)
+        .await?;
+    }
+
+    Ok(())
 }
