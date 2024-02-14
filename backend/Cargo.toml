@@ -23,7 +23,7 @@ axum = { version = "0.7.2", features = ["query", "ws"] }
 axum-auth = "0.7.0"
 base64 = "0.21.5"
 blake3 = "1.5.0"
-cached = { version = "0.46.0", default-features = false, features = [
+cached = { version = "0.48.0", default-features = false, features = [
     "proc_macro",
 ] }
 chrono = { version = "0.4", features = ["serde"] }
