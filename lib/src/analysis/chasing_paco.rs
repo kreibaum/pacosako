@@ -11,7 +11,10 @@ use crate::{
 use super::reverse_amazon_search;
 
 pub fn my_is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
-    reverse_amazon_search::is_sako(board, for_player)
+    let a = reverse_amazon_search::is_sako(board, for_player)?;
+    let b = reverse_amazon_search::is_sako_sparse(board, for_player)?;
+    assert_eq!(a, b);
+    Ok(a)
 }
 
 /// Checks if the given board state is "Chasing Paco in 2". This can use either

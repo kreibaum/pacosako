@@ -37,3 +37,27 @@ where
         pivot = parent;
     }
 }
+
+pub fn trace_first_move_redesign_sparse<Node, Edge>(
+    start_from: &Node,
+    found_via: &FxHashMap<Node, (Edge, Node)>,
+) -> Option<Vec<Edge>>
+where
+    Node: Hash + Eq,
+    Edge: Clone,
+{
+    let mut trace: Vec<Edge> = Vec::new();
+    let mut pivot = start_from;
+
+    loop {
+        let parent = found_via.get(pivot);
+        let Some(parent) = parent else {
+            // We have reached the initial state.
+            trace.reverse();
+            return Some(trace);
+        };
+        let (action, parent) = parent;
+        trace.push(action.clone());
+        pivot = parent;
+    }
+}
