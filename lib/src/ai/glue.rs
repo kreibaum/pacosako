@@ -8,7 +8,7 @@ use crate::{BoardPosition, DenseBoard, PacoAction, PacoError};
 /// vector. Julia uses 1-based indexing, so we add 1 to the index.
 /// And the onnx model returns a vector of size 133 where index 0 is the value.
 /// So we are fine with 1-based indexing there.
-pub(crate) const fn action_to_action_index(action: PacoAction) -> u8 {
+pub const fn action_to_action_index(action: PacoAction) -> u8 {
     use crate::PacoAction::*;
     use crate::PieceType::*;
     match action {
@@ -22,7 +22,7 @@ pub(crate) const fn action_to_action_index(action: PacoAction) -> u8 {
     }
 }
 
-pub(crate) const fn action_index_to_action(action_index: u8) -> Option<PacoAction> {
+pub const fn action_index_to_action(action_index: u8) -> Option<PacoAction> {
     use crate::PacoAction::*;
     use crate::PieceType::*;
     Some(match action_index {

@@ -7,7 +7,7 @@
 //! https://github.com/roSievers/Jtac.jl/
 
 mod colored_value;
-pub(crate) mod glue;
+pub mod glue;
 pub(crate) mod luna;
 pub(crate) mod math;
 pub(crate) mod mcts;
