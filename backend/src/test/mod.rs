@@ -71,7 +71,7 @@ async fn paco_2_performance() {
             &actions,
         ));
         // Write to our performance file
-        let elapsed = i_timer.stop().as_millis();
+        let elapsed = i_timer.stop().as_micros();
         let key = game.key;
         let line = format!("{}, {}\n", key, elapsed);
         perf_csv.write_all(line.as_bytes()).unwrap();
@@ -86,7 +86,7 @@ async fn paco_2_performance() {
 async fn load_board(id: i64, conn: &mut Connection) -> SynchronizedMatch {
     crate::db::game::select(id, conn)
         .await
-        .unwrap_or_else(|_| panic!("Error loading game {} from database", id))
+        .unwrap_or_else(|e| panic!("Error loading game {} from database, {:?}", id, e))
         .expect("Game does not exist on database")
     // .project()
 }
