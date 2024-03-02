@@ -110,7 +110,10 @@ fn deserialize_seconds_optional<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Option<Duration>, D::Error> {
     let seconds: Result<f32, D::Error> = serde::de::Deserialize::deserialize(d);
 
-    seconds.map(|seconds| Some(duration_from_f32_seconds(seconds)))
+    match seconds {
+        Err(_) => Ok(None),
+        Ok(seconds) => Ok(Some(duration_from_f32_seconds(seconds))),
+    }
 }
 
 impl Timer {
