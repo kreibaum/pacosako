@@ -118,6 +118,7 @@ fn explore_paco_tree_sparse(
     let mut board: DenseBoard = board.into_owned();
     board.controlling_player = attacking_player;
     // Clear the draw state to reduce what we need to copy.
+    // This is only ok, because we are tracking hashes only that
     board.draw_state.reset_half_move_counter();
 
     // The paco positions we are interested in are the one that end with a
@@ -202,8 +203,10 @@ pub fn explore_paco_tree(
     // Clone the board (if not already cloned) and correctly set the controlling player.
     let mut board: DenseBoard = board.into_owned();
     board.controlling_player = attacking_player;
-    // Clear the draw state to reduce what we need to copy.
-    board.draw_state.reset_half_move_counter();
+    // We had the idea to clear the draw state to reduce what we need to copy.
+    // This fails the syn6 test. This is because we reach the "starting" position
+    // again and then fail to properly remove it.
+    // board.draw_state.reset_half_move_counter();
 
     // The paco positions we are interested in are the one that end with a
     // king capture.
@@ -610,6 +613,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Not really a test...
     fn sparse_vs_full_performance() {
         // First create a vector of 10_000 random boards.
         let mut boards: Vec<DenseBoard> = Vec::with_capacity(10_000);
@@ -981,7 +985,6 @@ mod tests {
         assert_eq!(sequences[0][1], PacoAction::Place(E1));
     }
 
-    /*
     #[test]
     #[timeout(100)]
     fn syn6() {
@@ -997,7 +1000,7 @@ mod tests {
         board.execute_trusted(PacoAction::Lift(pos("h6"))).unwrap();
         board.execute_trusted(PacoAction::Place(pos("e6"))).unwrap();
 
-        let mut sequences = find_paco_sequences(&board, PlayerColor::Black)
+        let mut sequences = find_paco_sequences_sparse(&board, PlayerColor::Black)
             .expect("Error in paco sequence search.");
 
         sequences.sort_by_key(|a| a.len());
@@ -1016,5 +1019,4 @@ mod tests {
         assert_eq!(sequences[2][2], PacoAction::Place(C4));
         assert_eq!(sequences[2][3], PacoAction::Place(E2));
     }
-    */
 }
