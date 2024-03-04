@@ -5,7 +5,10 @@
 //! more easily understood.
 
 use fxhash::FxHashMap;
-use std::hash::Hash;
+use std::{
+    collections::HashMap,
+    hash::{BuildHasher, Hash},
+};
 
 /// This is a redesign of the trace_first_move function.
 /// It still accepts a target state, but the map of edges is slightly different.
@@ -38,9 +41,9 @@ where
     }
 }
 
-pub fn trace_first_move_redesign_sparse<Node, Edge>(
+pub fn trace_first_move_redesign_sparse<Node, Edge, S: BuildHasher>(
     start_from: &Node,
-    found_via: &FxHashMap<Node, (Edge, Node)>,
+    found_via: &HashMap<Node, (Edge, Node), S>,
 ) -> Option<Vec<Edge>>
 where
     Node: Hash + Eq,

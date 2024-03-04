@@ -4,7 +4,7 @@ use core::fmt::Debug;
 use fxhash::{FxHashMap, FxHashSet};
 use std::{
     borrow::Cow,
-    collections::{hash_map::Entry, VecDeque},
+    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
     fmt::Formatter,
     ops::Add,
 };
@@ -12,29 +12,11 @@ use std::{
 use crate::{
     calculate_interning_hash,
     substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
+    trivial_hash::TrivialHashBuilder,
     BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
 };
 
 use super::tree;
-
-#[derive(Default)]
-pub struct ExploredStateAmazon {
-    pub paco_positions: FxHashSet<DenseBoard>,
-    pub found_via: FxHashMap<DenseBoard, Vec<(PacoAction, DenseBoard)>>,
-}
-
-impl Debug for ExploredStateAmazon {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            format!(
-                "ExploredStateAmazon {{ paco_positions: {}, found_via: {} }}",
-                self.paco_positions.len(),
-                self.found_via.len()
-            )
-            .as_str(),
-        )
-    }
-}
 
 pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
     let tree = explore_paco_tree(board, for_player)?;
@@ -63,9 +45,9 @@ pub fn find_paco_sequences(
 }
 
 #[derive(Default)]
-struct ExploredStateAmazonSparse {
-    pub paco_positions: FxHashSet<u64>,
-    pub found_via: FxHashMap<u64, (PacoAction, u64)>,
+struct ExploredStateAmazon {
+    pub paco_positions: HashSet<u64, TrivialHashBuilder>,
+    pub found_via: HashMap<u64, (PacoAction, u64), TrivialHashBuilder>,
 }
 
 /// This uses the "reverse amazon algorithm" to find all the possible ways to
@@ -81,19 +63,19 @@ struct ExploredStateAmazonSparse {
 fn explore_paco_tree(
     board: &DenseBoard,
     attacking_player: PlayerColor,
-) -> Result<ExploredStateAmazonSparse, PacoError> {
+) -> Result<ExploredStateAmazon, PacoError> {
     let board = normalize_board_for_sako_search(board, attacking_player)?;
 
     // First, find out if we actually need to do anything.
     let search = reverse_amazon_squares(&board, attacking_player)?;
     if search.starting_tiles.is_empty() {
-        return Ok(ExploredStateAmazonSparse::default());
+        return Ok(ExploredStateAmazon::default());
     }
 
     // We found some starting tiles, this means we actually need to work.
     let mut todo_list: VecDeque<DenseBoard> = VecDeque::new();
-    let mut paco_positions: FxHashSet<u64> = FxHashSet::default();
-    let mut found_via: FxHashMap<u64, (PacoAction, u64)> = FxHashMap::default();
+    let mut paco_positions: HashSet<u64, TrivialHashBuilder> = HashSet::default();
+    let mut found_via: HashMap<u64, (PacoAction, u64), TrivialHashBuilder> = HashMap::default();
 
     // Clone the board (if not already cloned) and correctly set the controlling player.
     let mut board: DenseBoard = board.into_owned();
@@ -151,7 +133,7 @@ fn explore_paco_tree(
         }
     }
 
-    Ok(ExploredStateAmazonSparse {
+    Ok(ExploredStateAmazon {
         paco_positions,
         found_via,
     })

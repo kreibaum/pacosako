@@ -12,6 +12,7 @@ pub mod random;
 pub mod setup_options;
 mod static_include;
 mod substrate;
+pub mod trivial_hash;
 pub mod types;
 pub use crate::paco_action::PacoAction;
 
