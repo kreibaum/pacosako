@@ -9,9 +9,6 @@ use std::{
     ops::Add,
 };
 
-// TODO: This can get more performance by switching from Set<u32> to Set<{0..63}>
-// and using a bit board for implementation.
-
 use crate::{
     calculate_interning_hash,
     substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
@@ -45,36 +42,12 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
     Ok(!tree.paco_positions.is_empty())
 }
 
-pub fn is_sako_sparse(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
-    let tree = explore_paco_tree_sparse(board, for_player)?;
-
-    Ok(!tree.paco_positions.is_empty())
-}
-
 pub fn find_paco_sequences(
     board: &DenseBoard,
     attacking_player: PlayerColor,
 ) -> Result<Vec<Vec<PacoAction>>, PacoError> {
-    let mut tree = explore_paco_tree(board, attacking_player)?;
-    tree.found_via.remove(board);
-
-    let mut result = vec![];
-
-    for paco_position in tree.paco_positions.iter() {
-        if let Some(trace) = tree::trace_first_move_redesign(paco_position, &tree.found_via) {
-            result.push(trace);
-        }
-    }
-
-    Ok(result)
-}
-
-pub fn find_paco_sequences_sparse(
-    board: &DenseBoard,
-    attacking_player: PlayerColor,
-) -> Result<Vec<Vec<PacoAction>>, PacoError> {
     let board_hash = calculate_interning_hash(board);
-    let mut tree = explore_paco_tree_sparse(board, attacking_player)?;
+    let mut tree = explore_paco_tree(board, attacking_player)?;
     tree.found_via.remove(&board_hash);
 
     let mut result = vec![];
@@ -95,9 +68,17 @@ struct ExploredStateAmazonSparse {
     pub found_via: FxHashMap<u64, (PacoAction, u64)>,
 }
 
+/// This uses the "reverse amazon algorithm" to find all the possible ways to
+/// paco in a board position for a given player.
+///
+/// This can only be executed on settled boards without any pieces in hand.
+///
+/// This uses the amazon squares heuristic to shrink or eliminate the (possibly
+/// cyclic) tree of all actions within this move.
+///
 /// Variant of tree exploration that stores fewer "found via" entries.
 /// Also stores hashes instead of full boards.
-fn explore_paco_tree_sparse(
+fn explore_paco_tree(
     board: &DenseBoard,
     attacking_player: PlayerColor,
 ) -> Result<ExploredStateAmazonSparse, PacoError> {
@@ -171,93 +152,6 @@ fn explore_paco_tree_sparse(
     }
 
     Ok(ExploredStateAmazonSparse {
-        paco_positions,
-        found_via,
-    })
-}
-
-/// This uses the "reverse amazon algorithm" to find all the possible ways to
-/// paco in a board position for a given player.
-///
-/// This can only be executed on settled boards without any pieces in hand.
-///
-/// This uses the amazon squares heuristic to shrink or eliminate the (possibly
-/// cyclic) tree of all actions within this move.
-pub fn explore_paco_tree(
-    board: &DenseBoard,
-    attacking_player: PlayerColor,
-) -> Result<ExploredStateAmazon, PacoError> {
-    let board = normalize_board_for_sako_search(board, attacking_player)?;
-
-    // First, find out if we actually need to do anything.
-    let search = reverse_amazon_squares(&board, attacking_player)?;
-    if search.starting_tiles.is_empty() {
-        return Ok(ExploredStateAmazon::default());
-    }
-
-    // We found some starting tiles, this means we actually need to work.
-    let mut todo_list: VecDeque<DenseBoard> = VecDeque::new();
-    let mut paco_positions: FxHashSet<DenseBoard> = FxHashSet::default();
-    let mut found_via: FxHashMap<DenseBoard, Vec<(PacoAction, DenseBoard)>> = FxHashMap::default();
-
-    // Clone the board (if not already cloned) and correctly set the controlling player.
-    let mut board: DenseBoard = board.into_owned();
-    board.controlling_player = attacking_player;
-    // We had the idea to clear the draw state to reduce what we need to copy.
-    // This fails the syn6 test. This is because we reach the "starting" position
-    // again and then fail to properly remove it.
-    // board.draw_state.reset_half_move_counter();
-
-    // The paco positions we are interested in are the one that end with a
-    // king capture.
-    let king_capture_action =
-        PacoAction::Place(board.substrate.find_king(attacking_player.other())?);
-
-    // Add the starting positions to the todo list.
-    todo_list.push_back(board);
-
-    // Pull entries from the todo_list until it is empty.
-    while let Some(todo) = todo_list.pop_front() {
-        // Execute all actions within the chaining_tiles.
-        'action_loop: for action in todo.actions()? {
-            if let PacoAction::Lift(p) = action {
-                if !search.starting_tiles.contains(p) {
-                    continue 'action_loop;
-                }
-            } else if let PacoAction::Place(p) = action {
-                // Skip actions that are not in the chaining_tiles.
-                // Promotions are never skipped.
-                if !search.chaining_tiles.contains(p) {
-                    continue 'action_loop;
-                }
-            }
-            let mut b = todo.clone();
-            b.execute_trusted(action)?;
-
-            if action == king_capture_action {
-                // We found a paco position!
-                paco_positions.insert(b.clone());
-            }
-
-            // look up if this action has already been found.
-            match found_via.entry(b.clone()) {
-                // We have seen this state already and don't need to add it to the todo list.
-                Entry::Occupied(mut o_entry) => {
-                    o_entry.get_mut().push((action, todo.clone()));
-                }
-                // We encounter this state for the first time.
-                Entry::Vacant(v_entry) => {
-                    v_entry.insert(vec![(action, todo.clone())]);
-                    if !b.is_settled() {
-                        // We will look at the possible chain moves later.
-                        todo_list.push_back(b);
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(ExploredStateAmazon {
         paco_positions,
         found_via,
     })
@@ -582,72 +476,10 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 mod tests {
 
     use super::*;
-    use crate::{
-        analysis::reverse_amazon_search::find_paco_sequences, const_tile::*, fen, DenseBoard,
-        PacoAction, PacoBoard, PlayerColor,
-    };
+    use crate::{const_tile::*, fen, DenseBoard, PacoAction, PacoBoard, PlayerColor};
     use ntest::timeout;
 
     use super::reverse_amazon_squares;
-
-    #[test]
-    fn sparse_is_just_as_good() {
-        for _ in 1..10_000 {
-            let board: DenseBoard = rand::random();
-            let mut full_tree_result_w = find_paco_sequences(&board, PlayerColor::White).unwrap();
-            let mut full_tree_result_b = find_paco_sequences(&board, PlayerColor::Black).unwrap();
-
-            let mut sparse_tree_result_w =
-                find_paco_sequences_sparse(&board, PlayerColor::White).unwrap();
-            let mut sparse_tree_result_b =
-                find_paco_sequences_sparse(&board, PlayerColor::Black).unwrap();
-
-            full_tree_result_w.sort();
-            full_tree_result_b.sort();
-            sparse_tree_result_w.sort();
-            sparse_tree_result_b.sort();
-
-            assert_eq!(full_tree_result_w, sparse_tree_result_w);
-            assert_eq!(full_tree_result_b, sparse_tree_result_b);
-        }
-    }
-
-    #[test]
-    #[ignore] // Not really a test...
-    fn sparse_vs_full_performance() {
-        // First create a vector of 10_000 random boards.
-        let mut boards: Vec<DenseBoard> = Vec::with_capacity(10_000);
-        for _ in 1..1_000_000 {
-            boards.push(rand::random());
-        }
-
-        let start = std::time::Instant::now();
-        for board in boards.iter() {
-            find_paco_sequences_sparse(&board, PlayerColor::White).unwrap();
-            find_paco_sequences_sparse(&board, PlayerColor::Black).unwrap();
-        }
-        let sparse_tree_time = start.elapsed();
-
-        // Then measure the time it takes to find paco sequences for all of them.
-        let start = std::time::Instant::now();
-        for board in boards.iter() {
-            find_paco_sequences(&board, PlayerColor::White).unwrap();
-            find_paco_sequences(&board, PlayerColor::Black).unwrap();
-        }
-        let full_tree_time = start.elapsed();
-
-        println!(
-            "Full tree: {:?}, Sparse tree: {:?}",
-            full_tree_time, sparse_tree_time
-        );
-
-        println!(
-            "Improvement pct: {}",
-            (full_tree_time.as_nanos() as f64 - sparse_tree_time.as_nanos() as f64)
-                / full_tree_time.as_nanos() as f64
-        );
-        todo!();
-    }
 
     #[test]
     fn initial_board() {
@@ -1000,7 +832,7 @@ mod tests {
         board.execute_trusted(PacoAction::Lift(pos("h6"))).unwrap();
         board.execute_trusted(PacoAction::Place(pos("e6"))).unwrap();
 
-        let mut sequences = find_paco_sequences_sparse(&board, PlayerColor::Black)
+        let mut sequences = find_paco_sequences(&board, PlayerColor::Black)
             .expect("Error in paco sequence search.");
 
         sequences.sort_by_key(|a| a.len());

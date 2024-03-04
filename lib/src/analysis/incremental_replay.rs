@@ -6,13 +6,10 @@
 //! show up later.
 
 use super::{
-    apply_action_semantically, chasing_paco, squash_notation_atoms, HalfMove, HalfMoveMetadata,
-    ReplayData,
+    apply_action_semantically, chasing_paco, reverse_amazon_search::is_sako, squash_notation_atoms,
+    HalfMove, HalfMoveMetadata, ReplayData,
 };
-use crate::{
-    analysis::{opening, reverse_amazon_search::is_sako},
-    DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor,
-};
+use crate::{analysis::opening, DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor};
 
 /// Does incremental computation of the replay notation and reports the progress
 /// with a callback.
