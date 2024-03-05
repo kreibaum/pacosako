@@ -8,6 +8,7 @@ function dockToPorts(elmApp: any, webWorker: Worker) {
 
     // generateRandomPosition :: Elm ~> WebWorker
     // NOTE: Any data send to WebWorker is turned into a string with JSON.stringify
+    connectFromElmPortToWebWorker(elmApp, webWorker, "determineLegalActions");
     connectFromElmPortToWebWorker(elmApp, webWorker, "generateRandomPosition");
     connectFromElmPortToWebWorker(elmApp, webWorker, "analyzePosition");
     connectFromElmPortToWebWorker(elmApp, webWorker, "analyzeReplay");

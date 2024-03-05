@@ -33,6 +33,11 @@ subscribePort errorConstructor portFunction decoder constructor =
 --------------------------------------------------------------------------------
 
 
+{-| Gets all legal actions for a position
+-}
+port determineLegalActions : Value -> Cmd msg
+
+
 {-| Sends a message that a random position should be generated
 -}
 port generateRandomPosition : Value -> Cmd msg
@@ -57,6 +62,11 @@ port subscribeToMatch : Value -> Cmd msg
 --------------------------------------------------------------------------------
 -- Messages send from the outside world to the elm app -------------------------
 --------------------------------------------------------------------------------
+
+
+{-| Response for determineLegalActions with moves determined
+-}
+port legalActionsDetermined : (Value -> msg) -> Sub msg
 
 
 {-| A random position has been generated.

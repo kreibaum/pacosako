@@ -119,7 +119,6 @@ async fn _store_to_db(
 pub struct CurrentMatchState {
     key: String,
     actions: Vec<StampedAction>,
-    legal_actions: Vec<PacoAction>,
     pub controlling_player: pacosako::PlayerColor,
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
@@ -133,7 +132,6 @@ pub struct CurrentMatchState {
 pub struct CurrentMatchStateClient {
     key: String,
     actions: Vec<StampedAction>,
-    legal_actions: Vec<PacoAction>,
     pub controlling_player: pacosako::PlayerColor,
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
@@ -154,11 +152,6 @@ impl CurrentMatchState {
         Ok(Self {
             key: sync_match.key.clone(),
             actions: sync_match.actions.clone(),
-            legal_actions: if victory_state.is_over() {
-                vec![]
-            } else {
-                board.actions()?.iter().collect()
-            },
             controlling_player: board.controlling_player(),
             timer: sync_match.timer.clone(),
             victory_state,
@@ -191,7 +184,6 @@ impl CurrentMatchStateClient {
         Ok(Self {
             key: data.key,
             actions: data.actions,
-            legal_actions: data.legal_actions,
             controlling_player: data.controlling_player,
             timer: data.timer,
             victory_state: data.victory_state,
@@ -358,10 +350,8 @@ mod test {
         let no_stamps_2: Vec<PacoAction> =
             current_state_2.actions.iter().map(|a| a.action).collect();
         assert_eq!(no_stamps, no_stamps_2);
-        assert_eq!(current_state.legal_actions, current_state_2.legal_actions);
 
-        // there are two moves in the state and 10 possible actions.
+        // there are two moves in the state.
         assert_eq!(current_state.actions.len(), 2);
-        assert_eq!(current_state.legal_actions.len(), 10);
     }
 }

@@ -1,9 +1,11 @@
 module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
+import Api.DecoderGen
 import Api.Decoders exposing (CurrentMatchState, getActionList)
+import Api.EncoderGen
 import Api.MessageGen
-import Api.Ports as Ports
+import Api.Ports
 import Api.Websocket
 import Arrow
 import Browser.Dom
@@ -19,6 +21,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Fen
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
@@ -154,6 +157,8 @@ type Msg
     | SetWindowHeight Int
     | FetchHeaderSize
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
+    | PortError String
+    | LegalActionsResponse (List Sako.Action)
 
 
 update : Shared.Model -> Msg -> Model -> ( Model, Effect Msg )
@@ -213,10 +218,10 @@ update shared msg model =
             updateWebsocket serverMessage model
 
         WebsocketErrorMsg error ->
-            ( model, Ports.logToConsole (Decode.errorToString error) |> Effect.fromCmd )
+            ( model, Api.Ports.logToConsole (Decode.errorToString error) |> Effect.fromCmd )
 
         CopyToClipboard text ->
-            ( model, Ports.copy text |> Effect.fromCmd )
+            ( model, Api.Ports.copy text |> Effect.fromCmd )
 
         WebsocketStatusChange status ->
             ( model
@@ -245,7 +250,7 @@ update shared msg model =
                     clientTimeAverage - toFloat (Time.posixToMillis data.bounced)
             in
             ( { model | timeDriftMillis = clientDrift }
-            , Ports.logToConsole
+            , Api.Ports.logToConsole
                 ("Time drift determined as "
                     ++ String.fromFloat clientDrift
                     ++ ". { send = "
@@ -275,6 +280,18 @@ update shared msg model =
                 -- Here we have to do some magic to prevent flickering.
                 -- Basically whenever we would flicker, this picks the middle of the states and becomes stable.
                 ( { model | visibleHeaderSize = header, elementHeight = elementHeight }, Effect.none )
+
+        PortError error ->
+            ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
+
+        LegalActionsResponse actions ->
+            let
+                currentState =
+                    model.currentState
+            in
+            ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded actions } }
+            , Effect.none
+            )
 
 
 fetchHeaderSize : Cmd Msg
@@ -476,10 +493,13 @@ updateActionInputStep shared action model =
         newBoard =
             Sako.doAction action model.board
                 |> Maybe.withDefault model.board
+
+        newState =
+            addActionToCurrentMatchState action model.currentState
     in
     ( { model
         | board = newBoard
-        , currentState = addActionToCurrentMatchState action model.currentState
+        , currentState = newState
         , timeline =
             Animation.queue
                 ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
@@ -495,7 +515,7 @@ updateActionInputStep shared action model =
         , if shared.playSounds then
             case action of
                 Sako.Place _ ->
-                    Ports.playSound () |> Effect.fromCmd
+                    Api.Ports.playSound () |> Effect.fromCmd
 
                 Sako.Lift _ ->
                     Effect.none
@@ -505,6 +525,10 @@ updateActionInputStep shared action model =
 
           else
             Effect.none
+        , { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
+            |> Api.EncoderGen.determineLegalActions
+            |> Api.MessageGen.determineLegalActions
+            |> Effect.fromCmd
         ]
     )
 
@@ -545,7 +569,10 @@ updateCurrentMatchState data model =
                 ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
                 model.timeline
       }
-    , Effect.none
+    , { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
+        |> Api.EncoderGen.determineLegalActions
+        |> Api.MessageGen.determineLegalActions
+        |> Effect.fromCmd
     )
 
 
@@ -590,7 +617,7 @@ updateWebsocket : Api.Websocket.ServerMessage -> Model -> ( Model, Effect Msg )
 updateWebsocket serverMessage model =
     case serverMessage of
         Api.Websocket.TechnicalError errorMessage ->
-            ( model, Ports.logToConsole errorMessage |> Effect.fromCmd )
+            ( model, Api.Ports.logToConsole errorMessage |> Effect.fromCmd )
 
         Api.Websocket.NewMatchState data ->
             updateCurrentMatchStateIfKeyCorrect data model
@@ -618,7 +645,11 @@ subscriptions model =
         , Api.Websocket.listenToStatus WebsocketStatusChange
         , Custom.Events.onKeyUp keybindings
         , Browser.Events.onResize (\_ y -> SetWindowHeight y)
-        , Ports.scrollTrigger (\_ -> FetchHeaderSize)
+        , Api.Ports.scrollTrigger (\_ -> FetchHeaderSize)
+        , Api.MessageGen.subscribePort PortError
+            Api.MessageGen.legalActionsDetermined
+            Api.DecoderGen.legalActionsDetermined
+            LegalActionsResponse
         ]
 
 

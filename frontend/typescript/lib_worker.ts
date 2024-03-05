@@ -11,7 +11,7 @@ console.log('Hashes are: ', wasm_js_hash, wasm_hash);
 importScripts(`/js/lib.min.js?hash=${wasm_js_hash}`);
 declare var wasm_bindgen: any;
 
-const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch } = wasm_bindgen;
+const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch, determineLegalActions } = wasm_bindgen;
 
 
 /** Helps with typescript type checking. */
@@ -31,6 +31,9 @@ function handleMessage(message: any) {
 
 // TODO: This fake generated part needs to move to a separate file.
 function forwardToWasm(messageType: any, data: any) {
+    if (messageType === "determineLegalActions") {
+        determineLegalActions(data);
+    }
     if (messageType === "generateRandomPosition") {
         generateRandomPosition(data);
     }

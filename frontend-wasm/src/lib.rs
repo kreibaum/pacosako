@@ -5,7 +5,7 @@ use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
     editor, fen,
     setup_options::SetupOptions,
-    PacoAction, PacoError,
+    DenseBoard, PacoAction, PacoBoard, PacoError,
 };
 use serde::Deserialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
@@ -18,6 +18,23 @@ extern crate console_error_panic_hook;
 extern "C" {
     fn forwardToMq(messageType: &str, data: &str);
     fn current_timestamp_ms() -> u32;
+}
+
+#[wasm_bindgen(js_name = "determineLegalActions")]
+pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
+    let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+
+    let try_into: Result<DenseBoard, PacoError> = (&data).try_into();
+    let data: DenseBoard = try_into.map_err(|e| e.to_string())?;
+
+    let legal_actions: Vec<PacoAction> =
+        data.actions().map_err(|e| e.to_string())?.iter().collect();
+
+    let legal_actions = serde_json::to_string(&legal_actions).map_err(|e| e.to_string())?;
+
+    forwardToMq("legalActionsDetermined", &legal_actions);
+
+    Ok(())
 }
 
 #[wasm_bindgen(js_name = "generateRandomPosition")]
@@ -36,17 +53,28 @@ pub fn generate_random_position(data: String) -> Result<(), JsValue> {
 }
 
 #[derive(Deserialize)]
-struct AnalyzePositionData {
+struct ActionHistoryBoardRepr {
     board_fen: String,
     action_history: Vec<PacoAction>,
 }
 
+impl TryFrom<&ActionHistoryBoardRepr> for DenseBoard {
+    type Error = PacoError;
+
+    fn try_from(value: &ActionHistoryBoardRepr) -> Result<Self, Self::Error> {
+        let mut board = fen::parse_fen(&value.board_fen)?;
+        for action in &value.action_history {
+            board.execute(*action)?;
+        }
+        Ok(board)
+    }
+}
+
 #[wasm_bindgen(js_name = "analyzePosition")]
 pub fn analyze_position(data: String) -> Result<(), JsValue> {
-    let data: AnalyzePositionData = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
-    let analysis = puzzle::analyze_position(&data.board_fen, &data.action_history)
-        .map_err(|e| e.to_string())?;
+    let analysis = puzzle::analyze_position(&data).map_err(|e| e.to_string())?;
 
     let analysis = serde_json::to_string(&analysis).map_err(|e| e.to_string())?;
 

@@ -50,11 +50,11 @@ endpoints. This is the file for those.
 -}
 decodeMatchState : Decoder CurrentMatchState
 decodeMatchState =
-    Decode.map8
-        (\key actionHistory legalActions controllingPlayer timer gameState whitePlayer blackPlayer ->
+    Decode.map7
+        (\key actionHistory controllingPlayer timer gameState whitePlayer blackPlayer ->
             { key = key
             , actionHistory = actionHistory
-            , legalActions = ActionsLoaded legalActions
+            , legalActions = ActionsNotLoaded
             , controllingPlayer = controllingPlayer
             , timer = timer
             , gameState = gameState
@@ -64,7 +64,6 @@ decodeMatchState =
         )
         (Decode.field "key" Decode.string)
         (Decode.field "actions" (Decode.list Sako.decodeAction))
-        (Decode.field "legal_actions" (Decode.list Sako.decodeAction))
         (Decode.field "controlling_player" Sako.decodeColor)
         (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
         (Decode.field "victory_state" Sako.decodeVictoryState)

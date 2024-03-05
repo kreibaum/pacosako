@@ -6,6 +6,12 @@ still written by hand for now.
 
 import Json.Decode as Decode exposing (Decoder)
 import Notation
+import Sako
+
+
+legalActionsDetermined : Decoder (List Sako.Action)
+legalActionsDetermined =
+    Decode.list Sako.decodeAction
 
 
 randomPositionGenerated : Decoder String

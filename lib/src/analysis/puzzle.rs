@@ -16,15 +16,10 @@ pub struct AnalysisReport {
 }
 
 pub fn analyze_position(
-    board_fen: &str,
-    action_history: &[PacoAction],
+    board: impl TryInto<DenseBoard, Error = PacoError>,
 ) -> Result<AnalysisReport, PacoError> {
-    let input_board = fen::parse_fen(board_fen)?;
-    let mut board = input_board.clone();
+    let board: DenseBoard = board.try_into()?;
 
-    for &action in action_history {
-        board.execute(action)?;
-    }
     let white_sequences = reverse_amazon_search::find_paco_sequences(&board, PlayerColor::White)?;
 
     let black_sequences = reverse_amazon_search::find_paco_sequences(&board, PlayerColor::Black)?;
@@ -39,7 +34,7 @@ pub fn analyze_position(
         analysis_report.push_str("Ŝako White:\n");
         analysis_report.push_str(&write_all_sequences(
             white_sequences,
-            board,
+            board.clone(),
             PlayerColor::White,
         )?);
         analysis_report.push('\n');
@@ -49,7 +44,7 @@ pub fn analyze_position(
         analysis_report.push_str("Ŝako Black:\n");
         analysis_report.push_str(&write_all_sequences(
             black_sequences,
-            input_board.clone(),
+            board.clone(),
             PlayerColor::Black,
         )?);
         analysis_report.push('\n');

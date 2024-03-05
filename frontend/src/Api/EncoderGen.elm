@@ -9,6 +9,14 @@ import Json.Encode as Encode exposing (Value)
 import Sako
 
 
+determineLegalActions : { board_fen : String, action_history : List Sako.Action } -> Value
+determineLegalActions { board_fen, action_history } =
+    Encode.object
+        [ ( "board_fen", Encode.string board_fen )
+        , ( "action_history", Encode.list Sako.encodeAction action_history )
+        ]
+
+
 analyzePosition : { board_fen : String, action_history : List Sako.Action } -> Value
 analyzePosition { board_fen, action_history } =
     Encode.object
