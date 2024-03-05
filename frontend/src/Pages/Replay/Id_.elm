@@ -59,9 +59,9 @@ import View exposing (View)
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
-page shared { params } =
+page shared { params, url } =
     Page.advanced
-        { init = init shared params
+        { init = init shared params url
         , update = update
         , subscriptions = subscriptions
         , view = view shared
@@ -77,7 +77,8 @@ type alias Params =
 
 
 type alias Model =
-    { replay : DataLoadingWrapper
+    { replay_url : Url.Url
+    , replay : DataLoadingWrapper
 
     -- We store this inside & outside because of race conditions.
     , replayMetaData : ReplayMetaDataProcessed
@@ -93,6 +94,7 @@ type alias Model =
 
 type alias InnerModel =
     { key : String
+    , replay_url : Url.Url
     , navigationKey : Browser.Navigation.Key
     , actionHistory : List Sako.Action
     , sidebarData : List Notation.HalfMove
@@ -118,9 +120,10 @@ type DataLoadingWrapper
     | Done InnerModel
 
 
-init : Shared.Model -> Params -> ( Model, Effect Msg )
-init shared params =
-    ( { replay = DownloadingReplayData
+init : Shared.Model -> Params -> Url.Url -> ( Model, Effect Msg )
+init shared params url =
+    ( { replay_url = url
+      , replay = DownloadingReplayData
       , replayMetaData = Api.ReplayMetaData.empty
       , actionHistory = []
       , key = params.id
@@ -147,6 +150,7 @@ type alias ReplayData =
 innerInit : Model -> ReplayData -> InnerModel
 innerInit model sidebarData =
     { key = model.key
+    , replay_url = model.replay_url
     , navigationKey = model.navigationKey
     , actionHistory = model.actionHistory
     , sidebarData = sidebarData.notation
@@ -527,7 +531,7 @@ successBodyPhone shared model =
                     model.inputMode
                     model.castingDeco
                 , Components.gameCodeLabel
-                    (CopyToClipboard (Url.toString shared.url))
+                    (CopyToClipboard (Url.toString model.replay_url))
                     model.key
                 , animationSpeedButtons model
                 ]
@@ -741,7 +745,7 @@ oneMetaDataDecoration cue =
 sidebarContent : Shared.Model -> InnerModel -> List (Element InnerMsg)
 sidebarContent shared model =
     [ Components.gameCodeLabel
-        (CopyToClipboard (Url.toString shared.url))
+        (CopyToClipboard (Url.toString model.replay_url))
         model.key
     , arrowButtons
     , animationSpeedButtons model

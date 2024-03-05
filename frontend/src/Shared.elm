@@ -31,8 +31,7 @@ type alias Flags =
 
 
 type alias Model =
-    { url : Url
-    , key : Key
+    { key : Key
     , windowSize : ( Int, Int )
     , recentCustomTimes : List CustomTimer
     , playSounds : Bool
@@ -83,8 +82,7 @@ init { url, key } flags =
         now =
             parseNow flags
     in
-    ( { url = url
-      , key = key
+    ( { key = key
       , windowSize = parseWindowSize flags
       , recentCustomTimes = ls.data.recentCustomTimes
       , permissions = ls.permissions
