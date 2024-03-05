@@ -35,7 +35,7 @@ fn load_config_inner() -> Result<EnvironmentConfig, String> {
     let args: Vec<String> = env::args().collect();
 
     // Special test handling code:
-    let config_filename = if args.len() >= 2 && args[1] == "test::paco_2_performance" {
+    let config_filename = if args.len() >= 2 && is_utility_test(&args[1]) {
         "dev-config.toml".to_string()
     } else {
         // When building a Flamegraph, you'll have to replace this
@@ -62,4 +62,8 @@ fn load_config_inner() -> Result<EnvironmentConfig, String> {
             config_filename, e
         )
     })
+}
+
+fn is_utility_test(args: &str) -> bool {
+    args == "test::paco_2_performance" || args == "test::all_settled_states::all_the_games"
 }

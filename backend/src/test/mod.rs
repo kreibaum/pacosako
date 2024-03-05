@@ -3,6 +3,8 @@
 //! because we want database access to get good data to test with. This is
 //! defined in the backend binary, not the library.
 
+mod all_settled_states;
+
 use std::io::Write;
 
 use pacosako::{DenseBoard, PacoAction};
