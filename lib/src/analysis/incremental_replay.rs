@@ -201,6 +201,12 @@ fn annotate_sako(
             board.execute_trusted(action)?;
         }
 
+        if !board.is_settled() {
+            // If the board isn't settled, we can't analyze Ŝako.
+            // This usually happens on timeouts.
+            break;
+        }
+
         let giving_sako_after = is_sako(&board, current_player)?;
         let in_sako_after = is_sako(&board, current_player.other())?;
 
