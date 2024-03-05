@@ -419,6 +419,7 @@ update msg model =
             in
             ( { model
                 | game = addHistoryState newPosition model.game
+                , analysis = Nothing
               }
                 |> animateToCurrentPosition
             , Effect.none
