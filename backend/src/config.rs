@@ -34,13 +34,18 @@ fn load_config_inner() -> Result<EnvironmentConfig, String> {
     // Get the command line arguments
     let args: Vec<String> = env::args().collect();
 
-    // When building a Flamegraph, you'll have to replace this
-    // by just "dev-config.toml".to_string()
-    let config_filename = match args.len() {
-        1 => "dev-config.toml".to_string(),
-        2 => args[1].clone(),
-        _ => {
-            return Err(format!("Usage: {} [config_file]", args[0]));
+    // Special test handling code:
+    let config_filename = if args.len() >= 2 && args[1] == "test::paco_2_performance" {
+        "dev-config.toml".to_string()
+    } else {
+        // When building a Flamegraph, you'll have to replace this
+        // by just "dev-config.toml".to_string()
+        match args.len() {
+            1 => "dev-config.toml".to_string(),
+            2 => args[1].clone(),
+            _ => {
+                return Err(format!("Usage: {} [config_file]", args[0]));
+            }
         }
     };
 
