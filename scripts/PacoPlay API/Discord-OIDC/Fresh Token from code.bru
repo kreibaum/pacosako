@@ -1,0 +1,19 @@
+meta {
+  name: Fresh Token from code
+  type: http
+  seq: 1
+}
+
+post {
+  url: https://discord.com/api/oauth2/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:form-urlencoded {
+  client_id: 968955682504183858
+  client_secret: {{discordSecret}}
+  grant_type: authorization_code
+  code: jvFrvFTeGnujLvRocQcVaamuGrK7EX
+  redirect_uri: http://localhost:8000/api/oauth/redirect
+}

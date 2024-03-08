@@ -1,8 +1,34 @@
+//! Discord Login
+//!
+//! This module is for the Discord OAuth2 login. It works with the following steps:
+//! 1. Generates links for the client to redirect to Discord.
+//! 2. Receives the OAuth2 code from Discord and
+//! 3. requests the access token.
+
 use crate::db::Connection;
 use crate::CustomConfig;
 use anyhow::bail;
 use rocket::{http::Cookie, http::CookieJar};
 use serde::{Deserialize, Serialize};
+
+struct DiscordLoginLink {
+    url: String,
+}
+
+/// Example link that may be generate:
+///
+/// https://discord.com/api/oauth2/authorize
+///     ?client_id=968955682504183858&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Foauth%2Fredirect
+///     &response_type=code&scope=identify&state=9834kcv4cfv3
+///
+/// This will then redirect back to a link like
+///
+/// http://pacoplay.com/api/oauth/redirect
+///     ?code=vVbfPzJUPuBaJTHaeSTknrBPLaxjxP
+///     &state=9834kcv4cfv3
+pub fn generate_link() -> DiscordLoginLink {
+    "https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=YOUR_URL_ENCODED_REDIRECT_URI&response_type=code&scope=identify&state=YOUR_RANDOMLY_GENERATED_STATE"
+}
 
 pub async fn authorize_oauth_code(
     config: &CustomConfig,
