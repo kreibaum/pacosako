@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Secret Discord Account Creation Page</title>
+
+    <script>
+      var encrypted_access_token = "{{ encrypted_access_token }}";
+    </script>
+  </head>
+  <body>
+    <h1>Secret Discord Account Creation Page</h1>
+
+    <a href="/">Go to web app</a>
+
+    <p>
+      You don't have an account on pacoplay.com yet. Do you want to create an
+      account linked to your Discord profile?
+    </p>
+
+    <img
+      src="/p/identicon:{{ user_discord_id }}"
+      alt="Avatar"
+      width="100px"
+      height="100px"
+      style="float: left; margin-right: 15px; margin-bottom: 10px"
+    />
+
+    <p><strong>Name:</strong> {{ user_display_name }}</p>
+    <p><strong>Discord User Id:</strong> {{ user_discord_id }}</p>
+
+    <p>
+      We'll only be storing your Discord name and user id. You can delete your
+      account at any time. On account deletion, any games you have played remain
+      publicly available, but your name will be removed from them.
+    </p>
+
+    <p>
+      You'll be able to chose a different profile picture once the account is
+      created. Discord profile pictures are not supported to ease moderation.
+    </p>
+
+    <a href="/api/oauth/pleaseCreateAccount/{{ encrypted_access_token }}">Create Account</button>
+
+  </body>
+</html>

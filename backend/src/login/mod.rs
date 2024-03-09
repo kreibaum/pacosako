@@ -2,6 +2,7 @@
 //! It is introduced with the 20230826184016_user_management.sql script
 
 mod crypto;
+pub mod discord;
 pub mod session;
 pub mod user;
 
@@ -9,6 +10,7 @@ use self::session::SessionData;
 use crate::{
     config::EnvironmentConfig,
     db::{Connection, Pool},
+    ServerError,
 };
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -63,7 +65,7 @@ async fn username_password(
     delete_user: Option<UserId>,
     pool: State<Pool>,
     config: State<EnvironmentConfig>,
-    cookies: Cookies,
+    mut cookies: Cookies,
     dto: Json<UsernamePasswordDTO>,
 ) -> Result<impl IntoResponse, anyhow::Error> {
     info!("Login attempt for user {}", dto.username);
@@ -95,8 +97,25 @@ async fn username_password(
         false
     };
 
-    let session = session::create_session(user_id, can_delete, &mut connection).await?;
-    let client_session = crypto::encrypt_session_key(&session, &config.secret_key)?;
+    Ok(create_session_and_attach_cookie(
+        user_id,
+        can_delete,
+        &config,
+        &mut cookies,
+        &mut connection,
+    )
+    .await?)
+}
+
+async fn create_session_and_attach_cookie(
+    user_id: UserId,
+    can_delete: bool,
+    config: &EnvironmentConfig,
+    cookies: &mut Cookies,
+    connection: &mut Connection,
+) -> Result<(), ServerError> {
+    let session = session::create_session(user_id, can_delete, connection).await?;
+    let client_session = crypto::encrypt_string(&session.0, &config.secret_key)?;
 
     let session_cookie = Cookie::build((SESSION_COOKIE, client_session))
         .path("/")
@@ -122,6 +141,7 @@ async fn get_user_for_login(
     )
     .fetch_one(&mut *connection)
     .await?;
+    let user_id = UserId(res.user_id);
 
     let Some(hashed_password) = res.hashed_password else {
         anyhow::bail!("No password found for user {}", dto.username)
@@ -133,14 +153,22 @@ async fn get_user_for_login(
     argon2.verify_password(dto.password.as_bytes(), &parsed_hash)?;
 
     // Update the last_login field
+    update_last_login(user_id, connection).await?;
+
+    Ok(user_id)
+}
+
+pub async fn update_last_login(
+    user_id: UserId,
+    connection: &mut Connection,
+) -> Result<(), ServerError> {
     sqlx::query!(
-        "update login set last_login = CURRENT_TIMESTAMP where id = ?",
-        res.id
+        "update login set last_login = CURRENT_TIMESTAMP where user_id = ?",
+        user_id.0
     )
     .execute(connection)
     .await?;
-
-    Ok(UserId(res.user_id))
+    Ok(())
 }
 
 fn generate_password_hash(password: &str) -> String {

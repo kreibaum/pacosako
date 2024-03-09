@@ -11,3 +11,12 @@ secret_key = "0B25jpNtswUWdkemdxU3B8Fvnm46ISgrawzinUpvLLQ="
 
 # Grafana statistics endpoint
 grafana_password = "localhost"
+
+# Required for discord redirects
+server_url = "http://localhost:8000"
+discord_client_id = "968955682504183858"
+# The discord_client_secret is overwritten by the secrets file.
+# We have it in here to make it easy to parse the file with serde-toml.
+discord_client_secret = ""
+
+secrets_file = "dev-secrets.toml"
