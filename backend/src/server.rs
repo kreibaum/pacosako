@@ -41,6 +41,10 @@ pub async fn run(state: AppState) {
         .route(
             "/oauth/backFromDiscord",
             get(login::discord::back_from_discord),
+        )
+        .route(
+            "/oauth/pleaseCreateAccount/:encryptedAccessToken",
+            get(login::discord::please_create_account),
         );
 
     // build our application with a single route

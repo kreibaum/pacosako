@@ -11,7 +11,7 @@ use crate::{
     templates, ServerError,
 };
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Redirect},
 };
@@ -153,7 +153,7 @@ async fn account_creation_confirmation_redirect(
     };
 
     let redirect_url = format!(
-        "/me/createAccount?encrypted_access_token={}&user_display_name={}&user_discord_id={}",
+        "/me/create-account?encrypted_access_token={}&user_display_name={}&user_discord_id={}",
         creation_data.encrypted_access_token,
         creation_data.user_display_name,
         creation_data.user_discord_id,
@@ -292,4 +292,17 @@ async fn get_user_for_discord_user_id(
     update_last_login(user_id, conn).await?;
 
     Ok(Some(user_id))
+}
+
+pub async fn please_create_account(
+    Path(encryptedAccessToken): Path<String>,
+    mut cookies: Cookies,
+    State(config): State<EnvironmentConfig>,
+    pool: State<Pool>,
+) -> Result<impl IntoResponse, ServerError> {
+    // Decrypt the access token
+    // Use it another time to load user information
+    // Create an account for the user
+    // Set the session cookie
+    // Return to /me with a redirect.
 }

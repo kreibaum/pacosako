@@ -1,6 +1,7 @@
 module Pages.Me exposing (Model, Msg, page)
 
 import Browser.Dom
+import Components exposing (colorButton)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Dict exposing (Dict)
@@ -615,40 +616,6 @@ panelButton onPress label =
                        ]
                 )
                 label
-        }
-
-
-{-| A button with a specific color and an icon. I reacts to hovers with a color change.
--}
-colorButton :
-    List (Element.Attribute msg)
-    ->
-        { background : Element.Color
-        , backgroundHover : Element.Color
-        , onPress : Maybe msg
-        , buttonIcon : Element msg
-        , caption : String
-        }
-    -> Element msg
-colorButton attrs { background, backgroundHover, onPress, buttonIcon, caption } =
-    Input.button
-        ([ Background.color background
-         , Element.mouseOver [ Background.color backgroundHover ]
-         , Border.rounded 5
-         ]
-            ++ attrs
-        )
-        { onPress = onPress
-        , label =
-            Element.row
-                [ height fill
-                , centerX
-                , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                , spacing 5
-                ]
-                [ el [ width (px 20) ] buttonIcon
-                , Element.text caption
-                ]
         }
 
 

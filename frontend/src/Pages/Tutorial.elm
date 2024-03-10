@@ -1,14 +1,13 @@
 module Pages.Tutorial exposing (Model, Msg, page)
 
 import Animation exposing (Timeline)
-import Components
+import Components exposing (colorButton, grayBox, heading, textParagraph)
 import Content.References
 import Custom.Element exposing (icon)
 import Dict exposing (Dict)
 import Effect exposing (Effect)
-import Element exposing (Element, centerX, centerY, fill, height, maximum, padding, paddingEach, paddingXY, paragraph, px, spacing, text, width)
+import Element exposing (Element, centerX, centerY, fill, height, padding, paddingEach, paragraph, px, text, width)
 import Element.Background as Background
-import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Embed.Youtube as Youtube
@@ -143,17 +142,6 @@ view shared model =
             }
             (Layout.textPageWrapper (englishTutorial shared model))
     }
-
-
-grayBox : List (Element msg) -> Element msg
-grayBox content =
-    Element.column
-        [ width fill
-        , height fill
-        , Background.color (Element.rgba 1 1 1 0.6)
-        , Border.rounded 5
-        ]
-        content
 
 
 {-| Embeds a youtube video into the website and makes sure the user needs to
@@ -473,17 +461,6 @@ animationEmbedInner shared key isStarted timeline =
         { onPress = Just (StartAnimation key)
         , label = label
         }
-
-
-heading : String -> Element msg
-heading content =
-    paragraph [ paddingEach { top = 20, right = 10, bottom = 10, left = 10 }, Font.size 25 ]
-        [ text content ]
-
-
-textParagraph : String -> Element msg
-textParagraph content =
-    paragraph [ padding 10, Font.justify ] [ text content ]
 
 
 englishTutorial : Shared.Model -> Model -> List (Element Msg)
