@@ -2,26 +2,34 @@
 //!
 //! This module is for the Discord OAuth2 login. It works with the following steps:
 //! 1. Generates links for the client to redirect to Discord.
-//! 2. Receives the OAuth2 code from Discord and
-//! 3. requests the access token.
+//! 2. Processes the "back from Discord" redirect. Which is:
+//!   a. Receives the OAuth2 code from Discord,
+//!   b. requests the access token and
+//!   c. loads user information from /users/@me
+//! 3. Processes new user onboarding.
+//!   a. This also calls /users/@me
+//!
+//! Note that while Discord OAuth2 delivers a refresh token, we don't use it.
+//! We only check with Discord once, to understand who logged in and then have
+//! no further use for the token. The user gets a normal session token from us.
+//! At that point, we don't even track anymore, how they logged in.
+//! (Though if they have only a sigle auth method, it's not hard to guess...)
 
 use crate::{
     config::EnvironmentConfig,
     db::{Connection, Pool},
-    templates, ServerError,
+    ServerError,
 };
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     response::{IntoResponse, Redirect},
 };
-use hyper::header;
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use tower_cookies::{cookie::SameSite, Cookie, Cookies};
 use urlencoding::encode;
 
-use super::{create_session_and_attach_cookie, crypto, update_last_login, UserId};
+use super::{create_session_and_attach_cookie, crypto, update_last_login, user, UserId};
 
 static OAUTH_STATE_COOKIE_NAME: &str = "oauth_state";
 
@@ -148,7 +156,7 @@ async fn account_creation_confirmation_redirect(
             &token_response.access_token,
             &config.secret_key,
         )?,
-        user_display_name: user_info.global_name.unwrap_or(user_info.username),
+        user_display_name: user_info.display_name().to_owned(),
         user_discord_id: user_info.id,
     };
 
@@ -160,38 +168,6 @@ async fn account_creation_confirmation_redirect(
     );
 
     Ok(Redirect::to(&redirect_url))
-}
-
-/// Returns a "confirm that you actually want to create an account" page.
-async fn account_creation_confirmation_page(
-    token_response: TokenResponseBody,
-    user_info: UsersMeResponseBody,
-    config: &EnvironmentConfig,
-) -> Result<impl IntoResponse, ServerError> {
-    let creation_data = AccountCreationDataClient {
-        encrypted_access_token: crypto::encrypt_string(
-            &token_response.access_token,
-            &config.secret_key,
-        )?,
-        user_display_name: user_info.global_name.unwrap_or(user_info.username),
-        user_discord_id: user_info.id,
-    };
-
-    let tera = templates::get_tera(config.dev_mode);
-    let mut context = tera::Context::new();
-
-    context.insert(
-        "encrypted_access_token",
-        &creation_data.encrypted_access_token,
-    );
-    context.insert("user_display_name", &creation_data.user_display_name);
-    context.insert("user_discord_id", &creation_data.user_discord_id);
-
-    let body = tera
-        .render("account_creation_confirmation.html.tera", &context)
-        .expect("Could not render account_creation_confirmation.html");
-
-    Ok(([(header::CONTENT_TYPE, "text/html; charset=utf-8")], body))
 }
 
 /// The access token is encrypted. This makes sure the client can hand it back
@@ -256,6 +232,12 @@ struct UsersMeResponseBody {
     global_name: Option<String>,
 }
 
+impl UsersMeResponseBody {
+    fn display_name(&self) -> &str {
+        self.global_name.as_ref().unwrap_or(&self.username)
+    }
+}
+
 async fn request_user_info(access_token: &str) -> Result<UsersMeResponseBody, ServerError> {
     let client = reqwest::Client::new();
     let response = client
@@ -295,14 +277,35 @@ async fn get_user_for_discord_user_id(
 }
 
 pub async fn please_create_account(
-    Path(encryptedAccessToken): Path<String>,
+    Path(encrypted_access_token): Path<String>,
     mut cookies: Cookies,
     State(config): State<EnvironmentConfig>,
     pool: State<Pool>,
 ) -> Result<impl IntoResponse, ServerError> {
     // Decrypt the access token
+    let access_token = crypto::decrypt_string(&encrypted_access_token, &config.secret_key)?;
+
     // Use it another time to load user information
+    let user_info = request_user_info(&access_token).await?;
+
+    let mut conn = pool.conn().await?;
+
     // Create an account for the user
+    let user_id = user::create_user(
+        user_info.display_name(),
+        &format!("identicon:{}", user_info.id),
+        &mut conn,
+    )
+    .await?;
+
+    // Associate the user with the discord login
+    user::create_discord_login(user_id, user_info.id, &mut conn).await?;
+
     // Set the session cookie
-    // Return to /me with a redirect.
+    create_session_and_attach_cookie(user_id, false, &config, &mut cookies, &mut conn).await?;
+
+    // Return to /me with a redirect. On first login, the user likely want to
+    // chose a profile picture and maybe set some other options once we put them
+    // on the /me page as well.
+    Ok(Redirect::to("/me").into_response())
 }

@@ -57,8 +57,12 @@ pub enum ServerError {
     OAuth2Error(&'static str),
     #[error("Error in the encryption library")]
     CryptoError(#[from] aes_gcm::Error),
+    #[error("Error in the encryption implementation in project")]
+    CryptoErrorCustom(&'static str),
     #[error("Error when parsing base 64")]
     Base64Error(#[from] base64::DecodeError),
+    #[error("Error when parsing Utf8 string")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
 impl IntoResponse for ServerError {

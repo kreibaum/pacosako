@@ -207,6 +207,22 @@ fn parse_avatar(avatar: &str) -> Option<String> {
     None
 }
 
+pub async fn create_user(
+    name: &str,
+    avatar: &str,
+    conn: &mut Connection,
+) -> Result<UserId, sqlx::Error> {
+    let res = sqlx::query!(
+        "insert into user (name, avatar) values (?, ?)",
+        name,
+        avatar
+    )
+    .execute(conn)
+    .await?;
+
+    Ok(UserId(res.last_insert_rowid() as i64))
+}
+
 pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Response {
     if !session.can_delete {
         return (
@@ -260,4 +276,21 @@ pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Resp
         .expect("Error removing user.");
 
     (StatusCode::OK, "").into_response()
+}
+
+/// For a user that already exists, we create a new login entry.
+/// This makes the login work for this user in the future.
+pub async fn create_discord_login(
+    user_id: UserId,
+    identifier: String,
+    connection: &mut Connection,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "insert into login (user_id, type, identifier) values (?, 'discord',?)",
+        user_id.0,
+        identifier
+    )
+    .execute(connection)
+    .await?;
+    Ok(())
 }

@@ -90,7 +90,10 @@ async fn get_session_from_request_parts(
         anyhow::bail!("User is not logged in.")
     };
 
-    let session_id = crypto::decrypt_session_key(session_cookie.value(), &state.config.secret_key)?;
+    let session_id = SessionId(crypto::decrypt_string(
+        session_cookie.value(),
+        &state.config.secret_key,
+    )?);
 
     let mut connection = state.pool.conn().await?;
     load_session(session_id, &mut connection).await
