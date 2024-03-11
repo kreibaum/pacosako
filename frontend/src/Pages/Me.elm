@@ -372,7 +372,19 @@ notLoggedInView model =
         ]
     , row [ width fill, spacing 10 ]
         [ Input.button (height fill :: panelAttributes)
-            { onPress = Just (ToShared (Shared.NavigateTo "/api/oauth/get_redirected"))
+            { onPress =
+                Just
+                    (ToShared
+                        (Shared.NavigateTo
+                            (case model.withIntentToDelete of
+                                Just _ ->
+                                    "/api/oauth/get_redirected?can_delete=true"
+
+                                Nothing ->
+                                    "/api/oauth/get_redirected"
+                            )
+                        )
+                    )
             , label =
                 column [ width fill, centerX, centerY ]
                     [ el

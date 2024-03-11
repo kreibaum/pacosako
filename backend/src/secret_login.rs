@@ -38,7 +38,7 @@ pub async fn secret_login(
     }
 
     // Discord parameters & cookie
-    let link = login::discord::generate_link(&config);
+    let link = login::discord::generate_link(&config, false);
     context.insert("discord_url", &link.url);
     cookies.add(link.state_cookie());
 

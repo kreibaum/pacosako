@@ -58,16 +58,22 @@ fn redirect_uri(server_url: &str) -> String {
     format!("{}/api/oauth/backFromDiscord", server_url)
 }
 
+#[derive(Deserialize)]
+pub struct GetRedirectedQuery {
+    can_delete: Option<bool>,
+}
+
 /// First level of redirection. This redirects to a link generated from
 /// generate_link which makes it easier and more self contained to trigger
 /// the OAuth2 login.
 ///
 /// Lives at https://pacoplay.com/api/oauth/get_redirected
 pub async fn get_redirected(
+    Query(GetRedirectedQuery { can_delete }): Query<GetRedirectedQuery>,
     cookies: Cookies,
     State(config): State<EnvironmentConfig>,
 ) -> impl IntoResponse {
-    let link = generate_link(&config);
+    let link = generate_link(&config, can_delete.unwrap_or(false));
     cookies.add(link.state_cookie());
     Redirect::to(&link.url)
 }
@@ -83,7 +89,7 @@ pub async fn get_redirected(
 /// https://pacoplay.com/api/oauth/redirect
 ///     ?code=vVbfPzJUPuBaJTHaeSTknrBPLaxjxP
 ///     &state=9834kcv4cfv3
-pub fn generate_link(config: &EnvironmentConfig) -> DiscordLoginLink {
+pub fn generate_link(config: &EnvironmentConfig, can_delete: bool) -> DiscordLoginLink {
     let redirect_uri = redirect_uri(&config.server_url);
 
     let state: String = rand::thread_rng()
@@ -91,6 +97,12 @@ pub fn generate_link(config: &EnvironmentConfig) -> DiscordLoginLink {
         .take(12)
         .map(char::from)
         .collect();
+
+    let state = if can_delete {
+        format!("{}-delete", state)
+    } else {
+        state
+    };
 
     let url = format!("https://discord.com/api/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify&state={}", 
         config.discord_client_id, encode(&redirect_uri), state);
@@ -154,10 +166,17 @@ pub async fn back_from_discord(
         );
     };
 
-    create_session_and_attach_cookie(user_id, false, &config, &mut cookies, &mut conn).await?;
+    // Check we we are in can_delete mode by testing if the state ends with "-delete"
+    let can_delete = state.ends_with("-delete");
 
-    // Redirect to the main page
-    Ok(Redirect::to("/").into_response())
+    create_session_and_attach_cookie(user_id, can_delete, &config, &mut cookies, &mut conn).await?;
+
+    if can_delete {
+        Ok(Redirect::to(&format!("/me?delete_user={}", user_id.0)).into_response())
+    } else {
+        // Redirect to the main page
+        Ok(Redirect::to("/").into_response())
+    }
 }
 
 async fn account_creation_confirmation_redirect(
