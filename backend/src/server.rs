@@ -43,7 +43,7 @@ pub async fn run(state: AppState) {
             get(login::discord::back_from_discord),
         )
         .route(
-            "/oauth/pleaseCreateAccount/:encryptedAccessToken",
+            "/oauth/pleaseCreateAccount",
             get(login::discord::please_create_account),
         );
 

@@ -162,7 +162,7 @@ async fn account_creation_confirmation_redirect(
 
     let redirect_url = format!(
         "/me/create-account?encrypted_access_token={}&user_display_name={}&user_discord_id={}",
-        replace_equals_with_semicolon(&creation_data.encrypted_access_token),
+        make_base64_robust_against_elm(&creation_data.encrypted_access_token),
         creation_data.user_display_name,
         creation_data.user_discord_id,
     );
@@ -173,13 +173,14 @@ async fn account_creation_confirmation_redirect(
 /// The encrypted access token is Base64 encoded. This means it will end with "=" in most cases.
 /// Elm's query parser does not like this and will eat the equals sign. This breaks decryption.
 /// To preserve the equals signs, we convert them to ";" which does not occur in Base64.
-fn replace_equals_with_semicolon(input: &str) -> String {
-    input.replace("=", ";")
+fn make_base64_robust_against_elm(input: &str) -> String {
+    input.replace('=', ";")
 }
 
 /// Getting back to a regular Base64 encoded string, we replace ; by =
-fn replace_semicolon_with_equals(input: &str) -> String {
-    input.replace(";", "=")
+/// And we also have to replace space by +, that is axum's fault.
+fn fix_back_to_base64(input: &str) -> String {
+    input.replace(';', "=").replace(' ', "+")
 }
 
 /// The access token is encrypted. This makes sure the client can hand it back
@@ -288,18 +289,23 @@ async fn get_user_for_discord_user_id(
     Ok(Some(user_id))
 }
 
+#[derive(Deserialize)]
+pub struct PleaseCreateAccountQuery {
+    encrypted_access_token: String,
+}
+
 pub async fn please_create_account(
-    Path(encrypted_access_token): Path<String>,
+    Query(query): Query<PleaseCreateAccountQuery>,
     mut cookies: Cookies,
     State(config): State<EnvironmentConfig>,
     pool: State<Pool>,
 ) -> Result<impl IntoResponse, ServerError> {
     log::info!("Creating an account for a new user from Discord.");
     // Decrypt the access token
-    let access_token = crypto::decrypt_string(
-        &replace_semicolon_with_equals(&encrypted_access_token),
+    let access_token = dbg!(crypto::decrypt_string(
+        dbg!(&fix_back_to_base64(&query.encrypted_access_token)),
         &config.secret_key,
-    )?;
+    ))?;
 
     // Use it another time to load user information
     let user_info = request_user_info(&access_token).await?;

@@ -88,12 +88,12 @@ update msg model =
             ( model, Effect.fromShared outMsg )
 
         CreateAccount ->
-            -- /api/oauth/pleaseCreateAccount/{{ encrypted_access_token }}
+            -- /api/oauth/pleaseCreateAccount?encrypted_access_token={{ encrypted_access_token }}
             case model.data of
                 Just data ->
                     ( { model | state = WaitsForServerResponse }
                     , Http.get
-                        { url = "/api/oauth/pleaseCreateAccount/" ++ data.encryptedAccessToken
+                        { url = "/api/oauth/pleaseCreateAccount?encrypted_access_token=" ++ data.encryptedAccessToken
                         , expect =
                             Http.expectWhatever
                                 (\res ->
