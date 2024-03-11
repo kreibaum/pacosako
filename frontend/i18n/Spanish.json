@@ -155,5 +155,6 @@
     "deleteAccountDanger": "Zona peligrosa",
     "deleteAccountL3": "Sólo tienes un minuto antes de que este botón deje de funcionar.",
     "deleteAccountConfirm": "Confirmar el borrado",
-    "timerMustBePositive": "¡El temporizador no puede comenzar en/por debajo de cero!"
+    "timerMustBePositive": "¡El temporizador no puede comenzar en/por debajo de cero!",
+    "createAccountPageTitle": "Crear cuenta - pacoplay.com"
 }
