@@ -1,15 +1,14 @@
+mod actors;
 mod caching;
 mod config;
 mod db;
-mod secret_login;
-//mod discord;
-mod actors;
 mod game;
 mod grafana;
 mod language;
 mod login;
 mod protection;
 mod replay_data;
+mod secret_login;
 mod server;
 mod statistics;
 mod sync_match;
@@ -22,6 +21,7 @@ mod ws;
 #[macro_use]
 extern crate log;
 extern crate simplelog;
+
 use axum::{
     extract::FromRef,
     http::StatusCode,
@@ -51,6 +51,18 @@ pub enum ServerError {
     ParseIntError(#[from] std::num::ParseIntError),
     #[error("Error parsing request")]
     BadRequest,
+    #[error("Error connecting to 3rd party server")]
+    ReqwestError(#[from] reqwest::Error),
+    #[error("OAuth2 related error")]
+    OAuth2Error(&'static str),
+    #[error("Error in the encryption library")]
+    CryptoError(#[from] aes_gcm::Error),
+    #[error("Error in the encryption implementation in project")]
+    CryptoErrorCustom(&'static str),
+    #[error("Error when parsing base 64")]
+    Base64Error(#[from] base64::DecodeError),
+    #[error("Error when parsing Utf8 string")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
 impl IntoResponse for ServerError {

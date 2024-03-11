@@ -37,7 +37,16 @@ pub async fn run(state: AppState) {
         .route("/replay_meta_data/:game", post(replay_data::post_metadata))
         .route("/me/avatar", post(user::set_avatar))
         .route("/me/delete", get(user::delete_user))
-        .route("/grafana", get(grafana::grafana_handler));
+        .route("/grafana", get(grafana::grafana_handler))
+        .route(
+            "/oauth/backFromDiscord",
+            get(login::discord::back_from_discord),
+        )
+        .route(
+            "/oauth/pleaseCreateAccount",
+            get(login::discord::please_create_account),
+        )
+        .route("/oauth/get_redirected", get(login::discord::get_redirected));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();

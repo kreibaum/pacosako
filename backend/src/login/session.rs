@@ -1,5 +1,5 @@
 use super::{crypto, SessionId, UserId, SESSION_COOKIE};
-use crate::{db::Connection, AppState};
+use crate::{db::Connection, AppState, ServerError};
 use axum::{
     async_trait,
     extract::FromRequestParts,
@@ -35,7 +35,7 @@ pub async fn create_session(
     user_id: UserId,
     can_delete: bool,
     connection: &mut Connection,
-) -> Result<SessionId, anyhow::Error> {
+) -> Result<SessionId, ServerError> {
     let uuid = uuid::Uuid::new_v4().to_string();
     sqlx::query!(
         r"insert into session (id, user_id, expires_at, can_delete) values (?, ?, datetime(CURRENT_TIMESTAMP, '+14 days'), ?)",
@@ -90,7 +90,10 @@ async fn get_session_from_request_parts(
         anyhow::bail!("User is not logged in.")
     };
 
-    let session_id = crypto::decrypt_session_key(session_cookie.value(), &state.config.secret_key)?;
+    let session_id = SessionId(crypto::decrypt_string(
+        session_cookie.value(),
+        &state.config.secret_key,
+    )?);
 
     let mut connection = state.pool.conn().await?;
     load_session(session_id, &mut connection).await

@@ -1,18 +1,20 @@
+//! Module for the "secret" login page where username/password login is allowed
+//! for a few beta users.
+
 use axum::{extract::State, response::IntoResponse};
 use hyper::header;
+use tower_cookies::Cookies;
 
 use crate::{
     config::EnvironmentConfig,
     db::Pool,
-    login::{session::SessionData, user::load_public_user_data},
+    login::{self, session::SessionData, user::load_public_user_data},
     templates,
 };
 
-/// Module for the "secret" login page where username/password login is allowed
-/// for a few beta users.
-
 pub async fn secret_login(
-    config: State<EnvironmentConfig>,
+    State(config): State<EnvironmentConfig>,
+    cookies: Cookies,
     pool: State<Pool>,
     session: Option<SessionData>,
 ) -> impl IntoResponse {
@@ -34,6 +36,11 @@ pub async fn secret_login(
             context.insert("avatar", &user_data.avatar);
         }
     }
+
+    // Discord parameters & cookie
+    let link = login::discord::generate_link(&config, false);
+    context.insert("discord_url", &link.url);
+    cookies.add(link.state_cookie());
 
     let body = tera
         .render("secret_login.html.tera", &context)

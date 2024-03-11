@@ -1,14 +1,18 @@
 module Components exposing
     ( StyleableButton
     , btn
+    , colorButton
     , gameCodeLabel
+    , grayBox
     , header1
     , header2
     , header3
+    , heading
     , iconButton
     , isEnabledIf
     , isSelectedIf
     , paragraph
+    , textParagraph
     , viewButton
     , withMsg
     , withMsgIf
@@ -21,11 +25,11 @@ should not have their own message type or their own complicated data.
 -}
 
 import Custom.Element exposing (icon)
-import Element exposing (Element, alignRight, centerX, el, fill, height, padding, paddingXY, row, spacing, width)
+import Element exposing (Element, alignRight, centerX, el, fill, height, padding, paddingEach, paddingXY, px, row, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
-import Element.Input exposing (button)
+import Element.Input as Input exposing (button)
 import Element.Region exposing (description)
 import FontAwesome.Attributes
 import FontAwesome.Icon exposing (Icon)
@@ -208,5 +212,69 @@ gameCodeLabel copyUrlMsg gameKey =
                 [ el [ width fill ] Element.none
                 , el [] (Element.text gameKey)
                 , el [ width fill, Font.size 30, paddingXY 5 0 ] (icon [ alignRight ] Regular.clipboard)
+                ]
+        }
+
+
+
+--------------------------------------------------------------------------------
+-- Below this line we have "2024 Components". Above is older stuff. ------------
+--------------------------------------------------------------------------------
+
+
+{-| A gray box. Good to contain some text. You often want a bunch of these
+in a column layout on text heavy pages.
+-}
+grayBox : List (Element msg) -> Element msg
+grayBox content =
+    Element.column
+        [ width fill
+        , Background.color (Element.rgba 1 1 1 0.6)
+        , Border.rounded 5
+        ]
+        content
+
+
+textParagraph : String -> Element msg
+textParagraph content =
+    Element.paragraph [ padding 10, Font.justify ] [ text content ]
+
+
+heading : String -> Element msg
+heading content =
+    Element.paragraph [ paddingEach { top = 20, right = 10, bottom = 10, left = 10 }, Font.size 25 ]
+        [ text content ]
+
+
+{-| A button with a specific color and an icon. I reacts to hovers with a color change.
+-}
+colorButton :
+    List (Element.Attribute msg)
+    ->
+        { background : Element.Color
+        , backgroundHover : Element.Color
+        , onPress : Maybe msg
+        , buttonIcon : Element msg
+        , caption : String
+        }
+    -> Element msg
+colorButton attrs { background, backgroundHover, onPress, buttonIcon, caption } =
+    Input.button
+        ([ Background.color background
+         , Element.mouseOver [ Background.color backgroundHover ]
+         , Border.rounded 5
+         ]
+            ++ attrs
+        )
+        { onPress = onPress
+        , label =
+            Element.row
+                [ height fill
+                , centerX
+                , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
+                , spacing 5
+                ]
+                [ el [ width (px 20) ] buttonIcon
+                , Element.text caption
                 ]
         }

@@ -27,7 +27,6 @@ frontend/.asset-list/StaticAssets.elm
 
 # Secrets
 /scripts/deployment-key.pem
-backend/Secrets.toml
 
 # Development Database
 /backend/data
@@ -37,3 +36,4 @@ lib/libpacosako.h
 julia/data
 frontend/typescript/static_assets.ts
 backend/paco_2_performance.csv
+backend/dev-secrets.toml

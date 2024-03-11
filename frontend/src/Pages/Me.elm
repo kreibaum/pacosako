@@ -1,6 +1,7 @@
 module Pages.Me exposing (Model, Msg, page)
 
 import Browser.Dom
+import Components exposing (colorButton)
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
 import Dict exposing (Dict)
@@ -370,22 +371,36 @@ notLoggedInView model =
             ]
         ]
     , row [ width fill, spacing 10 ]
-        [ column (centerX :: height fill :: panelAttributes)
-            [ el
-                [ width (fill |> maximum 400)
-                , padding 10
-                , centerX
-                , centerY
-                ]
-                Svg.Discord.discordLogo
-            , el
-                [ Font.color Svg.Discord.discordLogoColor
-                , Font.size 25
-                , centerX
-                , centerY
-                ]
-                (paragraph [] [ text T.mePageDiscordSignIn ])
-            ]
+        [ Input.button (height fill :: panelAttributes)
+            { onPress =
+                Just
+                    (ToShared
+                        (Shared.NavigateTo
+                            (case model.withIntentToDelete of
+                                Just _ ->
+                                    "/api/oauth/get_redirected?can_delete=true"
+
+                                Nothing ->
+                                    "/api/oauth/get_redirected"
+                            )
+                        )
+                    )
+            , label =
+                column [ width fill, centerX, centerY ]
+                    [ el
+                        [ width (fill |> maximum 400)
+                        , padding 10
+                        , centerX
+                        ]
+                        Svg.Discord.discordLogo
+                    , el
+                        [ Font.color Svg.Discord.discordLogoColor
+                        , Font.size 25
+                        , centerX
+                        ]
+                        (paragraph [] [ text T.mePageDiscordSignIn ])
+                    ]
+            }
         , column (height fill :: panelAttributes)
             [ if model.withError then
                 row [ Font.color (rgb255 200 0 0), spacing 5 ]
@@ -615,40 +630,6 @@ panelButton onPress label =
                        ]
                 )
                 label
-        }
-
-
-{-| A button with a specific color and an icon. I reacts to hovers with a color change.
--}
-colorButton :
-    List (Element.Attribute msg)
-    ->
-        { background : Element.Color
-        , backgroundHover : Element.Color
-        , onPress : Maybe msg
-        , buttonIcon : Element msg
-        , caption : String
-        }
-    -> Element msg
-colorButton attrs { background, backgroundHover, onPress, buttonIcon, caption } =
-    Input.button
-        ([ Background.color background
-         , Element.mouseOver [ Background.color backgroundHover ]
-         , Border.rounded 5
-         ]
-            ++ attrs
-        )
-        { onPress = onPress
-        , label =
-            Element.row
-                [ height fill
-                , centerX
-                , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                , spacing 5
-                ]
-                [ el [ width (px 20) ] buttonIcon
-                , Element.text caption
-                ]
         }
 
 

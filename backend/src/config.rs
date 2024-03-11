@@ -11,6 +11,17 @@ pub struct EnvironmentConfig {
     pub bind: String,
     pub secret_key: String,
     pub grafana_password: String,
+    pub server_url: String,
+    pub discord_client_id: String,
+    /// The path to the file containing secrets like the Discord client secret
+    pub secrets_file: String,
+    /// Secrets loaded from the secrets file
+    pub discord_client_secret: String,
+}
+
+#[derive(Deserialize)]
+pub struct SecretsConfig {
+    discord_client_secret: String,
 }
 
 /// Determines from the first command line argument which config file to load.
@@ -56,12 +67,33 @@ fn load_config_inner() -> Result<EnvironmentConfig, String> {
     info!("Loaded config file: {}", config_filename);
 
     // Parse the config file
-    toml::from_str(&config_file).map_err(|e| {
+    let config: EnvironmentConfig = toml::from_str(&config_file).map_err(|e| {
         format!(
             "Could not parse config file at path: {}\nCaused by: {:?}",
             config_filename, e
         )
-    })
+    })?;
+
+    // Load the secrets file
+    let secrets_file = config.secrets_file.clone();
+    let secrets_file = fs::read_to_string(&secrets_file)
+        .map_err(|_| format!("Could not read secrets file at path: {secrets_file}"))?;
+
+    // Parse the secrets file
+    let secrets: SecretsConfig = toml::from_str(&secrets_file).map_err(|e| {
+        format!(
+            "Could not parse secrets file at path: {}\nCaused by: {:?}",
+            secrets_file, e
+        )
+    })?;
+
+    // Merge the secrets into the config
+    let config = EnvironmentConfig {
+        discord_client_secret: secrets.discord_client_secret,
+        ..config
+    };
+
+    Ok(config)
 }
 
 fn is_utility_test(args: &str) -> bool {

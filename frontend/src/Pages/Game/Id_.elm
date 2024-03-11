@@ -385,6 +385,19 @@ updateTryRegrabLiftedPiece pos model =
         ( model, Effect.none )
 
 
+{-| Handles a mouse up on the board. We care about the following actions:
+
+1.  When the board is settled (no lifted pieces), a click on a legal action performs it.
+2.  When a piece is lifted but not chained, a non-legal action rolls back the move.
+
+Future improvements:
+
+  - When clicking on a explicity forbidden move, roll back the move.
+  - When a piece is lifted, clicking another piece that may lift, should lift the new piece.
+    Right now, it only puts down the lifted piece and you need to click a second time.
+  - When a piece is lifted, clicking on the same piece should put it down.
+
+-}
 updateMouseUp : Shared.Model -> BoardMousePosition -> Model -> ( Model, Effect Msg )
 updateMouseUp shared pos model =
     case Maybe.andThen (legalActionAt model.currentState) pos.tile of
