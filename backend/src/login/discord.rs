@@ -58,6 +58,20 @@ fn redirect_uri(server_url: &str) -> String {
     format!("{}/api/oauth/backFromDiscord", server_url)
 }
 
+/// First level of redirection. This redirects to a link generated from
+/// generate_link which makes it easier and more self contained to trigger
+/// the OAuth2 login.
+///
+/// Lives at https://pacoplay.com/api/oauth/get_redirected
+pub async fn get_redirected(
+    cookies: Cookies,
+    State(config): State<EnvironmentConfig>,
+) -> impl IntoResponse {
+    let link = generate_link(&config);
+    cookies.add(link.state_cookie());
+    Redirect::to(&link.url)
+}
+
 /// Example link that may be generate:
 ///
 /// https://discord.com/api/oauth2/authorize
@@ -66,7 +80,7 @@ fn redirect_uri(server_url: &str) -> String {
 ///
 /// This will then redirect back to a link like
 ///
-/// http://pacoplay.com/api/oauth/redirect
+/// https://pacoplay.com/api/oauth/redirect
 ///     ?code=vVbfPzJUPuBaJTHaeSTknrBPLaxjxP
 ///     &state=9834kcv4cfv3
 pub fn generate_link(config: &EnvironmentConfig) -> DiscordLoginLink {

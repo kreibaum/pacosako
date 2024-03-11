@@ -371,22 +371,24 @@ notLoggedInView model =
             ]
         ]
     , row [ width fill, spacing 10 ]
-        [ column (centerX :: height fill :: panelAttributes)
-            [ el
-                [ width (fill |> maximum 400)
-                , padding 10
-                , centerX
-                , centerY
-                ]
-                Svg.Discord.discordLogo
-            , el
-                [ Font.color Svg.Discord.discordLogoColor
-                , Font.size 25
-                , centerX
-                , centerY
-                ]
-                (paragraph [] [ text T.mePageDiscordSignIn ])
-            ]
+        [ Input.button (height fill :: panelAttributes)
+            { onPress = Just (ToShared (Shared.NavigateTo "/api/oauth/get_redirected"))
+            , label =
+                column [ width fill, centerX, centerY ]
+                    [ el
+                        [ width (fill |> maximum 400)
+                        , padding 10
+                        , centerX
+                        ]
+                        Svg.Discord.discordLogo
+                    , el
+                        [ Font.color Svg.Discord.discordLogoColor
+                        , Font.size 25
+                        , centerX
+                        ]
+                        (paragraph [] [ text T.mePageDiscordSignIn ])
+                    ]
+            }
         , column (height fill :: panelAttributes)
             [ if model.withError then
                 row [ Font.color (rgb255 200 0 0), spacing 5 ]
