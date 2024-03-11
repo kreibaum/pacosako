@@ -162,12 +162,24 @@ async fn account_creation_confirmation_redirect(
 
     let redirect_url = format!(
         "/me/create-account?encrypted_access_token={}&user_display_name={}&user_discord_id={}",
-        creation_data.encrypted_access_token,
+        replace_equals_with_semicolon(&creation_data.encrypted_access_token),
         creation_data.user_display_name,
         creation_data.user_discord_id,
     );
 
     Ok(Redirect::to(&redirect_url))
+}
+
+/// The encrypted access token is Base64 encoded. This means it will end with "=" in most cases.
+/// Elm's query parser does not like this and will eat the equals sign. This breaks decryption.
+/// To preserve the equals signs, we convert them to ";" which does not occur in Base64.
+fn replace_equals_with_semicolon(input: &str) -> String {
+    input.replace("=", ";")
+}
+
+/// Getting back to a regular Base64 encoded string, we replace ; by =
+fn replace_semicolon_with_equals(input: &str) -> String {
+    input.replace(";", "=")
 }
 
 /// The access token is encrypted. This makes sure the client can hand it back
@@ -282,11 +294,17 @@ pub async fn please_create_account(
     State(config): State<EnvironmentConfig>,
     pool: State<Pool>,
 ) -> Result<impl IntoResponse, ServerError> {
+    log::info!("Creating an account for a new user from Discord.");
     // Decrypt the access token
-    let access_token = crypto::decrypt_string(&encrypted_access_token, &config.secret_key)?;
+    let access_token = crypto::decrypt_string(
+        &replace_semicolon_with_equals(&encrypted_access_token),
+        &config.secret_key,
+    )?;
 
     // Use it another time to load user information
     let user_info = request_user_info(&access_token).await?;
+
+    log::info!("Creating account for user {}", user_info.display_name());
 
     let mut conn = pool.conn().await?;
 
@@ -301,11 +319,14 @@ pub async fn please_create_account(
     // Associate the user with the discord login
     user::create_discord_login(user_id, user_info.id, &mut conn).await?;
 
+    log::info!("Account created and linked to Discord.");
+
     // Set the session cookie
     create_session_and_attach_cookie(user_id, false, &config, &mut cookies, &mut conn).await?;
 
     // Return to /me with a redirect. On first login, the user likely want to
     // chose a profile picture and maybe set some other options once we put them
     // on the /me page as well.
+    log::info!("User logged in, redirecting!");
     Ok(Redirect::to("/me").into_response())
 }
