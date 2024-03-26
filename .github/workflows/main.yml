@@ -36,11 +36,10 @@ jobs:
           key: unittest
 
       - name: Install SQLX-tooling
-        uses: actions-rs/install@v0.1
+        uses: baptiste0928/cargo-install@v3.0.1
         with:
           crate: sqlx-cli
           version: latest
-          use-tool-cache: true
 
       - name: Run library tests
         run: |
@@ -65,15 +64,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
 
       - name: Cache multiple paths
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             backend/target
@@ -86,7 +85,7 @@ jobs:
         run: sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root
 
       - name: Setup Python
-        uses: actions/setup-python@v2.2.2
+        uses: actions/setup-python@v5
 
       - name: Install pytrans.py and cache_hash
         run: |
@@ -99,7 +98,7 @@ jobs:
           ls $GITHUB_WORKSPACE/bin
 
       - name: Install wasm-pack
-        uses: jetli/wasm-pack-action@v0.3.0
+        uses: jetli/wasm-pack-action@v0.4.0
 
       - name: Compile Frontend
         run: |
@@ -107,11 +106,10 @@ jobs:
           ./scripts/compile-frontend.sh
 
       - name: Install SQLX-tooling
-        uses: actions-rs/install@v0.1
+        uses: baptiste0928/cargo-install@v3.0.1
         with:
           crate: sqlx-cli
           version: latest
-          use-tool-cache: true
 
       - name: Compile Server in release mode
         run: |
