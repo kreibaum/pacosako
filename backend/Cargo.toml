@@ -21,9 +21,9 @@ argon2 = { version = "0.5.2", features = ["std"] }
 avatargen = "0.1.0"
 axum = { version = "0.7.2", features = ["query", "ws"] }
 axum-auth = "0.7.0"
-base64 = "0.21.5"
+base64 = "0.22.0"
 blake3 = "1.5.0"
-cached = { version = "0.48.0", default-features = false, features = [
+cached = { version = "0.49.2", default-features = false, features = [
     "proc_macro",
 ] }
 chrono = { version = "0.4", features = ["serde"] }
