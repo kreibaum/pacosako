@@ -1,7 +1,7 @@
 # Production server: pacoplay.com
 pacoplay.com {
-	encode gzip zstd
 	reverse_proxy localhost:8000
+	encode gzip
 }
 
 # Redirect www.pacoplay.com to pacoplay.com
@@ -11,6 +11,12 @@ www.pacoplay.com {
 
 # Test server: dev.pacoplay.com
 dev.pacoplay.com {
-	encode gzip zstd
 	reverse_proxy localhost:8001
+	encode gzip
+}
+
+# Static artifact hosting for ML models
+static.kreibaum.dev {
+	root * /home/pacosako/static
+	file_server browse
 }
