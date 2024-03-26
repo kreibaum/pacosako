@@ -33,7 +33,7 @@
             "lattyware/elm-fontawesome": "5.0.0",
             "mdgriffith/elm-ui": "1.1.8",
             "rtfeldman/elm-iso8601-date-strings": "1.1.4",
-            "ryannhg/elm-spa": "6.0.0",
+            "ryan-haskell/elm-spa": "1.0.0",
             "yotamDvir/elm-pivot": "3.1.0"
         },
         "indirect": {
