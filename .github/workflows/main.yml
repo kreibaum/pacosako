@@ -17,19 +17,17 @@ on:
 jobs:
   test:
     name: Run unit tests
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache multiple paths
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             backend/target
@@ -82,7 +80,7 @@ jobs:
             ~/.cargo
           key: build
 
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v4
 
       - name: Install Elm
         run: sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root
@@ -134,7 +132,7 @@ jobs:
           tar -zcf deploy.tar.gz deploy
 
       - name: Publish artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: deploy
           path: deploy.tar.gz
@@ -150,7 +148,7 @@ jobs:
         uses: actions/checkout@v1
 
       - name: Check out deployment artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: deploy
 
