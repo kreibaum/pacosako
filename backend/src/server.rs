@@ -61,16 +61,22 @@ pub async fn run(state: AppState) {
             "/websocket",
             get(crate::actors::websocket::websocket_handler),
         )
-        .nest_service("/a", ServeDir::new("../target/assets/"))
-        .nest_service("/js/lib.min.js", ServeFile::new("../target/js/lib.min.js"))
-        .nest_service("/js/lib.wasm", ServeFile::new("../target/js/lib.wasm"))
+        .nest_service("/a", ServeDir::new("../target/assets/").precompressed_br())
+        .nest_service(
+            "/js/lib.min.js",
+            ServeFile::new("../target/js/lib.min.js").precompressed_br(),
+        )
+        .nest_service(
+            "/js/lib.wasm",
+            ServeFile::new("../target/js/lib.wasm").precompressed_br(),
+        )
         .nest_service(
             "/js/lib_worker.min.js",
-            ServeFile::new("../target/js/lib_worker.min.js"),
+            ServeFile::new("../target/js/lib_worker.min.js").precompressed_br(),
         )
         .nest_service(
             "/js/main.min.js",
-            ServeFile::new("../target/js/main.min.js"),
+            ServeFile::new("../target/js/main.min.js").precompressed_br(),
         )
         .nest("/api", api)
         .with_state(state.clone())

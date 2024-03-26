@@ -39,7 +39,8 @@
             "mkdir -p ../build/elm",
             "mkdir -p ../target/js",
             "elm make src/Main.elm --optimize --output=../build/elm/elm.{locale}.js",
-            "terser ../build/elm/elm.{locale}.js -o ../target/js/elm.{locale}.min.js --mangle --compress"
+            "terser ../build/elm/elm.{locale}.js -o ../target/js/elm.{locale}.min.js --mangle --compress",
+            "brotli ../target/js/elm.{locale}.min.js"
         ]
     }
 }

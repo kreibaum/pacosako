@@ -34,6 +34,9 @@ for src_file in "${src_dir}"*; do
     # Copy the file to the destination directory
     cp "${src_file}" "${dst_dir}${filename}"
 
+    # Pre-compress with brotli
+    brotli "${dst_dir}${filename}"
+
     # Calculate the hash of the file
     hash=$(cache_hash "${src_file}")
 

@@ -20,3 +20,7 @@ cp build/frontend-wasm/lib_bg.wasm target/js/lib.wasm
 # Minify the javascript wrapper.
 echo "Minifying wasm wapper javascript"
 terser build/frontend-wasm/lib.js -o target/js/lib.min.js --compress --mangle
+
+# Pre-compress both files with brotli
+brotli target/js/lib.wasm
+brotli target/js/lib.min.js

@@ -33,6 +33,7 @@
         "MCTS",
         "ntest",
         "petgraph",
+        "precompressed",
         "proxied",
         "puct",
         "pytrans",
