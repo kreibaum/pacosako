@@ -1,12 +1,12 @@
 module Pages.Tutorial exposing (Model, Msg, page)
 
 import Animation exposing (Timeline)
-import Components exposing (colorButton, grayBox, heading, textParagraph)
+import Components exposing (grayBox, heading, textParagraph)
 import Content.References
 import Custom.Element exposing (icon)
 import Dict exposing (Dict)
 import Effect exposing (Effect)
-import Element exposing (Element, centerX, centerY, fill, height, padding, paddingEach, paragraph, px, text, width)
+import Element exposing (Element, centerX, centerY, fill, height, padding, paragraph, px, text, width)
 import Element.Background as Background
 import Element.Font as Font
 import Element.Input as Input
@@ -348,12 +348,6 @@ chainAnimationData =
     , [ Sako.Place (Sako.Tile 4 3) ]
     , [ Sako.Place (Sako.Tile 4 7) ]
     ]
-
-
-chainAnimationEnd : Sako.Position
-chainAnimationEnd =
-    Sako.doActionsList (List.concat chainAnimationData) takeoverUnionAnimation2End
-        |> Maybe.withDefault Sako.emptyPosition
 
 
 promotionAnimation : Timeline OpaqueRenderData

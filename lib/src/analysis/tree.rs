@@ -4,7 +4,6 @@
 //! Ŝako specific data structures. I hope that way the core graph algorithms are
 //! more easily understood.
 
-use fxhash::FxHashMap;
 use std::{
     collections::HashMap,
     hash::{BuildHasher, Hash},
@@ -17,30 +16,6 @@ use std::{
 /// was $x -> ($action, None). Where $initial is not part of the HashMap.
 /// This means we now check if a state is initial by not finding it in the
 /// HashMap. (Before, we would not have the initial state anywhere at all.)
-pub fn trace_first_move_redesign<Node, Edge>(
-    start_from: &Node,
-    found_via: &FxHashMap<Node, Vec<(Edge, Node)>>,
-) -> Option<Vec<Edge>>
-where
-    Node: Hash + Eq,
-    Edge: Clone,
-{
-    let mut trace: Vec<Edge> = Vec::new();
-    let mut pivot = start_from;
-
-    loop {
-        let parents = found_via.get(pivot);
-        let Some(parents) = parents else {
-            // We have reached the initial state.
-            trace.reverse();
-            return Some(trace);
-        };
-        let (action, parent) = parents.get(0)?;
-        trace.push(action.clone());
-        pivot = parent;
-    }
-}
-
 pub fn trace_first_move_redesign_sparse<Node, Edge, S: BuildHasher>(
     start_from: &Node,
     found_via: &HashMap<Node, (Edge, Node), S>,

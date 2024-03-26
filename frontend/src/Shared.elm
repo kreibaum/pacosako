@@ -22,7 +22,6 @@ import List.Extra as List
 import Request exposing (Request)
 import Time exposing (Posix)
 import Translations exposing (Language(..))
-import Url exposing (Url)
 import User
 
 
@@ -69,7 +68,7 @@ type Msg
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
-init { url, key } flags =
+init { key } flags =
     let
         ls =
             LocalStorage.load flags

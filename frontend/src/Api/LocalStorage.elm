@@ -196,7 +196,7 @@ Though there is nothing to do here for now.
 
 -}
 censor : List Permission -> Data -> Data
-censor permissions data =
+censor _ data =
     data
 
 

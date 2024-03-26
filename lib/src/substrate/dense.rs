@@ -57,6 +57,7 @@ impl IndexMut<BoardPosition> for [Option<PieceType>; 64] {
     }
 }
 
+#[allow(clippy::needless_range_loop)] // Reads nicer this way
 impl From<[Option<PieceType>; 64]> for BitBoard {
     fn from(value: [Option<PieceType>; 64]) -> Self {
         let mut result = 0;
@@ -134,6 +135,7 @@ impl Substrate for DenseSubstrate {
     }
 }
 
+#[allow(clippy::needless_range_loop)] // Reads nicer this way
 fn find_king(
     array: [Option<PieceType>; 64],
     player: PlayerColor,
@@ -203,6 +205,7 @@ where
 /// Since arrays with a size larger than 32 do not have an implementation for
 /// Serialize and Deserialize by default, we implement custom serialization
 /// and deserialization logic.
+#[allow(clippy::needless_range_loop)] // Reads nicer this way
 fn deserialize_option_array<'de, D>(deserializer: D) -> Result<[Option<PieceType>; 64], D::Error>
 where
     D: Deserializer<'de>,

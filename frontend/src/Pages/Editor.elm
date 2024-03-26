@@ -151,7 +151,7 @@ init shared { query, url } =
 
 
 initialEditor : Url.Url -> Shared.Model -> QueryParameter -> Model
-initialEditor rawUrl shared query =
+initialEditor rawUrl _ query =
     { query = query
     , rawUrl = rawUrl
     , saveState = SaveNotRequired

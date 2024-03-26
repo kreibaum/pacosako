@@ -220,24 +220,26 @@ fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<
             potentially_castling = Some(*at);
         }
 
-        if potentially_castling.is_some() && atom.is_place() {
-            if let NotationAtom::EndMoveCalm { at } = atom {
-                // This can never happen when the result is empty, so we can unwrap.
-                let last = result.last_mut().unwrap();
+        if let Some(from) = potentially_castling {
+            if atom.is_place() {
+                if let NotationAtom::EndMoveCalm { at } = atom {
+                    // This can never happen when the result is empty, so we can unwrap.
+                    let last = result.last_mut().unwrap();
 
-                let from = potentially_castling.unwrap().0 as i8;
-                let to = at.0 as i8;
-                if to - from == 2 {
-                    last.label = "0-0".to_string();
-                    last.action_index = i + initial_index + 1;
-                    already_squashed = true;
-                    continue 'atom_loop;
-                }
-                if to - from == -2 {
-                    last.label = "0-0-0".to_string();
-                    last.action_index = i + initial_index + 1;
-                    already_squashed = true;
-                    continue 'atom_loop;
+                    let from = from.0 as i8;
+                    let to = at.0 as i8;
+                    if to - from == 2 {
+                        last.label = "0-0".to_string();
+                        last.action_index = i + initial_index + 1;
+                        already_squashed = true;
+                        continue 'atom_loop;
+                    }
+                    if to - from == -2 {
+                        last.label = "0-0-0".to_string();
+                        last.action_index = i + initial_index + 1;
+                        already_squashed = true;
+                        continue 'atom_loop;
+                    }
                 }
             }
             // Otherwise, we just continue, this is a regular King movement.
@@ -557,7 +559,7 @@ mod tests {
 
     #[test]
     fn test_replay_13103() -> Result<(), PacoError> {
-        let notation = history_to_replay_notation(DenseBoard::new(), &REPLAY_13103)?;
+        let _notation = history_to_replay_notation(DenseBoard::new(), &REPLAY_13103)?;
 
         Ok(())
     }

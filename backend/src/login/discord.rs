@@ -21,7 +21,7 @@ use crate::{
     ServerError,
 };
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     response::{IntoResponse, Redirect},
 };
 use rand::{distributions::Alphanumeric, Rng};
@@ -104,7 +104,7 @@ pub fn generate_link(config: &EnvironmentConfig, can_delete: bool) -> DiscordLog
         state
     };
 
-    let url = format!("https://discord.com/api/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify&state={}", 
+    let url = format!("https://discord.com/api/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify&state={}",
         config.discord_client_id, encode(&redirect_uri), state);
 
     DiscordLoginLink {

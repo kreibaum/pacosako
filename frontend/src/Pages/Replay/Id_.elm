@@ -743,7 +743,7 @@ oneMetaDataDecoration cue =
 
 
 sidebarContent : Shared.Model -> InnerModel -> List (Element InnerMsg)
-sidebarContent shared model =
+sidebarContent _ model =
     [ Components.gameCodeLabel
         (CopyToClipboard (Url.toString model.replay_url))
         model.key

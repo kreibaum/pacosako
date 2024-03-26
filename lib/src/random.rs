@@ -1,9 +1,9 @@
 use super::DenseBoard;
 use crate::const_tile::*;
 use crate::substrate::Substrate;
+use crate::BoardPosition;
 use crate::PieceType::*;
 use crate::PlayerColor::{Black, White};
-use crate::{BoardPosition, PieceType};
 use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 

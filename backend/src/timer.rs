@@ -135,11 +135,11 @@ impl Timer {
 
         let time_left = match player {
             PlayerColor::White => {
-                self.time_left_white = self.time_left_white - time_passed;
+                self.time_left_white -= time_passed;
                 self.time_left_white
             }
             PlayerColor::Black => {
-                self.time_left_black = self.time_left_black - time_passed;
+                self.time_left_black -= time_passed;
                 self.time_left_black
             }
         };

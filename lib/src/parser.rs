@@ -58,13 +58,13 @@ impl Square {
 }
 
 fn matrix_transform(input: Vec<(u8, Vec<Square>)>) -> Matrix {
-    let mut matrix = HashMap::new();
+    let mut matrix: HashMap<BoardPosition, Square> = HashMap::new();
 
     for (row, entries) in input {
         for (x, square) in entries.iter().enumerate() {
             if square.white.is_some() || square.black.is_some() {
                 if let Some(pos) = BoardPosition::new_checked(x as i8, row as i8 - 1) {
-                    matrix.insert(pos, square.clone());
+                    matrix.insert(pos, *square);
                 }
             }
         }
@@ -81,8 +81,7 @@ pub fn matrix(input: &str) -> IResult<&str, Matrix> {
 fn exchange_notation(input: &str) -> IResult<&str, Matrix> {
     let (input, raw) = nom::multi::separated_list0(tag("\n"), unlabeled_row)(input)?;
     let row_indices: Vec<u8> = vec![8, 7, 6, 5, 4, 3, 2, 1];
-    let labeled_rows: Vec<(u8, Vec<Square>)> =
-        row_indices.into_iter().zip(raw.into_iter()).collect();
+    let labeled_rows: Vec<(u8, Vec<Square>)> = row_indices.into_iter().zip(raw).collect();
 
     Ok((input, matrix_transform(labeled_rows)))
 }

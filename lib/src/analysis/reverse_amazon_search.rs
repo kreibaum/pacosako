@@ -1,11 +1,9 @@
 //! Functions to check if we are in a Sako position.
 
 use core::fmt::Debug;
-use fxhash::{FxHashMap, FxHashSet};
 use std::{
     borrow::Cow,
     collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
-    fmt::Formatter,
     ops::Add,
 };
 
@@ -117,18 +115,14 @@ fn explore_paco_tree(
                 paco_positions.insert(b_hash);
             }
 
-            // look up if this action has already been found.
-            match found_via.entry(b_hash) {
-                // We encounter this state for the first time.
-                Entry::Vacant(v_entry) => {
-                    v_entry.insert((action, todo_hash));
-                    if !b.is_settled() {
-                        // We will look at the possible chain moves later.
-                        todo_list.push_back(b);
-                    }
+            // Look up if this action is still to be explored. Otherwise we have
+            // nothing to do and can continue the 'action_loop.
+            if let Entry::Vacant(v_entry) = found_via.entry(b_hash) {
+                v_entry.insert((action, todo_hash));
+                if !b.is_settled() {
+                    // We will look at the possible chain moves later.
+                    todo_list.push_back(b);
                 }
-                // We have seen this state already, nothing to do.
-                _ => {}
             }
         }
     }
@@ -142,7 +136,7 @@ fn explore_paco_tree(
 /// This eliminates some states that the board could be in. This simplifies the
 /// search code a bit. We assure, that:
 ///
-/// - On running chains, the attacking player must be in controll.
+/// - On running chains, the attacking player must be in control.
 /// - On settled boards, this does not matter.
 /// - We don't want to deal with the different promotion options in the search.
 ///   - So if the current move starts with a promotion, we just promote to a queen.
@@ -802,8 +796,6 @@ mod tests {
     #[test]
     #[timeout(100)]
     fn syn6() {
-        use std::vec::Splice;
-
         // Explores loops that we can get, because starting at an in-chain
         // position, we can loop back to the starting position. We then end
         // up with loops in the directed graph.

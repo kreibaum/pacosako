@@ -1,5 +1,4 @@
 mod utils;
-mod websocket;
 
 use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
@@ -22,7 +21,7 @@ extern "C" {
 
 #[wasm_bindgen(js_name = "determineLegalActions")]
 pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
+    utils::set_panic_hook();
     let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
     let try_into: Result<DenseBoard, PacoError> = (&data).try_into();
@@ -40,7 +39,7 @@ pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
 
 #[wasm_bindgen(js_name = "generateRandomPosition")]
 pub fn generate_random_position(data: String) -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
+    utils::set_panic_hook();
     // We are expecting a json string which just encodes an integer.
     let tries: u32 = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
@@ -74,7 +73,7 @@ impl TryFrom<&ActionHistoryBoardRepr> for DenseBoard {
 
 #[wasm_bindgen(js_name = "analyzePosition")]
 pub fn analyze_position(data: String) -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
+    utils::set_panic_hook();
     let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
     let analysis = puzzle::analyze_position(&data).map_err(|e| e.to_string())?;
@@ -95,7 +94,7 @@ struct AnalyzeReplayData {
 
 #[wasm_bindgen(js_name = "analyzeReplay")]
 pub fn analyze_replay(data: String) -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
+    utils::set_panic_hook();
     let data: AnalyzeReplayData = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
     let analysis = history_to_replay_notation(&data.board_fen, &data.action_history, &data.setup)

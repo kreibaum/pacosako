@@ -2,9 +2,7 @@
 
 use serde::Serialize;
 
-use crate::{
-    analysis::reverse_amazon_search, fen, DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor,
-};
+use crate::{analysis::reverse_amazon_search, DenseBoard, PacoAction, PacoError, PlayerColor};
 
 use super::incremental_replay;
 

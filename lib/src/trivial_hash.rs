@@ -24,7 +24,7 @@ impl Hasher for TrivialHasher {
         self.0 ^= i;
     }
 
-    fn write(&mut self, bytes: &[u8]) {
+    fn write(&mut self, _bytes: &[u8]) {
         unimplemented!("This hasher only supports write_u64");
     }
 }

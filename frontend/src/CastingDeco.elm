@@ -13,7 +13,7 @@ module CastingDeco exposing
     )
 
 import Arrow exposing (Arrow)
-import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf, withSmallIcon, withStyle)
+import Components exposing (btn, isEnabledIf, isSelectedIf, viewButton, withMsg, withMsgIf)
 import Custom.Element as Element
 import Custom.Events exposing (BoardMousePosition)
 import Element exposing (Element, padding, spacing)
