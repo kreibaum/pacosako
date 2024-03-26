@@ -13,4 +13,4 @@ USER gitpod
 RUN bash -cl "cargo install sqlx-cli"
 
 # The frontend is using elm, this is not included in workspace-full
-RUN bash -cl "npm install -g elm@latest-0.19.1 elm-live@next elm-format elm-spa@latest typescript terser wasm-pack"
+RUN bash -cl "npm install -g elm@latest-0.19.1 elm-live@next elm-format elm-spa@6.0.4 typescript terser wasm-pack"

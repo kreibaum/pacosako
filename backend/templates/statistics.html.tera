@@ -12,7 +12,7 @@
       <h2>System Configuration</h2>
       <p><strong>Dev Mode:</strong> {{ dev_mode }}</p>
       <p><strong>Database Path:</strong> {{ database_path }}</p>
-      <p><strong>Bind:</strong> {{ bind }} (May be proxied via NGINX)</p>
+      <p><strong>Bind:</strong> {{ bind }} (May be proxied via Caddy)</p>
     </section>
 
     <section>
