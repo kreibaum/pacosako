@@ -325,6 +325,12 @@ impl Hand {
             Hand::Pair { piece, .. } => Some(piece),
         }
     }
+    pub fn partner(&self) -> Option<PieceType> {
+        match *self {
+            Hand::Pair { partner, .. } => Some(partner),
+            _ => None,
+        }
+    }
 }
 
 /// The PacoBoard trait encapsulates arbitrary Board implementations.

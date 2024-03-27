@@ -1,4 +1,6 @@
 use crate::types::{BoardPosition, PieceType};
+use crate::PlayerColor::*;
+use crate::{Hand, PacoError, PlayerColor};
 
 use nom;
 use nom::{bytes::complete::tag, combinator::map_res, IResult};
@@ -52,8 +54,52 @@ impl Square {
             white: self.black,
         }
     }
+
+    pub fn flip_if(&self, condition: bool) -> Square {
+        if condition {
+            self.flip()
+        } else {
+            *self
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.white.is_none() && self.black.is_none()
+    }
+
+    pub fn from_hand(hand: &Hand, controlling_player: PlayerColor) -> Self {
+        Square {
+            white: hand.piece(),
+            black: hand.partner(),
+        }
+        .flip_if(controlling_player == Black)
+    }
+
+    /// Turns a square into a hand. We need some extra information to do that.
+    /// Returns a result, because not all squares can be turned into hands.
+    pub fn as_hand(
+        &self,
+        controlling_player: PlayerColor,
+        position: BoardPosition,
+    ) -> Result<Hand, PacoError> {
+        let assuming_white = self.flip_if(controlling_player == Black);
+        if let Some(piece) = assuming_white.white {
+            if let Some(partner) = assuming_white.black {
+                Ok(Hand::Pair {
+                    position,
+                    piece,
+                    partner,
+                })
+            } else {
+                Ok(Hand::Single { position, piece })
+            }
+        } else if assuming_white.black.is_none() {
+            Ok(Hand::Empty)
+        } else {
+            Err(PacoError::InputFenMalformed(
+                "Lifted piece is of the wrong color".to_string(),
+            ))
+        }
     }
 }
 

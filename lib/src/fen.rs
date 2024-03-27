@@ -1,40 +1,88 @@
-use lazy_static::lazy_static;
-
-use std::collections::HashMap;
+//! This module implements an extension of X-Fen that can represent settled Paco
+//! Ŝako boards (i.e. boards without an active chain) together with most state.
+//!
+//! It should be mostly compatible with <https://vchess.club/#/variants/Pacosako>
+//! where I got the union notation. There are somewhat different pawn rules on the
+//! vchess.club version, which explains the difference.
+//!
+//! Fen looks like this:
+//!
+//! > bqnrkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/NRBKRBNQ w 2 BEdh - -
+//! > <pieces on board> <controlling player> <move count> <castling> <en passant> <union move>
+//!
+//! Lowercase letters are black pieces, uppercase letters are white pieces.
+//!
+//! The extension by vchess are:
+//!
+//!   - A bit string with 16 entries, one for each pawn column and color if the player
+//!     already moved their pawn in this column. (Only allowed once on vchess)
+//!   - The last pair move (if any), as undoing the same move directly is forbidden.
+//!     E.g. c5e7 would be a pair move from c5 to e7. Then undoing that could be banned.
+//!     !! Union Move is not implemented yet !!.
+//!
+//! The extensions by PacoPlay are:
+//!
+//!   - The lifted piece can be tacked on like "^a1N" to indicate a lifted piece.
+//!     This example is a white knight above a1.
+//!     Another example would be "^c5Rb" for a white rook and a black bishop above c5.
+//!
+//! For compatibility we also include the <union move> as our fen could not be read
+//! by the vchess page otherwise - even though we don't implement the ko rule.
 
 use crate::{
-    parser::Square, substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoError,
-    PlayerColor,
+    parser::Square, substrate::Substrate, BoardPosition, Castling, DenseBoard, Hand, PacoError,
+    PlayerColor, RequiredAction,
 };
 use lazy_regex::regex_captures;
+use lazy_static::lazy_static;
+use std::collections::HashMap;
 
-/// This module implements an extension of X-Fen that can represent settled Paco
-/// Ŝako boards (i.e. boards without an active chain) together with most state.
-///
-/// It should be mostly compatible with <https://vchess.club/#/variants/Pacosako>
-/// where I got the union notation. There are somewhat different pawn rules on the
-/// vchess.club version, which explains the difference.
-///
-/// Fen looks like this:
-///
-/// > bqnrkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/NRBKRBNQ w 2 bedh - -
-/// > <pieces on board> <controlling player> <move count> <castling> <en passant> <union move>
-///
-/// The extension by vchess are:
-///
-///   - A bit string with 16 entries, one for each pawn column and color if the player
-///     already moved their pawn in this column. (Only allowed once on vchess)
-///   - The last pair move (if any), as undoing the same move directly is forbidden.
-///
-/// For compatibility we also include the <union move> as our fen could not be read
-/// by the vchess page otherwise - even though we don't implement the ko rule.
-
-// This needs its own method or rustfmt gets unhappy.
-fn regex(input: &str) -> Option<(&str, &str, &str, &str, &str, &str)> {
+/// This needs its own method or rustfmt gets unhappy.
+fn fen_regex(input: &str) -> Option<(&str, &str, &str, &str, &str, &str, &str)> {
     regex_captures!(
-        "((?:(?:[a-zA-Z1-8]+)/?){8}) ([wb]) ([0-9]+) ([A-H]{0,2}[a-h]{0,2}|-) ([a-h][1-8]|-) -",
+        "((?:(?:[a-zA-Z1-8]+)/?){8})(\\^[a-h][1-8][a-zA-Z]{1,2})? ([wb]) ([0-9]+) ([A-H]{0,2}[a-h]{0,2}|-) ([a-h][1-8]|-) -",
         input
     )
+}
+
+/// Runs regex_captures! for the lifted piece section, e.g. "^c7Rb".
+/// The regex is \^([a-h][0-8])([a-zA-Z])
+/// caret, square (c7), lifted square (Rb)
+fn lifted_regex(input: &str) -> Option<(&str, &str, &str)> {
+    regex_captures!(r"\^([a-h][0-8])([a-zA-Z])", input)
+}
+
+/// Takes only the lifted piece section of the fen string (e.g. "^c7Rb") and
+/// returns a Hand. Also needs to know who's turn it is.
+fn parse_lifted(input: &str, controlling_player: PlayerColor) -> Result<Hand, PacoError> {
+    if let Some((_, position, lifted_square)) = lifted_regex(input) {
+        let Ok(position) = BoardPosition::try_from(position) else {
+            return Err(PacoError::InputFenMalformed(format!(
+                "Invalid position on lifted piece: {}",
+                position
+            )));
+        };
+        let square = CHAR_TO_SQUARE
+            .get(&lifted_square.chars().next().unwrap())
+            .ok_or_else(|| {
+                PacoError::InputFenMalformed(format!("Invalid lifted piece type {}", lifted_square))
+            })?;
+
+        square.as_hand(controlling_player, position)
+    }
+    // No lifted piece
+    else {
+        Ok(Hand::Empty)
+    }
+}
+
+fn write_hand(hand: &Hand, controlling_player: PlayerColor) -> String {
+    let Some(position) = hand.position() else {
+        return "".to_owned();
+    };
+    let square = Square::from_hand(hand, controlling_player);
+    let square_char = SQUARE_TO_CHAR.get(&square).expect("Can't encode square");
+    format!("^{}{}", position, square_char)
 }
 
 lazy_static! {
@@ -67,7 +115,7 @@ lazy_static! {
 }
 
 pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
-    if let Some((_, pieces, player, move_count, castling, en_passant)) = regex(input) {
+    if let Some((_, pieces, lifted, player, move_count, castling, en_passant)) = fen_regex(input) {
         let mut result = DenseBoard::empty();
 
         // Iterate over all the rows and insert pieces.
@@ -104,6 +152,16 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
             "b" => PlayerColor::Black,
             _ => unreachable!("Regex restricts input to 'w' and 'b'."),
         };
+
+        // Add lifted piece
+        let new_hand = parse_lifted(lifted, result.controlling_player)?;
+        if new_hand.is_empty() {
+            result.required_action = RequiredAction::Lift;
+        } else {
+            result.required_action = RequiredAction::Place;
+        }
+        result.set_hand(new_hand);
+
         result.draw_state.no_progress_half_moves = move_count.parse().unwrap();
         result.castling = Castling::from_string(castling);
         result.en_passant = BoardPosition::try_from(en_passant).ok();
@@ -144,6 +202,14 @@ pub fn write_fen(input: &DenseBoard) -> String {
             write!(result, "/").unwrap();
         }
     }
+
+    // Write the hand into the fen
+    write!(
+        result,
+        "{}",
+        write_hand(&input.lifted_piece, input.controlling_player)
+    )
+    .unwrap();
 
     write!(
         result,
@@ -266,6 +332,17 @@ mod tests {
         assert_eq!(board, parse_fen(fen_string).unwrap());
     }
 
+    #[test]
+    fn lifted_piece() {
+        let mut board = DenseBoard::new();
+        // Lift a white pawn.
+        execute_action!(board, lift, "d2");
+
+        let fen_string = "rnbqkbnr/pppppppp/8/8/8/8/PPP1PPPP/RNBQKBNR^d2P w 1 AHah - -";
+        assert_eq!(write_fen(&board), fen_string);
+        assert_eq!(board, parse_fen(fen_string).unwrap());
+    }
+
     /// Generate some random boards and roundtrip them through the serialization
     #[test]
     fn roundtrip() {
@@ -274,6 +351,45 @@ mod tests {
         let mut rng = thread_rng();
         for _ in 0..1000 {
             let board: DenseBoard = rng.gen();
+            let fen = write_fen(&board);
+            println!("Fen: {}", fen);
+            let board_after_roundtrip = parse_fen(&fen).unwrap();
+            assert_eq!(board, board_after_roundtrip);
+        }
+    }
+
+    /// Basically the same as roundtrip(), but we execute a random amount
+    /// of actions (1-5) on the board first.
+    #[test]
+    fn roundtrip_after_actions() {
+        use rand::{prelude::IteratorRandom, thread_rng, Rng};
+
+        let mut rng = thread_rng();
+        for _ in 0..100000 {
+            let mut board: DenseBoard = rng.gen();
+            println!("Starting board: {}", write_fen(&board));
+            let action_count = rng.gen_range(1..=5);
+            for _ in 0..action_count {
+                // We can't trust that the game didn't just end earlier.
+                if let Some(action) = board.actions().unwrap().iter().choose(&mut rng) {
+                    board.execute_trusted(action).unwrap();
+                    print!("-> {:?} ", action);
+                }
+            }
+            println!();
+
+            // TODO: This part should be supported by the parser.
+            // Another TODO: Elm also needs this fen extension. But should have
+            // a less complicated target data structure.
+            if board.required_action == RequiredAction::PromoteThenFinish
+                || board.required_action == RequiredAction::PromoteThenLift
+                || board.required_action == RequiredAction::PromoteThenPlace
+                || board.victory_state.is_over()
+            {
+                // We don't support this, we aren't that clever yet on the parser.
+                continue;
+            }
+
             let fen = write_fen(&board);
             println!("Fen: {}", fen);
             let board_after_roundtrip = parse_fen(&fen).unwrap();
