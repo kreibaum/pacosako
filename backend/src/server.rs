@@ -53,6 +53,7 @@ pub async fn run(state: AppState) {
     let app: Router = app
         .route("/", get(index))
         .route("/robots.txt", get(get_empty_file))
+        .route("/manifest.json", get(get_manifest))
         .route("/js/elm.min.js", get(elm_js))
         .route("/statistics", get(crate::statistics::statistics_handler))
         .route("/secret_login", get(secret_login::secret_login))
@@ -176,6 +177,13 @@ struct LangQuery {
 /// bit, then the index page would be loaded instead of the robots.txt file.
 async fn get_empty_file() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/plain")], "")
+}
+
+async fn get_manifest() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/json")],
+        include_str!("../manifest.json"),
+    )
 }
 
 /// A cache-able elm.min.js where cache busting happens via a url parameter.
