@@ -22,5 +22,5 @@ echo "Minifying wasm wapper javascript"
 terser build/frontend-wasm/lib.js -o target/js/lib.min.js --compress --mangle
 
 # Pre-compress both files with brotli
-brotli target/js/lib.wasm
-brotli target/js/lib.min.js
+brotli -f target/js/lib.wasm
+brotli -f target/js/lib.min.js

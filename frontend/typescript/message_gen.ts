@@ -2,28 +2,27 @@
 // It isn't automatically generated yet. For now I am looking at how I want
 // to do this. Starting my manually writing the code.
 
-function dockToPorts(elmApp: any, webWorker: Worker) {
+function dockToPorts(elmApp: any) {
     // Ports where Elm can send messages.
     // Essentially this needs to generate a message broker...
 
     // generateRandomPosition :: Elm ~> WebWorker
     // NOTE: Any data send to WebWorker is turned into a string with JSON.stringify
-    connectFromElmPortToWebWorker(elmApp, webWorker, "determineLegalActions");
-    connectFromElmPortToWebWorker(elmApp, webWorker, "generateRandomPosition");
-    connectFromElmPortToWebWorker(elmApp, webWorker, "analyzePosition");
-    connectFromElmPortToWebWorker(elmApp, webWorker, "analyzeReplay");
+    connectFromElmPortToWebWorker(elmApp, "determineLegalActions");
+    connectFromElmPortToWebWorker(elmApp, "generateRandomPosition");
+    connectFromElmPortToWebWorker(elmApp, "analyzePosition");
+    connectFromElmPortToWebWorker(elmApp, "analyzeReplay");
 
-    connectFromElmPortToWebWorker(elmApp, webWorker, "subscribeToMatch");
+    connectFromElmPortToWebWorker(elmApp, "subscribeToMatch");
 }
 
 /**
  * Connects an outgoing Elm port to the WebWorker.
  * 
  * @param elmApp The Elm app.
- * @param webWorker The WebWorker.
  * @param portName The name of the port.
  */
-function connectFromElmPortToWebWorker(elmApp, webWorker, portName) {
+function connectFromElmPortToWebWorker(elmApp, portName) {
     if (elmApp.ports[portName]) {
         elmApp.ports[portName].subscribe(function (data) {
             const jsonData = JSON.stringify(data);

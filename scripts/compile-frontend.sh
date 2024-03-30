@@ -31,5 +31,5 @@ cd ..
 scripts/compile-ts.sh
 
 # Pre-compress compiled typescript with brotli
-brotli target/js/lib_worker.min.js
-brotli target/js/main.min.js
+brotli -f target/js/lib_worker.min.js
+brotli -f target/js/main.min.js

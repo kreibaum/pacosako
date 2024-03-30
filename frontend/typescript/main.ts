@@ -524,4 +524,4 @@ function sendToWebWorker(stringifiedMsg: any) {
 }
 
 // Connect up the generated ports.
-dockToPorts(app, libWorker);
+dockToPorts(app);
