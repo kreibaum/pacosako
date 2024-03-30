@@ -52,6 +52,7 @@ pub async fn run(state: AppState) {
     let app: Router<AppState> = Router::new();
     let app: Router = app
         .route("/", get(index))
+        .route("/robots.txt", get(get_empty_file))
         .route("/js/elm.min.js", get(elm_js))
         .route("/statistics", get(crate::statistics::statistics_handler))
         .route("/secret_login", get(secret_login::secret_login))
@@ -169,6 +170,12 @@ async fn index(
 #[derive(Deserialize)]
 struct LangQuery {
     lang: String,
+}
+
+/// An empty robots.txt allows everything to be crawled. If I didn't have this
+/// bit, then the index page would be loaded instead of the robots.txt file.
+async fn get_empty_file() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "text/plain")], "")
 }
 
 /// A cache-able elm.min.js where cache busting happens via a url parameter.
