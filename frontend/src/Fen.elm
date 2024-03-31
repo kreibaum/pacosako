@@ -3,28 +3,15 @@ module Fen exposing (initialBoardFen, parseFen, urlDecode, urlEncode, writeFen)
 {-| This module implements an extension of X-Fen that can represent settled Paco
 Ŝako boards (i.e. boards without an active chain) together with most state.
 
-It should be mostly compatible with <https://vchess.club/#/variants/Pacosako>
-where I got the union notation. There are somewhat different pawn rules on the
-vchess.club version, which explains the difference.
+The Elm implementation should match the rust implementation in fen.rs.
 
-Fen looks like this:
-
-    bqnrkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/NRBKRBNQ w 2 bedh -
-    <pieces on board> <controlling player> <move count> <castling> <en passant> <union move>
-
-The extension by vchess are:
-
-  - A bit string with 16 entries, one for each pawn column and color if the player
-    already moved their pawn in this column. (Only allowed once on vchess)
-  - The last pair move (if any), as undoing the same move directly is forbidden.
-
-For compatibility we also include the <union move> as our fen could not be read
-by the vchess page otherwise - even though we don't implement the ko rule.
+But it is a lot less advanced, parsing only part of the properties.
 
 -}
 
 import List.Extra as List
-import Sako exposing (Color(..), Piece, Tile(..), Type(..))
+import Sako exposing (Color(..), Piece, Type(..))
+import Tile exposing (Tile(..))
 
 
 initialBoardFen : String
@@ -215,16 +202,23 @@ parseFen input =
     let
         parts =
             String.split " " input
+
+        maybePieces =
+            List.getAt 0 parts
+                |> Maybe.map (boardPart >> assemblePieces >> Sako.enumeratePieceIdentity)
+
+        maybeLiftedPieces =
+            Just []
     in
-    List.getAt 0 parts
-        |> Maybe.map (boardPart >> assemblePieces >> Sako.enumeratePieceIdentity)
-        |> Maybe.map
-            (\pieces ->
-                { pieces = pieces
-                , liftedPieces = []
-                , currentPlayer = Sako.White
-                }
-            )
+    Maybe.map2
+        (\pieces liftedPieces ->
+            { pieces = pieces
+            , liftedPieces = liftedPieces
+            , currentPlayer = Sako.White
+            }
+        )
+        maybePieces
+        maybeLiftedPieces
 
 
 

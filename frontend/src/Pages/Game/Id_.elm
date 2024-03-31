@@ -35,7 +35,7 @@ import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..)
 import Process
 import Reactive exposing (DeviceOrientation(..))
 import Request
-import Sako exposing (Tile(..))
+import Sako
 import SaveState exposing (SaveState(..))
 import Shared
 import Svg exposing (Svg)
@@ -43,6 +43,7 @@ import Svg.Custom as Svg exposing (BoardRotation(..))
 import Svg.PlayerLabel
 import Svg.TimerGraphic
 import Task
+import Tile exposing (Tile(..))
 import Time exposing (Posix)
 import Translations as T
 import Url

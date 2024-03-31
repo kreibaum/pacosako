@@ -6,6 +6,7 @@ import Dict exposing (Dict)
 import Json.Decode as Decode exposing (Decoder)
 import Sako
 import Set exposing (Set)
+import Tile exposing (Tile(..))
 
 
 empty : ReplayMetaDataProcessed
@@ -223,8 +224,8 @@ type ReplayCueRaw
 
 
 type alias ArrowRaw =
-    { head : Sako.Tile
-    , tail : Sako.Tile
+    { head : Tile
+    , tail : Tile
     , width : Float
     , color : String
     , weight : Float

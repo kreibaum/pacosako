@@ -5,8 +5,9 @@ module FenTest exposing (..)
 
 import Expect exposing (Expectation)
 import Fen
-import Sako exposing (Color(..), Piece, Tile(..), Type(..))
+import Sako exposing (Color(..), Piece, Type(..))
 import Test exposing (..)
+import Tile exposing (Tile(..))
 
 
 suite : Test
@@ -34,6 +35,16 @@ suite =
                                 [ { color = White, identity = "enumerate0", pieceType = King, position = Tile 1 4 }
                                 , { color = Black, identity = "enumerate1", pieceType = Knight, position = Tile 1 4 }
                                 ]
+                            }
+                        )
+        , test "Reading a board with a lifted piece" <|
+            \() ->
+                Fen.parseFen "8/8/8/8/8/8/8/8^d2P w 1 AHah - -"
+                    |> Expect.equal
+                        (Just
+                            { currentPlayer = White
+                            , liftedPieces = [ { color = White, identity = "", pieceType = Pawn, position = Tile 3 1 } ]
+                            , pieces = []
                             }
                         )
         , test "Writing the initial board position as FEN." <|

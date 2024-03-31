@@ -12,10 +12,10 @@ import Browser.Events
 import Element
 import Html.Events
 import Json.Decode as Decode exposing (Decoder)
-import Sako exposing (Tile(..))
 import Svg exposing (Attribute)
 import Svg.Custom as Svg exposing (BoardRotation, safeTileCoordinate)
 import Svg.Events
+import Tile exposing (Tile(..))
 
 
 type alias BoardMousePosition =

@@ -3,13 +3,12 @@ module Sako exposing
     , Color(..)
     , Piece
     , Position
-    , Tile(..)
     , Type(..)
     , VictoryState(..)
     , actionTile
     , decodeAction
-    , decodeFlatTile
     , decodeColor
+    , decodeFlatTile
     , decodeVictoryState
     , doAction
     , doActionsList
@@ -27,9 +26,6 @@ module Sako exposing
     , isPromoting
     , isStateOver
     , liftedAtTile
-    , tileFlat
-    , tileFromFlatCoordinate
-    , tileToIdentifier
     , toStringType
     )
 
@@ -53,6 +49,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as List
 import Parser exposing ((|.), (|=), Parser)
+import Tile exposing (Tile(..))
 
 
 {-| Enum that lists all possible types of pieces that can be in play.
@@ -262,10 +259,10 @@ encodeAction : Action -> Value
 encodeAction action =
     case action of
         Lift tile ->
-            Encode.object [ ( "Lift", Encode.int (tileFlat tile) ) ]
+            Encode.object [ ( "Lift", Encode.int (Tile.toFlat tile) ) ]
 
         Place tile ->
-            Encode.object [ ( "Place", Encode.int (tileFlat tile) ) ]
+            Encode.object [ ( "Place", Encode.int (Tile.toFlat tile) ) ]
 
         Promote pacoType ->
             Encode.object [ ( "Promote", encodeType pacoType ) ]
@@ -273,8 +270,7 @@ encodeAction action =
 
 decodeFlatTile : Decoder Tile
 decodeFlatTile =
-    Decode.int
-        |> Decode.map tileFromFlatCoordinate
+    Decode.map Tile.fromFlat Decode.int
 
 
 actionTile : Action -> Maybe Tile
@@ -369,12 +365,12 @@ isPromoting position =
 
 isWhitePromoting : Position -> Bool
 isWhitePromoting position =
-    List.any (\p -> p.pieceType == Pawn && p.color == White && getY p.position == 7) position.pieces
+    List.any (\p -> p.pieceType == Pawn && p.color == White && Tile.getY p.position == 7) position.pieces
 
 
 isBlackPromoting : Position -> Bool
 isBlackPromoting position =
-    List.any (\p -> p.pieceType == Pawn && p.color == Black && getY p.position == 0) position.pieces
+    List.any (\p -> p.pieceType == Pawn && p.color == Black && Tile.getY p.position == 0) position.pieces
 
 
 {-| Validates and executes an action. This does not validate that the position
@@ -489,7 +485,7 @@ en passant. After moving the real target back, a normal union/chain happens.
 isEnPassantCapture : Piece -> Tile -> Position -> Bool
 isEnPassantCapture piece tile position =
     (piece.pieceType == Pawn)
-        && (getX piece.position /= getX tile)
+        && (Tile.getX piece.position /= Tile.getX tile)
         && List.all (not << isAt tile) position.pieces
 
 
@@ -513,7 +509,7 @@ than one square in the x direction.
 -}
 isCastlingMove : Piece -> Tile -> Bool
 isCastlingMove piece tile =
-    piece.pieceType == King && abs (getX tile - getX piece.position) > 1
+    piece.pieceType == King && abs (Tile.getX tile - Tile.getX piece.position) > 1
 
 
 {-| Places the king and moves the Rook (maybe with partner). This function can
@@ -642,10 +638,10 @@ doPromoteAction : Type -> Position -> Maybe Position
 doPromoteAction pieceType position =
     let
         whitePawnFilter p =
-            getY p.position == 7 && p.color == White
+            Tile.getY p.position == 7 && p.color == White
 
         blackPawnFilter p =
-            getY p.position == 0 && p.color == Black
+            Tile.getY p.position == 0 && p.color == Black
 
         pawnFilter p =
             p.pieceType == Pawn && (whitePawnFilter p || blackPawnFilter p)
@@ -659,52 +655,6 @@ doPromoteAction pieceType position =
 
     else
         Nothing
-
-
-
---------------------------------------------------------------------------------
--- Tiles -----------------------------------------------------------------------
---------------------------------------------------------------------------------
-
-
-{-| Represents the position of a single abstract board tile.
-`Tile x y` stores two integers with legal values between 0 and 7 (inclusive).
-Use `tileX` and `tileY` to extract individual coordinates.
--}
-type Tile
-    = Tile Int Int
-
-
-{-| 1d coordinate for a tile. This is just x + 8 \* y
--}
-tileFlat : Tile -> Int
-tileFlat (Tile x y) =
-    x + 8 * y
-
-
-tileFromFlatCoordinate : Int -> Tile
-tileFromFlatCoordinate i =
-    Tile (modBy 8 i) (i // 8)
-
-
-getY : Tile -> Int
-getY (Tile _ y) =
-    y
-
-
-getX : Tile -> Int
-getX (Tile x _) =
-    x
-
-
-{-| Gets the name of a tile, like "g4" or "c7".
--}
-tileToIdentifier : Tile -> String
-tileToIdentifier (Tile x y) =
-    [ List.getAt x (String.toList "abcdefgh") |> Maybe.withDefault '?'
-    , List.getAt y (String.toList "12345678") |> Maybe.withDefault '?'
-    ]
-        |> String.fromList
 
 
 
@@ -818,7 +768,7 @@ pacoPositionAsGrid pieces =
         colorTiles filterColor =
             pieces
                 |> List.filter (\piece -> piece.color == filterColor)
-                |> List.map (\piece -> ( tileFlat piece.position, piece.pieceType ))
+                |> List.map (\piece -> ( Tile.toFlat piece.position, piece.pieceType ))
                 |> Dict.fromList
     in
     Dict.merge

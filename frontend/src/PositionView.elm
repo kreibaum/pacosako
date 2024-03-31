@@ -49,10 +49,11 @@ import Dict
 import Element exposing (Element)
 import Maybe
 import Pieces
-import Sako exposing (Piece, Tile(..))
+import Sako exposing (Piece)
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation, coordinateOfTile)
+import Tile exposing (Tile(..))
 
 
 {-| A representatio of the board where most of the rendering is already done,

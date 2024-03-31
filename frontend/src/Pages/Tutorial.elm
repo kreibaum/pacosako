@@ -26,6 +26,7 @@ import Set exposing (Set)
 import Shared
 import StaticAssets
 import Svg.Custom exposing (BoardRotation(..))
+import Tile exposing (Tile(..))
 import Time exposing (Posix)
 import Translations as T exposing (Language(..))
 import View exposing (View)
@@ -214,29 +215,29 @@ traditionalChessAnimation =
 
 traditionalChessAnimationData : List (List Sako.Action)
 traditionalChessAnimationData =
-    [ [ Sako.Lift (Sako.Tile 1 0), Sako.Place (Sako.Tile 2 2) ]
+    [ [ Sako.Lift (Tile 1 0), Sako.Place (Tile 2 2) ]
     , []
-    , [ Sako.Lift (Sako.Tile 3 6), Sako.Place (Sako.Tile 3 4) ]
+    , [ Sako.Lift (Tile 3 6), Sako.Place (Tile 3 4) ]
     , []
-    , [ Sako.Lift (Sako.Tile 6 0), Sako.Place (Sako.Tile 5 2) ]
+    , [ Sako.Lift (Tile 6 0), Sako.Place (Tile 5 2) ]
     , []
-    , [ Sako.Lift (Sako.Tile 7 6), Sako.Place (Sako.Tile 7 4) ]
+    , [ Sako.Lift (Tile 7 6), Sako.Place (Tile 7 4) ]
     , []
-    , [ Sako.Lift (Sako.Tile 3 1), Sako.Place (Sako.Tile 3 3) ]
+    , [ Sako.Lift (Tile 3 1), Sako.Place (Tile 3 3) ]
     , []
-    , [ Sako.Lift (Sako.Tile 7 7), Sako.Place (Sako.Tile 7 5) ]
+    , [ Sako.Lift (Tile 7 7), Sako.Place (Tile 7 5) ]
     , []
-    , [ Sako.Lift (Sako.Tile 2 0), Sako.Place (Sako.Tile 5 3) ]
+    , [ Sako.Lift (Tile 2 0), Sako.Place (Tile 5 3) ]
     , []
-    , [ Sako.Lift (Sako.Tile 2 7), Sako.Place (Sako.Tile 6 3) ]
+    , [ Sako.Lift (Tile 2 7), Sako.Place (Tile 6 3) ]
     , []
-    , [ Sako.Lift (Sako.Tile 2 2), Sako.Place (Sako.Tile 1 4) ]
+    , [ Sako.Lift (Tile 2 2), Sako.Place (Tile 1 4) ]
     , []
-    , [ Sako.Lift (Sako.Tile 3 7), Sako.Place (Sako.Tile 3 5) ]
+    , [ Sako.Lift (Tile 3 7), Sako.Place (Tile 3 5) ]
     , []
-    , [ Sako.Lift (Sako.Tile 4 1), Sako.Place (Sako.Tile 4 2) ]
+    , [ Sako.Lift (Tile 4 1), Sako.Place (Tile 4 2) ]
     , []
-    , [ Sako.Lift (Sako.Tile 4 6), Sako.Place (Sako.Tile 4 4) ]
+    , [ Sako.Lift (Tile 4 6), Sako.Place (Tile 4 4) ]
     ]
 
 
@@ -253,11 +254,11 @@ creatingUnionAnimation =
 
 creatingUnionAnimationData : List (List Sako.Action)
 creatingUnionAnimationData =
-    [ [ Sako.Lift (Sako.Tile 5 3), Sako.Place (Sako.Tile 4 4) ]
+    [ [ Sako.Lift (Tile 5 3), Sako.Place (Tile 4 4) ]
     , []
-    , [ Sako.Lift (Sako.Tile 6 3), Sako.Place (Sako.Tile 5 2) ]
+    , [ Sako.Lift (Tile 6 3), Sako.Place (Tile 5 2) ]
     , []
-    , [ Sako.Lift (Sako.Tile 1 4), Sako.Place (Sako.Tile 3 5) ]
+    , [ Sako.Lift (Tile 1 4), Sako.Place (Tile 3 5) ]
     ]
 
 
@@ -274,17 +275,17 @@ movingUnionAnimation =
 
 movingUnionAnimationData : List (List Sako.Action)
 movingUnionAnimationData =
-    [ [ Sako.Lift (Sako.Tile 4 4), Sako.Place (Sako.Tile 4 3) ]
+    [ [ Sako.Lift (Tile 4 4), Sako.Place (Tile 4 3) ]
     , []
-    , [ Sako.Lift (Sako.Tile 5 2), Sako.Place (Sako.Tile 6 4) ]
+    , [ Sako.Lift (Tile 5 2), Sako.Place (Tile 6 4) ]
     , []
-    , [ Sako.Lift (Sako.Tile 3 5), Sako.Place (Sako.Tile 1 3) ]
+    , [ Sako.Lift (Tile 3 5), Sako.Place (Tile 1 3) ]
     , []
-    , [ Sako.Lift (Sako.Tile 1 3), Sako.Place (Sako.Tile 2 5) ]
+    , [ Sako.Lift (Tile 1 3), Sako.Place (Tile 2 5) ]
     , []
-    , [ Sako.Lift (Sako.Tile 2 5), Sako.Place (Sako.Tile 6 5) ]
+    , [ Sako.Lift (Tile 2 5), Sako.Place (Tile 6 5) ]
     , []
-    , [ Sako.Lift (Sako.Tile 6 4), Sako.Place (Sako.Tile 7 2) ]
+    , [ Sako.Lift (Tile 6 4), Sako.Place (Tile 7 2) ]
     ]
 
 
@@ -301,14 +302,14 @@ takeoverUnionAnimation =
 
 takeoverUnionAnimationData : List (List Sako.Action)
 takeoverUnionAnimationData =
-    [ [ Sako.Lift (Sako.Tile 7 5), Sako.Place (Sako.Tile 6 5) ]
-    , [ Sako.Place (Sako.Tile 6 2) ]
+    [ [ Sako.Lift (Tile 7 5), Sako.Place (Tile 6 5) ]
+    , [ Sako.Place (Tile 6 2) ]
     , []
-    , [ Sako.Lift (Sako.Tile 6 1), Sako.Place (Sako.Tile 7 2) ]
-    , [ Sako.Place (Sako.Tile 5 3) ]
+    , [ Sako.Lift (Tile 6 1), Sako.Place (Tile 7 2) ]
+    , [ Sako.Place (Tile 5 3) ]
     , []
-    , [ Sako.Lift (Sako.Tile 5 6), Sako.Place (Sako.Tile 6 5) ]
-    , [ Sako.Place (Sako.Tile 2 5) ]
+    , [ Sako.Lift (Tile 5 6), Sako.Place (Tile 6 5) ]
+    , [ Sako.Place (Tile 2 5) ]
     ]
 
 
@@ -319,13 +320,13 @@ takeoverUnionAnimation2 =
 
 takeoverUnionAnimation2Data : List (List Sako.Action)
 takeoverUnionAnimation2Data =
-    [ [ Sako.Lift (Sako.Tile 7 5), Sako.Place (Sako.Tile 6 5) ]
-    , [ Sako.Place (Sako.Tile 6 1) ]
+    [ [ Sako.Lift (Tile 7 5), Sako.Place (Tile 6 5) ]
+    , [ Sako.Place (Tile 6 1) ]
     , []
-    , [ Sako.Lift (Sako.Tile 3 0), Sako.Place (Sako.Tile 3 2) ]
+    , [ Sako.Lift (Tile 3 0), Sako.Place (Tile 3 2) ]
     , []
-    , [ Sako.Lift (Sako.Tile 3 4), Sako.Place (Sako.Tile 4 3) ]
-    , [ Sako.Place (Sako.Tile 3 2) ]
+    , [ Sako.Lift (Tile 3 4), Sako.Place (Tile 4 3) ]
+    , [ Sako.Place (Tile 3 2) ]
     ]
 
 
@@ -342,11 +343,11 @@ chainAnimation =
 
 chainAnimationData : List (List Sako.Action)
 chainAnimationData =
-    [ [ Sako.Lift (Sako.Tile 2 1), Sako.Place (Sako.Tile 3 2) ]
-    , [ Sako.Place (Sako.Tile 4 3) ]
-    , [ Sako.Place (Sako.Tile 3 2) ]
-    , [ Sako.Place (Sako.Tile 4 3) ]
-    , [ Sako.Place (Sako.Tile 4 7) ]
+    [ [ Sako.Lift (Tile 2 1), Sako.Place (Tile 3 2) ]
+    , [ Sako.Place (Tile 4 3) ]
+    , [ Sako.Place (Tile 3 2) ]
+    , [ Sako.Place (Tile 4 3) ]
+    , [ Sako.Place (Tile 4 7) ]
     ]
 
 
@@ -361,10 +362,10 @@ promotionAnimation =
 
 promotionAnimationData : List (List Sako.Action)
 promotionAnimationData =
-    [ [ Sako.Lift (Sako.Tile 7 6), Sako.Place (Sako.Tile 7 7) ]
+    [ [ Sako.Lift (Tile 7 6), Sako.Place (Tile 7 7) ]
     , [ Sako.Promote Sako.Queen ]
     , []
-    , [ Sako.Lift (Sako.Tile 2 5), Sako.Place (Sako.Tile 4 7) ]
+    , [ Sako.Lift (Tile 2 5), Sako.Place (Tile 4 7) ]
     , [ Sako.Promote Sako.Knight ]
     ]
 

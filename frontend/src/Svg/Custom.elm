@@ -8,9 +8,10 @@ TODO: Should go into Custom.Svg
 -}
 
 import Html exposing (Html)
-import Sako exposing (Color(..), Tile(..))
+import Sako exposing (Color(..))
 import Svg
 import Svg.Attributes as SvgA
+import Tile exposing (Tile(..))
 
 
 {-| Represents a point in the Svg coordinate space. The game board is rendered from 0 to 800 in

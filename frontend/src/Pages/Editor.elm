@@ -35,10 +35,11 @@ import PositionView exposing (BoardDecoration(..), DragPieceData, DragState, Dra
 import Reactive
 import Request exposing (Request)
 import Result.Extra as Result
-import Sako exposing (Piece, Tile(..))
+import Sako exposing (Piece)
 import SaveState exposing (SaveState(..), saveStateModify)
 import Shared
 import Svg.Custom as Svg exposing (BoardRotation(..), coordinateOfTile)
+import Tile exposing (Tile(..))
 import Time exposing (Posix)
 import Translations as T
 import Url

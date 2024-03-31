@@ -4,10 +4,10 @@ module Arrow exposing (Arrow, defaultArrowColor, defaultTailWidth, toSvg)
 tile. An arrow is given as a labeled pair of Tiles {head, tail}.
 -}
 
-import Sako exposing (Tile(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
+import Tile exposing (Tile(..))
 
 
 type alias Arrow =

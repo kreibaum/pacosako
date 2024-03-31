@@ -26,7 +26,7 @@ import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight
 import Reactive
 import RemoteData exposing (WebData)
 import Request
-import Sako exposing (Tile(..))
+import Sako
 import Shared
 import Svg.Custom exposing (BoardRotation(..))
 import Timer

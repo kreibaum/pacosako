@@ -23,7 +23,7 @@ import Element.Font as Font
 import Element.Input as Input
 import FontAwesome.Solid as Solid
 import List.Extra as List
-import Sako exposing (Tile)
+import Tile exposing (Tile(..))
 import Translations as T
 
 
