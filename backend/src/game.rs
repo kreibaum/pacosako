@@ -7,7 +7,9 @@ use crate::{
         session::SessionData,
         user::{self, AiMetaData},
     },
-    sync_match::{CurrentMatchStateClient, MatchParameters, SynchronizedMatch},
+    sync_match::{
+        CompressedMatchStateClient, CurrentMatchStateClient, MatchParameters, SynchronizedMatch,
+    },
     timer::TimerConfig,
     ws, AppState, ServerError,
 };
@@ -98,28 +100,33 @@ async fn post_ai_metadata(
     // If this side of the game does not have player protection yet, we set it
     // to this ai player from the session.
 
-    
     // update game set white_player = ? where id = ? // or black_player
     let key: i64 = key.parse()?;
     if let Some(game) = db::game::select(key, &mut conn).await? {
         if game.white_player.is_none() && player_color == PlayerColor::White {
             db::game::set_player(key, player_color, session.user_id, &mut conn).await?;
         } else if game.black_player.is_none() && player_color == PlayerColor::Black {
-            db::game::set_player(key, player_color,  session.user_id, &mut conn).await?;
+            db::game::set_player(key, player_color, session.user_id, &mut conn).await?;
         }
     }
-
 
     Ok(())
 }
 
+/// Returns the five moest recently played games. It just returns each current state as fen.
 async fn recently_created_games(
     pool: State<Pool>,
-) -> Result<Json<Vec<CurrentMatchStateClient>>, ServerError> {
+) -> Result<Json<Vec<CompressedMatchStateClient>>, ServerError> {
     let mut conn = pool.conn().await?;
     let games = db::game::latest(&mut conn).await?;
 
-    Ok(Json(add_metadata_for_client(games, conn).await?))
+    let mut result = Vec::with_capacity(games.len());
+
+    for game in games {
+        result.push(CompressedMatchStateClient::try_new(&game, &game.project()?, &mut conn).await?);
+    }
+
+    Ok(Json(result))
 }
 
 /// Essentially this is just a specific `map`, but I need to be able to await and use `?`.

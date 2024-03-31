@@ -1,7 +1,7 @@
 module Pages.Home_ exposing (Model, Msg, Params, page)
 
 import Api.Backend
-import Api.Decoders exposing (CurrentMatchState)
+import Api.Decoders exposing (CompressedMatchState)
 import Api.LocalStorage exposing (CustomTimer)
 import Api.Ports as Ports
 import Browser.Navigation exposing (pushUrl)
@@ -15,6 +15,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Element.Lazy exposing (lazy)
+import Fen
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
@@ -26,7 +27,6 @@ import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight
 import Reactive
 import RemoteData exposing (WebData)
 import Request
-import Sako
 import Shared
 import Svg.Custom exposing (BoardRotation(..))
 import Timer
@@ -90,7 +90,7 @@ type Msg
     | SetSafeMode Bool
     | SetRepetitionDraw Bool
     | RefreshRecentGames
-    | GotRecentGames (List CurrentMatchState)
+    | GotRecentGames (List CompressedMatchState)
     | ErrorRecentGames Http.Error
     | HttpError Http.Error
     | ToShared Shared.Msg
@@ -105,7 +105,7 @@ type alias Model =
     , rawIncrement : String
     , safeMode : Bool
     , repetitionDraw : Bool
-    , recentGames : WebData (List CurrentMatchState)
+    , recentGames : WebData (List CompressedMatchState)
     , key : Browser.Navigation.Key
     }
 
@@ -223,7 +223,9 @@ update msg model =
             ( { model | recentGames = RemoteData.Success (List.reverse games) }, Effect.none )
 
         ErrorRecentGames error ->
-            ( { model | recentGames = RemoteData.Failure error }, Effect.none )
+            ( { model | recentGames = RemoteData.Failure error }
+            , Ports.logToConsole (Api.Backend.describeError error) |> Effect.fromCmd
+            )
 
         RefreshRecentGames ->
             ( { model | recentGames = RemoteData.Loading }, refreshRecentGames |> Effect.fromCmd )
@@ -704,7 +706,7 @@ joinOnlineMatchUi model =
         ]
 
 
-recentGamesList : Shared.Model -> WebData (List CurrentMatchState) -> Element Msg
+recentGamesList : Shared.Model -> WebData (List CompressedMatchState) -> Element Msg
 recentGamesList shared data =
     case data of
         RemoteData.NotAsked ->
@@ -727,7 +729,7 @@ recentGamesList shared data =
             recentGamesListSuccess shared games
 
 
-recentGamesListSuccess : Shared.Model -> List CurrentMatchState -> Element Msg
+recentGamesListSuccess : Shared.Model -> List CompressedMatchState -> Element Msg
 recentGamesListSuccess shared games =
     Element.column [ centerX ]
         [ Element.el
@@ -767,12 +769,11 @@ refreshButton =
         }
 
 
-recentGamesListSuccessOne : Shared.Model -> CurrentMatchState -> Element msg
+recentGamesListSuccessOne : Shared.Model -> CompressedMatchState -> Element msg
 recentGamesListSuccessOne shared matchState =
     let
         position =
-            Sako.initialPosition
-                |> Sako.doActionsList matchState.actionHistory
+            Fen.parseFen matchState.fen
                 |> Maybe.map (PositionView.renderStatic WhiteBottom)
                 |> Maybe.map (PositionView.viewStatic (PositionView.staticViewConfig shared.colorConfig))
                 |> Maybe.withDefault (Element.text matchState.key)

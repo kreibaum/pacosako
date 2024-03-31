@@ -22,7 +22,7 @@ module Api.Backend exposing
 the server api.
 -}
 
-import Api.Decoders exposing (CurrentMatchState, PublicUserData, decodeMatchState, decodePublicUserData)
+import Api.Decoders exposing (CompressedMatchState, PublicUserData, decodeCompressedMatchState, decodePublicUserData)
 import Http exposing (Error)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
@@ -271,12 +271,12 @@ encodeCreatePosition position =
 
 {-| GET a list of all recently creates games.
 -}
-getRecentGameKeys : Api (List CurrentMatchState) msg
+getRecentGameKeys : Api (List CompressedMatchState) msg
 getRecentGameKeys =
     getJson
         { url = "/api/game/recent"
         , decoder =
-            Decode.list decodeMatchState
+            Decode.list decodeCompressedMatchState
                 |> Decode.map List.reverse
         }
 

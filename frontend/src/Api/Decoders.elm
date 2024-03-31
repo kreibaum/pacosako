@@ -1,4 +1,4 @@
-module Api.Decoders exposing (CurrentMatchState, LegalActions(..), PublicUserData, decodeMatchState, decodePublicUserData, getActionList)
+module Api.Decoders exposing (CompressedMatchState, CurrentMatchState, LegalActions(..), PublicUserData, decodeCompressedMatchState, decodeMatchState, decodePublicUserData, getActionList)
 
 import Json.Decode as Decode exposing (Decoder)
 import Sako
@@ -10,6 +10,16 @@ type alias CurrentMatchState =
     , actionHistory : List Sako.Action
     , legalActions : LegalActions
     , controllingPlayer : Sako.Color
+    , timer : Maybe Timer.Timer
+    , gameState : Sako.VictoryState
+    , whitePlayer : Maybe PublicUserData
+    , blackPlayer : Maybe PublicUserData
+    }
+
+
+type alias CompressedMatchState =
+    { key : String
+    , fen : String
     , timer : Maybe Timer.Timer
     , gameState : Sako.VictoryState
     , whitePlayer : Maybe PublicUserData
@@ -65,6 +75,17 @@ decodeMatchState =
         (Decode.field "key" Decode.string)
         (Decode.field "actions" (Decode.list Sako.decodeAction))
         (Decode.field "controlling_player" Sako.decodeColor)
+        (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
+        (Decode.field "victory_state" Sako.decodeVictoryState)
+        (Decode.field "white_player" (Decode.nullable decodePublicUserData))
+        (Decode.field "black_player" (Decode.nullable decodePublicUserData))
+
+
+decodeCompressedMatchState : Decoder CompressedMatchState
+decodeCompressedMatchState =
+    Decode.map6 (\key fen victoryState timer whitePlayer blackPlayer -> CompressedMatchState key fen victoryState timer whitePlayer blackPlayer)
+        (Decode.field "key" Decode.string)
+        (Decode.field "current_fen" Decode.string)
         (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
         (Decode.field "victory_state" Sako.decodeVictoryState)
         (Decode.field "white_player" (Decode.nullable decodePublicUserData))

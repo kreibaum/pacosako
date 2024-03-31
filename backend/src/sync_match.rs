@@ -2,9 +2,10 @@ use crate::db::{self, Connection};
 use crate::login::user::{load_user_data_for_game, PublicUserData};
 use crate::login::UserId;
 use crate::timer::{Timer, TimerConfig, TimerState};
+use crate::ServerError;
 use chrono::{DateTime, Utc};
 use pacosako::setup_options::SetupOptions;
-use pacosako::{PacoAction, PacoBoard, PacoError};
+use pacosako::{fen, PacoAction, PacoBoard, PacoError};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use std::convert::TryFrom;
@@ -140,6 +141,17 @@ pub struct CurrentMatchStateClient {
     pub black_player: Option<PublicUserData>,
 }
 
+/// A small version of the current match state that suffices to show a match in an overview.
+#[derive(Serialize, Clone, Debug)]
+pub struct CompressedMatchStateClient {
+    key: String,
+    current_fen: String,
+    victory_state: pacosako::VictoryState,
+    timer: Option<Timer>,
+    white_player: Option<PublicUserData>,
+    black_player: Option<PublicUserData>,
+}
+
 impl CurrentMatchState {
     /// Tries to create a new match state out of a synchronized match and an
     /// already projected board.
@@ -188,6 +200,29 @@ impl CurrentMatchStateClient {
             timer: data.timer,
             victory_state: data.victory_state,
             setup_options: data.setup_options,
+            white_player,
+            black_player,
+        })
+    }
+}
+
+impl CompressedMatchStateClient {
+    /// Tries to create a new COMPRESSED match state out of a synchronized match and an
+    /// already projected board.
+    pub async fn try_new(
+        sync_match: &SynchronizedMatch,
+        board: &pacosako::DenseBoard,
+        connection: &mut Connection,
+    ) -> Result<Self, ServerError> {
+        let victory_state = CurrentMatchState::victory_state(board, &sync_match.timer);
+        let (white_player, black_player) =
+            load_user_data_for_game(&sync_match.key, connection).await?;
+
+        Ok(Self {
+            key: sync_match.key.clone(),
+            current_fen: fen::write_fen(board),
+            victory_state,
+            timer: sync_match.timer.clone(),
             white_player,
             black_player,
         })
