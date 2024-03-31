@@ -214,17 +214,17 @@ defaultInitialPosition =
     , pacoPiece Black Knight (Tile 6 7)
     , pacoPiece Black Rook (Tile 7 7)
     ]
-        |> enumeratePieceIdentity
+        |> enumeratePieceIdentity 0
 
 
 {-| In order to get animations right, we need to render the lists with Svg.Keyed.
 We assign a unique ID to each piece that will allow us to track the identity of
 pieces across different board states.
 -}
-enumeratePieceIdentity : List Piece -> List Piece
-enumeratePieceIdentity pieces =
+enumeratePieceIdentity : Int -> List Piece -> List Piece
+enumeratePieceIdentity starting pieces =
     List.indexedMap
-        (\i p -> { p | identity = "enumerate" ++ String.fromInt i })
+        (\i p -> { p | identity = "enumerate" ++ String.fromInt (starting + i) })
         pieces
 
 
@@ -785,7 +785,7 @@ gridAsPacoPosition tiles =
     indexedMapNest2 tileAsPacoPiece tiles
         |> List.concat
         |> List.concat
-        |> enumeratePieceIdentity
+        |> enumeratePieceIdentity 0
 
 
 tileAsPacoPiece : Int -> Int -> TileState -> List Piece

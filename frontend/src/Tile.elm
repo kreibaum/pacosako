@@ -41,3 +41,20 @@ toIdentifier (Tile x y) =
     , List.getAt y (String.toList "12345678") |> Maybe.withDefault '?'
     ]
         |> String.fromList
+
+
+fromIdentifier : String -> Maybe Tile
+fromIdentifier str =
+    case String.toList str of
+        [ col, row ] ->
+            let
+                x =
+                    List.elemIndex col (String.toList "abcdefgh")
+
+                y =
+                    List.elemIndex row (String.toList "12345678")
+            in
+            Maybe.map2 Tile x y
+
+        _ ->
+            Nothing

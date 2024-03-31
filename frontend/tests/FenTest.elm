@@ -39,12 +39,15 @@ suite =
                         )
         , test "Reading a board with a lifted piece" <|
             \() ->
-                Fen.parseFen "8/8/8/8/8/8/8/8^d2P w 1 AHah - -"
+                Fen.parseFen "8/8/8/2F5/8/8/8/8^d2P w 1 AHah - -"
                     |> Expect.equal
                         (Just
                             { currentPlayer = White
-                            , liftedPieces = [ { color = White, identity = "", pieceType = Pawn, position = Tile 3 1 } ]
-                            , pieces = []
+                            , liftedPieces = [ { color = White, identity = "enumerate2", pieceType = Pawn, position = Tile 3 1 } ]
+                            , pieces =
+                                [ { color = White, identity = "enumerate0", pieceType = Pawn, position = Tile 2 4 }
+                                , { color = Black, identity = "enumerate1", pieceType = Queen, position = Tile 2 4 }
+                                ]
                             }
                         )
         , test "Writing the initial board position as FEN." <|
@@ -106,7 +109,7 @@ stripEnumerate piece =
 -}
 arbitraryPieceSortKey : Piece -> Int
 arbitraryPieceSortKey piece =
-    Sako.tileFlat piece.position
+    Tile.toFlat piece.position
         + 64
         * (if piece.color == White then
             0

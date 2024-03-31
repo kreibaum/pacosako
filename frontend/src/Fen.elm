@@ -9,6 +9,7 @@ But it is a lot less advanced, parsing only part of the properties.
 
 -}
 
+import Color exposing (black)
 import List.Extra as List
 import Sako exposing (Color(..), Piece, Type(..))
 import Tile exposing (Tile(..))
@@ -158,6 +159,52 @@ boardPart input =
         |> List.map parseRow
 
 
+{-| Parses the part after the caret where we note the lifted piece.
+The format is e.g. c6D is a white pawn and a black knight above c6.
+-}
+liftedPart : String -> List Piece
+liftedPart input =
+    let
+        maybeTile =
+            String.slice 0 2 input
+                |> Tile.fromIdentifier
+
+        pot =
+            String.slice 2 3 input
+                |> String.toList
+                |> List.getAt 0
+                |> Maybe.andThen piecesOnTile
+
+        whitePiece =
+            Maybe.andThen .white pot
+
+        blackPiece =
+            Maybe.andThen .black pot
+    in
+    [ Maybe.map2
+        (\t p ->
+            { pieceType = p
+            , color = Sako.White
+            , position = t
+            , identity = ""
+            }
+        )
+        maybeTile
+        whitePiece
+    , Maybe.map2
+        (\t p ->
+            { pieceType = p
+            , color = Sako.Black
+            , position = t
+            , identity = ""
+            }
+        )
+        maybeTile
+        blackPiece
+    ]
+        |> List.filterMap (\x -> x)
+
+
 buildPiece : Int -> Int -> Maybe PiecesOnTile -> List Sako.Piece
 buildPiece rowId fileId pieces =
     let
@@ -203,22 +250,32 @@ parseFen input =
         parts =
             String.split " " input
 
-        maybePieces =
-            List.getAt 0 parts
-                |> Maybe.map (boardPart >> assemblePieces >> Sako.enumeratePieceIdentity)
+        frontParts =
+            List.getAt 0 parts |> Maybe.withDefault "" |> String.split "^"
 
-        maybeLiftedPieces =
-            Just []
+        maybePieces =
+            List.getAt 0 frontParts
+                |> Maybe.map (boardPart >> assemblePieces >> Sako.enumeratePieceIdentity 0)
+
+        pieceCount =
+            maybePieces
+                |> Maybe.map List.length
+                |> Maybe.withDefault 0
+
+        liftedPieces =
+            List.getAt 1 frontParts
+                |> Maybe.map liftedPart
+                |> Maybe.withDefault []
+                |> Sako.enumeratePieceIdentity pieceCount
     in
-    Maybe.map2
-        (\pieces liftedPieces ->
+    Maybe.map
+        (\pieces ->
             { pieces = pieces
             , liftedPieces = liftedPieces
             , currentPlayer = Sako.White
             }
         )
         maybePieces
-        maybeLiftedPieces
 
 
 
