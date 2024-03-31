@@ -172,24 +172,20 @@ async fn index(
     //   That is where we are hosting ML models and opening books.
     // * As we have a local development hot reloading server, we also need to allow that in dev mode.
 
-    let additional_connect_src = if config.dev_mode {
-        " ws://localhost:45513"
-    } else {
-        ""
-    };
 
     let csp_header = (
         header::CONTENT_SECURITY_POLICY, 
-        format!("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self' static.kreibaum.dev{};", 
-        additional_connect_src) );
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self' static.kreibaum.dev{};"
+    );
 
-    (
-        [
-            (header::CONTENT_TYPE, "text/html; charset=utf-8".to_owned()),
+    if config.dev_mode {
+        ( [ (header::CONTENT_TYPE, "text/html; charset=utf-8") ], body).into_response()
+    } else {
+        ( [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
             csp_header,
-        ],
-        body,
-    )
+        ], body).into_response()
+    }
 }
 
 #[derive(Deserialize)]
