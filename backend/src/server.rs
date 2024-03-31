@@ -170,12 +170,22 @@ async fn index(
     // * A CSP header to mitigate XSS attacks
     //   Scripts can only load from the same origin, data may come from static.kreibaum.dev
     //   That is where we are hosting ML models and opening books.
+    // * As we have a local development hot reloading server, we also need to allow that in dev mode.
 
-    let csp_header = (header::CONTENT_SECURITY_POLICY, "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self' static.kreibaum.dev;");
+    let additional_connect_src = if config.dev_mode {
+        " ws://localhost:45513"
+    } else {
+        ""
+    };
+
+    let csp_header = (
+        header::CONTENT_SECURITY_POLICY, 
+        format!("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self' static.kreibaum.dev{};", 
+        additional_connect_src) );
 
     (
         [
-            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CONTENT_TYPE, "text/html; charset=utf-8".to_owned()),
             csp_header,
         ],
         body,
