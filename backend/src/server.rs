@@ -165,7 +165,21 @@ async fn index(
         .render("index.html.tera", &context)
         .expect("Could not render index.html");
 
-    ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], body)
+    // Return Body with headers. We need:
+    // * The content type, otherwise the browser doesn't render the page
+    // * A CSP header to mitigate XSS attacks
+    //   Scripts can only load from the same origin, data may come from static.kreibaum.dev
+    //   That is where we are hosting ML models and opening books.
+
+    let csp_header = (header::CONTENT_SECURITY_POLICY, "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self' static.kreibaum.dev;");
+
+    (
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            csp_header,
+        ],
+        body,
+    )
 }
 
 #[derive(Deserialize)]

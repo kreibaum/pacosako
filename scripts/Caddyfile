@@ -19,4 +19,5 @@ dev.pacoplay.com {
 static.kreibaum.dev {
 	root * /home/pacosako/static
 	file_server browse
+	header Access-Control-Allow-Origin "*"
 }
