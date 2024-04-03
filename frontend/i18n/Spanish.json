@@ -156,5 +156,9 @@
     "deleteAccountL3": "Sólo tienes un minuto antes de que este botón deje de funcionar.",
     "deleteAccountConfirm": "Confirmar el borrado",
     "timerMustBePositive": "¡El temporizador no puede comenzar en/por debajo de cero!",
-    "createAccountPageTitle": "Crear cuenta - pacoplay.com"
+    "createAccountPageTitle": "Crear cuenta - pacoplay.com",
+    "navigateOlderGames": "Juegos más antiguos",
+    "navigateNewerGames": "Juegos más nuevos",
+    "youHavePlayedXGames": "¡Has jugado {0} juegos en PacoPlay! Haga clic aquí para verlos todos.",
+    "anonymousPlayerName": "Sin cuenta"
 }
