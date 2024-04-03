@@ -1,4 +1,4 @@
-module Svg.PlayerLabel exposing (both, rotationToYPosition)
+module Svg.PlayerLabel exposing (both, rotationToYPosition, victoryStateToText)
 
 {-| Wraps the SVG on top and bottom of the game which shows the players.
 -}
@@ -66,7 +66,7 @@ playerLabelSvg aiXPos yPos nameExtension userData =
                     , SvgA.x aiXPos
                     , SvgA.y "15"
                     ]
-                    [ Svg.text ("\u{1F916} " ++ aiData.modelName) ]
+                    [ Svg.text ("🤖 " ++ aiData.modelName) ]
 
             Nothing ->
                 Svg.text_ [] []

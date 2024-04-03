@@ -1,5 +1,6 @@
 module Components exposing
     ( StyleableButton
+    , activeGrayBox
     , btn
     , colorButton
     , gameCodeLabel
@@ -230,6 +231,19 @@ grayBox content =
     Element.column
         [ width fill
         , Background.color (Element.rgba 1 1 1 0.6)
+        , Border.rounded 5
+        ]
+        content
+
+
+{-| The same as grayBox, but reacts to hover events. Used for clickable boxes.
+-}
+activeGrayBox : List (Element msg) -> Element msg
+activeGrayBox content =
+    Element.column
+        [ width fill
+        , Background.color (Element.rgba 1 1 1 0.6)
+        , Element.mouseOver [ Background.color (Element.rgba 1 1 1 1) ]
         , Border.rounded 5
         ]
         content

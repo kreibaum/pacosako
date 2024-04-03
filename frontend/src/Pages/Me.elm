@@ -1,5 +1,7 @@
 module Pages.Me exposing (Model, Msg, page)
 
+import Api.Backend
+import Api.Ports
 import Browser.Dom
 import Components exposing (colorButton)
 import Custom.Element exposing (icon)
@@ -11,6 +13,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
+import Fen
 import FontAwesome.Attributes
 import FontAwesome.Icon
 import FontAwesome.Solid as Solid
@@ -21,11 +24,14 @@ import Http
 import Json.Encode as Encode
 import Layout
 import Page
+import PositionView
 import Random
 import Random.Char
 import Random.String
+import RemoteData exposing (WebData)
 import Request
 import Shared
+import Svg.Custom as Svg
 import Svg.Discord
 import Task
 import Translations as T
@@ -87,9 +93,12 @@ init shared query =
                     withIntentToDelete
                         |> Maybe.map (\_ -> True)
                         |> Maybe.withDefault False
+                , myGames = RemoteData.Loading
                 }
-            , Effect.none
-              -- TODO: Load private data about yourself.
+            , Api.Backend.getMyGames { offset = 0, limit = 1 }
+                MyGamesErrored
+                MyGamesLoaded
+                |> Effect.fromCmd
             )
 
 
@@ -109,6 +118,7 @@ type alias LoggedInModel =
     , avatarLoadingSpinner : Bool
     , dangerZoneUnfolded : Bool
     , withIntentToDelete : Bool
+    , myGames : WebData Api.Backend.PagedGames
     }
 
 
@@ -119,6 +129,9 @@ type alias LoggedInModel =
 type Msg
     = ToShared Shared.Msg
     | NoOp
+      -- My Games information (mstly to learn about the number of games)
+    | MyGamesLoaded Api.Backend.PagedGames
+    | MyGamesErrored Http.Error
       -- Login flow, Password
     | UsernameComplete
     | SignIn String String
@@ -226,6 +239,18 @@ update msg model =
                 )
             )
 
+        MyGamesLoaded g ->
+            updateLoggedIn model
+                (\m -> ( { m | myGames = RemoteData.Success g }, Effect.none ))
+
+        MyGamesErrored error ->
+            updateLoggedIn model
+                (\m ->
+                    ( { m | myGames = RemoteData.Failure error }
+                    , Api.Ports.logToConsole (Api.Backend.describeError error) |> Effect.fromCmd
+                    )
+                )
+
 
 {-| This method applies the update to the "Not Logged In" Model if applicable
 and propagate effects. If the model is in any other state, the inner update
@@ -331,21 +356,21 @@ view shared model =
             { isRouteHighlighted = \_ -> False
             , isWithBackground = True
             }
-            (Layout.textPageWrapper (profilePageView model))
+            (Layout.textPageWrapper (profilePageView shared model))
     }
 
 
 {-| Decides which mode of the profile page to show based on whether the user is
 logged in and whether their profile data is available.
 -}
-profilePageView : Model -> List (Element Msg)
-profilePageView model =
+profilePageView : Shared.Model -> Model -> List (Element Msg)
+profilePageView shared model =
     case model of
         NotLoggedIn notLoggedInModel ->
             notLoggedInView notLoggedInModel
 
         LoggedIn loggedInModel ->
-            loggedInView loggedInModel
+            loggedInView shared loggedInModel
 
 
 notLoggedInView : NotLoggedInModel -> List (Element Msg)
@@ -455,8 +480,8 @@ notLoggedInView model =
     ]
 
 
-loggedInView : LoggedInModel -> List (Element Msg)
-loggedInView model =
+loggedInView : Shared.Model -> LoggedInModel -> List (Element Msg)
+loggedInView shared model =
     [ row panelAttributes
         [ image [ width (px 100), height (px 100) ]
             { src = model.user.userAvatar, description = T.mePageProfileImageAltText }
@@ -537,6 +562,12 @@ loggedInView model =
                     }
                 ]
             ]
+    , case model.myGames of
+        RemoteData.Success myGames ->
+            panelForGameHistory shared myGames
+
+        _ ->
+            Element.none
     , panelButton (Just SignOut)
         [ icon [ Font.color (rgb255 200 0 0) ] Solid.signOutAlt
         , text T.mePageSignOut
@@ -604,6 +635,37 @@ loggedInView model =
                 ]
             ]
     ]
+
+
+panelForGameHistory : Shared.Model -> Api.Backend.PagedGames -> Element Msg
+panelForGameHistory shared myGames =
+    let
+        position =
+            myGames.games
+                |> List.head
+                |> Maybe.map (\game -> game.fen)
+                |> Maybe.andThen Fen.parseFen
+                |> Maybe.map (PositionView.renderStatic Svg.WhiteBottom)
+                |> Maybe.map (PositionView.viewStatic (PositionView.staticViewConfig shared.colorConfig))
+                |> Maybe.map (Element.el [ width (px 150), height (px 150) ])
+                |> Maybe.withDefault Element.none
+    in
+    Element.link [ width fill ]
+        { url = "/me/games"
+        , label =
+            row
+                (panelAttributes
+                    ++ [ Element.mouseOver [ Background.color (Element.rgba 1 1 1 0.8) ]
+                       , Font.size 20
+                       ]
+                )
+                [ position
+                , Element.paragraph []
+                    [ text <|
+                        String.replace "{0}" (String.fromInt myGames.totalGames) T.youHavePlayedXGames
+                    ]
+                ]
+        }
 
 
 panelAttributes : List (Element.Attribute msg)

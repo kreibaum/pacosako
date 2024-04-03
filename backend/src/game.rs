@@ -152,7 +152,7 @@ struct PagingQuery {
 
 #[derive(Serialize)]
 struct PagedGames {
-    games: Vec<CurrentMatchStateClient>,
+    games: Vec<CompressedMatchStateClient>,
     total_games: usize,
 }
 
@@ -177,9 +177,16 @@ async fn my_games(
 
     let total_games = db::game::count_for_player(session.user_id.0, &mut conn).await? as usize;
 
-    let games = add_metadata_for_client(games, conn).await?;
+    let mut result = Vec::with_capacity(games.len());
 
-    Ok(Json(PagedGames { games, total_games }))
+    for game in games {
+        result.push(CompressedMatchStateClient::try_new(&game, &game.project()?, &mut conn).await?);
+    }
+
+    Ok(Json(PagedGames {
+        games: result,
+        total_games,
+    }))
 }
 
 #[derive(Deserialize, Clone)]

@@ -1,14 +1,14 @@
 module Api.Backend exposing
     ( Api
-    , DiscordApplicationId(..)
+    , PagedGames
     , Replay
     , SetupOptions
     , describeError
     , encodeSetupOptions
     , getCurrentLogin
-    , getDiscordApplicationId
     , getJson
     , getLogout
+    , getMyGames
     , getRecentGameKeys
     , getReplay
     , postLanguage
@@ -414,16 +414,24 @@ decodeSetupOptions =
 
 
 
--- API methods for discord OAuth
+--------------------------------------------------------------------------------
+-- Me Page and My Games Page ---------------------------------------------------
+--------------------------------------------------------------------------------
+-- /api/me/games?offset=..&limit=..
 
 
-type DiscordApplicationId
-    = DiscordApplicationId String
+type alias PagedGames =
+    { games : List CompressedMatchState
+    , totalGames : Int
+    }
 
 
-getDiscordApplicationId : Api DiscordApplicationId msg
-getDiscordApplicationId =
+getMyGames : { offset : Int, limit : Int } -> Api PagedGames msg
+getMyGames { offset, limit } =
     getJson
-        { url = "/api/oauth/discord_client_id"
-        , decoder = Decode.string |> Decode.map DiscordApplicationId
+        { url = "/api/me/games?offset=" ++ String.fromInt offset ++ "&limit=" ++ String.fromInt limit
+        , decoder =
+            Decode.map2 PagedGames
+                (Decode.field "games" (Decode.list decodeCompressedMatchState))
+                (Decode.field "total_games" Decode.int)
         }
