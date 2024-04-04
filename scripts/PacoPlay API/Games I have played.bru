@@ -1,11 +1,16 @@
 meta {
   name: Games I have played
   type: http
-  seq: 3
+  seq: 7
 }
 
 get {
-  url: pacoplay.com/api/me/games
+  url: {{baseUrl}}/api/me/games?offset=0&limit=1
   body: none
   auth: none
+}
+
+query {
+  offset: 0
+  limit: 1
 }
