@@ -7,7 +7,7 @@ import Api.LocalStorage exposing (Permission(..))
 import Api.Websocket
 import Colors
 import Custom.Element exposing (icon, showIf)
-import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, padding, paddingEach, paddingXY, paragraph, px, row, spacing, width)
+import Element exposing (Element, alignRight, centerX, centerY, column, el, fill, height, link, padding, paddingEach, paddingXY, paragraph, px, row, spacing, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -138,6 +138,7 @@ pageHeaderV2Phone model headerData =
                 , label =
                     icon [ centerX, centerY ] Solid.home
                 }
+            , link [ width fill, height fill ] { url = "/", label = Element.none }
             , userAvatar model
             , quickSettingsOpenButton model
             ]
@@ -199,6 +200,7 @@ pageHeaderV2Desktop model headerData =
                     , pageHeaderButtonV2 Route.Tutorial T.headerTutorial headerData.isRouteHighlighted
                     , pageHeaderButtonV2 Route.Editor T.headerDesignPuzzles headerData.isRouteHighlighted
                     ]
+                , link [ width fill, height fill ] { url = "/", label = Element.none }
                 , userAvatar model
                 , el [ alignRight ] (quickSettingsOpenButton model)
                 ]
