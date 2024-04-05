@@ -24,7 +24,7 @@ pub async fn insert(
     let black_player = game.black_player.map(|u| u.0);
 
     let id = sqlx::query!(
-        "insert into game (action_history, timer, safe_mode, setup, white_player, black_player) values (?, ?, 1, ?, ?, ?)",
+        "insert into game (action_history, timer, setup, white_player, black_player) values (?, ?, ?, ?, ?)",
         action_history,
         timer,
         setup,
