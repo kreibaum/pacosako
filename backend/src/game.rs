@@ -129,19 +129,6 @@ async fn recently_created_games(
     Ok(Json(result))
 }
 
-/// Essentially this is just a specific `map`, but I need to be able to await and use `?`.
-async fn add_metadata_for_client(
-    games: Vec<SynchronizedMatch>,
-    mut conn: sqlx::pool::PoolConnection<sqlx::Sqlite>,
-) -> Result<Vec<CurrentMatchStateClient>, ServerError> {
-    let mut result = Vec::with_capacity(games.len());
-    for game in games {
-        result.push(CurrentMatchStateClient::try_new(game.current_state()?, &mut conn).await?);
-    }
-
-    Ok(result)
-}
-
 #[derive(Deserialize)]
 struct PagingQuery {
     /// Offset must be >= 0.
