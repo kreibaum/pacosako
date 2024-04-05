@@ -310,9 +310,10 @@ There are two scripts used to update the staging and production servers:
 
 Each server will update its own database schema when it starts up.
 
-## Nginx Configuration
+## Caddy Configuration
 
-The application uses nginx to reverse proxy `dev.pacoplay.com` to the staging system and `pacoplay.com` to the production system. The nginx configuration file `nginx-config` is available in the `/scripts` directory. This configuration file should be placed in the `/etc/nginx/sites-available/` directory and a symbolic link to it should be created in the `/etc/nginx/sites-enabled/` directory on your server.
+The application uses caddy to reverse proxy `dev.pacoplay.com` to the staging system and `pacoplay.com` to the production system.
+The `Caddyfile` is available in the `/scripts` directory. This configuration file should be placed in the `/etc/caddy/` directory.
 
 ## Database Backups
 
