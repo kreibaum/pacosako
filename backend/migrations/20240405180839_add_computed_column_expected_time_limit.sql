@@ -10,6 +10,8 @@
 -- Unfortunately, this means we need to drop the whole table and recreate it.
 -- This is because SQLite does not support adding a STORED generated column.
 
+-- See https://sqlite.org/lang_altertable.html#otheralter for more information.
+
 -- It also allows us to get rid of "safe_mode" which is redundant with the setup
 -- column. See 20221221223545_game-setup-column.sql for the migration.
 
@@ -57,8 +59,8 @@ INSERT INTO new_game (id, action_history, timer, created, setup, white_player, b
 SELECT id, action_history, timer, created, setup, white_player, black_player
 FROM game;
 
--- Rename the old table (to keep it as a backup temporarily)
-ALTER TABLE game RENAME TO old_game;
+-- Drop the old table
+DROP TABLE game;
 
 -- Rename the new table to the original name
 ALTER TABLE new_game RENAME TO game;
@@ -67,8 +69,6 @@ ALTER TABLE new_game RENAME TO game;
 CREATE INDEX idx_game_white_player ON game (white_player);
 CREATE INDEX idx_game_black_player ON game (black_player);
 
--- Drop the old table
-DROP TABLE old_game;
 
 -- check foreign key constraint still upholding.
 PRAGMA foreign_key_check;
