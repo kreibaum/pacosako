@@ -139,9 +139,9 @@
     "mePageSignInError": "Nombre de usuario o contraseña no válidos",
     "mePageNotLoggedIn": "No has iniciado sesión.",
     "cancel": "Cancelar",
-    "mePageDiscordSignIn": "Iniciar sesión con Discord (En construcción)",
+    "mePageDiscordSignIn": "Iniciar sesión con Discord",
     "meChoseNewAvatar": "Elige un nuevo avatar",
-    "mePageDiscordExplanation": "Las cuentas nuevas se crearán iniciando sesión en Discord. (Aún en construcción)",
+    "mePageDiscordExplanation": "Para crear una cuenta, solo tienes que iniciar sesión con Discord.",
     "mePageSignIn": "Iniciar sesión",
     "mePagePassword": "Contraseña",
     "meNewSuggestions": "Nuevas sugerencias",
@@ -154,5 +154,11 @@
     "deleteAccountDelete": "Eliminar la cuenta",
     "deleteAccountDanger": "Zona peligrosa",
     "deleteAccountL3": "Sólo tienes un minuto antes de que este botón deje de funcionar.",
-    "deleteAccountConfirm": "Confirmar el borrado"
+    "deleteAccountConfirm": "Confirmar el borrado",
+    "timerMustBePositive": "¡El temporizador no puede comenzar en/por debajo de cero!",
+    "createAccountPageTitle": "Crear cuenta - pacoplay.com",
+    "navigateOlderGames": "Juegos más antiguos",
+    "navigateNewerGames": "Juegos más nuevos",
+    "youHavePlayedXGames": "¡Has jugado {0} juegos en PacoPlay! Haga clic aquí para verlos todos.",
+    "anonymousPlayerName": "Sin cuenta"
 }
