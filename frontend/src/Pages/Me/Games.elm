@@ -6,7 +6,8 @@ import Api.Ports
 import Components
 import Custom.Element exposing (icon)
 import Effect exposing (Effect)
-import Element exposing (Element, alignRight, centerX, column, fill, height, padding, px, row, spacing, width)
+import Element exposing (Element, alignRight, centerX, column, el, fill, height, padding, px, row, spacing, width)
+import Element.Font as Font
 import FontAwesome.Solid as Solid
 import Gen.Params.Me.Games exposing (Params)
 import Header
@@ -18,6 +19,7 @@ import Request
 import Sako.FenView
 import Shared
 import Svg.PlayerLabel
+import Timer exposing (classifyDuration, expectedTimeLimit)
 import Translations as T
 import View exposing (View)
 
@@ -170,13 +172,35 @@ viewOneGame shared game =
 
         emojis =
             Svg.PlayerLabel.victoryStateToText game.gameState Nothing
+
+        duration =
+            game.timer
+                |> Maybe.map .config
+                |> Maybe.map expectedTimeLimit
+                |> Maybe.map classifyDuration
+                |> Maybe.withDefault Timer.Classical
+
+        durationIcon =
+            case duration of
+                Timer.Lightspeed ->
+                    Solid.spaceShuttle
+
+                Timer.Blitz ->
+                    Solid.bolt
+
+                Timer.Rapid ->
+                    Solid.frog
+
+                Timer.Classical ->
+                    Solid.couch
     in
     Element.link [ width fill ]
         { url = "/replay/" ++ game.key
         , label =
             Components.activeGrayBox
-                [ row [ padding 5, spacing 10 ]
-                    [ position
+                [ row [ padding 5, spacing 5 ]
+                    [ el [ width (px 50) ] (icon [ Font.size 40, centerX ] durationIcon)
+                    , position
                     , column [ height fill, padding 10 ]
                         [ Element.text (T.match ++ " " ++ game.key)
                         , row [ spacing 5, height fill ]

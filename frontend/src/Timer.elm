@@ -1,4 +1,4 @@
-module Timer exposing (Timer, TimerConfig, TimerState(..), TimerViewData, decodeTimer, encodeConfig, isTimerOk, render, secondsConfig)
+module Timer exposing (DurationClassification(..), Timer, TimerConfig, TimerState(..), TimerViewData, classifyDuration, decodeTimer, encodeConfig, expectedTimeLimit, isTimerOk, render, secondsConfig)
 
 {-| Timer implementation that represents the server state of a Paco Ŝako game
 timer. This timer will not be updated every second, instead it is rendered
@@ -192,3 +192,40 @@ renderPausedTimer timer =
     , timerState = timer.timerState
     , runningFor = Nothing
     }
+
+
+
+--| Corresponds to the database column `game.expected_time_limit`.
+
+
+expectedTimeLimit : TimerConfig -> Duration
+expectedTimeLimit config =
+    case config.increment of
+        Just increment ->
+            Quantity.plus config.timeBudgetWhite config.timeBudgetBlack
+                |> Quantity.plus (Quantity.multiplyBy 40 increment)
+
+        Nothing ->
+            Quantity.plus config.timeBudgetWhite config.timeBudgetBlack
+
+
+type DurationClassification
+    = Lightspeed
+    | Blitz
+    | Rapid
+    | Classical
+
+
+classifyDuration : Duration -> DurationClassification
+classifyDuration duration =
+    if Duration.inMinutes duration < 10 then
+        Lightspeed
+
+    else if Duration.inMinutes duration < 20 then
+        Blitz
+
+    else if Duration.inMinutes duration < 120 then
+        Rapid
+
+    else
+        Classical
