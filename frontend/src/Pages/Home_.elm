@@ -15,7 +15,6 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Element.Lazy exposing (lazy)
-import Fen
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
@@ -23,10 +22,10 @@ import Header
 import Http
 import Layout
 import Page
-import PositionView exposing (BoardDecoration(..), DraggingPieces(..), Highlight(..))
 import Reactive
 import RemoteData exposing (WebData)
 import Request
+import Sako.FenView
 import Shared
 import Svg.Custom exposing (BoardRotation(..))
 import Timer
@@ -773,11 +772,7 @@ recentGamesListSuccessOne : Shared.Model -> CompressedMatchState -> Element msg
 recentGamesListSuccessOne shared matchState =
     let
         position =
-            Fen.parseFen matchState.fen
-                |> Maybe.map (PositionView.renderStatic WhiteBottom)
-                |> Maybe.map (PositionView.viewStatic (PositionView.staticViewConfig shared.colorConfig))
-                |> Maybe.withDefault (Element.text matchState.key)
-                |> Element.el [ width (px 150), height (px 150) ]
+            Sako.FenView.viewFenString { fen = matchState.fen, colorConfig = shared.colorConfig, size = 150 }
 
         gameKeyLabel =
             Element.el [ centerX ] (Element.text (T.match ++ " " ++ matchState.key))

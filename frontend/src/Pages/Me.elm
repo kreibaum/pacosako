@@ -13,7 +13,6 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Fen
 import FontAwesome.Attributes
 import FontAwesome.Icon
 import FontAwesome.Solid as Solid
@@ -24,14 +23,13 @@ import Http
 import Json.Encode as Encode
 import Layout
 import Page
-import PositionView
 import Random
 import Random.Char
 import Random.String
 import RemoteData exposing (WebData)
 import Request
+import Sako.FenView
 import Shared
-import Svg.Custom as Svg
 import Svg.Discord
 import Task
 import Translations as T
@@ -643,11 +641,7 @@ panelForGameHistory shared myGames =
         position =
             myGames.games
                 |> List.head
-                |> Maybe.map (\game -> game.fen)
-                |> Maybe.andThen Fen.parseFen
-                |> Maybe.map (PositionView.renderStatic Svg.WhiteBottom)
-                |> Maybe.map (PositionView.viewStatic (PositionView.staticViewConfig shared.colorConfig))
-                |> Maybe.map (Element.el [ width (px 150), height (px 150) ])
+                |> Maybe.map (\game -> Sako.FenView.viewFenString { fen = game.fen, colorConfig = shared.colorConfig, size = 150 })
                 |> Maybe.withDefault Element.none
     in
     Element.link [ width fill ]

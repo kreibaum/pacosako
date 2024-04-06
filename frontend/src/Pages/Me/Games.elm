@@ -7,32 +7,28 @@ import Components
 import Custom.Element exposing (icon)
 import Effect exposing (Effect)
 import Element exposing (Element, alignRight, centerX, column, fill, height, padding, px, row, spacing, width)
-import Fen
-import FontAwesome.Icon
 import FontAwesome.Solid as Solid
 import Gen.Params.Me.Games exposing (Params)
 import Header
 import Http
 import Layout
 import Page
-import PositionView
 import RemoteData exposing (WebData)
 import Request
-import Sako
+import Sako.FenView
 import Shared
-import Svg.Custom as Svg
 import Svg.PlayerLabel
 import Translations as T
 import View exposing (View)
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
-page shared req =
+page shared _ =
     Page.advanced
         { init = init
         , update = update
         , view = view shared
-        , subscriptions = subscriptions
+        , subscriptions = \_ -> Sub.none
         }
 
 
@@ -95,15 +91,6 @@ update msg model =
                 MyGamesLoaded
                 |> Effect.fromCmd
             )
-
-
-
--- SUBSCRIPTIONS
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.none
 
 
 
@@ -173,11 +160,7 @@ viewOneGame : Shared.Model -> CompressedMatchState -> Element Msg
 viewOneGame shared game =
     let
         position =
-            Fen.parseFen game.fen
-                |> Maybe.map (PositionView.renderStatic Svg.WhiteBottom)
-                |> Maybe.map (PositionView.viewStatic (PositionView.staticViewConfig shared.colorConfig))
-                |> Maybe.map (Element.el [ width (px 150), height (px 150) ])
-                |> Maybe.withDefault Element.none
+            Sako.FenView.viewFenString { fen = game.fen, colorConfig = shared.colorConfig, size = 150 }
 
         profileWhite =
             Maybe.withDefault anonymousProfile game.whitePlayer
