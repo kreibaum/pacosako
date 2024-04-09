@@ -77,21 +77,6 @@ observer.observe(document.body, { childList: true, subtree: true });
 // Set a session cookie ////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-// We need to track a "state" to make sure that OAuth requests are not attacked.
-// The state can be created by the client. It is just important that the link
-// we follow to the OAuth server contains the state and that the state is the
-// same as the one that is sent back in the redirect after login.
-function setOAuthStateInSessionCookie(): string {
-    // TODO: Check if there already is such a cookie and just reuse it.
-
-    // Create a random alphanumeric string
-    let state = Math.random().toString(36).substring(2, 12);
-    let path = "/"
-    let sameSite = "lax"
-    document.cookie = `oauth_state=${state}; path=${path}; SameSite=${sameSite}`;
-    return state;
-}
-
 // Retrieve local storage
 let localStorageData = JSON.parse(localStorage.getItem('localStorage'));
 
@@ -101,7 +86,6 @@ let elmFlags = {
     "windowSize": windowSize,
     "localStorage": localStorageData,
     "now": Date.now(),
-    "oAuthState": setOAuthStateInSessionCookie(),
     "myUserName": my_user_name,
     "myUserId": my_user_id,
     "myUserAvatar": my_user_avatar

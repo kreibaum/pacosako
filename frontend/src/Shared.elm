@@ -36,7 +36,6 @@ type alias Model =
     , playSounds : Bool
     , permissions : List LocalStorage.Permission
     , now : Posix
-    , oAuthState : String
     , loggedInUser : Maybe User.LoggedInUserData
     , isHeaderOpen : Bool
     , websocketConnectionState : WebsocketConnectionState
@@ -73,11 +72,6 @@ init { key } flags =
         ls =
             LocalStorage.load flags
 
-        oAuthState =
-            Decode.decodeValue (Decode.field "oAuthState" Decode.string) flags
-                |> Result.toMaybe
-                |> Maybe.withDefault ""
-
         now =
             parseNow flags
     in
@@ -87,7 +81,6 @@ init { key } flags =
       , permissions = ls.permissions
       , playSounds = ls.data.playSounds
       , now = now
-      , oAuthState = oAuthState
       , loggedInUser = User.parseLoggedInUser flags
       , isHeaderOpen = False
       , websocketConnectionState = Api.Websocket.WebsocketConnecting
