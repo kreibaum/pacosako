@@ -48,6 +48,12 @@ Run
     # Initialize target directory, copy static files
     ./gitpod-init.sh
 
+#### Useful Software
+
+Building WASM artifacts is faster, if you have wasm-bindgen installed:
+
+    cargo install wasm-bindgen-cli
+
 #### Running
 
 Then you run
