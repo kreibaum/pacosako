@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
+tract-onnx = "0.21.3"
 # We are not using this directly, but this is still required for wasm-bindgen to work.
 # See https://docs.rs/getrandom/#webassembly-support
 getrandom = { version = "0.2", features = ["js"] }

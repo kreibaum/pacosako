@@ -1,5 +1,7 @@
+mod ml;
 mod utils;
 
+use js_sys::Uint8Array;
 use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
     editor, fen,
@@ -7,7 +9,7 @@ use pacosako::{
     DenseBoard, PacoAction, PacoBoard, PacoError,
 };
 use serde::Deserialize;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen::{prelude::wasm_bindgen, JsCast, JsValue};
 extern crate console_error_panic_hook;
 
 /// This module provides all the methods that should be available on the wasm
@@ -17,6 +19,7 @@ extern crate console_error_panic_hook;
 extern "C" {
     fn forwardToMq(messageType: &str, data: &str);
     fn current_timestamp_ms() -> u32;
+    fn console_log(msg: &str);
 }
 
 #[wasm_bindgen(js_name = "determineLegalActions")]
@@ -133,9 +136,39 @@ fn history_to_replay_notation(
     )
 }
 
+#[wasm_bindgen(js_name = "initHedwig")]
+pub fn init_hedwig(js_buffer: JsValue) -> Result<(), JsValue> {
+    utils::set_panic_hook();
+
+    assert!(
+        js_buffer.is_instance_of::<Uint8Array>(),
+        "Expected a Uint8Array"
+    );
+    let uint8_array: Uint8Array = js_buffer.dyn_into().unwrap();
+    let buffer = uint8_array.to_vec();
+
+    console_log(&format!(
+        "First three bytes are: {}, {}, {}",
+        buffer[0], buffer[1], buffer[2]
+    ));
+    // Now `model` contains the AI model read from the buffer
+    // You can now use `model` as needed
+
+    ml::init_model("Hedwig", buffer).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    // To test the model, perform inference on an initial board state.
+    let board = DenseBoard::new();
+    let evaluation = ml::evaluate_model(&board).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    console_log(&format!("Eval: {:?}", evaluation));
+
+    Ok(())
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Proxy function for games. This sits between the client and server. //////////
 ////////////////////////////////////////////////////////////////////////////////
+
+/// TODO: This has proven not really useful, I should get rid of it again.
 
 /// Subscribes to the game on the server.
 #[wasm_bindgen(js_name = "subscribeToMatch")]
