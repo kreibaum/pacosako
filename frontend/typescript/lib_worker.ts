@@ -11,7 +11,7 @@ console.log('Hashes are: ', wasm_js_hash, wasm_hash);
 importScripts(`/js/lib.min.js?hash=${wasm_js_hash}`);
 declare var wasm_bindgen: any;
 
-const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch, determineLegalActions, initHedwig } = wasm_bindgen;
+const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch, determineLegalActions, initHedwig, determineAiMove } = wasm_bindgen;
 
 
 /** Helps with typescript type checking. */
@@ -45,6 +45,9 @@ function forwardToWasm(messageType: any, data: any) {
     }
     if (messageType === "subscribeToMatch") {
         subscribeToMatch(data);
+    }
+    if (messageType === "determineAiMove") {
+        determineAiMove(data);
     }
 }
 

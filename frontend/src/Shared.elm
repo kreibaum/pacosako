@@ -4,6 +4,7 @@ module Shared exposing
     , Msg(..)
     , collapseHeader
     , init
+    , isRolf
     , subscriptions
     , update
     )
@@ -235,3 +236,17 @@ subscriptions _ _ =
         , Api.Websocket.listenToStatus WebsocketStatusChange
         , Time.every 1000 UpdateNow
         ]
+
+
+{-| Utitilty function to check if the user with id 1 is logged in. As a solo
+development project, this is a useful way to roll out partially done features
+to myself only.
+-}
+isRolf : Model -> Bool
+isRolf model =
+    case model.loggedInUser of
+        Just user ->
+            user.userId == 1
+
+        Nothing ->
+            False

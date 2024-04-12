@@ -160,6 +160,8 @@ type Msg
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
     | PortError String
     | LegalActionsResponse (List Sako.Action)
+    | DetermineAiMove
+    | AiMoveResponse (List Sako.Action)
 
 
 update : Shared.Model -> Msg -> Model -> ( Model, Effect Msg )
@@ -293,6 +295,22 @@ update shared msg model =
             ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded actions } }
             , Effect.none
             )
+
+        DetermineAiMove ->
+            ( model
+            , { board_fen = Fen.writeFen Sako.initialPosition, action_history = model.currentState.actionHistory }
+                |> Api.EncoderGen.determineLegalActions
+                |> Api.MessageGen.determineAiMove
+                |> Effect.fromCmd
+            )
+
+        -- TODO: This can't deal with two actions comming in at once!
+        AiMoveResponse actions ->
+            let
+                action =
+                    List.head actions |> Maybe.withDefault (Sako.Promote Sako.Queen)
+            in
+            updateActionInputStep shared action model
 
 
 fetchHeaderSize : Cmd Msg
@@ -664,6 +682,10 @@ subscriptions model =
             Api.MessageGen.legalActionsDetermined
             Api.DecoderGen.legalActionsDetermined
             LegalActionsResponse
+        , Api.MessageGen.subscribePort PortError
+            Api.MessageGen.aiMoveDetermined
+            Api.DecoderGen.aiMoveDetermined
+            AiMoveResponse
         ]
 
 
@@ -726,7 +748,7 @@ playUiLandscape shared model =
         (Element.row
             [ width fill, height fill, paddingXY 10 0, spacing 10 ]
             [ playPositionView shared model
-            , sidebarLandscape model
+            , sidebarLandscape shared model
             ]
         )
 
@@ -736,7 +758,7 @@ playUiPortrait shared model =
     Element.column
         [ width fill, height fill ]
         [ playPositionView shared model
-        , sidebarPortrait model
+        , sidebarPortrait shared model
         ]
 
 
@@ -829,8 +851,8 @@ additionalSvg shared model =
         |> Just
 
 
-sidebarLandscape : Model -> Element Msg
-sidebarLandscape model =
+sidebarLandscape : Shared.Model -> Model -> Element Msg
+sidebarLandscape shared model =
     Element.column [ spacing 5, width (px 250), height fill, paddingXY 0 40 ]
         [ Components.gameCodeLabel
             (CopyToClipboard (Url.toString model.gameUrl))
@@ -844,12 +866,13 @@ sidebarLandscape model =
         , Element.el [ padding 10 ] Element.none
         , Element.text T.gamePlayAs
         , rotationButtons model.rotation
+        , tempAiMoveButton shared
         , Element.el [ padding 10 ] Element.none
         ]
 
 
-sidebarPortrait : Model -> Element Msg
-sidebarPortrait model =
+sidebarPortrait : Shared.Model -> Model -> Element Msg
+sidebarPortrait shared model =
     Element.column [ spacing 5, width fill, height fill, paddingXY 5 0 ]
         [ showIf (canPromote model.currentState.legalActions) promotionButtonRow
         , Components.gameCodeLabel
@@ -863,6 +886,7 @@ sidebarPortrait model =
         , Element.el [ padding 10 ] Element.none
         , Element.text T.gamePlayAs
         , rotationButtons model.rotation
+        , tempAiMoveButton shared
         , Element.el [ padding 10 ] Element.none
         ]
 
@@ -1081,3 +1105,24 @@ rotationButton rotation currentRotation label =
         |> withMsgIf (rotation /= currentRotation) (SetRotation rotation)
         |> isSelectedIf (rotation == currentRotation)
         |> viewButton
+
+
+
+--------------------------------------------------------------------------------
+-- AI Integration --------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+tempAiMoveButton : Shared.Model -> Element Msg
+tempAiMoveButton shared =
+    if Shared.isRolf shared then
+        Components.colorButton []
+            { background = Element.rgb255 51 191 255
+            , backgroundHover = Element.rgb255 102 206 255
+            , onPress = Just DetermineAiMove
+            , buttonIcon = icon [ centerX ] Solid.dice
+            , caption = "Generate AI Move"
+            }
+
+    else
+        Element.none

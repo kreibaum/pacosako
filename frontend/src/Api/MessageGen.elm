@@ -58,6 +58,11 @@ port analyzeReplay : Value -> Cmd msg
 port subscribeToMatch : Value -> Cmd msg
 
 
+{-| Signs up for the status of the given match.
+-}
+port determineAiMove : Value -> Cmd msg
+
+
 
 --------------------------------------------------------------------------------
 -- Messages send from the outside world to the elm app -------------------------
@@ -82,3 +87,8 @@ port positionAnalysisCompleted : (Value -> msg) -> Sub msg
 {-| Replay analysis has been completed.
 -}
 port replayAnalysisCompleted : (Value -> msg) -> Sub msg
+
+
+{-| Is called one or more times after the AI is asked to determine a move.
+-}
+port aiMoveDetermined : (Value -> msg) -> Sub msg

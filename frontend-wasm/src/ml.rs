@@ -1,6 +1,7 @@
 use std::sync::RwLock;
 
 use pacosako::{paco_action::PacoActionSet, DenseBoard, PacoBoard};
+use rand::Rng;
 use tract_onnx::prelude::*;
 
 use super::console_log;
@@ -43,6 +44,7 @@ impl ModelEvaluation {
         evaluation
     }
 
+    /// Make sure all the numbers sum to 1.
     fn normalize_policy(&mut self) {
         let sum: f32 = self.policy.iter().map(|(_, p)| p).sum();
         if sum == 0. {
@@ -57,6 +59,35 @@ impl ModelEvaluation {
         for (_, p) in &mut self.policy {
             *p /= sum;
         }
+    }
+
+    /// A high temperature makes all possible results more likely.
+    /// A low temperature (>0) makes the most likely result even more likely.
+    pub fn with_temperature(&self, temperature: f32) -> Self {
+        let mut new_policy = Vec::with_capacity(self.policy.len());
+        for (action, p) in &self.policy {
+            new_policy.push((*action, p.powf(1. / temperature)));
+        }
+        let mut evaluation = ModelEvaluation {
+            value: self.value,
+            policy: new_policy,
+        };
+        evaluation.normalize_policy();
+        evaluation
+    }
+
+    /// Samples a random action, assuming the policy is normalized.
+    pub fn sample(&self) -> pacosako::PacoAction {
+        let mut sum = 0.;
+        let random = rand::thread_rng().gen::<f32>();
+        for (action, p) in &self.policy {
+            sum += p;
+            if sum >= random {
+                return *action;
+            }
+        }
+        // This should never happen, but if it does, we return the last action.
+        self.policy.last().map(|(a, _)| *a).unwrap()
     }
 }
 

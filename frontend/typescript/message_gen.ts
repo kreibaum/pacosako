@@ -12,6 +12,7 @@ function dockToPorts(elmApp: any) {
     connectFromElmPortToWebWorker(elmApp, "generateRandomPosition");
     connectFromElmPortToWebWorker(elmApp, "analyzePosition");
     connectFromElmPortToWebWorker(elmApp, "analyzeReplay");
+    connectFromElmPortToWebWorker(elmApp, "determineAiMove");
 
     connectFromElmPortToWebWorker(elmApp, "subscribeToMatch");
 }

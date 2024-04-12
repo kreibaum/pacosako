@@ -136,6 +136,30 @@ fn history_to_replay_notation(
     )
 }
 
+#[wasm_bindgen(js_name = "determineAiMove")]
+pub fn determine_ai_move(data: String) -> Result<(), JsValue> {
+    utils::set_panic_hook();
+    let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+
+    let try_into: Result<DenseBoard, PacoError> = (&data).try_into();
+    let mut board: DenseBoard = try_into.map_err(|e| e.to_string())?;
+    let ai_player = board.controlling_player;
+
+    while board.controlling_player == ai_player {
+        let action = determine_ai_action(&board)?;
+        board.execute_trusted(action).map_err(|e| e.to_string())?;
+        let action = serde_json::to_string(&vec![action]).map_err(|e| e.to_string())?;
+        forwardToMq("aiMoveDetermined", &action);
+    }
+
+    Ok(())
+}
+
+fn determine_ai_action(board: &DenseBoard) -> Result<PacoAction, JsValue> {
+    let eval = ml::evaluate_model(board).map_err(|e| e.to_string())?;
+    Ok(eval.with_temperature(0.01).sample())
+}
+
 #[wasm_bindgen(js_name = "initHedwig")]
 pub fn init_hedwig(js_buffer: JsValue) -> Result<(), JsValue> {
     utils::set_panic_hook();

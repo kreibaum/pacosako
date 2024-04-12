@@ -35,3 +35,8 @@ replayAnalysisCompleted =
         (Decode.field "notation" (Decode.list Notation.decodeHalfMove))
         (Decode.field "opening" Decode.string)
         (Decode.field "progress" Decode.float)
+
+
+aiMoveDetermined : Decoder (List Sako.Action)
+aiMoveDetermined =
+    Decode.list Sako.decodeAction
