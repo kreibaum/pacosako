@@ -13,6 +13,12 @@ declare var wasm_bindgen: any;
 
 const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch, determineLegalActions, initHedwig, determineAiMove } = wasm_bindgen;
 
+// Import onnxruntime-web for AI
+importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/ort.min.js');
+declare var ort: any;
+// Make sure we load the wasm from the CDN.
+// https://github.com/microsoft/onnxruntime/issues/16102#issuecomment-1563654211
+ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/";
 
 /** Helps with typescript type checking. */
 declare function postMessage(params: string);
@@ -142,7 +148,7 @@ function cacheBlob(db: IDBDatabase, url: string, data: Blob): Promise<void> {
 }
 
 // For now, we just instantly start downloading the model and caching it.
-const hedwigModelUrl = 'https://static.kreibaum.dev/hedwig-0.8.onnx';
+const hedwigModelUrl = 'https://static.kreibaum.dev/hedwig-0.8-infer-int8.onnx';
 
 // TODO: This method should return progress information to the main thread.
 // TODO: There should be a list of models in use an unused models should be deleted.
@@ -170,10 +176,32 @@ async function getModel(url: string): Promise<Blob> {
     }
 }
 
-async function initAiInWasm() {
-    let hedwig: Blob = await getModel(hedwigModelUrl);
+let session: any = undefined;
 
-    initHedwig(new Uint8Array(await hedwig.arrayBuffer()));
+async function downloadAndInitHedwig() {
+    let hedwig: Blob = await getModel(hedwigModelUrl);
+    const arrayBuffer = await hedwig.arrayBuffer();  // Convert the Blob to ArrayBuffer
+
+    session = await ort.InferenceSession.create(arrayBuffer);  // Create the session with ArrayBuffer
+}
+
+/// This function is called from wasm to delegate to onnxruntime-web.
+async function evaluate_hedwig(rawInputTensor: Float32Array): Promise<Float32Array> {
+    if (!session) {
+        // TODO: This should initialize earlier and get some UI.
+        await downloadAndInitHedwig();
+    }
+
+    const startTime = performance.now();
+    const inputTensor = new ort.Tensor('float32', rawInputTensor, [1, 30, 8, 8]);
+    const feeds = {};
+    feeds[session.inputNames[0]] = inputTensor;
+
+    const results = await session.run(feeds);
+    const endTime = performance.now();
+    const timeTaken = endTime - startTime;
+    console.log(`Model evaluation took ${timeTaken.toFixed(2)} milliseconds.`);
+    return results[session.outputNames[0]].data;
 }
 
 
@@ -183,6 +211,4 @@ wasm_bindgen(`/js/lib.wasm?hash=${wasm_hash}`).then(_ => {
     // This then tells the message queue to start processing messages.
     postMessage('ready');
     onmessage = ev => handleMessage(ev)
-    // Preload Hedwig
-    // initAiInWasm()
 });

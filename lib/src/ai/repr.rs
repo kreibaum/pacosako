@@ -208,7 +208,7 @@ fn index(
     tile_index + 64 * (piece_index + 6 * (color_index + 2 * lift_index))
 }
 
-fn viewpoint_tile(viewpoint_color: PlayerColor, tile: BoardPosition) -> BoardPosition {
+pub fn viewpoint_tile(viewpoint_color: PlayerColor, tile: BoardPosition) -> BoardPosition {
     if viewpoint_color == PlayerColor::White {
         tile
     } else {

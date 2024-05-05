@@ -1,7 +1,7 @@
 mod ml;
 mod utils;
 
-use js_sys::Uint8Array;
+use js_sys::{Float32Array, Uint8Array};
 use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
     editor, fen,
@@ -20,6 +20,7 @@ extern "C" {
     fn forwardToMq(messageType: &str, data: &str);
     fn current_timestamp_ms() -> u32;
     fn console_log(msg: &str);
+    pub async fn evaluate_hedwig(input_tensor: Float32Array) -> JsValue;
 }
 
 #[wasm_bindgen(js_name = "determineLegalActions")]
@@ -137,7 +138,7 @@ fn history_to_replay_notation(
 }
 
 #[wasm_bindgen(js_name = "determineAiMove")]
-pub fn determine_ai_move(data: String) -> Result<(), JsValue> {
+pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
     utils::set_panic_hook();
     let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
@@ -146,7 +147,7 @@ pub fn determine_ai_move(data: String) -> Result<(), JsValue> {
     let ai_player = board.controlling_player;
 
     while board.controlling_player == ai_player {
-        let action = determine_ai_action(&board)?;
+        let action = determine_ai_action(&board).await?;
         board.execute_trusted(action).map_err(|e| e.to_string())?;
         let action = serde_json::to_string(&vec![action]).map_err(|e| e.to_string())?;
         forwardToMq("aiMoveDetermined", &action);
@@ -155,8 +156,8 @@ pub fn determine_ai_move(data: String) -> Result<(), JsValue> {
     Ok(())
 }
 
-fn determine_ai_action(board: &DenseBoard) -> Result<PacoAction, JsValue> {
-    let eval = ml::evaluate_model(board).map_err(|e| e.to_string())?;
+async fn determine_ai_action(board: &DenseBoard) -> Result<PacoAction, JsValue> {
+    let eval = ml::evaluate_model(board).await.map_err(|e| e.to_string())?;
     Ok(eval.with_temperature(0.01).sample())
 }
 
@@ -182,8 +183,8 @@ pub fn init_hedwig(js_buffer: JsValue) -> Result<(), JsValue> {
 
     // To test the model, perform inference on an initial board state.
     let board = DenseBoard::new();
-    let evaluation = ml::evaluate_model(&board).map_err(|e| JsValue::from_str(&e.to_string()))?;
-    console_log(&format!("Eval: {:?}", evaluation));
+    // let evaluation = ml::evaluate_model(&board).map_err(|e| JsValue::from_str(&e.to_string()))?;
+    // console_log(&format!("Eval: {:?}", evaluation));
 
     Ok(())
 }

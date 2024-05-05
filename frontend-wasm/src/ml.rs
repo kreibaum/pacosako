@@ -1,6 +1,6 @@
 use std::sync::RwLock;
 
-use pacosako::{paco_action::PacoActionSet, DenseBoard, PacoBoard};
+use pacosako::{paco_action::PacoActionSet, DenseBoard, PacoBoard, PlayerColor};
 use rand::Rng;
 use tract_onnx::prelude::*;
 
@@ -25,14 +25,20 @@ pub struct ModelEvaluation {
 }
 
 impl ModelEvaluation {
-    fn new(legal_actions: PacoActionSet, raw_model_output: &[f32]) -> Self {
+    fn new(
+        legal_actions: PacoActionSet,
+        // The viewpoint_color is required to "rotate back" the policy.
+        viewpoint_color: PlayerColor,
+        raw_model_output: &[f32],
+    ) -> Self {
         let value = raw_model_output[0];
 
         let mut policy = Vec::with_capacity(legal_actions.len() as usize);
         for action in legal_actions {
             // action to action index already returns a one-based index.
             // This works great with the first entry being the value.
-            let action_index = pacosako::ai::glue::action_to_action_index(action);
+            let action_index =
+                pacosako::ai::glue::action_to_action_index_with_viewpoint(action, viewpoint_color);
             let action_policy = raw_model_output[action_index as usize];
             policy.push((action, action_policy));
         }
@@ -144,26 +150,32 @@ pub fn init_model(model_name: &str, onnx_file: Vec<u8>) -> TractResult<()> {
     Ok(())
 }
 
-pub fn evaluate_model(board: &DenseBoard) -> Result<ModelEvaluation, tract_data::anyhow::Error> {
-    let arc = LOADED_MODEL
-        .read()
-        .expect("Failed to aquire model read lock.");
-    let Some(model) = arc.as_ref() else {
-        tract_data::anyhow::bail!("No model loaded.")
-    };
-    let model = &model.1;
+pub async fn evaluate_model(
+    board: &DenseBoard,
+) -> Result<ModelEvaluation, tract_data::anyhow::Error> {
+    // let arc = LOADED_MODEL
+    //     .read()
+    //     .expect("Failed to aquire model read lock.");
+    // let Some(model) = arc.as_ref() else {
+    //     tract_data::anyhow::bail!("No model loaded.")
+    // };
+    // let model = &model.1;
 
     // Represent board for the model to consume
     let input_repr: &mut [f32; 30 * 8 * 8] = &mut [0.; 30 * 8 * 8];
-    pacosako::ai::repr::tensor_representation(&board, input_repr);
-    let input = Tensor::from_shape(&[1, 30, 8, 8], &*input_repr)?;
+    pacosako::ai::repr::tensor_representation(board, input_repr);
+    // let input = Tensor::from_shape(&[1, 30, 8, 8], &*input_repr)?;
 
-    // Run model
-    let result = model.run(tvec!(input.into()))?;
+    // convert to Float32Array
+    let input_tensor = js_sys::Float32Array::from(input_repr.as_ref());
 
-    // Extract result
-    let result: Vec<_> = result[0].to_array_view::<f32>()?.iter().cloned().collect();
+    let result = super::evaluate_hedwig(input_tensor).await;
+    let result = js_sys::Float32Array::from(result).to_vec();
     let actions = board.actions().expect("Legal actions can't be determined");
 
-    Ok(ModelEvaluation::new(actions, &result))
+    Ok(ModelEvaluation::new(
+        actions,
+        board.controlling_player,
+        &result,
+    ))
 }

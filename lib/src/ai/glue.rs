@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 
-use crate::{BoardPosition, DenseBoard, PacoAction, PacoError};
+use crate::{ai::repr, BoardPosition, DenseBoard, PacoAction, PacoError, PlayerColor};
 
 /// Maps the action to the index which represents the action in the policy
 /// vector. Julia uses 1-based indexing, so we add 1 to the index.
@@ -14,6 +14,20 @@ pub const fn action_to_action_index(action: PacoAction) -> u8 {
     match action {
         Lift(p) => 1 + p.0,
         Place(p) => 1 + p.0 + 64,
+        Promote(Rook) => 129,
+        Promote(Knight) => 130,
+        Promote(Bishop) => 131,
+        Promote(Queen) => 132,
+        Promote(_) => 255,
+    }
+}
+
+pub fn action_to_action_index_with_viewpoint(action: PacoAction, viewpoint: PlayerColor) -> u8 {
+    use crate::PacoAction::*;
+    use crate::PieceType::*;
+    match action {
+        Lift(p) => 1 + repr::viewpoint_tile(viewpoint, p).0,
+        Place(p) => 1 + repr::viewpoint_tile(viewpoint, p).0 + 64,
         Promote(Rook) => 129,
         Promote(Knight) => 130,
         Promote(Bishop) => 131,
