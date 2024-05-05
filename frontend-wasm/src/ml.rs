@@ -1,18 +1,5 @@
-use std::sync::RwLock;
-
 use pacosako::{paco_action::PacoActionSet, DenseBoard, PacoBoard, PlayerColor};
 use rand::Rng;
-use tract_onnx::prelude::*;
-
-use super::console_log;
-
-type OnnxModel = SimplePlan<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
-
-// For simplicity, WASM is only allowed to keep one model loaded at a time.
-// I.e. If you load Ludwig for one game and then play agains Hedwig, Ludwig
-// is unloaded.
-// The Arc<..> is in here to make borrowing/access easier.
-static LOADED_MODEL: RwLock<Option<(String, OnnxModel)>> = RwLock::new(Option::None);
 
 /// Given a DenseBoard, we want to turns this into a model evaluation.
 /// This is a list of the relative policy for various legal actions.
@@ -97,70 +84,7 @@ impl ModelEvaluation {
     }
 }
 
-pub fn init_model(model_name: &str, onnx_file: Vec<u8>) -> TractResult<()> {
-    console_log(&format!("Starting to load model {}.", model_name));
-    // Check if the currently loaded model is already the right one.
-    let mut loaded_model = LOADED_MODEL
-        .write()
-        .expect("Failed to aquire model write lock.");
-
-    if let Some(arc) = loaded_model.as_ref() {
-        if arc.0 == model_name {
-            console_log("Model already loaded.");
-            return Ok(());
-        }
-        // There is no need to unload the model here, this happens automatically
-        // once the new value is stored in the RwLock.
-    }
-
-    console_log("Initializing AI model from ONNX file.");
-    // Load the model
-    let mut model = tract_onnx::onnx().model_for_read(&mut &onnx_file[..])?;
-    console_log("Model loaded. (1/3)");
-
-    // TODO: This seems to be where I can put in some additional facts.
-    // That way the "INPUT" node can get its correct size.
-    // Maybe OUTPUT needs that as well.
-
-    // Define an explicit input shape. By default, the input shape would be
-    // (?, 30, 8, 8) which allows an arbitrary amount of board representations
-    // to be passed in along the first dimension.
-    // This is not supported by tract which want to know the explicit input shape.
-    // Running in WASM, we se this amount to 1.
-    console_log(&format!(
-        "Input shape of ONNX is defined as {:?}.",
-        model.input_fact(0)
-    ));
-    model.input_fact_mut(0)?.shape = tvec!(1, 30, 8, 8).into();
-    console_log(&format!(
-        "Input shape of ONNX now changed to {:?}.",
-        model.input_fact(0)
-    ));
-
-    // Optimize the model
-    let model = model.into_optimized()?;
-    console_log("Model optimized. (2/3)");
-
-    let model = model.into_runnable()?;
-    console_log("Model runnable. (3/3)");
-    console_log("Model loaded successfully.");
-
-    *loaded_model = Some((model_name.to_owned(), model));
-
-    Ok(())
-}
-
-pub async fn evaluate_model(
-    board: &DenseBoard,
-) -> Result<ModelEvaluation, tract_data::anyhow::Error> {
-    // let arc = LOADED_MODEL
-    //     .read()
-    //     .expect("Failed to aquire model read lock.");
-    // let Some(model) = arc.as_ref() else {
-    //     tract_data::anyhow::bail!("No model loaded.")
-    // };
-    // let model = &model.1;
-
+pub async fn evaluate_model(board: &DenseBoard) -> ModelEvaluation {
     // Represent board for the model to consume
     let input_repr: &mut [f32; 30 * 8 * 8] = &mut [0.; 30 * 8 * 8];
     pacosako::ai::repr::tensor_representation(board, input_repr);
@@ -173,9 +97,5 @@ pub async fn evaluate_model(
     let result = js_sys::Float32Array::from(result).to_vec();
     let actions = board.actions().expect("Legal actions can't be determined");
 
-    Ok(ModelEvaluation::new(
-        actions,
-        board.controlling_player,
-        &result,
-    ))
+    ModelEvaluation::new(actions, board.controlling_player, &result)
 }
