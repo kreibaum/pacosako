@@ -8,7 +8,7 @@ use pacosako::{
     setup_options::SetupOptions,
     DenseBoard, PacoAction, PacoBoard, PacoError,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 extern crate console_error_panic_hook;
 
@@ -23,28 +23,16 @@ extern "C" {
     pub async fn evaluate_hedwig(input_tensor: Float32Array) -> JsValue;
 }
 
-#[derive(Serialize)]
-struct LegalActionsDeterminedData {
-    legal_actions: Vec<PacoAction>,
-    input_action_count: usize,
-}
-
 #[wasm_bindgen(js_name = "determineLegalActions")]
 pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
     utils::set_panic_hook();
-    let history_data: ActionHistoryBoardRepr =
-        serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
-    let try_into: Result<DenseBoard, PacoError> = (&history_data).try_into();
+    let try_into: Result<DenseBoard, PacoError> = (&data).try_into();
     let data: DenseBoard = try_into.map_err(|e| e.to_string())?;
 
     let legal_actions: Vec<PacoAction> =
         data.actions().map_err(|e| e.to_string())?.iter().collect();
-
-    let legal_actions = LegalActionsDeterminedData {
-        legal_actions,
-        input_action_count: history_data.action_history.len(),
-    };
 
     let legal_actions = serde_json::to_string(&legal_actions).map_err(|e| e.to_string())?;
 
