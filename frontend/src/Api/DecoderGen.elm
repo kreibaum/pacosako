@@ -9,9 +9,15 @@ import Notation
 import Sako
 
 
-legalActionsDetermined : Decoder (List Sako.Action)
+type alias LegalActionsDeterminedData =
+    { inputActionCount : Int, legalActions : List Sako.Action }
+
+
+legalActionsDetermined : Decoder LegalActionsDeterminedData
 legalActionsDetermined =
-    Decode.list Sako.decodeAction
+    Decode.map2 LegalActionsDeterminedData
+        (Decode.field "input_action_count" Decode.int)
+        (Decode.field "legal_actions" (Decode.list Sako.decodeAction))
 
 
 randomPositionGenerated : Decoder String

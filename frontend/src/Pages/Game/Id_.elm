@@ -160,7 +160,7 @@ type Msg
     | FetchHeaderSize
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
     | PortError String
-    | LegalActionsResponse (List Sako.Action)
+    | LegalActionsResponse { inputActionCount : Int, legalActions : List Sako.Action }
     | DetermineAiMove
     | AiMoveResponse (List Sako.Action)
 
@@ -288,14 +288,18 @@ update shared msg model =
         PortError error ->
             ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
 
-        LegalActionsResponse actions ->
+        LegalActionsResponse { inputActionCount, legalActions } ->
             let
                 currentState =
                     model.currentState
             in
-            ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded actions } }
-            , Effect.none
-            )
+            if List.length currentState.actionHistory == inputActionCount then
+                ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded legalActions } }
+                , Effect.none
+                )
+
+            else
+                ( model, Effect.none )
 
         DetermineAiMove ->
             ( model
@@ -579,41 +583,72 @@ updateCurrentMatchStateIfKeyCorrect data model =
 
 
 updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Effect Msg )
-updateCurrentMatchState data model =
-    let
-        newBoard =
-            case matchStatesDiff model.currentState data of
-                Just diffActions ->
+updateCurrentMatchState newState model =
+    case matchStatesDiff model.currentState newState of
+        -- No action change, but maybe a status change, like a timeout or draw.
+        Custom.List.ListsAreEqual ->
+            ( { model | currentState = newState }, Effect.none )
+
+        Custom.List.NewExtendsOld diffActions ->
+            let
+                newBoard =
                     Sako.doActionsList diffActions model.board
                         |> Maybe.withDefault model.board
+            in
+            ( { model
+                | currentState = newState
+                , board = newBoard
+                , timeline =
+                    Animation.queue
+                        ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
+                        model.timeline
+              }
+            , { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
+                |> Api.EncoderGen.determineLegalActions
+                |> Api.MessageGen.determineLegalActions
+                |> Effect.fromCmd
+            )
 
-                Nothing ->
-                    Sako.doActionsList data.actionHistory Sako.initialPosition
+        Custom.List.ListsDontExtendEachOther ->
+            let
+                newBoard =
+                    Sako.doActionsList newState.actionHistory Sako.initialPosition
                         |> Maybe.withDefault Sako.emptyPosition
+            in
+            ( { model
+                | currentState = newState
+                , board = newBoard
+                , timeline =
+                    Animation.interrupt
+                        (PositionView.renderStatic model.rotation newBoard)
+                        model.timeline
+              }
+            , { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
+                |> Api.EncoderGen.determineLegalActions
+                |> Api.MessageGen.determineLegalActions
+                |> Effect.fromCmd
+            )
 
-        newState =
-            data
-    in
-    ( { model
-        | currentState = newState
-        , board = newBoard
-        , timeline =
-            Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
-                model.timeline
-      }
-    , { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
-        |> Api.EncoderGen.determineLegalActions
-        |> Api.MessageGen.determineLegalActions
-        |> Effect.fromCmd
-    )
+        -- The old list extends the new list, when the client moves faster than the
+        -- server can acknowledge. We still should take over most of the new state
+        -- and just add the missing actions + legal actions back. But no animation.
+        Custom.List.OldExtendsNew _ ->
+            ( { model
+                | currentState =
+                    { newState
+                        | legalActions = model.currentState.legalActions
+                        , actionHistory = model.currentState.actionHistory
+                    }
+              }
+            , Effect.none
+            )
 
 
 {-| Given an old and a new match state, this returns the actions that need to
 be taken to transform the old state into the new state. Returns Nothing if the
 new state does not extend the old state.
 -}
-matchStatesDiff : CurrentMatchState -> CurrentMatchState -> Maybe (List Sako.Action)
+matchStatesDiff : CurrentMatchState -> CurrentMatchState -> Custom.List.ListDiff Sako.Action
 matchStatesDiff old new =
     Custom.List.diff old.actionHistory new.actionHistory
 
