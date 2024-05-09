@@ -15,6 +15,7 @@ import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
 import Custom.Element exposing (icon, showIf)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
+import Custom.List
 import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Background as Background
@@ -614,24 +615,7 @@ new state does not extend the old state.
 -}
 matchStatesDiff : CurrentMatchState -> CurrentMatchState -> Maybe (List Sako.Action)
 matchStatesDiff old new =
-    historyDiff old.actionHistory new.actionHistory
-
-
-historyDiff : List a -> List a -> Maybe (List a)
-historyDiff old new =
-    case ( old, new ) of
-        ( [], newTail ) ->
-            Just newTail
-
-        ( _, [] ) ->
-            Nothing
-
-        ( o :: oldTail, n :: newTail ) ->
-            if o == n then
-                historyDiff oldTail newTail
-
-            else
-                Nothing
+    Custom.List.diff old.actionHistory new.actionHistory
 
 
 setRotation : BoardRotation -> Model -> Model
