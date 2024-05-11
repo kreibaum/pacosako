@@ -1,0 +1,9 @@
+[package]
+name = "ai-runner-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ndarray = "0.15"
+ort = "2.0.0-rc.2"
+pacosako-rust = { path = "../lib" }
