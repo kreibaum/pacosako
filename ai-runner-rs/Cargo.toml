@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ndarray = "0.15"
 ort = "2.0.0-rc.2"
 pacosako-rust = { path = "../lib" }
+thiserror = "1.0.41"
