@@ -10,17 +10,26 @@ use pacosako::{DenseBoard, PacoAction, PacoBoard, PlayerColor};
 use thiserror::Error;
 use MctsError::*;
 
+const PUCT_EXPLORATION: f32 = 1.41;
+
 /// Using thiserror to define custom error types.
 #[derive(Error, Debug)]
 pub enum MctsError {
-    #[error("No node selected for expansion.")]
+    #[error("No node was selected for expansion.")]
     NoNodeSelectedForExpansion,
+    #[error("There is already a node selected for expansion.")]
+    NodeAlreadySelectedForExpansion,
+    #[error("Error in Paco Ŝako: {0}")]
+    PacoError(#[from] pacosako::PacoError),
 }
 
 pub struct Mcts {
     board: DenseBoard,
     nodes: Vec<Node>,
     max_size: u16,
+    // Every time we selecting a node finds a terminal node, we backpropagate this
+    // without incurring an additional model evaluation. That is why we call this "free".
+    free_backpropagations: u16,
     to_expand: Option<(Node, DenseBoard)>,
 }
 
@@ -64,49 +73,156 @@ struct Node {
     q_value_totals: Vec<f32>,
 }
 
+impl Node {
+    fn new(
+        parent: NodeIndex,
+        controlling_player: PlayerColor,
+        index_in_parent_vectors: u8,
+    ) -> Self {
+        Node {
+            parent,
+            controlling_player,
+            value: WhiteValue(0.),
+            policy: Vec::new(), // Vec::new() will not allocate memory.
+            children: Vec::new(),
+            child_visits: Vec::new(),
+            index_in_parent_vectors,
+            q_value_totals: Vec::new(),
+        }
+    }
+
+    /// Selects the child node with the highest upper confidence bound (UCB) value.
+    /// Returns the index of the selected child.
+    ///
+    /// Returns None if there are no children to select.
+    /// This represents a terminal node, game over.
+    fn select_child_ucb(&self) -> Option<u8> {
+        if self.children.is_empty() {
+            return None;
+        }
+
+        let mut max_ucb = f32::NEG_INFINITY;
+        let mut selected_child: u8 = 0;
+
+        let total_visits = self.child_visits.iter().sum::<u16>() as f32;
+        let total_visits_sqrt = (1. + total_visits).sqrt();
+        for i in 0..self.children.len() {
+            let policy = self.policy[i].1;
+            let q_value_total = self.q_value_totals[i];
+            let child_visits = self.child_visits[i] as f32;
+            let q_value = q_value_total / child_visits;
+
+            let visit_scale = total_visits_sqrt / (1. + child_visits);
+
+            let ucb_value = q_value + PUCT_EXPLORATION * policy * visit_scale;
+
+            if ucb_value > max_ucb {
+                max_ucb = ucb_value;
+                selected_child = i as u8;
+            }
+        }
+
+        Some(selected_child)
+    }
+}
+
 /// Tells the executor what to do next.
 pub enum MctsPoll<'a> {
     SelectNodeToExpand,
     Evaluate(&'a DenseBoard),
     AtMaxSize,
+    // Every time we selecting a node finds a terminal node, we backpropagate and increase this.
+    OutOfFreeBackpropagations,
 }
 
 impl Mcts {
     pub fn new(board: DenseBoard, max_size: u16) -> Self {
         let nodes = Vec::with_capacity(max_size as usize);
-        let root = Node {
-            // The root node points to itself, that is how we know it is the root.
-            // Any recursion up the tree will stop at the root node.
-            parent: NodeIndex(0),
-            controlling_player: board.controlling_player(),
-            index_in_parent_vectors: 0,
-            value: WhiteValue(0.),
-            policy: Vec::new(), // Vec::new() will not allocate memory.
-            children: Vec::new(),
-            child_visits: Vec::new(),
-            q_value_totals: Vec::new(),
-        };
+        let root = Node::new(NodeIndex(0), board.controlling_player(), 0);
         Mcts {
             board: board.clone(),
             nodes,
             max_size,
+            free_backpropagations: 0,
             to_expand: Some((root, board)),
         }
     }
 
+    /// Tells the executor what to do next.
     pub fn poll(&self) -> MctsPoll {
         if let Some((_, ref board)) = self.to_expand {
             MctsPoll::Evaluate(board)
         } else if self.nodes.len() >= self.max_size as usize {
             MctsPoll::AtMaxSize
+        } else if self.nodes.len() + self.free_backpropagations as usize >= (u16::MAX - 1) as usize
+        {
+            MctsPoll::OutOfFreeBackpropagations
         } else {
             MctsPoll::SelectNodeToExpand
         }
     }
 
-    /// Tells the MCTS executor which node should be expanded next.
-    pub fn evaluation_todo(&self) -> Option<&DenseBoard> {
-        self.to_expand.as_ref().map(|(_, board)| board)
+    /// Call this when the MCTS asks you to select a node to expand.
+    /// This will walk down the tree to select a node to expand.
+    pub fn select_node_to_expand(&mut self) -> Result<(), MctsError> {
+        // Verify that we are in the correct state to select a node to expand.
+        if self.to_expand.is_some() {
+            return Err(NodeAlreadySelectedForExpansion);
+        };
+
+        self.walk_down_tree(NodeIndex(0), self.board.clone())
+    }
+
+    fn walk_down_tree(
+        &mut self,
+        node_index: NodeIndex,
+        mut board: DenseBoard,
+    ) -> Result<(), MctsError> {
+        let node = &mut self.nodes[node_index.0 as usize];
+
+        // Whenever we walk down the tree, we can expect that all the nodes have
+        // received a model evaluation already. Any "not existing yet" nodes are
+        // represented by a NodeIndex(0) entry in the children vector.
+
+        // The root node can't be in a children vector, so it's not a problem,
+        // that we use NodeIndex(0) as a special value.
+
+        // Find the child with the highest upper confidence bound (UCB) value.
+        let Some(child_index) = node.select_child_ucb() else {
+            // If there is no child, then we backpropagate the value to the root node.
+            let parent_index = node.parent;
+            let child_index = node_index;
+            let index_in_parent_vectors = node.index_in_parent_vectors;
+            let white_value = node.value;
+
+            self.free_backpropagations += 1;
+
+            return self.backpropagate(
+                parent_index,
+                child_index,
+                index_in_parent_vectors,
+                white_value,
+            );
+        };
+
+        // Execute the action on the board.
+        let child_action = node.policy[child_index as usize].0;
+        board.execute_trusted(child_action)?;
+
+        let child_node_index = node.children[child_index as usize];
+
+        if child_node_index == NodeIndex(0) {
+            // We have found a non-expanded node. Note this down and return.
+            self.to_expand = Some((
+                Node::new(node_index, board.controlling_player(), child_index),
+                board,
+            ));
+
+            Ok(())
+        } else {
+            // Continue walking down the tree.
+            self.walk_down_tree(child_node_index, board)
+        }
     }
 
     /// Call this when the MCTS waits for a model evaluation to drive it forward.
@@ -128,6 +244,7 @@ impl Mcts {
         // Prepare the children information
         to_expand.children = vec![NodeIndex(0); to_expand.policy.len()];
         to_expand.child_visits = vec![0; to_expand.policy.len()];
+        to_expand.q_value_totals = vec![0.; to_expand.policy.len()];
 
         // Cache q values for the children. ???
 
@@ -169,9 +286,5 @@ impl Mcts {
             parent_index_in_grand_parent_vectors,
             white_value,
         )
-    }
-
-    pub fn max_size_reached(&self) -> bool {
-        self.nodes.len() >= self.max_size as usize
     }
 }

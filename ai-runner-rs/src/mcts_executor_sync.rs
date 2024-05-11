@@ -4,7 +4,7 @@
 
 use crate::{
     evaluation::ModelEvaluation,
-    mcts::{Mcts, MctsError},
+    mcts::{Mcts, MctsError, MctsPoll},
 };
 use ort::Session;
 use pacosako::{fen, DenseBoard, PacoBoard};
@@ -22,13 +22,13 @@ pub enum MctsExecutorError {
     OrtError(#[from] ort::Error),
 }
 
-pub struct SyncMctsExecutor {
-    session: Session,
+pub struct SyncMctsExecutor<'a> {
+    session: &'a mut Session,
     mcts: Mcts,
 }
 
-impl SyncMctsExecutor {
-    pub fn new(session: Session, board: DenseBoard, max_size: u16) -> Self {
+impl<'a> SyncMctsExecutor<'a> {
+    pub fn new(session: &'a mut Session, board: DenseBoard, max_size: u16) -> Self {
         let mcts = Mcts::new(board, max_size);
         Self { session, mcts }
     }
@@ -36,24 +36,28 @@ impl SyncMctsExecutor {
     pub fn run(&mut self) -> Result<(), MctsExecutorError> {
         'infinite_loop: loop {
             match self.mcts.poll() {
-                crate::mcts::MctsPoll::Evaluate(board) => {
-                    println!("Running evaluation on board: {}", fen::write_fen(board));
+                MctsPoll::Evaluate(board) => {
+                    let fen = fen::write_fen(board);
+                    let start = std::time::Instant::now();
                     let evaluation =
-                        crate::mcts_executor_sync::evaluate_model(board, &mut self.session)?;
+                        crate::mcts_executor_sync::evaluate_model(board, self.session)?;
                     self.mcts
                         .insert_model_evaluation(evaluation.value, evaluation.policy)?;
+                    let elapsed = start.elapsed();
+
+                    println!("Ran evaluation in {:?} on board: {}", elapsed, fen);
                 }
-                crate::mcts::MctsPoll::SelectNodeToExpand => {
-                    println!("TODO: Select node to expand");
-                    break 'infinite_loop;
+                MctsPoll::SelectNodeToExpand => {
+                    self.mcts.select_node_to_expand()?;
                 }
-                crate::mcts::MctsPoll::AtMaxSize => {
-                    println!("TODO: Max size reached");
+                MctsPoll::AtMaxSize | MctsPoll::OutOfFreeBackpropagations => {
+                    println!("TODO: Max size reached / out of free backpropagations.");
                     break 'infinite_loop;
                 }
             }
         }
-        todo!()
+        println!("Finish run method for SyncMctsExecutor\n\n\n");
+        Ok(())
     }
 }
 
