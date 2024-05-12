@@ -305,6 +305,7 @@ update shared msg model =
             )
 
         -- TODO: This can't deal with two actions comming in at once!
+        -- https://github.com/kreibaum/pacosako/issues/123
         AiMoveResponse actions ->
             let
                 action =

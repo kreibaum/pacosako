@@ -155,7 +155,7 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
         let best_move = position_data.best_move();
 
         // TODO: Submit all actions at once, no need to stagger them.
-        // Requires changes on Elm side and maybe also in the protocol over websocket.
+        // https://github.com/kreibaum/pacosako/issues/123
         for action in &best_move.actions {
             let action = serde_json::to_string(&vec![*action]).map_err(|e| e.to_string())?;
             forwardToMq("aiMoveDetermined", &action);
