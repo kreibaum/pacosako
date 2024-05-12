@@ -1,7 +1,9 @@
 mod ml;
+mod opening_book;
 mod utils;
 
 use js_sys::Float32Array;
+use opening_book::OpeningBook;
 use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
     editor, fen,
@@ -144,6 +146,26 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
 
     let try_into: Result<DenseBoard, PacoError> = (&data).try_into();
     let mut board: DenseBoard = try_into.map_err(|e| e.to_string())?;
+
+    let fen = fen::write_fen(&board);
+    // Check if there is a move stored in the opening book. If so, then we take that.
+    if let Some(position_data) = OpeningBook::get(&fen) {
+        console_log("Found opening book move.");
+
+        let best_move = position_data.best_move();
+
+        // TODO: Submit all actions at once, no need to stagger them.
+        // https://github.com/kreibaum/pacosako/issues/123
+        for action in &best_move.actions {
+            let action = serde_json::to_string(&vec![*action]).map_err(|e| e.to_string())?;
+            forwardToMq("aiMoveDetermined", &action);
+        }
+
+        return Ok(());
+    } else {
+        console_log(format!("No opening book move found for {}", fen).as_str());
+    }
+
     let ai_player = board.controlling_player;
 
     while board.controlling_player == ai_player {
@@ -159,6 +181,25 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
 async fn determine_ai_action(board: &DenseBoard) -> Result<PacoAction, JsValue> {
     let eval = ml::evaluate_model(board).await;
     Ok(eval.with_temperature(0.01).sample())
+}
+
+/// Accepts the opening book that was just downloaded / taken from cache.
+#[wasm_bindgen(js_name = "initOpeningBook")]
+pub fn init_opening_book(data: String) -> Result<(), JsValue> {
+    utils::set_panic_hook();
+
+    console_log("Initializing opening book.");
+
+    let load_and_remember = OpeningBook::load_and_remember(&data);
+    match &load_and_remember {
+        Ok(_) => console_log("Opening book loaded."),
+        Err(e) => console_log(format!("Opening book failed to load: {}", e).as_str()),
+    }
+    load_and_remember.map_err(|e| e.to_string())?;
+
+    console_log("Opening book initialized.");
+
+    Ok(())
 }
 
 ////////////////////////////////////////////////////////////////////////////////

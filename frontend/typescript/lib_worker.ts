@@ -11,7 +11,7 @@ console.log('Hashes are: ', wasm_js_hash, wasm_hash);
 importScripts(`/js/lib.min.js?hash=${wasm_js_hash}`);
 declare var wasm_bindgen: any;
 
-const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch, determineLegalActions, initHedwig, determineAiMove } = wasm_bindgen;
+const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch, determineLegalActions, initHedwig, determineAiMove, initOpeningBook } = wasm_bindgen;
 
 // Import onnxruntime-web for AI
 importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/ort.min.js');
@@ -152,34 +152,34 @@ const hedwigModelUrl = 'https://static.kreibaum.dev/hedwig-0.8-infer-int8.onnx';
 
 // TODO: This method should return progress information to the main thread.
 // TODO: There should be a list of models in use an unused models should be deleted.
-async function getModel(url: string): Promise<Blob> {
+async function download_as_blob(url: string): Promise<Blob> {
     try {
         const db = await openDatabase();
         let blob = await getCachedBlob(db, url);
 
         if (!blob) {
-            console.log('Downloading the model...');
+            console.log(`Downloading the file ${url}...`);
             const response = await fetch(url);
             if (!response.ok) {
-                throw new Error('Failed to fetch the model: ' + response.statusText);
+                throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
             }
             blob = await response.blob();
             await cacheBlob(db, url, blob);
-            console.log(`Model cached. Size: ${blob.size} bytes.`);
+            console.log(`File cached. Size: ${blob.size} bytes.`);
         } else {
-            console.log(`Model loaded from cache. Size: ${blob.size} bytes.`);
+            console.log(`File loaded from cache. Size: ${blob.size} bytes.`);
         }
 
         return blob;
     } catch (error) {
-        console.error('Error handling the model:', error);
+        console.error(`Error handling the file \${url}: `, error);
     }
 }
 
 let session: any = undefined;
 
 async function downloadAndInitHedwig() {
-    let hedwig: Blob = await getModel(hedwigModelUrl);
+    let hedwig: Blob = await download_as_blob(hedwigModelUrl);
     const arrayBuffer = await hedwig.arrayBuffer();  // Convert the Blob to ArrayBuffer
 
     session = await ort.InferenceSession.create(arrayBuffer);  // Create the session with ArrayBuffer
@@ -204,6 +204,13 @@ async function evaluate_hedwig(rawInputTensor: Float32Array): Promise<Float32Arr
     return results[session.outputNames[0]].data;
 }
 
+// The opening book is small enough to be loaded without asking the user.
+const openingBookUrl = 'https://static.kreibaum.dev/2024-05-12-book-hedwig0.8-1000-1.0.json';
+
+async function downloadOpeningBook() {
+    let openingBook: Blob = await download_as_blob(openingBookUrl);
+    initOpeningBook(await openingBook.text());
+}
 
 wasm_bindgen(`/js/lib.wasm?hash=${wasm_hash}`).then(_ => {
     console.log('WASM loaded, worker ready.');
@@ -211,4 +218,6 @@ wasm_bindgen(`/js/lib.wasm?hash=${wasm_hash}`).then(_ => {
     // This then tells the message queue to start processing messages.
     postMessage('ready');
     onmessage = ev => handleMessage(ev)
+
+    downloadOpeningBook()
 });
