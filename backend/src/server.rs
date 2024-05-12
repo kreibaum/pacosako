@@ -15,10 +15,10 @@ use crate::{
 use axum::{
     body::Body,
     extract::{Query, State},
-    http::{header, HeaderMap},
-    middleware,
-    response::IntoResponse,
-    routing::{get, post},
+    http::{header, HeaderMap, HeaderName},
+    middleware::{self, map_response},
+    response::{IntoResponse, Response},
+    routing::{self, get, post},
     Router,
 };
 use serde::Deserialize;
@@ -50,6 +50,16 @@ pub async fn run(state: AppState) {
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();
+
+    // let lib_worker_service = ServeFile::new("../target/js/lib_worker.min.js").precompressed_br();
+    // ServiceExt::map_response::<_, hyper::Response<tower_http::services::fs::ServeFileSystemResponseBody>>(lib_worker_service, |record| {record.headers_mut().insert(HeaderName::from_static("cross-origin-embedder-policy"), HeaderValue::from_static("require-corp")); 
+    //     record});
+
+    let download: routing::MethodRouter = routing::get_service(
+        ServeFile::new("../target/js/lib_worker.min.js").precompressed_br()
+    ).layer(map_response(credentialless));
+
+
     let app: Router = app
         .route("/", get(index))
         .route("/robots.txt", get(get_empty_file))
@@ -72,9 +82,9 @@ pub async fn run(state: AppState) {
             "/js/lib.wasm",
             ServeFile::new("../target/js/lib.wasm").precompressed_br(),
         )
-        .nest_service(
+        .route_service(
             "/js/lib_worker.min.js",
-            ServeFile::new("../target/js/lib_worker.min.js").precompressed_br(),
+            download,
         )
         .nest_service(
             "/js/main.min.js",
@@ -91,6 +101,16 @@ pub async fn run(state: AppState) {
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
+}
+
+async fn require_corp<B>(mut response: Response<B>) -> Response<B> {
+    response.headers_mut().insert("cross-origin-embedder-policy", "require-corp".parse().unwrap());
+    response
+}
+
+async fn credentialless<B>(mut response: Response<B>) -> Response<B> {
+    response.headers_mut().insert("cross-origin-embedder-policy", "credentialless".parse().unwrap());
+    response
 }
 
 async fn index(
@@ -178,8 +198,17 @@ async fn index(
         "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self' static.kreibaum.dev{};"
     );
 
+    // Cross-Origin-Opener-Policy: same-origin
+    // Cross-Origin-Embedder-Policy: require-corp
+
     if config.dev_mode {
-        ( [ (header::CONTENT_TYPE, "text/html; charset=utf-8") ], body).into_response()
+        ( [ (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+        // (HeaderName::from_static("cross-origin-opener-policy-report-only"), "same-origin"),
+        // (HeaderName::from_static("cross-origin-embedder-policy-report-only"), "require-corp"),
+        (HeaderName::from_static("cross-origin-opener-policy"), "same-origin"),
+        (HeaderName::from_static("cross-origin-embedder-policy"), "require-corp"),
+          ]
+         , body).into_response()
     } else {
         ( [
             (header::CONTENT_TYPE, "text/html; charset=utf-8"),

@@ -53,6 +53,7 @@ time = "0.3.30"
 tokio = { version = "1.33.0", features = ["full"] }
 tokio-util = "0.7.8"
 toml = "0.8.6"
+tower = "0.4.13"
 tower-cookies = "0.10.0"
 tower-http = { version = "0.5.0", features = ["fs"] }
 urlencoding = "2.1.3"
