@@ -10,6 +10,8 @@ use pacosako::{DenseBoard, PacoAction, PacoBoard, PlayerColor};
 use thiserror::Error;
 use MctsError::*;
 
+use crate::evaluation::ModelEvaluation;
+
 const PUCT_EXPLORATION: f32 = 1.41;
 
 /// Using thiserror to define custom error types.
@@ -21,15 +23,24 @@ pub enum MctsError {
     NodeAlreadySelectedForExpansion,
     #[error("Error in Paco Ŝako: {0}")]
     PacoError(#[from] pacosako::PacoError),
+    #[error("Root node has no children.")]
+    RootNodeHasNoChildren,
+    #[error("Root node does not have this action available.")]
+    ActionNotInPolicy,
+    // This error fires when an action tries to access the root but that wasn't
+    // expanded yet.
+    #[error("Root node has not been expanded yet.")]
+    RootNodeNotExpandedYet,
 }
 
+#[derive(Debug, Clone)]
 pub struct Mcts {
     board: DenseBoard,
     nodes: Vec<Node>,
     max_size: u16,
     // Every time we selecting a node finds a terminal node, we backpropagate this
     // without incurring an additional model evaluation. That is why we call this "free".
-    free_backpropagations: u16,
+    free_backpropagations: u32,
     to_expand: Option<(Node, DenseBoard)>,
 }
 
@@ -57,7 +68,8 @@ impl WhiteValue {
     }
 }
 
-struct Node {
+#[derive(Debug, Clone)]
+pub struct Node {
     parent: NodeIndex,
     controlling_player: PlayerColor,
 
@@ -67,7 +79,7 @@ struct Node {
 
     // Graph information
     children: Vec<NodeIndex>,
-    child_visits: Vec<u16>,
+    child_visits: Vec<u32>,
     index_in_parent_vectors: u8,
     // Decision information
     q_value_totals: Vec<f32>,
@@ -104,13 +116,13 @@ impl Node {
         let mut max_ucb = f32::NEG_INFINITY;
         let mut selected_child: u8 = 0;
 
-        let total_visits = self.child_visits.iter().sum::<u16>() as f32;
+        let total_visits = self.child_visits.iter().sum::<u32>() as f32;
         let total_visits_sqrt = (1. + total_visits).sqrt();
         for i in 0..self.children.len() {
             let policy = self.policy[i].1;
             let q_value_total = self.q_value_totals[i];
             let child_visits = self.child_visits[i] as f32;
-            let q_value = q_value_total / child_visits;
+            let q_value = q_value_total / (1. + child_visits);
 
             let visit_scale = total_visits_sqrt / (1. + child_visits);
 
@@ -123,6 +135,23 @@ impl Node {
         }
 
         Some(selected_child)
+    }
+
+    /// Gets the current visit count by action.
+    /// Result is ordered by the visit count.
+    pub fn visit_counts(&self) -> Result<Vec<(PacoAction, u32)>, MctsError> {
+        if self.children.is_empty() {
+            return Err(RootNodeHasNoChildren);
+        }
+
+        let mut result = Vec::with_capacity(self.children.len());
+        for i in 0..self.children.len() {
+            let action = self.policy[i].0;
+            let visits = self.child_visits[i];
+            result.push((action, visits));
+        }
+        result.sort_by_key(|(_, visits)| -(*visits as i64));
+        Ok(result)
     }
 }
 
@@ -143,8 +172,19 @@ impl Mcts {
             board: board.clone(),
             nodes,
             max_size,
-            free_backpropagations: 0,
+            free_backpropagations: 10 * (max_size as u32),
             to_expand: Some((root, board)),
+        }
+    }
+
+    /// Allows you to directly look at the root node which can be helpful for debugging.
+    /// Maybe we'll rebuild the API to move visit_counts to the Node instead, then
+    /// this method becomes important.
+    pub fn get_root(&self) -> Result<&Node, MctsError> {
+        if self.nodes.is_empty() {
+            Err(RootNodeNotExpandedYet)
+        } else {
+            Ok(&self.nodes[0])
         }
     }
 
@@ -154,8 +194,7 @@ impl Mcts {
             MctsPoll::Evaluate(board)
         } else if self.nodes.len() >= self.max_size as usize {
             MctsPoll::AtMaxSize
-        } else if self.nodes.len() + self.free_backpropagations as usize >= (u16::MAX - 1) as usize
-        {
+        } else if self.free_backpropagations == 0 {
             MctsPoll::OutOfFreeBackpropagations
         } else {
             MctsPoll::SelectNodeToExpand
@@ -195,7 +234,7 @@ impl Mcts {
             let index_in_parent_vectors = node.index_in_parent_vectors;
             let white_value = node.value;
 
-            self.free_backpropagations += 1;
+            self.free_backpropagations -= 1;
 
             return self.backpropagate(
                 parent_index,
@@ -228,8 +267,7 @@ impl Mcts {
     /// Call this when the MCTS waits for a model evaluation to drive it forward.
     pub fn insert_model_evaluation(
         &mut self,
-        value: f32,
-        policy: Vec<(PacoAction, f32)>,
+        evaluation: ModelEvaluation,
     ) -> Result<(), MctsError> {
         // Verify that we are in the correct state to insert the model evaluation.
         let Some((mut to_expand, _)) = self.to_expand.take() else {
@@ -237,9 +275,10 @@ impl Mcts {
         };
 
         // Insert the model evaluation into the node.
-        let white_value = WhiteValue::from_perspective(value, to_expand.controlling_player);
+        let white_value =
+            WhiteValue::from_perspective(evaluation.value, to_expand.controlling_player);
         to_expand.value = white_value;
-        to_expand.policy = policy;
+        to_expand.policy = evaluation.policy;
 
         // Prepare the children information
         to_expand.children = vec![NodeIndex(0); to_expand.policy.len()];
@@ -286,5 +325,74 @@ impl Mcts {
             parent_index_in_grand_parent_vectors,
             white_value,
         )
+    }
+
+    /// Takes a copy of the sub tree that is found by executing the action.
+    /// This helps us reuse a lot of the evaluations, especially when the
+    /// lift action was highly concentrated on one action.
+    pub fn subtree(&self, action: PacoAction) -> Result<Self, MctsError> {
+        let mut new_board = self.board.clone();
+        new_board.execute_trusted(action)?;
+
+        // Find the index where the action is in the policy.
+        let root = &self.nodes[0];
+        let action_index_in_policy = root
+            .policy
+            .iter()
+            .position(|(a, _)| *a == action)
+            .ok_or(ActionNotInPolicy)?;
+
+        let new_root_old_node_index = root.children[action_index_in_policy];
+
+        if new_root_old_node_index == NodeIndex(0) {
+            // The node we are going to is not expanded yet.
+            // We just return a new Mcts with the new board and no nodes.
+            return Ok(Mcts::new(new_board, self.max_size));
+        }
+
+        // We need to mark the nodes that are in the subtree.
+        let mut mark: Vec<bool> = vec![false; self.nodes.len()];
+        let mut new_node_index = vec![NodeIndex(0); self.nodes.len()];
+        mark[new_root_old_node_index.0 as usize] = true;
+        let mut marked_count = 1;
+        for i in (new_root_old_node_index.0 as usize + 1)..self.nodes.len() {
+            let node = &self.nodes[i];
+            if mark[node.parent.0 as usize] {
+                mark[i] = true;
+                new_node_index[i] = NodeIndex(marked_count);
+                marked_count += 1;
+            }
+        }
+
+        // Now we can copy the nodes.
+        let mut new_nodes = Vec::with_capacity(self.max_size as usize);
+        for i in 0..self.nodes.len() {
+            if mark[i] {
+                let old_node = &self.nodes[i];
+                let new_node = Node {
+                    parent: new_node_index[old_node.parent.0 as usize],
+                    controlling_player: old_node.controlling_player,
+                    value: old_node.value,
+                    policy: old_node.policy.clone(),
+                    children: old_node
+                        .children
+                        .iter()
+                        .map(|index| new_node_index[index.0 as usize])
+                        .collect(),
+                    child_visits: old_node.child_visits.clone(),
+                    index_in_parent_vectors: old_node.index_in_parent_vectors,
+                    q_value_totals: old_node.q_value_totals.clone(),
+                };
+                new_nodes.push(new_node);
+            }
+        }
+
+        Ok(Mcts {
+            board: new_board.clone(),
+            nodes: new_nodes,
+            max_size: self.max_size,
+            free_backpropagations: 10 * (self.max_size as u32),
+            to_expand: None, // TODO: This should preserve the to_expand, if it is in the subtree.
+        })
     }
 }

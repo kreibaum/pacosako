@@ -39,10 +39,8 @@ impl<'a> SyncMctsExecutor<'a> {
                 MctsPoll::Evaluate(board) => {
                     let fen = fen::write_fen(board);
                     let start = std::time::Instant::now();
-                    let evaluation =
-                        crate::mcts_executor_sync::evaluate_model(board, self.session)?;
-                    self.mcts
-                        .insert_model_evaluation(evaluation.value, evaluation.policy)?;
+                    let evaluation = evaluate_model(board, self.session)?;
+                    self.mcts.insert_model_evaluation(evaluation)?;
                     let elapsed = start.elapsed();
 
                     println!("Ran evaluation in {:?} on board: {}", elapsed, fen);
@@ -56,7 +54,22 @@ impl<'a> SyncMctsExecutor<'a> {
                 }
             }
         }
-        println!("Finish run method for SyncMctsExecutor\n\n\n");
+        println!("Finish run method for SyncMctsExecutor");
+        println!("Visit counts: {:?}", self.mcts.get_root()?.visit_counts()?);
+
+        // Print the main line, following the highest visit count.
+        let mut mcts = self.mcts.clone();
+        while let Ok(root) = mcts.get_root() {
+            println!("We are at {:#?}", root);
+            let action = root.visit_counts()?[0].0;
+            println!("Here we follow action {:?}.", action);
+            println!();
+
+            mcts = mcts.subtree(action)?;
+        }
+
+        println!("\n\n\n");
+
         Ok(())
     }
 }
