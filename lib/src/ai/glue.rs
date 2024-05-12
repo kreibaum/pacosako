@@ -50,6 +50,20 @@ pub const fn action_index_to_action(action_index: u8) -> Option<PacoAction> {
     })
 }
 
+pub fn action_index_to_action_with_viewpoint(
+    action_index: u8,
+    viewpoint: PlayerColor,
+) -> Option<PacoAction> {
+    use crate::PacoAction::*;
+
+    let action = action_index_to_action(action_index)?;
+    Some(match action {
+        Lift(p) => Lift(repr::viewpoint_tile(viewpoint, p)),
+        Place(p) => Place(repr::viewpoint_tile(viewpoint, p)),
+        Promote(_) => action,
+    })
+}
+
 #[async_trait(?Send)]
 pub trait AiContext {
     /// A model is something that can be applied to a board to get a value and
