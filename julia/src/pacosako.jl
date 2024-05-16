@@ -58,7 +58,8 @@ function PacoSako() :: PacoSako
   PacoSako(ptr)
 end
 
-function PacoSako(fen :: String) :: PacoSako
+function PacoSako(fen :: AbstractString) :: PacoSako
+  fen = String(fen)
   bytes = Vector{UInt8}(fen)
   ptr = @pscall(
     :parse_fen,

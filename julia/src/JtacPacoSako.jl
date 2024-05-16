@@ -24,7 +24,7 @@ export Jtac,
 
 export PacoSako
 
-export Luna, Ludwig, Hedwig
+export Paco1Solver, Luna, Ludwig, Hedwig
 
 """
 Reference to the currently loaded instance of libpacosako.
@@ -47,7 +47,11 @@ end
 # Jtac.Game.AbstractGame implementation of PacoSako
 include("pacosako.jl")
 
-# Luna ai model
+# Additional training targets
+include("targets.jl")
+
+# Classical AI models and assistants
+include("solver.jl")
 include("luna.jl")
 
 # Pretrained models that are downloaded on demand via the artifact system
