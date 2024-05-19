@@ -6,5 +6,6 @@
 //! It mirrors Jtac which we are using to train our models.
 //! https://github.com/roSievers/Jtac.jl/
 
+pub mod flexible_representation;
 pub mod glue;
 pub mod repr;

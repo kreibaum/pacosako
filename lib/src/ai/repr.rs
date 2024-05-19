@@ -192,7 +192,7 @@ impl<'a> Output<'a> {
     }
 }
 
-fn index(
+pub fn index(
     viewpoint_color: PlayerColor,
     tile: BoardPosition,
     piece_type: PieceType,
