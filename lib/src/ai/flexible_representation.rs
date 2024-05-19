@@ -32,12 +32,21 @@ pub enum RepresentationError {
     TooManyIndices(usize),
     #[error("No index at all. There must be at least one!")]
     NoIndices,
+    #[error("The representation options are invalid.")]
+    InvalidRepresentationOptions,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct FlexibleRepresentationOptions(u32);
 
 impl FlexibleRepresentationOptions {
+    pub fn new(opts: u32) -> Result<Self, RepresentationError> {
+        if opts & !0b111 != 0 {
+            return Err(RepresentationError::InvalidRepresentationOptions);
+        }
+        Ok(Self(opts))
+    }
+
     pub fn set_use_perspective(&mut self, value: bool) {
         if value {
             self.0 |= USE_PERSPECTIVE;
@@ -72,6 +81,13 @@ impl FlexibleRepresentationOptions {
 
     pub fn must_promote(&self) -> bool {
         self.0 & WITH_MUST_PROMOTE != 0
+    }
+
+    pub fn index_representation(
+        &self,
+        board: &DenseBoard,
+    ) -> Result<IndexRepresentation, RepresentationError> {
+        index_representation(board, *self)
     }
 }
 
@@ -234,7 +250,7 @@ impl IndexRepresentation {
     }
 
     /// Writes the representation to a pre-allocated buffer.
-    fn write_to(&self, new_repr: &mut [u32]) {
+    pub fn write_to(&self, new_repr: &mut [u32]) {
         let new_repr_len = new_repr.len();
         assert_eq!(new_repr_len, self.options.index_representation_length());
         // Copy self.sparse_tensor_indices to the beginning of the buffer.
@@ -246,6 +262,12 @@ impl IndexRepresentation {
         // Copy self.percentage_layers to the end of the buffer.
         new_repr[new_repr_len - self.percentage_layers.len()..]
             .copy_from_slice(&self.percentage_layers);
+    }
+
+    pub fn write_vec(&self) -> Vec<u32> {
+        let mut new_repr = vec![0u32; self.options.index_representation_length()];
+        self.write_to(&mut new_repr);
+        new_repr
     }
 }
 
@@ -318,6 +340,37 @@ pub fn index_representation(
 #[cfg(test)]
 mod test {
     use super::*;
+
+    /// Verifies, that the initial board is represented correctly. This tests
+    /// various options.
+    #[test]
+    fn initial_board() -> Result<(), Box<dyn std::error::Error>> {
+        let board = DenseBoard::new();
+
+        assert_eq!(
+            index_representation(&board, FlexibleRepresentationOptions::default())?.write_vec(),
+            vec![
+                64, 129, 194, 259, 324, 197, 134, 71, 8, 9, 10, 11, 12, 13, 14, 15, 432, 433, 434,
+                435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 64, 1, 1, 1, 1, 0
+            ]
+        );
+
+        let mut opts = FlexibleRepresentationOptions::default();
+        opts.set_use_perspective(false);
+        opts.set_with_must_lift(true);
+        opts.set_with_must_promote(true);
+
+        assert_eq!(
+            index_representation(&board, opts)?.write_vec(),
+            vec![
+                64, 129, 194, 259, 324, 197, 134, 71, 8, 9, 10, 11, 12, 13, 14, 15, 432, 433, 434,
+                435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 64, 1, 1, 1, 1, 0,
+                1, 0, 0
+            ]
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn regression_test() -> Result<(), Box<dyn std::error::Error>> {

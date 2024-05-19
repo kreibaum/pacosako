@@ -6,6 +6,7 @@ use std::str;
 
 use crate::{
     ai::{
+        flexible_representation::FlexibleRepresentationOptions,
         glue::{action_index_to_action, action_to_action_index},
         repr::index_representation,
     },
@@ -352,6 +353,56 @@ pub extern "C" fn repr_layer_count() -> i64 {
 }
 
 /// Returns the index representation of the board state.
+/// The index & tensor representation is documented at: /doc/ml_representation.md
+///
+/// # Arguments
+///
+/// * `ps` - A pointer to a DenseBoard instance.
+/// * `out` - A pointer to a memory block of at least reserved_space u32.
+/// * `reserved_space` - The number of u32 that are reserved in the out memory block.
+/// * `opts` - A u32 integer, used as 32 bitflags.
+///
+/// # Error States
+///
+/// * If `reserved_space` is smaller than required for `opts`, the function
+///   will return -1.
+/// * If `opts` is invalid, the function will return -2.
+/// * If representation Building fails, the function will return -3.
+///
+/// # Safety
+///
+/// To make this function safe to call, you need to ensure that ps points to
+/// a valid DenseBoard. Additionally, the `out` pointer must point to a memory
+/// block of at least reserved_space u32.
+pub unsafe extern "C" fn get_idxrepr_opts(
+    ps: *mut DenseBoard,
+    out: *mut u32,
+    reserved_space: i64,
+    opts: u32,
+) -> i64 {
+    let Ok(options) = FlexibleRepresentationOptions::new(opts) else {
+        return -2;
+    };
+
+    // Ensure that at least 38 u32 are reserved.
+    if reserved_space < options.index_representation_length() as i64 {
+        return -1;
+    }
+
+    let ps: &mut DenseBoard = &mut *ps;
+    // Turn out into a slice for the safe code to use
+    let out: &mut [u32] = std::slice::from_raw_parts_mut(out, reserved_space as usize);
+
+    let Ok(repr) = options.index_representation(ps) else {
+        return -3;
+    };
+
+    repr.write_to(out);
+
+    0 // Everything went fine
+}
+
+/// Returns the index representation of the board state.
 /// This is a lot more compressed than the Tensor representation which is very
 /// sparse.
 ///
@@ -361,6 +412,7 @@ pub extern "C" fn repr_layer_count() -> i64 {
 /// points to a memory block of at least 38 u32. Additionally, you need to ensure
 /// that ps points to a valid DenseBoard.
 #[no_mangle]
+#[deprecated] // use get_idxrepr_opts
 pub unsafe extern "C" fn get_idxrepr(
     ps: *mut DenseBoard,
     out: *mut u32,
