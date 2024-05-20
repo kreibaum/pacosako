@@ -9,7 +9,9 @@ using Artifacts, LazyArtifacts
 import Libdl
 
 using Jtac
+import Jtac.Model: AbstractModel
 import Jtac.Training: DataSet
+import Jtac.Target: AbstractTarget, LabelContext
 
 # re-export Jtac Modules
 export Jtac,
