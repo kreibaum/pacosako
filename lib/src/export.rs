@@ -352,6 +352,28 @@ pub extern "C" fn repr_layer_count() -> i64 {
     24 + 6
 }
 
+/// Given representation options, this method tells you how much memory must be
+/// reserved to store the representation.
+///
+/// # Arguments
+///
+/// * `opts` - A u32 integer, used as 32 bitflags.
+///
+/// # Error States
+///
+/// * If the options are invalid, the function will return -1.
+///
+/// # Returns
+///
+/// The number of u32 that must be reserved to store the index representation.
+#[no_mangle]
+pub extern "C" fn get_idx_repr_length(opts: u32) -> i64 {
+    let Ok(options) = FlexibleRepresentationOptions::new(opts) else {
+        return -1;
+    };
+    options.index_representation_length() as i64
+}
+
 /// Returns the index representation of the board state.
 /// The index & tensor representation is documented at: /doc/ml_representation.md
 ///
@@ -374,6 +396,7 @@ pub extern "C" fn repr_layer_count() -> i64 {
 /// To make this function safe to call, you need to ensure that ps points to
 /// a valid DenseBoard. Additionally, the `out` pointer must point to a memory
 /// block of at least reserved_space u32.
+#[no_mangle]
 pub unsafe extern "C" fn get_idxrepr_opts(
     ps: *mut DenseBoard,
     out: *mut u32,
