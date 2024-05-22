@@ -5,17 +5,18 @@
 //! To make it easy to construct them in Julia and Consume them in Rust, we
 //! store it as flags on an u32 integer.
 
-use super::repr;
 use crate::{
-    substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
-    RequiredAction,
+    BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor, RequiredAction,
+    substrate::Substrate,
 };
+
+use super::repr;
 
 /// Perspective = 1 means, that the AI will see the board from the perspective
 /// of the player to move. Perspecitve = 0 means, that the AI will see the board
 /// from the perspective of white.
 /// This CHANGES how layers are represented.
-const USE_PERSPECTIVE: u32 = 1 << 0;
+const USE_RELATIVE_PERSPECTIVE: u32 = 1 << 0;
 
 /// Is Settled = 1 enables an ADDITIONAL layer. This layer is the same everywhere
 /// 1 => You need to lift a piece now; 0 => You place or promote.
@@ -47,11 +48,11 @@ impl FlexibleRepresentationOptions {
         Ok(Self(opts))
     }
 
-    pub fn set_use_perspective(&mut self, value: bool) {
+    pub fn set_use_relative_perspective(&mut self, value: bool) {
         if value {
-            self.0 |= USE_PERSPECTIVE;
+            self.0 |= USE_RELATIVE_PERSPECTIVE;
         } else {
-            self.0 &= !USE_PERSPECTIVE;
+            self.0 &= !USE_RELATIVE_PERSPECTIVE;
         }
     }
 
@@ -71,8 +72,8 @@ impl FlexibleRepresentationOptions {
         }
     }
 
-    pub fn use_perspective(&self) -> bool {
-        self.0 & USE_PERSPECTIVE != 0
+    pub fn use_relative_perspective(&self) -> bool {
+        self.0 & USE_RELATIVE_PERSPECTIVE != 0
     }
 
     pub fn must_lift(&self) -> bool {
@@ -93,7 +94,7 @@ impl FlexibleRepresentationOptions {
 
 impl Default for FlexibleRepresentationOptions {
     fn default() -> Self {
-        Self(USE_PERSPECTIVE)
+        Self(USE_RELATIVE_PERSPECTIVE)
     }
 }
 
@@ -102,7 +103,7 @@ impl FlexibleRepresentationOptions {
         let mut count = INDEX_REPRESENTATION_LAYER_COUNT;
         count += 1; // En passant square
         count += 4; // Castling rights
-        if !self.use_perspective() {
+        if !self.use_relative_perspective() {
             count += 1; // Active player
         }
         if self.must_lift() {
@@ -119,7 +120,7 @@ impl FlexibleRepresentationOptions {
         let mut length = PIECE_COUNT;
         length += 1; // En passant square
         length += 4; // Castling rights
-        if !self.use_perspective() {
+        if !self.use_relative_perspective() {
             length += 1; // Active player
         }
         if self.must_lift() {
@@ -182,7 +183,7 @@ impl IndexRepresentation {
     /// Any localized entry into the tensor representation must know whether we
     /// are using the "perspective of current layer" or "white perspective".
     fn used_perspective(&self) -> PlayerColor {
-        if self.options.use_perspective() {
+        if self.options.use_relative_perspective() {
             self.perspective
         } else {
             PlayerColor::White
@@ -241,10 +242,10 @@ impl IndexRepresentation {
         }
     }
 
-    /// When use_perspective is off, then we need to communicate the AI which
+    /// When use_relative_perspective is off, then we need to communicate the AI which
     /// side it actually controlls. This is done by conditionally adding a single layer.
     fn push_perspective(&mut self) {
-        if !self.options.use_perspective() {
+        if !self.options.use_relative_perspective() {
             self.boolean_layers.push(self.used_perspective() as u32);
         }
     }
@@ -351,12 +352,12 @@ mod test {
             index_representation(&board, FlexibleRepresentationOptions::default())?.write_vec(),
             vec![
                 64, 129, 194, 259, 324, 197, 134, 71, 8, 9, 10, 11, 12, 13, 14, 15, 432, 433, 434,
-                435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 64, 1, 1, 1, 1, 0
+                435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 64, 1, 1, 1, 1, 0,
             ]
         );
 
         let mut opts = FlexibleRepresentationOptions::default();
-        opts.set_use_perspective(false);
+        opts.set_use_relative_perspective(false);
         opts.set_with_must_lift(true);
         opts.set_with_must_promote(true);
 
@@ -365,7 +366,7 @@ mod test {
             vec![
                 64, 129, 194, 259, 324, 197, 134, 71, 8, 9, 10, 11, 12, 13, 14, 15, 432, 433, 434,
                 435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 64, 1, 1, 1, 1, 0,
-                1, 0, 0
+                1, 0, 0,
             ]
         );
 
@@ -407,49 +408,49 @@ mod test {
     #[test]
     fn test_flexible_representation_options() {
         let mut options = FlexibleRepresentationOptions::default();
-        assert_eq!(options.use_perspective(), true);
+        assert_eq!(options.use_relative_perspective(), true);
         assert_eq!(options.must_lift(), false);
         assert_eq!(options.must_promote(), false);
         assert_eq!(options.layer_count(), 30);
         assert_eq!(options.index_representation_length(), 38);
 
-        options.set_use_perspective(false);
-        assert_eq!(options.use_perspective(), false);
+        options.set_use_relative_perspective(false);
+        assert_eq!(options.use_relative_perspective(), false);
         assert_eq!(options.must_lift(), false);
         assert_eq!(options.must_promote(), false);
         assert_eq!(options.layer_count(), 31);
         assert_eq!(options.index_representation_length(), 39);
 
         options.set_with_must_lift(true);
-        assert_eq!(options.use_perspective(), false);
+        assert_eq!(options.use_relative_perspective(), false);
         assert_eq!(options.must_lift(), true);
         assert_eq!(options.must_promote(), false);
         assert_eq!(options.layer_count(), 32);
         assert_eq!(options.index_representation_length(), 40);
 
         options.set_with_must_promote(true);
-        assert_eq!(options.use_perspective(), false);
+        assert_eq!(options.use_relative_perspective(), false);
         assert_eq!(options.must_lift(), true);
         assert_eq!(options.must_promote(), true);
         assert_eq!(options.layer_count(), 33);
         assert_eq!(options.index_representation_length(), 41);
 
-        options.set_use_perspective(true);
-        assert_eq!(options.use_perspective(), true);
+        options.set_use_relative_perspective(true);
+        assert_eq!(options.use_relative_perspective(), true);
         assert_eq!(options.must_lift(), true);
         assert_eq!(options.must_promote(), true);
         assert_eq!(options.layer_count(), 32);
         assert_eq!(options.index_representation_length(), 40);
 
         options.set_with_must_lift(false);
-        assert_eq!(options.use_perspective(), true);
+        assert_eq!(options.use_relative_perspective(), true);
         assert_eq!(options.must_lift(), false);
         assert_eq!(options.must_promote(), true);
         assert_eq!(options.layer_count(), 31);
         assert_eq!(options.index_representation_length(), 39);
 
         options.set_with_must_promote(false);
-        assert_eq!(options.use_perspective(), true);
+        assert_eq!(options.use_relative_perspective(), true);
         assert_eq!(options.must_lift(), false);
         assert_eq!(options.must_promote(), false);
         assert_eq!(options.layer_count(), 30);

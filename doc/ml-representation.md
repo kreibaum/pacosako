@@ -1,7 +1,7 @@
 # Machine Learning Representation for Paco Ŝako
 
 This document describes the machine learning (ML) representation
-we are using for Paco Ŝako. 
+we are using for Paco Ŝako.
 
 An example of the index representation is shown at the bottom.
 
@@ -9,7 +9,7 @@ An example of the index representation is shown at the bottom.
 
 The following options are available:
 
-- `USE_PERSPECTIVE` - Is the current player at the bottom, or white?
+- `USE_RELATIVE_PERSPECTIVE` - Is the current player at the bottom, or white?
 - `WITH_MUST_LIFT` - Adds a layer that hints about the expected action type.
 - `WITH_MUST_PROMOTE` - Adds a layer that hints about the expected action type.
 
@@ -47,14 +47,16 @@ Lifted: 12-23
 The Bottom/Top wording is intentionally ambiguous. There are two modes of the
 representation:
 
-The `USE_PERSPECTIVE = 1` representation:
+The `USE_RELATIVE_PERSPECTIVE = 1` representation:
+
 - The currently acting player is always the bottom player. Those are "my" pieces.
 - The opponent is always the top player. Those are "their" pieces.
 - You can think of this as representing the board from the perspective of the
   current player.
 - The board is **flipped** along the Y axis, not rotated. Your king is still on E.
 
-The `USE_PERSPECTIVE = 0` representation:
+The `USE_RELATIVE_PERSPECTIVE = 0` representation:
+
 - The white pieces are used for the bottom player. The black ones for the top player.
 - There is an additional layer (shown later) to indicate who is playing.
 
@@ -63,7 +65,7 @@ The `USE_PERSPECTIVE = 0` representation:
 This layer is always used. It always has index 24. This layer is usually all zeros,
 but in en passant situations the en passant square is set to 1.
 
-This layer is affected by `USE_PERSPECTIVE` as well.
+This layer is affected by `USE_RELATIVE_PERSPECTIVE` as well.
 
 ### Castling Layers
 
@@ -74,12 +76,12 @@ The next four layers are dedicated to remaining castling permissions:
 - Top Queen allowed
 - Top King allowed
 
-As for the piece position layers, `USE_PERSPECTIVE = 0` means bottom is white,
-while `USE_PERSPECTIVE = 1` means bottom is the current player.
+As for the piece position layers, `USE_RELATIVE_PERSPECTIVE = 0` means bottom is white,
+while `USE_RELATIVE_PERSPECTIVE = 1` means bottom is the current player.
 
 ### Active Player Layer
 
-This layer is only enable for `USE_PERSPECTIVE = 0`. It is fully set to 0, when
+This layer is only enable for `USE_RELATIVE_PERSPECTIVE = 0`. It is fully set to 0, when
 white is currently playing and fully set to 1, when black is currently playing.
 
 ### Must Lift Layer and Must Promote Layer
@@ -89,13 +91,13 @@ when their respective flag `WITH_MUST_LIFT` or `WITH_MUST_PROMOTE` is enabled.
 
 Depending on the `RequiredAction` from the current player, the values are
 
-|Required Action   | Must Lift | Must Promote|
-|------------------|-----------|-------------|
-|Promote then Lift |         1 |            1|
-|Lift              |         1 |            0|
-|Place             |         0 |            0|
-|Promote then Place|         0 |            1|
-|Just Promote      |         0 |            1|
+| Required Action    | Must Lift | Must Promote |
+|--------------------|-----------|--------------|
+| Promote then Lift  | 1         | 1            |
+| Lift               | 1         | 0            |
+| Place              | 0         | 0            |
+| Promote then Place | 0         | 1            |
+| Just Promote       | 0         | 1            |
 
 ### No Progress Counter Layer
 
@@ -138,7 +140,7 @@ reserves 4 u32 which store either 0 or 1. This is spread on the whole layer.
 
 ### Active Player Value
 
-If `USE_PERSPECTIVE = 0`, then the index representation holds a 0 or 1 value for
+If `USE_RELATIVE_PERSPECTIVE = 0`, then the index representation holds a 0 or 1 value for
 the active player layer.
 
 ### Must Lift Value and Must Promote Value
@@ -153,7 +155,7 @@ clock layer by dividing by 100.0 into a f32.
 
 ### Conversion Pseudocode
 
-Here is the conversion pseudocode for the traditional `USE_PERSPECTIVE` representation.
+Here is the conversion pseudocode for the traditional `USE_RELATIVE_PERSPECTIVE` representation.
 Extend this as required when using arguments that add more constant layers.
 
 ```
@@ -168,7 +170,7 @@ tensor[:,:,29] = indices[37] as f32 / 100.0 // Half Move Clock
 
 ## Example
 
-Here is the `USE_PERSPECTIVE` representation of the inital game state:
+Here is the `USE_RELATIVE_PERSPECTIVE` representation of the inital game state:
 
 ```
 // Indices into the 8x8x25 initial tensor layers.

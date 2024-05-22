@@ -151,7 +151,7 @@ function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
   ps
 end
 
-const USE_PERSPECTIVE = UInt32(1)
+const USE_RELATIVE_PERSPECTIVE = UInt32(1)
 const WITH_MUST_LIFT = UInt32(2)
 const WITH_MUST_PROMOTE = UInt32(4)
 
@@ -214,7 +214,7 @@ function Game.array!(buf, games :: Vector{PacoSako})
       ps.ptr,
       tmp,
       length(tmp),
-      get_idxrepr_opts
+      USE_RELATIVE_PERSPECTIVE
     )
 
     # Extract scatter indices and layer values for this game

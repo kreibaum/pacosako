@@ -26,16 +26,18 @@
 //!     This example is a white knight above a1.
 //!     Another example would be "^c5Rb" for a white rook and a black bishop above c5.
 //!
-//! For compatibility we also include the <union move> as our fen could not be read
+//! For compatibility, we also include the <union move> as our fen could not be read
 //! by the vchess page otherwise - even though we don't implement the ko rule.
 
-use crate::{
-    parser::Square, substrate::Substrate, BoardPosition, Castling, DenseBoard, Hand, PacoError,
-    PlayerColor, RequiredAction,
-};
+use std::collections::HashMap;
+
 use lazy_regex::regex_captures;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
+
+use crate::{
+    BoardPosition, Castling, DenseBoard, Hand, PacoError, parser::Square, PlayerColor,
+    RequiredAction, substrate::Substrate,
+};
 
 /// This needs its own method or rustfmt gets unhappy.
 fn fen_regex(input: &str) -> Option<(&str, &str, &str, &str, &str, &str, &str)> {
@@ -209,7 +211,7 @@ pub fn write_fen(input: &DenseBoard) -> String {
         "{}",
         write_hand(&input.lifted_piece, input.controlling_player)
     )
-    .unwrap();
+        .unwrap();
 
     write!(
         result,
@@ -226,7 +228,7 @@ pub fn write_fen(input: &DenseBoard) -> String {
             .map(|sq| sq.to_string())
             .unwrap_or_else(|| "-".to_owned()),
     )
-    .unwrap();
+        .unwrap();
 
     result
 }
@@ -236,42 +238,43 @@ pub fn write_fen(input: &DenseBoard) -> String {
 fn lowercase_char_to_square() -> HashMap<char, Square> {
     use crate::PieceType::*;
     let mut result = HashMap::new();
-    result.insert('p', Square { white: None,         black: Some(Pawn)});
-    result.insert('r', Square { white: None,         black: Some(Rook)});
-    result.insert('n', Square { white: None,         black: Some(Knight)});
-    result.insert('b', Square { white: None,         black: Some(Bishop)});
-    result.insert('q', Square { white: None,         black: Some(Queen)});
-    result.insert('k', Square { white: None,         black: Some(King)});
-    result.insert('a', Square { black: Some(Pawn),   white: Some(Pawn)});
-    result.insert('c', Square { black: Some(Pawn),   white: Some(Rook)});
-    result.insert('d', Square { black: Some(Pawn),   white: Some(Knight)});
-    result.insert('e', Square { black: Some(Pawn),   white: Some(Bishop)});
-    result.insert('f', Square { black: Some(Pawn),   white: Some(Queen)});
-    result.insert('g', Square { black: Some(Pawn),   white: Some(King)});
-    result.insert('h', Square { black: Some(Rook),   white: Some(Rook)});
-    result.insert('i', Square { black: Some(Rook),   white: Some(Knight)});
-    result.insert('j', Square { black: Some(Rook),   white: Some(Bishop)});
-    result.insert('l', Square { black: Some(Rook),   white: Some(Queen)});
-    result.insert('m', Square { black: Some(Rook),   white: Some(King)});
-    result.insert('o', Square { black: Some(Knight), white: Some(Knight)});
-    result.insert('s', Square { black: Some(Knight), white: Some(Bishop)});
-    result.insert('t', Square { black: Some(Knight), white: Some(Queen)});
-    result.insert('u', Square { black: Some(Knight), white: Some(King)});
-    result.insert('v', Square { black: Some(Bishop), white: Some(Bishop)});
-    result.insert('w', Square { black: Some(Bishop), white: Some(Queen)});
-    result.insert('x', Square { black: Some(Bishop), white: Some(King)});
-    result.insert('y', Square { black: Some(Queen),  white: Some(Queen)});
-    result.insert('z', Square { black: Some(Queen),  white: Some(King)});
-    result.insert('_', Square { black: Some(King),   white: Some(King)});
+    result.insert('p', Square { white: None, black: Some(Pawn) });
+    result.insert('r', Square { white: None, black: Some(Rook) });
+    result.insert('n', Square { white: None, black: Some(Knight) });
+    result.insert('b', Square { white: None, black: Some(Bishop) });
+    result.insert('q', Square { white: None, black: Some(Queen) });
+    result.insert('k', Square { white: None, black: Some(King) });
+    result.insert('a', Square { black: Some(Pawn), white: Some(Pawn) });
+    result.insert('c', Square { black: Some(Pawn), white: Some(Rook) });
+    result.insert('d', Square { black: Some(Pawn), white: Some(Knight) });
+    result.insert('e', Square { black: Some(Pawn), white: Some(Bishop) });
+    result.insert('f', Square { black: Some(Pawn), white: Some(Queen) });
+    result.insert('g', Square { black: Some(Pawn), white: Some(King) });
+    result.insert('h', Square { black: Some(Rook), white: Some(Rook) });
+    result.insert('i', Square { black: Some(Rook), white: Some(Knight) });
+    result.insert('j', Square { black: Some(Rook), white: Some(Bishop) });
+    result.insert('l', Square { black: Some(Rook), white: Some(Queen) });
+    result.insert('m', Square { black: Some(Rook), white: Some(King) });
+    result.insert('o', Square { black: Some(Knight), white: Some(Knight) });
+    result.insert('s', Square { black: Some(Knight), white: Some(Bishop) });
+    result.insert('t', Square { black: Some(Knight), white: Some(Queen) });
+    result.insert('u', Square { black: Some(Knight), white: Some(King) });
+    result.insert('v', Square { black: Some(Bishop), white: Some(Bishop) });
+    result.insert('w', Square { black: Some(Bishop), white: Some(Queen) });
+    result.insert('x', Square { black: Some(Bishop), white: Some(King) });
+    result.insert('y', Square { black: Some(Queen), white: Some(Queen) });
+    result.insert('z', Square { black: Some(Queen), white: Some(King) });
+    result.insert('_', Square { black: Some(King), white: Some(King) });
     result
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::DenseBoard;
     use crate::PacoAction;
     use crate::PacoBoard;
+
+    use super::*;
 
     /// Helper macro to execute moves in unit tests.
     macro_rules! execute_action {
@@ -346,7 +349,7 @@ mod tests {
     /// Generate some random boards and roundtrip them through the serialization
     #[test]
     fn roundtrip() {
-        use rand::{thread_rng, Rng};
+        use rand::{Rng, thread_rng};
 
         let mut rng = thread_rng();
         for _ in 0..1000 {
@@ -362,7 +365,7 @@ mod tests {
     /// of actions (1-5) on the board first.
     #[test]
     fn roundtrip_after_actions() {
-        use rand::{prelude::IteratorRandom, thread_rng, Rng};
+        use rand::{prelude::IteratorRandom, Rng, thread_rng};
 
         let mut rng = thread_rng();
         for _ in 0..100000 {
