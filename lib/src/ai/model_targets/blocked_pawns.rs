@@ -49,7 +49,7 @@ pub fn blocked_pawns(board: &DenseBoard, player_color: PlayerColor) -> BitBoard 
     // blocked pawn, this can produce a "backlog" of pawns that can't move.
     // To cheaply test this, we need to make sure to iterate the pawn "from front to back", this
     // way we can use `blocked` on pawns in lower rows.
-    let mut pawn_positions: Box<dyn Iterator<Item=BoardPosition>> = if player_color.is_white() {
+    let pawn_positions: Box<dyn Iterator<Item=BoardPosition>> = if player_color.is_white() {
         Box::new(pawns.iter().rev())
     } else {
         // .iter() goes from A1 to H8, so it is already in the right order for black.

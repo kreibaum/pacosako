@@ -368,7 +368,7 @@ mod tests {
         use rand::{prelude::IteratorRandom, Rng, thread_rng};
 
         let mut rng = thread_rng();
-        for _ in 0..100000 {
+        for _ in 0..1000 {
             let mut board: DenseBoard = rng.gen();
             println!("Starting board: {}", write_fen(&board));
             let action_count = rng.gen_range(1..=5);

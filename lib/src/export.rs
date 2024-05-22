@@ -531,13 +531,10 @@ pub unsafe extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
-    let threats = determine_all_threats(ps)
-        .unwrap()
-        .iter()
-        .filter(|t| t.0)
-        .count() as i64;
 
-    threats
+    determine_all_threats(ps)
+        .unwrap()
+        .len() as i64
 }
 
 /// Finds all the paco sequences that are possible in the given position.

@@ -4,7 +4,8 @@
 
 use std::ops::{BitAnd, BitOr, Not};
 
-use crate::{parser::Square, BoardPosition, PacoError, PieceType, PlayerColor};
+use crate::{BoardPosition, PacoError, parser::Square, PieceType, PlayerColor};
+
 pub mod constant_bitboards;
 pub mod dense;
 pub mod zobrist;
@@ -92,6 +93,20 @@ impl BitBoard {
     }
 }
 
+// Index into BitBoard with a BoardPosition, returning a bool.
+impl std::ops::Index<BoardPosition> for BitBoard {
+    type Output = bool;
+
+    fn index(&self, index: BoardPosition) -> &Self::Output {
+        if self.contains(index) {
+            // Looks stupid, but lifetimes seem to force me to do this.
+            &true
+        } else {
+            &false
+        }
+    }
+}
+
 pub struct BitBoardIter {
     bits: u64,
 }
@@ -142,10 +157,20 @@ impl IntoIterator for BitBoard {
 }
 
 impl FromIterator<BoardPosition> for BitBoard {
-    fn from_iter<T: IntoIterator<Item = BoardPosition>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item=BoardPosition>>(iter: T) -> Self {
         let mut result = BitBoard(0);
         for pos in iter {
             result.insert(pos);
+        }
+        result
+    }
+}
+
+impl<'a> FromIterator<&'a BoardPosition> for BitBoard {
+    fn from_iter<T: IntoIterator<Item=&'a BoardPosition>>(iter: T) -> Self {
+        let mut result = BitBoard(0);
+        for pos in iter {
+            result.insert(*pos);
         }
         result
     }
@@ -193,11 +218,12 @@ impl Not for BitBoard {
 #[cfg(test)]
 mod tests {
     use crate::const_tile::*;
+
     use super::*;
 
     #[test]
     fn test_forward_iteration() {
-        let mut bitboard = BitBoard(0b1010);
+        let bitboard = BitBoard(0b1010);
         let mut iter = bitboard.iter();
         assert_eq!(iter.next(), Some(B1));
         assert_eq!(iter.next(), Some(D1));
@@ -206,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_backward_iteration() {
-        let mut bitboard = BitBoard(0b1010);
+        let bitboard = BitBoard(0b1010);
         let mut iter = bitboard.iter().rev();
         assert_eq!(iter.next(), Some(D1));
         assert_eq!(iter.next(), Some(B1));
