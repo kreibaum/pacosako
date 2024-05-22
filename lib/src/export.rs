@@ -1,8 +1,9 @@
 //! This module defines all the methods that are exposed in the C library.
 //! It is the part that can be used by Julia.
 
-use fxhash::FxHasher;
 use std::str;
+
+use fxhash::FxHasher;
 
 use crate::{
     ai::{
@@ -11,11 +12,11 @@ use crate::{
         repr::index_representation,
     },
     analysis::{self, reverse_amazon_search},
-    determine_all_threats, fen,
-    setup_options::SetupOptions,
-    BoardPosition, DenseBoard, PacoAction, PacoBoard,
-    PieceType::*,
-    PlayerColor, VictoryState,
+    BoardPosition, DenseBoard,
+    determine_all_threats,
+    fen, PacoAction, PacoBoard, PieceType::*,
+    PlayerColor,
+    setup_options::SetupOptions, VictoryState,
 };
 
 #[no_mangle]
@@ -697,8 +698,7 @@ pub unsafe extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) ->
 /// Test module
 #[cfg(test)]
 mod tests {
-
-    use crate::{substrate::dense::DenseSubstrate, DenseBoard};
+    use crate::{DenseBoard, substrate::dense::DenseSubstrate};
 
     /// Checks if a DenseBoard can be serialized and deserialized without
     /// breaking. Thomas reported this as broken on 2023-12-02.

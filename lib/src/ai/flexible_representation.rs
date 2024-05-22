@@ -246,7 +246,7 @@ impl IndexRepresentation {
     /// side it actually controlls. This is done by conditionally adding a single layer.
     fn push_perspective(&mut self) {
         if !self.options.use_relative_perspective() {
-            self.boolean_layers.push(self.used_perspective() as u32);
+            self.boolean_layers.push(self.perspective as u32);
         }
     }
 
@@ -340,6 +340,9 @@ pub fn index_representation(
 
 #[cfg(test)]
 mod test {
+    use crate::const_tile::*;
+    use crate::PacoAction;
+
     use super::*;
 
     /// Verifies, that the initial board is represented correctly. This tests
@@ -367,6 +370,32 @@ mod test {
                 64, 129, 194, 259, 324, 197, 134, 71, 8, 9, 10, 11, 12, 13, 14, 15, 432, 433, 434,
                 435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 64, 1, 1, 1, 1, 0,
                 1, 0, 0,
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn after_one_move() -> Result<(), Box<dyn std::error::Error>> {
+        let mut board = DenseBoard::new();
+        board.execute(PacoAction::Lift(C2))?;
+        board.execute(PacoAction::Place(C4))?;
+
+        let mut opts = FlexibleRepresentationOptions::default();
+        opts.set_use_relative_perspective(false);
+        opts.set_with_must_lift(true);
+        opts.set_with_must_promote(true);
+
+        let representation = index_representation(&board, opts)?;
+        let player = representation.boolean_layers[4];
+        assert_eq!(player, 1);
+        assert_eq!(
+            representation.write_vec(),
+            vec![
+                64, 129, 194, 259, 324, 197, 134, 71, 8, 9, 11, 12, 13, 14, 15, 26, 432, 433, 434,
+                435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 1554, 1, 1, 1, 1, 1,
+                1, 0, 1,
             ]
         );
 
