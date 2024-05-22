@@ -2,14 +2,17 @@
 //! We reserve memory for all positions and keep them in an array.
 //! This already improves the previous dense version using Vec.
 
-use super::zobrist::Zobrist;
-use super::{BitBoard, Substrate};
-use crate::{BoardPosition, PlayerColor};
-use crate::{PacoError, PieceType};
-use rand::Rng;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::hash::Hash;
 use std::ops::{Index, IndexMut};
+
+use rand::Rng;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+use crate::{BoardPosition, PlayerColor};
+use crate::{PacoError, PieceType};
+
+use super::{BitBoard, Substrate};
+use super::zobrist::Zobrist;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DenseSubstrate {
@@ -25,6 +28,7 @@ pub struct DenseSubstrate {
     black: [Option<PieceType>; 64],
     hash: Zobrist,
 }
+
 
 impl Hash for DenseSubstrate {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -77,15 +81,6 @@ impl Substrate for DenseSubstrate {
             PlayerColor::Black => self.black[pos],
         }
     }
-    fn remove_piece(&mut self, player: PlayerColor, pos: BoardPosition) -> Option<PieceType> {
-        let result = self.get_piece(player, pos);
-        match player {
-            PlayerColor::White => self.white[pos] = None,
-            PlayerColor::Black => self.black[pos] = None,
-        }
-        self.hash ^= Zobrist::piece_on_square_opt(player, pos, result);
-        result
-    }
     fn set_piece(&mut self, player: PlayerColor, pos: BoardPosition, piece: PieceType) {
         match player {
             PlayerColor::White => {
@@ -99,6 +94,15 @@ impl Substrate for DenseSubstrate {
                 self.black[pos] = Some(piece)
             }
         }
+    }
+    fn remove_piece(&mut self, player: PlayerColor, pos: BoardPosition) -> Option<PieceType> {
+        let result = self.get_piece(player, pos);
+        match player {
+            PlayerColor::White => self.white[pos] = None,
+            PlayerColor::Black => self.black[pos] = None,
+        }
+        self.hash ^= Zobrist::piece_on_square_opt(player, pos, result);
+        result
     }
     fn swap(&mut self, pos1: BoardPosition, pos2: BoardPosition) {
         let w1 = self.white[pos1];
@@ -121,17 +125,32 @@ impl Substrate for DenseSubstrate {
         self.black[pos1] = b2;
         self.black[pos2] = b1;
     }
-    fn bitboard_color(&self, player: PlayerColor) -> super::BitBoard {
+    fn bitboard_color(&self, player: PlayerColor) -> BitBoard {
         match player {
             PlayerColor::White => self.white.into(),
             PlayerColor::Black => self.black.into(),
         }
     }
-    fn find_king(&self, player: PlayerColor) -> Result<BoardPosition, crate::PacoError> {
+    fn find_king(&self, player: PlayerColor) -> Result<BoardPosition, PacoError> {
         match player {
             PlayerColor::White => find_king(self.white, player),
             PlayerColor::Black => find_king(self.black, player),
         }
+    }
+
+    fn find_pieces(&self, player_color: PlayerColor, piece_type: PieceType) -> BitBoard {
+        let mut result = 0;
+        let array = match player_color {
+            PlayerColor::White => self.white,
+            PlayerColor::Black => self.black,
+        };
+        for i in 0..64 {
+            if array[i] == Some(piece_type)
+            {
+                result |= 1 << i;
+            }
+        }
+        BitBoard(result)
     }
 }
 
@@ -139,7 +158,7 @@ impl Substrate for DenseSubstrate {
 fn find_king(
     array: [Option<PieceType>; 64],
     player: PlayerColor,
-) -> Result<BoardPosition, crate::PacoError> {
+) -> Result<BoardPosition, PacoError> {
     for i in 0..64 {
         if array[i] == Some(PieceType::King) {
             return Ok(BoardPosition(i as u8));
@@ -161,7 +180,7 @@ impl DenseSubstrate {
     }
 
     /// This method recomputes the zobrist hash from scratch.
-    /// This is really only exposed for testing and you should just get_zobrist_hash
+    /// This is really only exposed for testing, and you should just get_zobrist_hash
     /// when you need it.
     pub fn recompute_zobrist_hash(&self) -> Zobrist {
         let mut hash = Zobrist::default();
@@ -188,8 +207,8 @@ fn serialize_option_array<S>(
     array: &[Option<PieceType>; 64],
     serializer: S,
 ) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
+    where
+        S: Serializer,
 {
     use serde::ser::SerializeSeq;
 
@@ -207,8 +226,8 @@ where
 /// and deserialization logic.
 #[allow(clippy::needless_range_loop)] // Reads nicer this way
 fn deserialize_option_array<'de, D>(deserializer: D) -> Result<[Option<PieceType>; 64], D::Error>
-where
-    D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
 {
     use serde::de::{SeqAccess, Visitor};
     use std::fmt;
@@ -223,8 +242,8 @@ where
         }
 
         fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-        where
-            A: SeqAccess<'de>,
+            where
+                A: SeqAccess<'de>,
         {
             let mut array = [None; 64];
             for i in 0..64 {
@@ -243,9 +262,45 @@ where
     deserializer.deserialize_seq(OptionArrayVisitor)
 }
 
-// Test the size of a DenseSubstrate
-#[test]
-fn test_size() {
-    use std::mem::size_of;
-    assert_eq!(size_of::<DenseSubstrate>(), 64 * 2 + 8);
+
+#[cfg(test)]
+mod tests {
+    use crate::const_tile::*;
+    use crate::fen;
+
+    use super::*;
+
+    // Test the size of a DenseSubstrate
+    #[test]
+    fn test_size() {
+        use std::mem::size_of;
+        assert_eq!(size_of::<DenseSubstrate>(), 64 * 2 + 8);
+    }
+
+    #[test]
+    fn test_find_pieces() {
+        // Load a board from a FEN notation:
+        let board = fen::parse_fen("2nr3r/2pU1ppp/1pt1p3/p2p1b2/Pb1P3P/1R2R3/1PPWPPP1/1N2KB2 w 0 AHah - -").expect("Failed to parse FEN");
+
+        let bb = board.substrate.find_pieces(PlayerColor::White, PieceType::Pawn);
+        assert_eq!(bb.len(), 8);
+        assert!(bb.contains(A4));
+        assert!(bb.contains(B2));
+        assert!(bb.contains(C2));
+        assert!(bb.contains(D4));
+        assert!(bb.contains(E2));
+        assert!(bb.contains(F2));
+        assert!(bb.contains(G2));
+        assert!(bb.contains(H4));
+
+        let bb = board.substrate.find_pieces(PlayerColor::White, PieceType::Knight);
+        assert_eq!(bb.len(), 2);
+        assert!(bb.contains(B1));
+        assert!(bb.contains(D7));
+
+        let bb = board.substrate.find_pieces(PlayerColor::Black, PieceType::Bishop);
+        assert_eq!(bb.len(), 2);
+        assert!(bb.contains(B4));
+        assert!(bb.contains(F5));
+    }
 }

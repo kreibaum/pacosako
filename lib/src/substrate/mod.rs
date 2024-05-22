@@ -24,6 +24,11 @@ pub trait Substrate {
     fn is_piece(&self, player: PlayerColor, pos: BoardPosition, piece: PieceType) -> bool {
         self.get_piece(player, pos) == Some(piece)
     }
+    /// Determines whether the given player would be allowed to chain-dance to the given position.
+    /// This is always possible for empty squares (end chain) and when there is an opponent piece.
+    fn is_danceable(&self, player: PlayerColor, pos: BoardPosition) -> bool {
+        self.is_empty(pos) || self.has_piece(player.other(), pos)
+    }
     /// Sets the piece at the given position.
     fn set_piece(&mut self, player: PlayerColor, pos: BoardPosition, piece: PieceType);
     /// Sets the square (Both players pieces) at the given position.
@@ -51,6 +56,9 @@ pub trait Substrate {
     fn bitboard_color(&self, player: PlayerColor) -> BitBoard;
     /// Returns the position of the king of the given player.
     fn find_king(&self, player: PlayerColor) -> Result<BoardPosition, PacoError>;
+
+    /// Finds all pieces of the given color and type and returns them as a bitboard.
+    fn find_pieces(&self, player_color: PlayerColor, piece_type: PieceType) -> BitBoard;
 }
 
 // Using a u64 as a [bool; 64]. This is known as a bitboard.
@@ -109,6 +117,21 @@ impl Iterator for BitBoardIter {
     }
 }
 
+impl DoubleEndedIterator for BitBoardIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.bits == 0 {
+            None
+        } else {
+            // Get the index of the most significant set bit.
+            let leading_zeros = self.bits.leading_zeros() as u8;
+            let index = 63 - leading_zeros;
+            // Clear the bit so that it's not considered in the next call.
+            self.bits &= !(1 << index);
+            Some(BoardPosition(index))
+        }
+    }
+}
+
 impl IntoIterator for BitBoard {
     type Item = BoardPosition;
     type IntoIter = BitBoardIter;
@@ -164,5 +187,29 @@ impl Not for BitBoard {
 
     fn not(self) -> Self::Output {
         BitBoard(!self.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::const_tile::*;
+    use super::*;
+
+    #[test]
+    fn test_forward_iteration() {
+        let mut bitboard = BitBoard(0b1010);
+        let mut iter = bitboard.iter();
+        assert_eq!(iter.next(), Some(B1));
+        assert_eq!(iter.next(), Some(D1));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_backward_iteration() {
+        let mut bitboard = BitBoard(0b1010);
+        let mut iter = bitboard.iter().rev();
+        assert_eq!(iter.next(), Some(D1));
+        assert_eq!(iter.next(), Some(B1));
+        assert_eq!(iter.next(), None);
     }
 }

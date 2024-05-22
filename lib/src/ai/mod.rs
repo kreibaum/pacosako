@@ -9,3 +9,4 @@
 pub mod flexible_representation;
 pub mod glue;
 pub mod repr;
+mod model_targets;

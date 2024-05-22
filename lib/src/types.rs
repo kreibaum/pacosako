@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::fmt::Display;
+use crate::substrate::BitBoard;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PieceType {
@@ -79,12 +80,14 @@ impl PlayerColor {
             PlayerColor::Black => -1,
         }
     }
+
     pub fn home_row(self) -> u8 {
         match self {
             PlayerColor::White => 0,
             PlayerColor::Black => 7,
         }
     }
+
     pub fn other(self) -> Self {
         use PlayerColor::*;
         match self {
@@ -92,11 +95,16 @@ impl PlayerColor {
             Black => White,
         }
     }
+
     pub fn initial(self) -> char {
         match self {
             Self::White => 'W',
             Self::Black => 'B',
         }
+    }
+
+    pub fn is_white(self) -> bool {
+        self == PlayerColor::White
     }
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
@@ -167,13 +175,26 @@ impl BoardPosition {
         }
     }
 
+    /// Returns the positions where a pawn could be after dancing diagonally.
+    /// This depends on the color of the active `player_color`.
+    /// May return an empty BitBoard if the pawn is already on the edge of the board.
+    /// May return only one position if the pawn is on the edge of the board.
+    pub fn dance_with_pawn(self, player_color: PlayerColor) -> BitBoard {
+        let forward = player_color.forward_direction();
+
+        [(-1, forward), (1, forward)]
+            .iter()
+            .filter_map(|d| self.add(*d))
+            .collect()
+    }
+
     /// Returns all possible positions on the board.
     pub fn all() -> impl Iterator<Item = Self> {
         (0..64).map(Self)
     }
 }
 
-/// The debug output for a position is a string like d4 that is easily human readable.
+/// The debug output for a position is a string like d4 that is easily human-readable.
 impl Debug for BoardPosition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -185,7 +206,7 @@ impl Debug for BoardPosition {
     }
 }
 
-/// The display output for a position is a string like d4 that is easily human readable.
+/// The display output for a position is a string like d4 that is easily human-readable.
 /// The Display implementation just wraps the Debug implementation.
 impl Display for BoardPosition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -204,7 +225,7 @@ impl TryFrom<&str> for BoardPosition {
         if string.len() != 2 {
             Err(ERROR_TEXT)
         } else {
-            // Unwrapping here is save because I am checking the length first.
+            // Unwrapping here is safe because I am checking the length first.
             let x = "abcdefgh".find(string.chars().next().unwrap());
             let y = "12345678".find(string.chars().nth(1).unwrap());
             if let (Some(x), Some(y)) = (x, y) {

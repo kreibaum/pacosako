@@ -931,23 +931,11 @@ impl DenseBoard {
 
         possible_moves
     }
+
     /// Calculates all possible threat placement targets for a pawn at the given
     /// position.
     fn threat_place_targets_pawn(&self, position: BoardPosition) -> BitBoard {
-        use PlayerColor::White;
-
-        let forward = if self.controlling_player == White {
-            1
-        } else {
-            -1
-        };
-
-        // Striking left & right. As we only determine threatened positions, not
-        // legal moves, there is no target required.
-        [(-1, forward), (1, forward)]
-            .iter()
-            .filter_map(|d| position.add(*d))
-            .collect()
+        position.dance_with_pawn(self.controlling_player)
     }
 
     /// Calculates all possible placement targets for a rock at the given position.
