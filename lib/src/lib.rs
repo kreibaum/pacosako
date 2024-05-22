@@ -96,7 +96,7 @@ impl From<serde_json::Error> for PacoError {
     }
 }
 
-/// Possible states a board of Paco Ŝako can be in. The pacosako library only
+/// The possible states a board of Paco Ŝako can be in. The pacosako library only
 /// implements automatic transition to PacoVictory in case of a Paco Ŝako for
 /// either player.
 ///
@@ -126,7 +126,7 @@ impl VictoryState {
 
 pub struct VariantSettings {
     /// How often a position must a repeated to be considered a draw.
-    /// 0 means that this never draws.
+    /// Setting this to 0 means that this never draws.
     pub draw_after_n_repetitions: u8,
 }
 
@@ -139,7 +139,7 @@ pub struct DenseBoard {
     pub lifted_piece: Hand,
     /// When a pawn is moved two squares forward, the square in between is used to check en passant.
     pub en_passant: Option<BoardPosition>,
-    /// When a pawn is moved on the opponents home row, you may promote it to any other piece.
+    /// When a pawn is moved on the opponent's home row, you may promote it to any other piece.
     pub promotion: Option<BoardPosition>,
     /// Stores castling information
     pub castling: Castling,
@@ -158,7 +158,7 @@ pub struct DenseBoard {
 
 /// Equals takes all the fields into account except for the move counts.
 /// I am running into infinite loops otherwise.
-/// Ideally I would just correct the respective algorithms, but this is a
+/// Ideally, I would just correct the respective algorithms, but this is a
 /// more pragmatic solution.
 impl PartialEq for DenseBoard {
     fn eq(&self, other: &Self) -> bool {
@@ -207,7 +207,7 @@ pub enum RequiredAction {
 }
 
 impl RequiredAction {
-    /// Indicates if the required action is one of the promote variants.
+    /// Indicates if the required action is one of the promotion variants.
     pub fn is_promote(self) -> bool {
         match self {
             RequiredAction::PromoteThenLift => true,
@@ -235,7 +235,7 @@ pub struct Castling {
 }
 
 impl Castling {
-    /// Returns an initial Castling structure where all castling is possible
+    /// Returns an initial Castling structure where all castling options are possible
     fn new() -> Self {
         Castling {
             white_queen_side: true,
@@ -337,14 +337,14 @@ impl Hand {
 }
 
 /// The PacoBoard trait encapsulates arbitrary Board implementations.
-pub trait PacoBoard: Clone + Eq + std::hash::Hash {
-    /// Check if a PacoAction is legal and execute it. Otherwise return an error.
+pub trait PacoBoard: Clone + Eq + Hash {
+    /// Check if a PacoAction is legal and execute it. Otherwise, return an error.
     fn execute(&mut self, action: PacoAction) -> Result<&mut Self, PacoError>;
     /// Executes a PacoAction. This call may assume that the action is legal
     /// without checking it. Only call it when you generate the actions yourself.
     fn execute_trusted(&mut self, action: PacoAction) -> Result<&mut Self, PacoError>;
     /// List all actions that can be executed in the current state. Note that actions which leave
-    /// the board in a dead-end state (like lifting up a pawn that is blocked) should be included
+    /// the board in a dead-end state (like lifting a pawn that is blocked) should be included
     /// in the list as well.
     fn actions(&self) -> Result<PacoActionSet, PacoError>;
     /// List all actions, that threaten to capture a position. This means pairs
@@ -352,7 +352,7 @@ pub trait PacoBoard: Clone + Eq + std::hash::Hash {
     /// square which could capture is included. Actions which leave the
     /// board in a dead end state are included.
     fn threat_actions(&self) -> PacoActionSet;
-    /// A Paco Board is settled, if no piece is in the hand of the active player.
+    /// A Paco Board is settled if no piece is in the hand of the active player.
     /// Calling `.actions()` on a settled board should only return lift actions.
     fn is_settled(&self) -> bool;
     /// Determines if the King of a given color is united with an opponent piece.
@@ -362,7 +362,7 @@ pub trait PacoBoard: Clone + Eq + std::hash::Hash {
     /// Returns (white piece, black piece) for a piece that is at a given position.
     fn get_at(&self, position: BoardPosition) -> (Option<PieceType>, Option<PieceType>);
     /// Can we do an en passant capture right now?
-    /// Returns false if you first need to lift a pawn to capture next turn.
+    /// Returns false if you first need to lift a pawn to capture in the next action.
     fn en_passant_capture_possible(&self) -> bool;
     /// Gets the current status of the game
     fn victory_state(&self) -> VictoryState;
@@ -461,7 +461,7 @@ impl DenseBoard {
             let is_pair = self.substrate.has_piece(self.controlling_player.other(), p);
             let piece = self.substrate.get_piece(self.controlling_player, p);
             if let Some(piece) = piece {
-                // For the King we need a special case, otherwise we would be
+                // For the King, we need a special case, otherwise we would be
                 // checking castling options which is expensive.
                 // Since a castling option implies a move option, there is no
                 // need to check for castling options.
@@ -592,7 +592,7 @@ impl DenseBoard {
                     return self.place_king(position, target);
                 }
 
-                // Read piece currently on the board at the target position
+                // Read the piece currently on the board at the target position
                 // and place the held piece there.
                 let board_piece = self.substrate.get_piece(self.controlling_player, target);
                 self.substrate
@@ -617,7 +617,7 @@ impl DenseBoard {
                         .substrate
                         .get_piece(self.controlling_player.other(), target);
 
-                    // Check if the half move counter gets reset.
+                    // Check if the half-move counter gets reset.
                     // Is there a new union we are creating?
                     if new_partner.is_some() {
                         self.draw_state.reset_half_move_counter();
@@ -735,13 +735,13 @@ impl DenseBoard {
     }
 
     /// Moves back the pawn to the en passant square, including the partner.
-    /// This consumes the information about the en passant square so we don't
+    /// This consumes the information about the en passant square, that way we don't
     /// see it twice in a chain.
     fn do_en_passant_auxiliary_move(&mut self, target: BoardPosition) {
         let en_passant_reset_from = target
             .advance_pawn(self.controlling_player.other())
             .unwrap();
-        // Move back pair
+        // Move back the en passant pair or single piece
         self.swap(target, en_passant_reset_from);
 
         self.en_passant = None;
@@ -773,7 +773,7 @@ impl DenseBoard {
         self.count_halve_move();
         self.required_action = RequiredAction::Lift;
 
-        // Moving the king does never progress the game and even
+        // Moving the king does never progress the game, and even
         // castling or forfeiting castling does not count as
         // progress according to FIDE rules.
         draw_state::record_position(self);
@@ -808,7 +808,7 @@ impl DenseBoard {
             Err(PacoError::PromoteToKing)
         } else if let Some(target) = self.promotion {
             // Here we .unwrap() instead of returning an error, because a promotion target outside
-            // the home row indicates an error as does a promotion target without a piece at that
+            // the home row indicates an error, as does a promotion target without a piece at that
             // position.
             let owner = target
                 .home_row()
@@ -855,7 +855,7 @@ impl DenseBoard {
         }
     }
 
-    /// All place target for a piece of given type at a given position.
+    /// All place targets for a piece of given type at a given position.
     /// This is intended to receive its own lifted piece as input but will work if the
     /// input piece is different.
     fn place_targets(
@@ -1135,7 +1135,7 @@ impl DenseBoard {
         let mut slide = start.add((dx, dy));
 
         // This while loop leaves if we drop off the board or if we hit a target.
-        // The is_pair parameter determines, if the first thing we hit is a valid target.
+        // The is_pair parameter determines if the first thing we hit is a valid target.
         while let Some(target) = slide {
             if self.substrate.is_empty(target) {
                 possible_moves.insert(target);
@@ -1163,7 +1163,7 @@ impl DenseBoard {
                 Err(PacoError::PlaceEmptyHand)
             }
             Hand::Single { piece, position } => {
-                // the player currently lifts a piece, we calculate all possible positions where
+                // The player currently lifts a piece, we calculate all possible positions where
                 // it can be placed down. This takes opponents pieces in considerations but won't
                 // discard chaining into a blocked pawn (or similar).
                 Ok(PacoActionSet::PlaceSet(
@@ -1191,7 +1191,7 @@ impl DenseBoard {
 }
 
 /// For a given move of the king, determines if this would trigger a castling.
-/// If so, the corresponding rook swap is returned. First square is "source",
+/// If so, the corresponding rook swap is returned. The first square is "source",
 /// the second is "target".
 pub fn get_castling_auxiliary_move(
     king_source: BoardPosition,
@@ -1335,10 +1335,10 @@ pub struct ExploredState<T: PacoBoard> {
 }
 
 /// Defines an algorithm that determines all moves.
-/// A move is a sequence of legal actions Lift(p1), Place(p2), Place(p3), ..
+/// A move is a sequence of legal actions Lift(p1), Place(p2), Place(p3), ...
 /// which ends with an empty hand.
 ///
-/// Essentially I am investigating a finite, possibly cyclic, directed graph where some nodes
+/// Essentially, I am investigating a finite, possibly cyclic, directed graph where some nodes
 /// are marked (settled boards) and I wish to find all acyclic paths from the root to these
 /// marked (settled) nodes.
 pub fn determine_all_moves(board: DenseBoard) -> Result<ExploredState<DenseBoard>, PacoError> {
@@ -1456,7 +1456,7 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<BitBoard, PacoError>
 
     // This needs to follow all chain moves. Non-terminal chain actions are
     // always threat actions.
-    // This is simpler that determining all moves, as we don't need to keep an
+    // This is simpler that determining all moves, as we don't need to keep a
     // record of how we came to a specific position.
     let mut todo_list: VecDeque<T> = VecDeque::new();
     let mut seen: FxHashSet<T> = FxHashSet::default();
@@ -1512,7 +1512,7 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<BitBoard, PacoError>
     Ok(all_threats)
 }
 
-/// Executes a sequence of paco sako actions as a given player, if those actions
+/// Executes a sequence of paco sako actions as a given player if those actions
 /// are legal for the given player.
 pub fn execute_sequence<T: PacoBoard>(
     board: &T,
@@ -1652,7 +1652,7 @@ mod tests {
     fn test_en_passant() {
         use PieceType::Pawn;
 
-        // Setup a situation where en passant can happen.
+        // Set up a situation where en passant can happen.
         let mut squares = HashMap::new();
         // White pawn that moves two squares forward
         squares.insert(pos("d2"), Square::white(Pawn));
@@ -1686,7 +1686,7 @@ mod tests {
     fn en_passant_chain_sako() {
         use PieceType::*;
 
-        // Setup a situation where en passant can happen.
+        // Set up a situation where en passant can happen.
         let mut squares = HashMap::new();
         squares.insert(pos("c4"), Square::black(Pawn));
         squares.insert(pos("d2"), Square::pair(Pawn, Knight));
@@ -1703,7 +1703,7 @@ mod tests {
         assert_eq!(sako_states.len(), 1);
     }
 
-    /// Simple test that moves a pawn onto the opponents home row and checks promotion options.
+    /// Simple test that moves a pawn onto the opponent's home row and checks promotion options.
     #[test]
     fn promote_pawn() {
         use PieceType::*;
@@ -1723,10 +1723,10 @@ mod tests {
         assert_eq!(
             options,
             vec![
-                PacoAction::Promote(PieceType::Rook),
-                PacoAction::Promote(PieceType::Knight),
-                PacoAction::Promote(PieceType::Bishop),
-                PacoAction::Promote(PieceType::Queen),
+                PacoAction::Promote(Rook),
+                PacoAction::Promote(Knight),
+                PacoAction::Promote(Bishop),
+                PacoAction::Promote(Queen),
             ]
         );
     }
@@ -1838,8 +1838,8 @@ mod tests {
     }
 
     /// Here we test that chains are understood by the threat analyzer.
-    /// It also tests, that a square were an own piece is located is still marked
-    /// as threatened. While we don't need this for castling detection it may
+    /// It also tests that a square were an own piece is located is still marked
+    /// as threatened. While we don't need this for castling detection, it may
     /// be useful for writing AI, especially if we follow the paper
     ///
     /// Accelerating Self-Play Learning in Go
@@ -1993,7 +1993,7 @@ mod tests {
 
         // Moving the king also moves the rook
         execute_action!(board, place, "c1");
-        assert_eq!(Some(PieceType::Rook), board.get_at(D1).0);
+        assert_eq!(Some(Rook), board.get_at(D1).0);
     }
 
     /// Checks that white castling kingside move the rook and the united black piece.
@@ -2007,8 +2007,8 @@ mod tests {
         let mut board = DenseBoard::from_squares(squares);
         execute_action!(board, lift, "e1");
         execute_action!(board, place, "g1");
-        assert_eq!(Some(PieceType::Rook), board.get_at(F1).0);
-        assert_eq!(Some(PieceType::Knight), board.get_at(F1).1);
+        assert_eq!(Some(Rook), board.get_at(F1).0);
+        assert_eq!(Some(Knight), board.get_at(F1).1);
     }
 
     /// Tests if the white king moving forfeits castling rights.
@@ -2131,7 +2131,7 @@ mod tests {
 
         // Moving the king also moves the rook
         execute_action!(board, place, "c8");
-        assert_eq!(Some(PieceType::Rook), board.get_at(D8).1);
+        assert_eq!(Some(Rook), board.get_at(D8).1);
     }
 
     /// Checks that black castling kingside move the rook and the united white piece.
@@ -2147,8 +2147,8 @@ mod tests {
 
         execute_action!(board, lift, "e8");
         execute_action!(board, place, "g8");
-        assert_eq!(Some(PieceType::Knight), board.get_at(F8).0);
-        assert_eq!(Some(PieceType::Rook), board.get_at(F8).1);
+        assert_eq!(Some(Knight), board.get_at(F8).0);
+        assert_eq!(Some(Rook), board.get_at(F8).1);
     }
 
     /// Tests if the black king moving forfeits castling rights.
@@ -2256,7 +2256,7 @@ mod tests {
         assert!(!board.actions().unwrap().contains(PacoAction::Place(G8)));
     }
 
-    /// If the enemy moves your rook, you still loose castling right.
+    /// If the enemy moves your rook, you still lose castling right.
     #[test]
     fn enemy_rook_pair_move_forbids_castling() {
         use PieceType::*;
@@ -2430,7 +2430,7 @@ mod tests {
 
     /// Checks that uniting with the king sets the game state to Victory.
     /// Also checks that it remains running on all the preceding moves, which
-    /// incudes another union.
+    /// includes another union.
     #[test]
     fn test_white_victory_after_pacosako() -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
@@ -2504,7 +2504,7 @@ mod tests {
     }
 
     /// Tests that 50 turns without any progress result in a draw.
-    /// Also tests that after those 50 turns (100 half turns) there are no
+    /// Also tests that after those 50 turns (100 half turns), there are no
     /// longer any legal moves.
     #[test]
     fn test_no_progress_draw_after_50_moves() -> Result<(), PacoError> {
@@ -2606,7 +2606,7 @@ mod tests {
         Ok(())
     }
 
-    /// Here we check that chaining without increasing the amount of pairs does
+    /// Here we check that chaining without increasing the number of pairs does
     /// increase the no-progress counter.
     #[test]
     fn test_half_move_count_during_unproductive_chain() {
