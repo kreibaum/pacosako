@@ -151,6 +151,19 @@ function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
   ps
 end
 
+const USE_PERSPECTIVE = UInt32(1)
+const WITH_MUST_LIFT = UInt32(2)
+const WITH_MUST_PROMOTE = UInt32(4)
+
+"""
+    representationlength(options)
+
+Given representation options, this method tells you how much memory must be reserved to store the representation.
+"""
+function representationlength(options :: UInt32)
+    @pscall(:get_idx_repr_length, Int64, (UInt32,), options)
+end
+
 function Game.array(pss :: Vector{PacoSako})
   batchsize = length(pss)
   buf = Game.arraybuffer(PacoSako, batchsize)
@@ -195,12 +208,13 @@ function Game.array!(buf, games :: Vector{PacoSako})
 
     # Get the index representation of this game
     @pscall(
-      :get_idxrepr,
+      :get_idxrepr_opts,
       Int64,
-      (Ptr{Nothing}, Ptr{Nothing}, Int64),
+      (Ptr{Nothing}, Ptr{Nothing}, Int64, UInt32),
       ps.ptr,
       tmp,
-      length(tmp)
+      length(tmp),
+      get_idxrepr_opts
     )
 
     # Extract scatter indices and layer values for this game
