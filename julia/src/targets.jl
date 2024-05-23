@@ -40,3 +40,30 @@ end
 Target.defaultactivation(:: BlockedPawnsTarget) = :sigmoid
 
 Target.defaultlossfunction(:: BlockedPawnsTarget) = :sumabs2
+
+"""A map of all squares that are threatened either directly or through chains for both players."""
+struct ThreatenedSquaresTarget <: AbstractTarget{PacoSako} end
+
+Base.length(:: ThreatenedSquaresTarget) = 128
+
+function threatenedsquares(ps:: PacoSako) :: Vector{Float32}
+    buf = zeros(Float32, 128)
+    @pscall(
+        :threatened_squares_target,
+        Int64,
+        (Ptr{Nothing}, Ptr{Float32}, Int64),
+        ps.ptr,
+        buf,
+        length(buf)
+    )
+
+    buf
+end
+
+function Target.label(:: ThreatenedSquaresTarget, ctx :: LabelContext{PacoSako})
+    threatenedsquares(ctx.game)
+end
+
+Target.defaultactivation(:: ThreatenedSquaresTarget) = :sigmoid
+
+Target.defaultlossfunction(:: ThreatenedSquaresTarget) = :sumabs2
