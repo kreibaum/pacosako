@@ -1,4 +1,4 @@
-//! An ml model target that shows all the threatened squares on the board.
+//! A ml model target that shows all the threatened squares on the board.
 
 use crate::{DenseBoard, determine_all_threats, Hand};
 
@@ -16,7 +16,8 @@ use crate::{DenseBoard, determine_all_threats, Hand};
 ///
 /// # Safety
 ///
-/// The ps pointer must be valid. The out pointer must be valid and have at least `reserved_space` reserved.
+/// The ps pointer must be valid.
+/// The out pointer must be valid and have at least `reserved_space` reserved.
 #[no_mangle]
 pub unsafe extern "C" fn threatened_squares_target(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) -> i64 {
     if reserved_space < 128 {

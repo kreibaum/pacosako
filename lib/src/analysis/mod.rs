@@ -1,6 +1,8 @@
 //! Analysis methods for paco sako. This can be used to analyze a game and
 //! give information about interesting moments. E.g. missed opportunities.
 
+use std::fmt::Display;
+
 use serde::Serialize;
 
 use crate::{
@@ -111,24 +113,25 @@ impl NotationAtom {
     }
 }
 
-impl ToString for NotationAtom {
-    fn to_string(&self) -> String {
+impl Display for NotationAtom {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NotationAtom::StartMoveSinge { mover, at } => format!("{}{}", letter(mover), at),
+            NotationAtom::StartMoveSinge { mover, at } => write!(f, "{}{}", letter(mover), at),
             NotationAtom::StartMoveUnion { mover, partner, at } => {
-                format!("{}{}{}", force_letter(mover), force_letter(partner), at)
+                write!(f, "{}{}{}", force_letter(mover), force_letter(partner), at)
             }
             NotationAtom::ContinueChain { exchanged, at } => {
-                format!(">{}{}", force_letter(exchanged), at)
+                write!(f, ">{}{}", force_letter(exchanged), at)
             }
-            NotationAtom::EndMoveCalm { at } => format!(">{}", at),
+            NotationAtom::EndMoveCalm { at } => write!(f, ">{}", at),
             NotationAtom::EndMoveFormUnion { partner, at } => {
-                format!("x{}{}", letter(partner), at)
+                write!(f, "x{}{}", letter(partner), at)
             }
-            NotationAtom::Promote { to } => format!("={}", letter(to)),
+            NotationAtom::Promote { to } => write!(f, "={}", letter(to)),
         }
     }
 }
+
 
 /// Turns a piece type into a letter, where Pawn is left out.
 fn letter(piece: &PieceType) -> &str {
@@ -143,7 +146,7 @@ fn letter(piece: &PieceType) -> &str {
 }
 
 /// Turns a piece type into a letter, where Pawn is printed as "P".
-/// I'm calling it "force" because it feels like the "-f" variant of letter.
+/// I'm calling it "force" because it feels like the "-f" variant of `letter`.
 fn force_letter(piece: &PieceType) -> &str {
     match piece {
         PieceType::Pawn => "P",
@@ -151,7 +154,8 @@ fn force_letter(piece: &PieceType) -> &str {
     }
 }
 
-// Applies an action and returns information about what happened.
+/// Applies a given action to the board (mutation!) and returns some information
+/// about what happened in a NotationAtom.
 fn apply_action_semantically(
     board: &mut DenseBoard,
     action: PacoAction,
@@ -177,7 +181,7 @@ fn apply_action_semantically(
             }
         }
         PacoAction::Place(at) => {
-            // Remember the opponents piece that is at the target position.
+            // Remember the opponent's piece at the target position.
             let partner = board
                 .substrate
                 .get_piece(board.controlling_player.other(), at);
@@ -244,7 +248,7 @@ fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<
                     }
                 }
             }
-            // Otherwise, we just continue, this is a regular King movement.
+            // Otherwise, we just continue. This is a regular King movement.
         }
         if !already_squashed && atom.is_place() {
             // This can never happen when the result is empty, so we can unwrap.
@@ -289,11 +293,8 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
     board.controlling_player = for_player;
 
     for threat in determine_all_threats(&board)? {
-        // Check if the opponents king is on this square.
-        let piece = board
-            .substrate
-            .get_piece(board.controlling_player.other(), threat);
-        if piece == Some(PieceType::King) {
+        // Check if the opponent's king is on this square.
+        if board.substrate.is_piece(board.controlling_player.other(), threat, PieceType::King) {
             return Ok(true);
         }
     }

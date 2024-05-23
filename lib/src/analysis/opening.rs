@@ -1,7 +1,7 @@
 //! This module contains classifiers for openings.
+use crate::{BoardPosition, const_tile::*};
+use crate::{DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, substrate::Substrate};
 use crate::PlayerColor::White;
-use crate::{const_tile::*, BoardPosition};
-use crate::{substrate::Substrate, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType};
 
 /// Returns all the openings that can be detected on the given replay.
 pub(crate) fn classify_opening(
@@ -78,7 +78,7 @@ pub fn is_rai(initial_board: &DenseBoard, actions: &[PacoAction]) -> Result<bool
         board.execute(action)?;
         action_pointer += 1;
 
-        // Is there a rook on h3
+        // Is there a rook on h3?
         if board.substrate.is_piece(White, H3, PieceType::Rook) {
             break;
         }
@@ -178,16 +178,16 @@ pub fn is_default_starting_position(initial_board: &DenseBoard) -> bool {
 /// Tests module
 #[cfg(test)]
 mod tests {
-    use crate::const_tile::*;
     use crate::{analysis::history_to_replay_notation, DenseBoard, PacoAction::*};
+    use crate::const_tile::*;
 
     #[test]
     fn test_rai() {
         #[rustfmt::skip]
-        let replay = history_to_replay_notation(
+            let replay = history_to_replay_notation(
             DenseBoard::new(),
             &[
-                Lift(D2), Place(D4), Lift(D7),Place(D5),
+                Lift(D2), Place(D4), Lift(D7), Place(D5),
                 Lift(H2), Place(H4), Lift(B8), Place(C6),
                 Lift(H1), Place(H3), Lift(D8), Place(D6),
                 Lift(B1), Place(C3), Lift(C8), Place(F5),
@@ -195,7 +195,7 @@ mod tests {
                 Lift(C1), Place(D2), Lift(G8), Place(F6),
             ],
         )
-        .expect("Error in input data");
+            .expect("Error in input data");
 
         assert_eq!(replay.opening, "Rai");
     }

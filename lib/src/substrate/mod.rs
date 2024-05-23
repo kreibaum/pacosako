@@ -1,5 +1,5 @@
 //! Module for implementations of a board with only the board + resting pieces
-//! avoiding as much other logic as possible. We can't call this board,
+//! avoiding as much other logic as possible. We can't call this "board",
 //! because we were already using that for the board with all the logic.
 
 use std::ops::{BitAnd, BitOr, Not};

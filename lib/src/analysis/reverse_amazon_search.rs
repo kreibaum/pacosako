@@ -8,10 +8,10 @@ use std::{
 };
 
 use crate::{
+    BoardPosition,
     calculate_interning_hash,
-    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
-    trivial_hash::TrivialHashBuilder,
-    BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
+    DenseBoard,
+    PacoAction, PacoBoard, PacoError, PieceType, PlayerColor, substrate::{BitBoard, constant_bitboards::KNIGHT_TARGETS, Substrate}, trivial_hash::TrivialHashBuilder,
 };
 
 use super::tree;
@@ -328,14 +328,14 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 
             if Some(current) == ctx.lifted_tile
                 && we_can_start_from_here(
-                    ctx,
-                    ctx.lifted_type.expect(
-                        "lifted type must always be available when lifted tile is available",
-                    ),
-                    dx,
-                    dy,
-                    distance,
-                )
+                ctx,
+                ctx.lifted_type.expect(
+                    "lifted type must always be available when lifted tile is available",
+                ),
+                dx,
+                dy,
+                distance,
+            )
             {
                 // We can also start from the lifted square.
                 ctx.starting_tiles.insert(current);
@@ -450,11 +450,11 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 /// Tests module
 #[cfg(test)]
 mod tests {
-
-    use super::*;
-    use crate::{const_tile::*, fen, DenseBoard, PacoAction, PacoBoard, PlayerColor};
     use ntest::timeout;
 
+    use crate::{const_tile::*, DenseBoard, fen, PacoAction, PacoBoard, PlayerColor};
+
+    use super::*;
     use super::reverse_amazon_squares;
 
     #[test]
@@ -752,7 +752,7 @@ mod tests {
 
     #[test]
     fn syn5() {
-        // After lifting one piece, you can't slide through any other pieces any more.
+        // After lifting one piece, you can't slide through any other pieces anymore.
         let mut board =
             fen::parse_fen("rnb1ks2/pppp1pp1/3q4/7p/1E1p2C1/3P4/P1P1PP1P/RNBQK1NR b 0 AHah - -")
                 .expect("Error in fen parsing.");

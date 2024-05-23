@@ -5,11 +5,12 @@
 //! This means basic and fast features show up first, and more complex features
 //! show up later.
 
-use super::{
-    apply_action_semantically, chasing_paco, reverse_amazon_search::is_sako, squash_notation_atoms,
-    HalfMove, HalfMoveMetadata, ReplayData,
-};
 use crate::{analysis::opening, DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor};
+
+use super::{
+    apply_action_semantically, chasing_paco, HalfMove, HalfMoveMetadata,
+    ReplayData, reverse_amazon_search::is_sako, squash_notation_atoms,
+};
 
 /// Does incremental computation of the replay notation and reports the progress
 /// with a callback.
@@ -62,7 +63,7 @@ pub fn history_to_replay_notation_incremental(
         }
         if !paco_in_2_moves.is_empty() {
             // We found a Paco in 2. Add it to the metadata.
-            // Check, if the board is now in any state that works with Paco in 2.
+            // Check if the board is now in any state that works with Paco in 2.
             let found = paco_in_2_moves
                 .iter()
                 .any(|(good_state, _)| *good_state == board);
@@ -168,10 +169,10 @@ fn derive_notation(
 /// one section. (Lift + 1st Place)
 /// This method assumes that control doesn't change during the actions.
 ///
-/// The initial index is required, because that information goes into each
+/// The initial index is required because that information goes into each
 /// notation atom, so they can reference the correct action.
 ///
-/// This method is public, because we also use it to derive the notation for
+/// This method is public because we also use it to derive the notation for
 /// the Ŝako analysis in the editor. And the Julia bindings also want to use it.
 pub fn segment_half_move_into_sections(
     board: &mut DenseBoard,
