@@ -2,8 +2,8 @@ use std::sync::atomic;
 
 use axum::{
     extract::{
-        ws::{Message, WebSocket},
-        Query, WebSocketUpgrade,
+        Query,
+        WebSocketUpgrade, ws::{Message, WebSocket},
     },
     response::Response,
 };
@@ -21,8 +21,9 @@ use tokio::{
 
 use crate::{
     login::{session::SessionData, SessionId},
-    ws::{to_logic, LogicMsg},
+    ws::{LogicMsg, to_logic},
 };
+use crate::ws::socket_auth::SocketAuth;
 
 /// Identifies a websocket connection across the server.
 /// This is used to send messages to a specific socket.
@@ -45,18 +46,25 @@ pub async fn websocket_handler(
     ws.on_upgrade(move |websocket| handle_socket(websocket, params.uuid, session_id))
 }
 
+/// Errors that can occur when managing socket ids.
+/// This is an explicit error type because I was returning an Option before
+/// and then treating it as a valid business case.
+/// This is not a valid business case.
+#[derive(thiserror::Error, Debug)]
+pub enum SocketIdManagementError {
+    #[error("Socket with id {0} does not exist.")]
+    NoSuchSocket(usize),
+}
+
 /// Lots of static methods to interact with the AllSockets instance.
 impl SocketId {
     /// Generates a new unique socket id to be used to refer to a socket.
     pub fn new() -> SocketId {
         SocketId(NEXT_ID.fetch_add(1, atomic::Ordering::Relaxed))
     }
-    /// Calling this method makes the socket callable by it's id.
+    /// Calling this method makes the socket callable by its id.
     fn with_data(self, data: SocketData) {
         ALL_SOCKETS.insert(self, data);
-    }
-    pub fn is_alive(self) -> bool {
-        ALL_SOCKETS.contains_key(&self)
     }
     /// If there is a socket registered with this id, return a Sender that can
     /// be used to send messages to it. This sender puts messages into a mpsc
@@ -97,9 +105,9 @@ impl SocketId {
     }
 
     /// Gets the owner from the data
-    pub fn get_owner(self) -> Option<(String, Option<SessionId>)> {
-        let entry = ALL_SOCKETS.get(&self)?;
-        Some((entry.uuid.clone(), entry.session_id.clone()))
+    pub fn get_owner(self) -> Result<SocketAuth, SocketIdManagementError> {
+        let entry = ALL_SOCKETS.get(&self).ok_or(SocketIdManagementError::NoSuchSocket(self.0))?;
+        Ok((entry.uuid.clone(), entry.session_id.clone()))
     }
 }
 
@@ -151,7 +159,7 @@ async fn read(mut receiver: SplitStream<WebSocket>, id: SocketId) {
                     data: msg,
                     source: id,
                 })
-                .await;
+                    .await;
             }
             Err(e) => {
                 error!("Error reading from websocket {}: {}", id.0, e);

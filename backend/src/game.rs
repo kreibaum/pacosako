@@ -1,25 +1,27 @@
 //! Game Management API.
 
+use axum::{
+    extract::{Path, Query, State},
+    Json,
+    Router, routing::{get, post},
+};
+use serde::{Deserialize, Serialize};
+
+use pacosako::PlayerColor;
+
 use crate::{
     actors::websocket::UuidQuery,
+    AppState,
     db::{self, Pool},
     login::{
         session::SessionData,
         user::{self, AiMetaData},
     },
+    ServerError,
     sync_match::{
         CompressedMatchStateClient, CurrentMatchStateClient, MatchParameters, SynchronizedMatch,
-    },
-    timer::TimerConfig,
-    ws, AppState, ServerError,
+    }, timer::TimerConfig, ws,
 };
-use axum::{
-    extract::{Path, Query, State},
-    routing::{get, post},
-    Json, Router,
-};
-use pacosako::PlayerColor;
-use serde::{Deserialize, Serialize};
 
 /// Adds the game management API to the given router.
 /// This is expected to be nested at "/api".
@@ -66,7 +68,7 @@ async fn get_game(
 
     if let Some(game) = db::game::select(key, &mut conn).await? {
         Ok(Json(
-            CurrentMatchStateClient::try_new(game.current_state()?, &mut conn).await?,
+            CurrentMatchStateClient::try_new_without_sender(game.current_state()?, &mut conn).await?,
         ))
     } else {
         Err(ServerError::NotFound)
@@ -85,7 +87,7 @@ async fn post_action_to_game(
         uuid: params.uuid,
         session_id: session.map(|s| s.session_id),
     })
-    .await;
+        .await;
 }
 
 async fn post_ai_metadata(
@@ -160,7 +162,7 @@ async fn my_games(
         params.limit as i64,
         &mut conn,
     )
-    .await?;
+        .await?;
 
     let total_games = db::game::count_for_player(session.user_id.0, &mut conn).await? as usize;
 
