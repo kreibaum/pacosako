@@ -228,7 +228,6 @@ async fn handle_message(
 
             let mut game = fetch_game(&key, conn).await?;
 
-            // TODO: Figure out where to load the additional metadata.
             let state = progress_the_timer(&mut game, key.clone()).await?;
 
             store_game(&game, conn).await?;
