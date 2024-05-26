@@ -171,7 +171,7 @@ gamePreview shared model replay =
         , replay.blackPlayer
             |> Maybe.map playerLabel
             |> Maybe.withDefault (playerInput model.blackPlayerId TypeUpdateBlackPlayerId)
-        , gamePreviewImage shared (Debug.log "replay" replay)
+        , gamePreviewImage shared replay
         , replay.whitePlayer
             |> Maybe.map playerLabel
             |> Maybe.withDefault (playerInput model.whitePlayerId TypeUpdateWhitePlayerId)
