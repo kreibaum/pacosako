@@ -163,5 +163,6 @@
   "anonymousPlayerName": "Without Account",
   "adminUserAssignmentPageTitle": "Admin - User Assignment",
   "adminUserAssignmentL1": "Here you can assign users to games. This is useful for assigning games to the correct user. You'll need special permissions to actually do this. For now, you also need to know people's technical user id.",
-  "adminUserAssignmentEnterId": "Enter User Id"
+  "adminUserAssignmentEnterId": "Enter User Id",
+  "adminUserAssignmentPerform": "Assign user(s) to game"
 }

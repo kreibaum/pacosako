@@ -2,13 +2,16 @@ module Pages.Admin.UserAssignment exposing (Model, Msg, page)
 
 import Api.Backend exposing (Replay)
 import Api.Decoders exposing (PublicUserData)
-import Components exposing (grayBox, heading, textParagraph)
+import Components exposing (colorButton, grayBox, heading, textParagraph)
+import Custom.Element exposing (icon)
 import Effect exposing (Effect)
-import Element exposing (Element, column, el, fill, height, padding, px, row, spacing, width)
+import Element exposing (Element, centerX, column, el, fill, height, padding, px, row, spacing, width)
 import Element.Input as Input
+import FontAwesome.Solid as Solid
 import Gen.Params.Admin.UserAssignment exposing (Params)
 import Header
 import Http
+import Json.Encode as Encode
 import Layout
 import Page
 import PositionView
@@ -21,7 +24,7 @@ import View exposing (View)
 
 
 page : Shared.Model -> Request.With Params -> Page.With Model Msg
-page shared req =
+page shared _ =
     Page.advanced
         { init = init
         , update = update
@@ -38,8 +41,13 @@ type alias Model =
     { gameIdRaw : String
     , gameId : Maybe Int
     , replay : Maybe Replay
-    , whitePlayerId : String
-    , blackPlayerId : String
+    , whitePlayerIdRaw : String
+    , whitePlayerId : Maybe Int
+    , whitePlayer : Maybe PublicUserData
+    , blackPlayerIdRaw : String
+    , blackPlayerId : Maybe Int
+    , blackPlayer : Maybe PublicUserData
+    , lastHttpError : Maybe String
     }
 
 
@@ -48,8 +56,13 @@ init =
     ( { gameIdRaw = ""
       , gameId = Nothing
       , replay = Nothing
-      , whitePlayerId = ""
-      , blackPlayerId = ""
+      , whitePlayerIdRaw = ""
+      , whitePlayerId = Nothing
+      , whitePlayer = Nothing
+      , blackPlayerIdRaw = ""
+      , blackPlayerId = Nothing
+      , blackPlayer = Nothing
+      , lastHttpError = Nothing
       }
     , Effect.none
     )
@@ -66,7 +79,11 @@ type Msg
     | GotReplay Int Replay
     | HttpErrorReplay Http.Error
     | TypeUpdateWhitePlayerId String
+    | GotWhitePlayerData Int PublicUserData
     | TypeUpdateBlackPlayerId String
+    | GotBlackPlayerData Int PublicUserData
+    | AssignPlayers
+    | HttpErrorAssignment String
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -91,11 +108,31 @@ update msg model =
         HttpErrorReplay _ ->
             ( model, Effect.none )
 
-        TypeUpdateWhitePlayerId whitePlayerId ->
-            ( { model | whitePlayerId = whitePlayerId }, Effect.none )
+        TypeUpdateWhitePlayerId whitePlayerIdRaw ->
+            updateWhitePlayerId whitePlayerIdRaw model
 
-        TypeUpdateBlackPlayerId blackPlayerId ->
-            ( { model | blackPlayerId = blackPlayerId }, Effect.none )
+        GotWhitePlayerData whitePlayerId whitePlayer ->
+            if model.whitePlayerId == Just whitePlayerId then
+                ( { model | whitePlayer = Just whitePlayer }, Effect.none )
+
+            else
+                ( model, Effect.none )
+
+        TypeUpdateBlackPlayerId blackPlayerIdRaw ->
+            updateBlackPlayerId blackPlayerIdRaw model
+
+        GotBlackPlayerData blackPlayerId blackPlayer ->
+            if model.blackPlayerId == Just blackPlayerId then
+                ( { model | blackPlayer = Just blackPlayer }, Effect.none )
+
+            else
+                ( model, Effect.none )
+
+        AssignPlayers ->
+            assignPlayers model
+
+        HttpErrorAssignment error ->
+            ( { model | lastHttpError = Just error }, Effect.none )
 
 
 updateGameId : String -> Model -> ( Model, Effect Msg )
@@ -112,9 +149,118 @@ updateGameId gameIdRaw model =
     ( { model
         | gameIdRaw = gameIdRaw
         , gameId = gameId
+        , whitePlayerIdRaw = ""
+        , whitePlayerId = Nothing
+        , whitePlayer = Nothing
+        , blackPlayerIdRaw = ""
+        , blackPlayerId = Nothing
+        , blackPlayer = Nothing
+        , lastHttpError = Nothing
       }
     , Effect.fromCmd replayDownloadCmd
     )
+
+
+updateWhitePlayerId : String -> Model -> ( Model, Effect Msg )
+updateWhitePlayerId whitePlayerIdRaw model =
+    let
+        whitePlayerId =
+            String.toInt whitePlayerIdRaw
+
+        playerDataDownloadCmd =
+            whitePlayerId
+                |> Maybe.map (\pid -> Api.Backend.getPublicUserData pid HttpErrorReplay (GotWhitePlayerData pid))
+                |> Maybe.withDefault Cmd.none
+    in
+    ( { model
+        | whitePlayerIdRaw = whitePlayerIdRaw
+        , whitePlayerId = whitePlayerId
+      }
+    , Effect.fromCmd playerDataDownloadCmd
+    )
+
+
+updateBlackPlayerId : String -> Model -> ( Model, Effect Msg )
+updateBlackPlayerId blackPlayerIdRaw model =
+    let
+        blackPlayerId =
+            String.toInt blackPlayerIdRaw
+
+        playerDataDownloadCmd =
+            blackPlayerId
+                |> Maybe.map (\pid -> Api.Backend.getPublicUserData pid HttpErrorReplay (GotBlackPlayerData pid))
+                |> Maybe.withDefault Cmd.none
+    in
+    ( { model
+        | blackPlayerIdRaw = blackPlayerIdRaw
+        , blackPlayerId = blackPlayerId
+      }
+    , Effect.fromCmd playerDataDownloadCmd
+    )
+
+
+assignPlayers : Model -> ( Model, Effect Msg )
+assignPlayers model =
+    let
+        req =
+            model.gameId
+                |> Maybe.map
+                    (\gameId ->
+                        Encode.object
+                            [ ( "game_id", Encode.int <| gameId )
+                            , ( "white_assignee"
+                              , model.whitePlayerId
+                                    |> Maybe.map Encode.int
+                                    |> Maybe.withDefault Encode.null
+                              )
+                            , ( "black_assignee"
+                              , model.blackPlayerId
+                                    |> Maybe.map Encode.int
+                                    |> Maybe.withDefault Encode.null
+                              )
+                            ]
+                    )
+                |> Maybe.map
+                    (\body ->
+                        Http.post
+                            { url = "/api/game/backdate"
+                            , body = Http.jsonBody body
+                            , expect =
+                                Http.expectStringResponse
+                                    (\result ->
+                                        case result of
+                                            Ok _ ->
+                                                TypeUpdateGameId (model.gameId |> Maybe.withDefault 0 |> String.fromInt)
+
+                                            Err errorText ->
+                                                HttpErrorAssignment errorText
+                                    )
+                                    (\response ->
+                                        case response of
+                                            Http.BadUrl_ url ->
+                                                Err ("Bad URL: " ++ url)
+
+                                            Http.Timeout_ ->
+                                                Err "Timeout"
+
+                                            Http.NetworkError_ ->
+                                                Err "Network error"
+
+                                            Http.BadStatus_ _ stringBody ->
+                                                Err stringBody
+
+                                            Http.GoodStatus_ _ _ ->
+                                                Ok ()
+                                    )
+                            }
+                    )
+    in
+    case req of
+        Just request ->
+            ( { model | lastHttpError = Nothing }, Effect.fromCmd request )
+
+        Nothing ->
+            ( model, Effect.none )
 
 
 
@@ -122,7 +268,7 @@ updateGameId gameIdRaw model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     Sub.none
 
 
@@ -157,9 +303,28 @@ userAssignmentView shared model =
             , label = Input.labelHidden T.matchId
             }
             |> el [ padding 10 ]
-        , model.replay
+        ]
+    , grayBox
+        [ model.replay
             |> Maybe.map (\replay -> gamePreview shared model replay)
             |> Maybe.withDefault Element.none
+        ]
+    , model.lastHttpError
+        |> Maybe.map
+            (\e ->
+                grayBox
+                    [ textParagraph e ]
+            )
+        |> Maybe.withDefault Element.none
+    , grayBox
+        [ colorButton []
+            { background = Element.rgb255 51 191 255
+            , backgroundHover = Element.rgb255 102 206 255
+            , onPress = Just AssignPlayers
+            , buttonIcon = icon [ centerX ] Solid.checkCircle
+            , caption = T.adminUserAssignmentPerform
+            }
+            |> el [ padding 10 ]
         ]
     ]
 
@@ -170,23 +335,26 @@ gamePreview shared model replay =
         [ heading replay.key
         , replay.blackPlayer
             |> Maybe.map playerLabel
-            |> Maybe.withDefault (playerInput model.blackPlayerId TypeUpdateBlackPlayerId)
+            |> Maybe.withDefault (playerInput model.blackPlayerIdRaw TypeUpdateBlackPlayerId model.blackPlayer)
         , gamePreviewImage shared replay
         , replay.whitePlayer
             |> Maybe.map playerLabel
-            |> Maybe.withDefault (playerInput model.whitePlayerId TypeUpdateWhitePlayerId)
+            |> Maybe.withDefault (playerInput model.whitePlayerIdRaw TypeUpdateWhitePlayerId model.whitePlayer)
         ]
 
 
-playerInput : String -> (String -> Msg) -> Element Msg
-playerInput inputText onChange =
-    row []
-        [ Input.text [ padding 10 ]
+playerInput : String -> (String -> Msg) -> Maybe PublicUserData -> Element Msg
+playerInput inputText onChange playerPreview =
+    row [ padding 10 ]
+        [ Input.text [ spacing 5 ]
             { onChange = onChange
             , text = inputText
             , placeholder = Just (Input.placeholder [] (Element.text T.adminUserAssignmentEnterId))
             , label = Input.labelHidden T.adminUserAssignmentEnterId
             }
+        , playerPreview
+            |> Maybe.map playerLabel
+            |> Maybe.withDefault Element.none
         ]
 
 

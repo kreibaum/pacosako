@@ -9,8 +9,10 @@ module Api.Backend exposing
     , getJson
     , getLogout
     , getMyGames
+    , getPublicUserData
     , getRecentGameKeys
     , getReplay
+    , postJson
     , postLanguage
     , postLoginPassword
     , postMatchRequest
@@ -436,4 +438,18 @@ getMyGames { offset, limit } =
             Decode.map2 PagedGames
                 (Decode.field "games" (Decode.list decodeCompressedMatchState))
                 (Decode.field "total_games" Decode.int)
+        }
+
+
+
+--------------------------------------------------------------------------------
+-- Public User Data ------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+getPublicUserData : Int -> Api PublicUserData msg
+getPublicUserData userId =
+    getJson
+        { url = "/api/user/" ++ String.fromInt userId
+        , decoder = decodePublicUserData
         }
