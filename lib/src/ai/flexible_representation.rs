@@ -136,6 +136,16 @@ impl FlexibleRepresentationOptions {
     }
 }
 
+/// "With Opts" version of repr_layer_count.
+#[no_mangle]
+pub extern "C" fn repr_layer_count_opts(opts: u32) -> i64 {
+    let Ok(options) = FlexibleRepresentationOptions::new(opts) else {
+        return -1;
+    };
+    options.layer_count() as i64
+}
+
+
 /// There are (piece types) * colors * (lifted/placed) = 6 * 2 * 2 = 24 layers
 /// for the piece position tensor.
 const INDEX_REPRESENTATION_LAYER_COUNT: usize = 24;

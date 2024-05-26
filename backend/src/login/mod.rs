@@ -1,29 +1,32 @@
 //! This module collects everything related to the login process.
 //! It is introduced with the 20230826184016_user_management.sql script
 
-mod crypto;
-pub mod discord;
-pub mod session;
-pub mod user;
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, rand_core::OsRng, SaltString},
+};
+use axum::{
+    extract::{Query, State},
+    Json,
+    response::{IntoResponse, Response},
+};
+use hyper::StatusCode;
+use serde::{Deserialize, Serialize};
+use tower_cookies::{Cookie, cookie::SameSite, Cookies};
 
-use self::session::SessionData;
 use crate::{
     config::EnvironmentConfig,
     db::{Connection, Pool},
     ServerError,
 };
-use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-    Argon2,
-};
-use axum::{
-    extract::{Query, State},
-    response::{IntoResponse, Response},
-    Json,
-};
-use hyper::StatusCode;
-use serde::{Deserialize, Serialize};
-use tower_cookies::{cookie::SameSite, Cookie, Cookies};
+
+use self::session::SessionData;
+
+mod crypto;
+pub mod discord;
+pub mod session;
+pub mod user;
+pub mod permission;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct UserId(pub i64);
@@ -104,7 +107,7 @@ async fn username_password(
         &mut cookies,
         &mut connection,
     )
-    .await?)
+        .await?)
 }
 
 async fn create_session_and_attach_cookie(
@@ -139,8 +142,8 @@ async fn get_user_for_login(
         "select user_id, hashed_password, id from login where identifier = ?",
         dto.username
     )
-    .fetch_one(&mut *connection)
-    .await?;
+        .fetch_one(&mut *connection)
+        .await?;
     let user_id = UserId(res.user_id);
 
     let Some(hashed_password) = res.hashed_password else {
@@ -166,8 +169,8 @@ pub async fn update_last_login(
         "update login set last_login = CURRENT_TIMESTAMP where user_id = ?",
         user_id.0
     )
-    .execute(connection)
-    .await?;
+        .execute(connection)
+        .await?;
     Ok(())
 }
 

@@ -1,25 +1,14 @@
 //! This module implements the server for the backend.
 //! We are using Axum as the web framework.
 
-use crate::{
-    caching,
-    db::Pool,
-    game, grafana, language,
-    login::{
-        self,
-        session::SessionData,
-        user::{self, load_public_user_data},
-    },
-    replay_data, secret_login, templates, AppState, EnvironmentConfig,
-};
 use axum::{
     body::Body,
     extract::{Query, State},
     http::{header, HeaderMap},
     middleware,
     response::IntoResponse,
-    routing::{get, post},
     Router,
+    routing::{get, post},
 };
 use serde::Deserialize;
 use tera::Context;
@@ -27,6 +16,18 @@ use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 use tower_cookies::{CookieManagerLayer, Cookies};
 use tower_http::services::{ServeDir, ServeFile};
+
+use crate::{
+    AppState,
+    caching,
+    db::Pool, EnvironmentConfig, game,
+    grafana,
+    language, login::{
+        self,
+        session::SessionData,
+        user::{self, load_public_user_data},
+    }, replay_data, secret_login, templates,
+};
 
 pub async fn run(state: AppState) {
     let api: Router<AppState> = game::add_to_router(Router::new())
@@ -174,17 +175,17 @@ async fn index(
 
 
     let csp_header = (
-        header::CONTENT_SECURITY_POLICY, 
+        header::CONTENT_SECURITY_POLICY,
         "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self' static.kreibaum.dev{};"
     );
 
     if config.dev_mode {
-        ( [ (header::CONTENT_TYPE, "text/html; charset=utf-8") ], body).into_response()
+        ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
     } else {
-        ( [
-            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
-            csp_header,
-        ], body).into_response()
+        ([
+             (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+             csp_header,
+         ], body).into_response()
     }
 }
 

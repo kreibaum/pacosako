@@ -1,10 +1,10 @@
-use pacosako::setup_options::SetupOptionsAllOptional;
 use pacosako::PlayerColor;
+use pacosako::setup_options::SetupOptionsAllOptional;
 
+use crate::{ServerError, sync_match::SynchronizedMatch};
 use crate::db::Connection;
 use crate::login::UserId;
 use crate::timer::Timer;
-use crate::{sync_match::SynchronizedMatch, ServerError};
 
 /// Stores the game in the database as a new entry and updates the id
 pub async fn insert(
@@ -31,9 +31,9 @@ pub async fn insert(
         white_player,
         black_player
     )
-    .execute(conn)
-    .await?
-    .last_insert_rowid();
+        .execute(conn)
+        .await?
+        .last_insert_rowid();
 
     game.key = format!("{id}");
 
@@ -65,8 +65,8 @@ pub async fn update(game: &SynchronizedMatch, conn: &mut Connection) -> Result<(
         black_player,
         id
     )
-    .execute(conn)
-    .await?;
+        .execute(conn)
+        .await?;
 
     Ok(())
 }
@@ -80,8 +80,8 @@ pub async fn select(
         "select id, action_history, timer, setup, white_player, black_player from game where id = ?",
         id
     )
-    .fetch_optional(conn)
-    .await?;
+        .fetch_optional(conn)
+        .await?;
 
     if let Some(raw_game) = raw_game {
         Ok(Some(raw_game.into_match()?))
@@ -97,8 +97,8 @@ pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, Ser
         order by id desc
         limit 5"
     )
-    .fetch_all(conn)
-    .await?;
+        .fetch_all(conn)
+        .await?;
 
     raw_games.into_iter().map(|raw| raw.into_match()).collect()
 }
@@ -120,8 +120,8 @@ pub async fn for_player(
         limit,
         offset,
     )
-    .fetch_all(conn)
-    .await?;
+        .fetch_all(conn)
+        .await?;
 
     raw_games.into_iter().map(|raw| raw.into_match()).collect()
 }
@@ -133,10 +133,10 @@ pub async fn count_for_player(user_id: i64, conn: &mut Connection) -> Result<i32
         user_id,
         user_id
     )
-    .fetch_one(conn)
-    .await?
-    .count
-    .unwrap_or(0))
+        .fetch_one(conn)
+        .await?
+        .count
+        .unwrap_or(0))
 }
 
 // Database representation of a sync_match::SynchronizedMatch
@@ -178,6 +178,7 @@ impl RawGame {
 
 /// Set the player for a game, either white or black. This does not check if the
 /// player is already set. The intention is to use this for the AI api.
+/// We are also using it for backdated player assignment.
 pub async fn set_player(
     key: i64,
     player_color: PlayerColor,
@@ -190,16 +191,16 @@ pub async fn set_player(
             user_id.0,
             key
         )
-        .execute(conn)
-        .await?;
+            .execute(conn)
+            .await?;
     } else {
         sqlx::query!(
             r"update game set black_player = ? where id = ?",
             user_id.0,
             key
         )
-        .execute(conn)
-        .await?;
+            .execute(conn)
+            .await?;
     }
 
     Ok(())

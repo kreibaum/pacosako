@@ -20,6 +20,8 @@ use serde::Serialize;
 use crate::login::UserId;
 use crate::ws::socket_auth::SocketIdentity;
 
+pub mod backdated_user_assignment;
+
 #[derive(Debug)]
 pub enum SideProtection {
     Unlocked,         // No one moved yet, or we didn't persist the UUID.
