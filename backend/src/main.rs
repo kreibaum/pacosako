@@ -1,3 +1,18 @@
+#[macro_use]
+extern crate log;
+extern crate simplelog;
+
+use axum::{
+    extract::FromRef,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+
+use config::EnvironmentConfig;
+use db::Pool;
+
+use crate::actors::websocket::SocketIdManagementError;
+
 mod actors;
 mod caching;
 mod config;
@@ -18,18 +33,6 @@ mod test;
 mod timer;
 mod ws;
 
-#[macro_use]
-extern crate log;
-extern crate simplelog;
-
-use axum::{
-    extract::FromRef,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
-use config::EnvironmentConfig;
-use db::Pool;
-
 /// This enum holds all errors that can be returned by the API.
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
@@ -42,7 +45,7 @@ pub enum ServerError {
     #[error("(De-)Serialization failed")]
     SerdeJsonError(#[from] serde_json::Error),
     #[error("Not allowed")]
-    NotAllowed,
+    NotAllowed(String),
     #[error("Not found")]
     NotFound,
     #[error("IO-error")]
@@ -63,12 +66,16 @@ pub enum ServerError {
     Base64Error(#[from] base64::DecodeError),
     #[error("Error when parsing Utf8 string")]
     Utf8Error(#[from] std::string::FromUtf8Error),
+    #[error(transparent)]
+    SocketIdManagementError(#[from] SocketIdManagementError),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
 }
 
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         match self {
-            Self::NotAllowed => (StatusCode::FORBIDDEN, "Not allowed").into_response(),
+            Self::NotAllowed(msg) => (StatusCode::FORBIDDEN, format!("Not allowed: {msg}")).into_response(),
             Self::NotFound => (StatusCode::NOT_FOUND, "Not found").into_response(),
             _ => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response(),
         }
@@ -81,7 +88,7 @@ impl IntoResponse for ServerError {
 
 fn init_logger() {
     use simplelog::{
-        ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+        ColorChoice, CombinedLogger, Config, LevelFilter, TerminalMode, TermLogger, WriteLogger,
     };
 
     use file_rotate::suffix::{AppendTimestamp, FileLimit};
@@ -104,7 +111,7 @@ fn init_logger() {
         ),
         WriteLogger::new(LevelFilter::Info, Config::default(), log_with_rotation),
     ])
-    .unwrap();
+        .unwrap();
 
     debug!("Logger successfully initialized");
 }

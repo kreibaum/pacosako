@@ -1,19 +1,23 @@
 //! Analysis methods for paco sako. This can be used to analyze a game and
 //! give information about interesting moments. E.g. missed opportunities.
 
+use std::fmt::Display;
+
+use serde::Serialize;
+
+use crate::{
+    BoardPosition, DenseBoard, determine_all_threats, Hand, PacoAction, PacoBoard,
+    PacoError, PieceType, PlayerColor, substrate::Substrate,
+};
+
+use self::incremental_replay::history_to_replay_notation_incremental;
+
 pub mod chasing_paco;
 pub mod incremental_replay;
 mod opening;
 pub mod puzzle;
 pub mod reverse_amazon_search;
 pub(crate) mod tree;
-
-use self::incremental_replay::history_to_replay_notation_incremental;
-use crate::{
-    determine_all_threats, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoAction,
-    PacoBoard, PacoError, PieceType, PlayerColor,
-};
-use serde::Serialize;
 
 #[derive(Serialize, PartialEq, Debug)]
 pub struct ReplayData {
@@ -109,24 +113,25 @@ impl NotationAtom {
     }
 }
 
-impl ToString for NotationAtom {
-    fn to_string(&self) -> String {
+impl Display for NotationAtom {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NotationAtom::StartMoveSinge { mover, at } => format!("{}{}", letter(mover), at),
+            NotationAtom::StartMoveSinge { mover, at } => write!(f, "{}{}", letter(mover), at),
             NotationAtom::StartMoveUnion { mover, partner, at } => {
-                format!("{}{}{}", force_letter(mover), force_letter(partner), at)
+                write!(f, "{}{}{}", force_letter(mover), force_letter(partner), at)
             }
             NotationAtom::ContinueChain { exchanged, at } => {
-                format!(">{}{}", force_letter(exchanged), at)
+                write!(f, ">{}{}", force_letter(exchanged), at)
             }
-            NotationAtom::EndMoveCalm { at } => format!(">{}", at),
+            NotationAtom::EndMoveCalm { at } => write!(f, ">{}", at),
             NotationAtom::EndMoveFormUnion { partner, at } => {
-                format!("x{}{}", letter(partner), at)
+                write!(f, "x{}{}", letter(partner), at)
             }
-            NotationAtom::Promote { to } => format!("={}", letter(to)),
+            NotationAtom::Promote { to } => write!(f, "={}", letter(to)),
         }
     }
 }
+
 
 /// Turns a piece type into a letter, where Pawn is left out.
 fn letter(piece: &PieceType) -> &str {
@@ -141,7 +146,7 @@ fn letter(piece: &PieceType) -> &str {
 }
 
 /// Turns a piece type into a letter, where Pawn is printed as "P".
-/// I'm calling it "force" because it feels like the "-f" variant of letter.
+/// I'm calling it "force" because it feels like the "-f" variant of `letter`.
 fn force_letter(piece: &PieceType) -> &str {
     match piece {
         PieceType::Pawn => "P",
@@ -149,7 +154,8 @@ fn force_letter(piece: &PieceType) -> &str {
     }
 }
 
-// Applies an action and returns information about what happened.
+/// Applies a given action to the board (mutation!) and returns some information
+/// about what happened in a NotationAtom.
 fn apply_action_semantically(
     board: &mut DenseBoard,
     action: PacoAction,
@@ -175,7 +181,7 @@ fn apply_action_semantically(
             }
         }
         PacoAction::Place(at) => {
-            // Remember the opponents piece that is at the target position.
+            // Remember the opponent's piece at the target position.
             let partner = board
                 .substrate
                 .get_piece(board.controlling_player.other(), at);
@@ -242,7 +248,7 @@ fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<
                     }
                 }
             }
-            // Otherwise, we just continue, this is a regular King movement.
+            // Otherwise, we just continue. This is a regular King movement.
         }
         if !already_squashed && atom.is_place() {
             // This can never happen when the result is empty, so we can unwrap.
@@ -286,17 +292,9 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
     }
     board.controlling_player = for_player;
 
-    let threats = determine_all_threats(&board)?;
-    for (pos, _) in threats
-        .iter()
-        .enumerate()
-        .filter(|(_, is_threatened)| is_threatened.0)
-    {
-        // Check if the opponents king is on this square.
-        let piece = board
-            .substrate
-            .get_piece(board.controlling_player.other(), BoardPosition(pos as u8));
-        if piece == Some(PieceType::King) {
+    for threat in determine_all_threats(&board)? {
+        // Check if the opponent's king is on this square.
+        if board.substrate.is_piece(board.controlling_player.other(), threat, PieceType::King) {
             return Ok(true);
         }
     }
@@ -307,10 +305,12 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
 // Test module
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::const_tile::*;
-    use crate::{fen, testdata::REPLAY_13103};
     use PacoAction::*;
+
+    use crate::{fen, testdata::REPLAY_13103};
+    use crate::const_tile::*;
+
+    use super::*;
 
     #[test]
     fn empty_list() {
@@ -331,9 +331,9 @@ mod tests {
                 actions: vec![HalfMoveSection {
                     action_index: 2,
                     label: "d2>d4".to_string(),
-                },],
+                }, ],
                 paco_actions: vec![Lift(D2), Place(D4)],
-                metadata: HalfMoveMetadata::default()
+                metadata: HalfMoveMetadata::default(),
             }]
         );
     }
@@ -354,7 +354,7 @@ mod tests {
                 Place(D4),
             ],
         )
-        .expect("Error in input data");
+            .expect("Error in input data");
         assert_eq!(
             replay.notation,
             vec![
@@ -364,9 +364,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 2,
                         label: "e2>e4".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(E2), Place(E4)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
                 HalfMove {
                     move_number: 1,
@@ -374,9 +374,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 4,
                         label: "d7>d5".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(D7), Place(D5)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
                 HalfMove {
                     move_number: 2,
@@ -384,9 +384,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 6,
                         label: "e4xd5".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(E4), Place(D5)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
                 HalfMove {
                     move_number: 2,
@@ -402,8 +402,8 @@ mod tests {
                         },
                     ],
                     paco_actions: vec![Lift(D8), Place(D5), Place(D4)],
-                    metadata: HalfMoveMetadata::default()
-                }
+                    metadata: HalfMoveMetadata::default(),
+                },
             ]
         );
     }
@@ -424,7 +424,7 @@ mod tests {
                 Place(G6),
             ],
         )
-        .expect("Error in input data");
+            .expect("Error in input data");
 
         assert_eq!(
             replay.notation,
@@ -435,9 +435,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 2,
                         label: "RPh2>h8".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(H2), Place(H8)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
                 HalfMove {
                     move_number: 2,
@@ -457,7 +457,7 @@ mod tests {
                         },
                     ],
                     paco_actions: vec![Promote(PieceType::Knight), Lift(H1), Place(H8), Place(G6)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
             ]
         );
@@ -481,7 +481,7 @@ mod tests {
                 Place(D7),
             ],
         )
-        .expect("Error in input data");
+            .expect("Error in input data");
 
         assert_eq!(
             replay.notation,
@@ -492,9 +492,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 2,
                         label: "0-0".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(E1), Place(G1)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
                 HalfMove {
                     move_number: 1,
@@ -502,9 +502,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 4,
                         label: "0-0-0".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(E8), Place(C8)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
                 HalfMove {
                     move_number: 2,
@@ -512,9 +512,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 6,
                         label: "Kg1>h1".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(G1), Place(H1)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
                 HalfMove {
                     move_number: 2,
@@ -522,9 +522,9 @@ mod tests {
                     actions: vec![HalfMoveSection {
                         action_index: 8,
                         label: "Kc8>d7".to_string(),
-                    },],
+                    }, ],
                     paco_actions: vec![Lift(C8), Place(D7)],
-                    metadata: HalfMoveMetadata::default()
+                    metadata: HalfMoveMetadata::default(),
                 },
             ]
         );
@@ -547,13 +547,13 @@ mod tests {
                 actions: vec![HalfMoveSection {
                     action_index: 2,
                     label: "Nc6xd4".to_string(),
-                },],
+                }, ],
                 paco_actions: vec![Lift(C6), Place(D4)],
                 metadata: HalfMoveMetadata {
                     gives_opponent_paco_opportunity: true,
                     ..Default::default()
-                }
-            },]
+                },
+            }, ]
         );
     }
 

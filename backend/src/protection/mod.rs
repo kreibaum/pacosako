@@ -15,7 +15,10 @@
 //! It is possible to lock both sides to the same user. This reduces complexity
 //! and I don't believe this ever was very important.
 
+use serde::Serialize;
+
 use crate::login::UserId;
+use crate::ws::socket_auth::SocketIdentity;
 
 #[derive(Debug)]
 pub enum SideProtection {
@@ -24,38 +27,64 @@ pub enum SideProtection {
     UserLock(UserId), // A user has locked this side.
 }
 
+#[derive(Debug, Clone, Copy, Serialize)]
+pub enum ControlLevel {
+    Unlocked,
+    LockedByYou,
+    LockedByOther,
+}
+
 impl SideProtection {
+    /// Checks if the side can be controlled by the given socket.
+    /// This is for read-only access. This does not lock the side.
+    ///
+    /// This does mean that there now is a difference between "This is your side"
+    /// and "This is unassigned; you can take it". That is why we don't return
+    /// a `bool` but a `ControlLevel`.
+    pub fn test(&self, SocketIdentity { uuid, user_id }: &SocketIdentity) -> ControlLevel {
+        match self {
+            Self::Unlocked => ControlLevel::Unlocked,
+            Self::UuidLock(current_uuid) => {
+                if current_uuid == uuid {
+                    ControlLevel::LockedByYou
+                } else {
+                    ControlLevel::LockedByOther
+                }
+            }
+            Self::UserLock(current_user) => {
+                if Some(*current_user) == *user_id {
+                    ControlLevel::LockedByYou
+                } else {
+                    ControlLevel::LockedByOther
+                }
+            }
+        }
+    }
+
     /// Checks if the side can be controlled by the given uuid / user. Locks it
     /// to this uuid/user if it is unlocked.
     ///
     /// If it can be controlled by the given uuid and a user is given, then the
     /// lock upgrades to a user lock.
-    pub fn test_and_assign(&mut self, uuid: &str, user: Option<UserId>) -> bool {
+    pub fn test_and_assign(&mut self, socket_identity: &SocketIdentity) -> bool {
+        let SocketIdentity { uuid, user_id } = socket_identity;
         match self {
             Self::Unlocked => {
-                if let Some(user) = user {
-                    *self = Self::UserLock(user);
-                } else {
-                    *self = Self::UuidLock(uuid.to_owned());
-                }
+                *self = socket_identity.into();
                 true
             }
             Self::UuidLock(current_uuid) => {
                 if current_uuid == uuid {
-                    if let Some(user) = user {
-                        *self = Self::UserLock(user);
+                    if let Some(user_id) = user_id {
+                        *self = Self::UserLock(*user_id);
                     }
                     true
                 } else {
                     false
                 }
             }
-            Self::UserLock(current_user) => user == Some(*current_user),
+            Self::UserLock(current_user) => *user_id == Some(*current_user),
         }
-    }
-
-    pub fn is_unclaimed(&self) -> bool {
-        matches!(self, Self::Unlocked)
     }
 
     pub fn get_user(&self) -> Option<UserId> {
@@ -71,6 +100,16 @@ impl SideProtection {
             SideProtection::UserLock(player)
         } else {
             SideProtection::Unlocked
+        }
+    }
+}
+
+impl From<&SocketIdentity> for SideProtection {
+    fn from(SocketIdentity { uuid, user_id }: &SocketIdentity) -> Self {
+        if let Some(user_id) = user_id {
+            SideProtection::UserLock(user_id.clone())
+        } else {
+            SideProtection::UuidLock(uuid.clone())
         }
     }
 }

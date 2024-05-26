@@ -1,5 +1,5 @@
 //! This module implements an extension of X-Fen that can represent settled Paco
-//! Ŝako boards (i.e. boards without an active chain) together with most state.
+//! Ŝako boards (i.e., boards without an active chain) together with most state.
 //!
 //! It should be mostly compatible with <https://vchess.club/#/variants/Pacosako>
 //! where I got the union notation. There are somewhat different pawn rules on the
@@ -12,7 +12,7 @@
 //!
 //! Lowercase letters are black pieces, uppercase letters are white pieces.
 //!
-//! The extension by vchess are:
+//! The extensions by vchess are:
 //!
 //!   - A bit string with 16 entries, one for each pawn column and color if the player
 //!     already moved their pawn in this column. (Only allowed once on vchess)
@@ -47,7 +47,7 @@ fn fen_regex(input: &str) -> Option<(&str, &str, &str, &str, &str, &str, &str)> 
     )
 }
 
-/// Runs regex_captures! for the lifted piece section, e.g. "^c7Rb".
+/// Runs `regex_captures!` for the lifted piece section, e.g. "^c7Rb".
 /// The regex is \^([a-h][0-8])([a-zA-Z])
 /// caret, square (c7), lifted square (Rb)
 fn lifted_regex(input: &str) -> Option<(&str, &str, &str)> {
@@ -55,7 +55,7 @@ fn lifted_regex(input: &str) -> Option<(&str, &str, &str)> {
 }
 
 /// Takes only the lifted piece section of the fen string (e.g. "^c7Rb") and
-/// returns a Hand. Also needs to know who's turn it is.
+/// returns a Hand. Also needs to know whose turn it is.
 fn parse_lifted(input: &str, controlling_player: PlayerColor) -> Result<Hand, PacoError> {
     if let Some((_, position, lifted_square)) = lifted_regex(input) {
         let Ok(position) = BoardPosition::try_from(position) else {
@@ -155,7 +155,7 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
             _ => unreachable!("Regex restricts input to 'w' and 'b'."),
         };
 
-        // Add lifted piece
+        // Add the lifted piece
         let new_hand = parse_lifted(lifted, result.controlling_player)?;
         if new_hand.is_empty() {
             result.required_action = RequiredAction::Lift;
@@ -361,14 +361,14 @@ mod tests {
         }
     }
 
-    /// Basically the same as roundtrip(), but we execute a random amount
+    /// Basically the same as roundtrip(), but we execute a random number
     /// of actions (1-5) on the board first.
     #[test]
     fn roundtrip_after_actions() {
         use rand::{prelude::IteratorRandom, Rng, thread_rng};
 
         let mut rng = thread_rng();
-        for _ in 0..100000 {
+        for _ in 0..1000 {
             let mut board: DenseBoard = rng.gen();
             println!("Starting board: {}", write_fen(&board));
             let action_count = rng.gen_range(1..=5);

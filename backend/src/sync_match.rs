@@ -1,14 +1,20 @@
+use std::convert::TryFrom;
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::de::from_str;
+
+use pacosako::{fen, PacoAction, PacoBoard, PacoError};
+use pacosako::setup_options::SetupOptions;
+
 use crate::db::{self, Connection};
 use crate::login::user::{load_user_data_for_game, PublicUserData};
 use crate::login::UserId;
-use crate::timer::{Timer, TimerConfig, TimerState};
+use crate::protection::ControlLevel;
 use crate::ServerError;
-use chrono::{DateTime, Utc};
-use pacosako::setup_options::SetupOptions;
-use pacosako::{fen, PacoAction, PacoBoard, PacoError};
-use serde::{Deserialize, Serialize};
-use serde_json::de::from_str;
-use std::convert::TryFrom;
+use crate::timer::{Timer, TimerConfig, TimerState};
+use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
+
 /// This module implements match synchronization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
 /// already clear and we only implement the Paco Ŝako specific parts.
@@ -139,6 +145,9 @@ pub struct CurrentMatchStateClient {
     pub setup_options: SetupOptions,
     pub white_player: Option<PublicUserData>,
     pub black_player: Option<PublicUserData>,
+    // Tells the client which pieces they are allowed to control.
+    pub white_control: ControlLevel,
+    pub black_control: ControlLevel,
 }
 
 /// A small version of the current match state that suffices to show a match in an overview.
@@ -189,8 +198,35 @@ impl CurrentMatchStateClient {
     /// function loads the player metadata from the database.
     pub async fn try_new(
         data: CurrentMatchState,
+        room: &crate::ws::GameRoom,
+        sender_metadata: SocketAuth,
         connection: &mut Connection,
-    ) -> Result<Self, sqlx::Error> {
+    ) -> Result<Self, anyhow::Error> {
+        let (white_player, black_player) = load_user_data_for_game(&data.key, connection).await?;
+
+        let sender_identity = SocketIdentity::resolve_user(&sender_metadata, connection).await?;
+
+        let white_control = room.white_player.test(&sender_identity);
+        let black_control = room.black_player.test(&sender_identity);
+
+        Ok(Self {
+            key: data.key,
+            actions: data.actions,
+            controlling_player: data.controlling_player,
+            timer: data.timer,
+            victory_state: data.victory_state,
+            setup_options: data.setup_options,
+            white_player,
+            black_player,
+            white_control,
+            black_control,
+        })
+    }
+
+    pub async fn try_new_without_sender(
+        data: CurrentMatchState,
+        connection: &mut Connection,
+    ) -> Result<Self, anyhow::Error> {
         let (white_player, black_player) = load_user_data_for_game(&data.key, connection).await?;
 
         Ok(Self {
@@ -202,6 +238,8 @@ impl CurrentMatchStateClient {
             setup_options: data.setup_options,
             white_player,
             black_player,
+            white_control: ControlLevel::LockedByOther,
+            black_control: ControlLevel::LockedByOther,
         })
     }
 }
@@ -358,8 +396,9 @@ impl SynchronizedMatch {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use pacosako::types::BoardPosition;
+
+    use super::*;
 
     /// Does a move and mostly just checks that it does not crash.
     #[test]

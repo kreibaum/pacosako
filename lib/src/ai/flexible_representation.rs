@@ -1,4 +1,4 @@
-//! Originally there was only one way to represent the game state for consuption
+//! Originally, there was only one way to represent the game state for consumption
 //! by the AI. This module provides a more flexible way to represent the game
 //! where you can pass in options to customize the representation.
 //!
@@ -12,10 +12,12 @@ use crate::{
 
 use super::repr;
 
-/// Perspective = 1 means, that the AI will see the board from the perspective
-/// of the player to move. Perspecitve = 0 means, that the AI will see the board
+/// `USE_RELATIVE_PERSPECTIVE = 1` means that the AI will see the board from the
+/// perspective of the player to move.
+/// `USE_RELATIVE_PERSPECTIVE = 0` means that the AI will see the board
 /// from the perspective of white.
 /// This CHANGES how layers are represented.
+/// This also adds a layer to indicate the active player.
 const USE_RELATIVE_PERSPECTIVE: u32 = 1 << 0;
 
 /// Is Settled = 1 enables an ADDITIONAL layer. This layer is the same everywhere
@@ -209,7 +211,7 @@ impl IndexRepresentation {
     }
 
     /// If there is an en passant square, then we add it to the representation.
-    /// Otherwise we take an existing index from the sparse tensor.
+    /// Otherwise, we take an existing index from the sparse tensor.
     /// Duplicating an existing index does nothing to the tensor representation.
     fn push_en_passant_square(
         &mut self,
@@ -227,7 +229,7 @@ impl IndexRepresentation {
         Ok(())
     }
 
-    /// Adds 4 layers for castling rights. Values are 0 or 1.
+    /// Adds four layers for castling rights. Values are 0 or 1.
     fn push_castling(&mut self, castling: Castling) {
         if self.used_perspective() == PlayerColor::White {
             self.boolean_layers.push(castling.white_queen_side as u32);
@@ -243,7 +245,7 @@ impl IndexRepresentation {
     }
 
     /// When use_relative_perspective is off, then we need to communicate the AI which
-    /// side it actually controlls. This is done by conditionally adding a single layer.
+    /// side it actually controls. This is done by conditionally adding a single layer.
     fn push_perspective(&mut self) {
         if !self.options.use_relative_perspective() {
             self.boolean_layers.push(self.perspective as u32);
@@ -304,7 +306,7 @@ pub fn index_representation(
             repr.push_index(position, partner, board.controlling_player().other(), true);
         }
     }
-    assert!(repr.sparse_tensor_indices.len() == PIECE_COUNT);
+    assert_eq!(repr.sparse_tensor_indices.len(), PIECE_COUNT);
 
     // En passant square.
     repr.push_en_passant_square(board.en_passant)?;
@@ -345,7 +347,7 @@ mod test {
 
     use super::*;
 
-    /// Verifies, that the initial board is represented correctly. This tests
+    /// Verifies that the initial board is represented correctly. This tests
     /// various options.
     #[test]
     fn initial_board() -> Result<(), Box<dyn std::error::Error>> {
@@ -405,7 +407,7 @@ mod test {
     #[test]
     fn regression_test() -> Result<(), Box<dyn std::error::Error>> {
         // Generates random positions, compares with the old representation.
-        // Will execute 0-3 legal actios to capture more positions.
+        // Will execute 0-3 legal actions to capture more positions.
 
         for _ in 0..1000 {
             let mut board: DenseBoard = rand::random();

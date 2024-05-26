@@ -1,5 +1,8 @@
-//! This module defines all the methods that are exposed in the C library.
-//! It is the part that can be used by Julia.
+//! This module initially defined all the methods that are exposed in the C library.
+//! It is the part that Julia can use.
+//!
+//! By now, several other files also define `extern "C"` functions, so this file
+//! is not the only one that defines the interface to the C library.
 
 use std::str;
 
@@ -81,12 +84,12 @@ pub unsafe extern "C" fn clone(ps: *mut DenseBoard) -> *mut DenseBoard {
 pub unsafe extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     match ps.controlling_player() {
-        crate::PlayerColor::White => 1,
-        crate::PlayerColor::Black => -1,
+        PlayerColor::White => 1,
+        PlayerColor::Black => -1,
     }
 }
 
-/// Writes a label for the action as a utf8 string into the given buffer.
+/// Writes a label for the action as an utf8 string into the given buffer.
 /// The buffer should have two byes of space. The length of the string is
 /// returned. If the buffer is too small, 0 is returned.
 ///
@@ -182,7 +185,7 @@ impl PlayerAlign for PacoAction {
 /// # Safety
 ///
 /// The pointer must point to a valid DenseBoard. The action does not have to be
-/// a legal action nor does it have to be a valid action.
+/// a legal action, nor does it have to be a valid action.
 #[no_mangle]
 pub unsafe extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
@@ -299,9 +302,9 @@ pub unsafe extern "C" fn serialize(
     if let Ok(encoded) = bincode::serialize(ps) {
         if encoded.len() as i64 != reserved_space {
             // If julia reserved the wrong amount of space, this could write into
-            // memory it is not supposed to, triggering a Segfault in the best
-            // case and a vulnerability in the worst case. This is why we double
-            // check the reserved space.
+            // memory it is not supposed to, triggering a Segfault in the best case
+            // and a vulnerability in the worst case.
+            // This is why we double-check the reserved space.
             return -1;
         }
         for byte in encoded {
@@ -317,11 +320,11 @@ pub unsafe extern "C" fn serialize(
 }
 
 /// Tries to deserialize a DenseBoard from the given bincode data. If the
-/// conversion fails this will return a null pointer.
+/// conversion fails, this will return a null pointer.
 ///
 /// If you don't properly specify the buffer size, this can buffer over-read and
-/// copy memory you may not want exposed to a new location.
-/// (e.g. Heartbleed was a buffer over-read vulnerability)
+/// copy memory you may not want to expose to a new location.
+/// (e.g., Heartbleed was a buffer over-read vulnerability)
 /// Make sure you own the memory you read from!
 ///
 /// Returns a null pointer if the deserialization failed.
@@ -427,7 +430,7 @@ pub unsafe extern "C" fn get_idxrepr_opts(
 }
 
 /// Returns the index representation of the board state.
-/// This is a lot more compressed than the Tensor representation which is very
+/// This is a lot more compressed than the Tensor representation, which is very
 /// sparse.
 ///
 /// # Safety
@@ -531,17 +534,14 @@ pub unsafe extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
-    let threats = determine_all_threats(ps)
-        .unwrap()
-        .iter()
-        .filter(|t| t.0)
-        .count() as i64;
 
-    threats
+    determine_all_threats(ps)
+        .unwrap()
+        .len() as i64
 }
 
 /// Finds all the paco sequences that are possible in the given position.
-/// Needs to use the output memory to returns these, so it may not return
+/// Needs to use the output memory to return these, so it may not return
 /// all the chains that were found.
 ///
 /// # Safety
@@ -562,7 +562,7 @@ pub unsafe extern "C" fn find_paco_sequences(
         let actions = reverse_amazon_search::find_paco_sequences(ps, ps.controlling_player());
         let Ok(actions) = actions else {
             println!("Error in the reverse amazon search: {:?}", actions);
-            println!("Position: {}", crate::fen::write_fen(ps));
+            println!("Position: {}", fen::write_fen(ps));
             return -1;
         };
         return write_out_chain(actions, ps, reserved_space, out);

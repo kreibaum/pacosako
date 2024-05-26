@@ -4,8 +4,8 @@
 //! the number of positions we need to analyze.
 
 use crate::{
-    determine_all_moves, trace_first_move, DenseBoard, PacoAction, PacoBoard, PacoError,
-    PlayerColor, VictoryState,
+    DenseBoard, determine_all_moves, PacoAction, PacoBoard, PacoError, PlayerColor,
+    trace_first_move, VictoryState,
 };
 
 use super::reverse_amazon_search;
@@ -18,7 +18,7 @@ pub fn my_is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, P
 /// player's perspective. The board must be settled. (No active chain.)
 /// Returns a vector of all moves that can be used for this chase.
 ///
-/// If a the attacker can directly unite with the opponents king, this is not
+/// If the attacker can directly unite with the opponent's king, this is not
 /// considered a chasing paco in 2. (This is a chasing paco in 1.)
 ///
 /// Note that for n == 2, the Chasing Paco is equivalent to Forced Paco.
@@ -62,13 +62,9 @@ pub fn is_chasing_paco_in_2(
             if my_is_sako(attack_board, attacker.other())? {
                 continue;
             }
-            assert!(
-                attack_board.controlling_player == attacker.other(),
-                "{}",
-                crate::fen::write_fen(attack_board)
-            );
+            assert_eq!(attack_board.controlling_player, attacker.other(), "{}", crate::fen::write_fen(attack_board));
             let explored_defense = determine_all_moves(attack_board.clone())?;
-            // All of the defense boards must still be in Ŝako. Otherwise we can
+            // All the defense boards must still be in Ŝako. Otherwise, we can
             // escape. This then discards the attack board (and move) from the
             // options.
             for defense_hash in &explored_defense.settled {
@@ -90,10 +86,11 @@ pub fn is_chasing_paco_in_2(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::fen;
     use crate::BoardPosition;
+    use crate::fen;
     use crate::PacoAction::*;
+
+    use super::*;
 
     fn pos(identifier: &str) -> BoardPosition {
         BoardPosition::try_from(identifier).unwrap()

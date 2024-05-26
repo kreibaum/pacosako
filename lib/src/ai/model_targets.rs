@@ -3,3 +3,4 @@
 //! We have read a paper that this can help a lot with initial training speed.
 
 mod blocked_pawns;
+mod threatened_squares;

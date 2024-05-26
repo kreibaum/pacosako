@@ -27,7 +27,7 @@
 //! The first 24 layers are mostly zero, there is at most one 1 per piece.
 //! On an ordinary game, that would be 32 1s. Variants with more pieces are out of scope.
 //!
-//! Indices are 0-indexed. To transmit "no en passant", we reuse on of the
+//! Indices are 0-indexed. To transmit "no en passant", we reuse one of the
 //! previous indices.
 //!
 //! 32 x index, index or 0, 4 x bool, 0..100 half move clock
@@ -50,7 +50,7 @@
 //!
 
 use crate::{
-    substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
+    BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor, substrate::Substrate,
 };
 
 /// Fills in the tensor representation of the board.
@@ -121,7 +121,7 @@ pub fn index_representation(board: &DenseBoard, out: &mut [u32; 38]) {
     assert!(out.index == 38);
 }
 
-/// A little wrapper around a mutable slice of u32s so we can use it like a vector.
+/// A little wrapper around a mutable slice of u32s, so we can use it like a vector.
 struct Output<'a> {
     storage: &'a mut [u32; 38],
     index: usize,
@@ -245,10 +245,11 @@ fn vertical_flip(pos: BoardPosition) -> BoardPosition {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{const_tile::pos, PacoAction, PacoError};
 
-    // Examples verified manually with LibreOffice Calc:
+    use super::*;
+
+// Examples verified manually with LibreOffice Calc:
     // ./scripts/board-representation-index-verification-util.ods
 
     #[test]
