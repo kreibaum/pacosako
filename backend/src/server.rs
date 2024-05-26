@@ -47,7 +47,8 @@ pub async fn run(state: AppState) {
             "/oauth/pleaseCreateAccount",
             get(login::discord::please_create_account),
         )
-        .route("/oauth/get_redirected", get(login::discord::get_redirected));
+        .route("/oauth/get_redirected", get(login::discord::get_redirected))
+        .route("/user/:user_id", get(user::get_public_user_info));
 
     // build our application with a single route
     let app: Router<AppState> = Router::new();

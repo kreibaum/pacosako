@@ -1,17 +1,19 @@
 //! Module to load user information from the database
 
-use axum::{
-    extract::{Path, State},
-    response::{IntoResponse, Response},
-};
+extern crate regex;
+
+use axum::{extract::{Path, State}, Json, response::{IntoResponse, Response}};
 use hyper::{header, StatusCode};
 use lazy_static::lazy_static;
-use pacosako::PlayerColor;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-extern crate regex;
-use super::{session::SessionData, UserId};
+
+use pacosako::PlayerColor;
+
 use crate::db::{Connection, Pool};
+use crate::ServerError;
+
+use super::{session::SessionData, UserId};
 
 /// This struct holds data about a user that everyone (even unauthenticated users) can see.
 #[derive(Serialize, Clone, Debug)]
@@ -51,9 +53,9 @@ pub async fn set_avatar(
         avatar,
         session.user_id.0
     )
-    .execute(&mut connection)
-    .await
-    .unwrap();
+        .execute(&mut connection)
+        .await
+        .unwrap();
 
     // Return an empty OK response
     (StatusCode::OK, "").into_response()
@@ -99,8 +101,8 @@ async fn load_one_ai_config_for_game(
         game_key,
         color
     )
-    .fetch_optional(&mut *connection)
-    .await?;
+        .fetch_optional(&mut *connection)
+        .await?;
 
     if let Some(res) = res {
         Ok(Some(AiMetaData {
@@ -147,8 +149,8 @@ pub async fn load_user_data_for_game(
         "select white_player, black_player from game where id = ?",
         game_key
     )
-    .fetch_one(&mut *connection)
-    .await?;
+        .fetch_one(&mut *connection)
+        .await?;
 
     let (white_ai, black_ai) = load_ai_config_for_game(game_key, &mut *connection).await?;
 
@@ -217,8 +219,8 @@ pub async fn create_user(
         name,
         avatar
     )
-    .execute(conn)
-    .await?;
+        .execute(conn)
+        .await?;
 
     Ok(UserId(res.last_insert_rowid() as i64))
 }
@@ -248,17 +250,17 @@ pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Resp
         "update game set white_player = NULL where white_player = ?",
         session.user_id.0
     )
-    .execute(&mut *connection)
-    .await
-    .expect("Error removing user from games");
+        .execute(&mut *connection)
+        .await
+        .expect("Error removing user from games");
 
     sqlx::query!(
         "update game set black_player = NULL where black_player = ?",
         session.user_id.0
     )
-    .execute(&mut *connection)
-    .await
-    .expect("Error removing user from games");
+        .execute(&mut *connection)
+        .await
+        .expect("Error removing user from games");
 
     sqlx::query!("delete from session where user_id = ?", session.user_id.0)
         .execute(&mut *connection)
@@ -290,7 +292,19 @@ pub async fn create_discord_login(
         user_id.0,
         identifier
     )
-    .execute(connection)
-    .await?;
+        .execute(connection)
+        .await?;
     Ok(())
+}
+
+/// Allows anyone to get the public information of any user.
+/// Even if you are not logged in right now.
+pub async fn get_public_user_info(
+    Path(user_id): Path<i64>,
+    State(pool): State<Pool>,
+) -> Result<Json<PublicUserData>, ServerError> {
+    let mut connection = pool.conn().await?;
+
+    let user_data = load_public_user_data(UserId(user_id), &mut connection).await?;
+    Ok(Json(user_data))
 }
