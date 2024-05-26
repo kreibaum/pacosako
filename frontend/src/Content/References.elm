@@ -1,4 +1,4 @@
-module Content.References exposing (discordInvite, gitHubLink, officialWebsiteLink, posterumCupInvite, twitchLink)
+module Content.References exposing (discordInvite, gitHubLink, officialWebsiteLink, twitchLink)
 
 import Element exposing (Element, centerX, clip, column, el, fill, height, image, maximum, newTabLink, padding, paragraph, px, rgba255, row, spacing, text, width)
 import Element.Background as Background
