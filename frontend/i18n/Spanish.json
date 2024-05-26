@@ -163,5 +163,6 @@
     "anonymousPlayerName": "Sin cuenta",
     "adminUserAssignmentPageTitle": "Administrador - Asignación de usuarios",
     "adminUserAssignmentL1": "Aquí puedes asignar usuarios a juegos. Esto es útil para asignar juegos al usuario correcto. Necesitará permisos especiales para hacer esto. Por ahora, también necesita conocer la identificación técnica de usuario de las personas.",
-    "adminUserAssignmentEnterId": "Ingresa el ID del usuario"
+    "adminUserAssignmentEnterId": "Ingresa el ID del usuario",
+    "adminUserAssignmentPerform": "Asignar usuario(s) al juego"
 }
