@@ -33,7 +33,6 @@ import Shared
 import Svg.Discord
 import Task
 import Translations as T
-import Url exposing (Protocol(..))
 import User
 import View exposing (View)
 

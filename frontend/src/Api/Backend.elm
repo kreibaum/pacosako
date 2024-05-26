@@ -365,7 +365,8 @@ getReplay key =
 
 
 type alias Replay =
-    { actions : List ( Sako.Action, Posix )
+    { key : String
+    , actions : List ( Sako.Action, Posix )
     , timer : Maybe Timer.Timer
     , victoryState : Sako.VictoryState
     , setupOptions : SetupOptions
@@ -376,7 +377,8 @@ type alias Replay =
 
 decodeReplay : Decoder Replay
 decodeReplay =
-    Decode.map6 Replay
+    Decode.map7 Replay
+        (Decode.field "key" Decode.string)
         (Decode.field "actions" (Decode.list decodeStampedAction))
         (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
         (Decode.field "victory_state" Sako.decodeVictoryState)

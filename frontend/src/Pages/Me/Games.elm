@@ -204,18 +204,19 @@ viewOneGame shared game =
                     , column [ height fill, padding 10 ]
                         [ Element.text (T.match ++ " " ++ game.key)
                         , row [ spacing 5, height fill ]
-                            [ Element.text "B: "
-                            , Element.image [ width (px 30), height (px 30) ]
-                                { src = "/p/" ++ profileBlack.avatar, description = "" }
-                            , Element.text (profileBlack.name ++ emojis.black)
-                            ]
+                            [ Element.text "B:", playerLabel profileBlack emojis.black ]
                         , row [ spacing 5, height fill ]
-                            [ Element.text "W: "
-                            , Element.image [ width (px 30), height (px 30) ]
-                                { src = "/p/" ++ profileWhite.avatar, description = "" }
-                            , Element.text (profileWhite.name ++ emojis.white)
-                            ]
+                            [ Element.text "W:", playerLabel profileWhite emojis.white ]
                         ]
                     ]
                 ]
         }
+
+
+playerLabel : PublicUserData -> String -> Element Msg
+playerLabel user emoji =
+    row [ spacing 5, height fill ]
+        [ Element.image [ width (px 30), height (px 30) ]
+            { src = "/p/" ++ user.avatar, description = "" }
+        , Element.text (user.name ++ emoji)
+        ]
