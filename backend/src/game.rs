@@ -22,6 +22,7 @@ use crate::{
         CompressedMatchStateClient, CurrentMatchStateClient, MatchParameters, SynchronizedMatch,
     }, timer::TimerConfig, ws,
 };
+use crate::protection::backdated_user_assignment::backdate_user_assignment;
 
 /// Adds the game management API to the given router.
 /// This is expected to be nested at "/api".
@@ -34,6 +35,7 @@ pub fn add_to_router(api_router: Router<AppState>) -> Router<AppState> {
         .route("/game/recent", get(recently_created_games))
         .route("/branch_game", post(branch_game))
         .route("/me/games", get(my_games))
+        .route("/game/backdate", post(backdate_user_assignment))
 }
 
 /// Create a match on the database and return the id.
