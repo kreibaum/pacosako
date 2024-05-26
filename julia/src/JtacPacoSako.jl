@@ -8,25 +8,16 @@ module JtacPacoSako
 using Artifacts, LazyArtifacts
 import Libdl
 
-using Jtac
-import Jtac.Model: AbstractModel
-import Jtac.Training: DataSet
-import Jtac.Target: AbstractTarget, LabelContext
+using Reexport
 
-# re-export Jtac Modules
-export Jtac,
-       Util,
-       Pack,
-       Game,
-       Target,
-       Data,
-       Model,
-       Player,
-       Training
+@reexport using Jtac
+@reexport using Jtac.Common
 
-export PacoSako
+export PacoSako, PacoSakoTensorizor
 
 export Paco1Solver, Luna, Ludwig, Hedwig
+
+export SakoTarget, BlockedPawnsTarget, ThreatenedSquaresTarget
 
 """
 Reference to the currently loaded instance of libpacosako.

@@ -151,93 +151,6 @@ function Game.move!(ps :: PacoSako, action :: Int) :: PacoSako
   ps
 end
 
-const USE_RELATIVE_PERSPECTIVE = UInt32(1)
-const WITH_MUST_LIFT = UInt32(2)
-const WITH_MUST_PROMOTE = UInt32(4)
-
-"""
-    representationlength(options)
-
-Given representation options, this method tells you how much memory must be reserved to store the representation.
-"""
-function representationlength(options :: UInt32)
-    @pscall(:get_idx_repr_length, Int64, (UInt32,), options)
-end
-
-function Game.array(pss :: Vector{PacoSako})
-  batchsize = length(pss)
-  buf = Game.arraybuffer(PacoSako, batchsize)
-  Game.array!(buf, pss)
-  buf
-end
-
-function Game.array(ps :: PacoSako)
-  reshape(Game.array([ps]), 8, 8, 30)
-end
-
-function Game.array!(buf, games :: Vector{PacoSako})
-  @assert size(buf)[1:3] == size(PacoSako)
-  @assert size(buf, 4) >= length(games)
-
-  batchsize = length(games)
-  game_length = prod(size(PacoSako))
-
-  # Reset the buffer that will carry the array representation of the games
-  buf[:, :, :, 1:batchsize] .= 0
-
-  # Buffer for storing the index representation of a single game state.
-  #
-  # The index representation is a sparse representation of a paco sako board
-  # via 38 UInt32 values. The first 33 values are used as indices that identify
-  # which entries of the dense game array should be set to 1 (we call this
-  # operation "scattering"). The final 5 values correspond to the values of the
-  # final 5 layers of the dense game array, all of which are constant.
-  #
-  # The crucial advantage of this representation is that only 38*8 bytes have to
-  # be uploaded to the GPU per game state evaluation. Therefore, the amount of
-  # data transfer between the CPU and GPU drops significantly.
-  tmp = zeros(UInt32, 38)
-
-  # Scatter indices that determine the location of 1s in the array representation
-  scatter_indices = zeros(UInt32, 33, batchsize)
-
-  # Values for the final 5 layers in the array representation
-  layer_values = zeros(Float32, 5, batchsize)
-
-  for (index, ps) in enumerate(games)
-
-    # Get the index representation of this game
-    @pscall(
-      :get_idxrepr_opts,
-      Int64,
-      (Ptr{Nothing}, Ptr{Nothing}, Int64, UInt32),
-      ps.ptr,
-      tmp,
-      length(tmp),
-      USE_RELATIVE_PERSPECTIVE
-    )
-
-    # Extract scatter indices and layer values for this game
-    offset = (index - 1) * game_length
-    scatter_indices[:, index] .= 1 .+ tmp[1:33] .+ offset
-    layer_values[:, index] .= tmp[34:38]
-  end
-
-  # Set the buffer to 1 at the 33 scatter index locations
-  scatter_indices = reshape(scatter_indices, :)
-  buf[scatter_indices] .= 1
-
-  # Set the 5 constant layers
-  T = Model.arraytype(buf)
-  layer_values = convert(T, layer_values)
-  buf[:, :, 26:30, 1:batchsize] .= reshape(layer_values, 1, 1, 5, :)
-
-  # Scale the final layer
-  buf[:, :, 30, 1:batchsize] ./= 100
-
-  nothing
-end
-
 function Game.randominstance(:: Type{PacoSako})
   ptr = @pscall(:random_position, Ptr{Nothing}, ())
   @assert ptr != C_NULL "Error in the random generator for PacoSako states"
@@ -338,15 +251,133 @@ function Base.show(io :: IO, :: MIME"text/plain", game :: PacoSako)
   print(io, "  link: $pacoplay_editor_url")
 end
 
-function Base.size(:: Type{PacoSako})
-  layer_count = @pscall(:repr_layer_count, Int64, ())
+function Base.copy(ps :: PacoSako) :: PacoSako
+  ptr = @pscall(:clone, Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
+  PacoSako(ptr)
+end
+
+
+#
+# Tensorization of PacoSako states
+#
+
+"""
+Tensorizor that implements various options for converting PacoSako game states
+into array representations.
+"""
+struct PacoSakoTensorizor{O} <: Model.Tensorizor{PacoSako}
+  PacoSakoTensorizor(opts :: Integer) = new{UInt32(opts)}()
+  PacoSakoTensorizor{O}() where {O} = new{UInt32(O)}()
+end
+
+const USE_RELATIVE_PERSPECTIVE = UInt32(1)
+const WITH_MUST_LIFT = UInt32(2)
+const WITH_MUST_PROMOTE = UInt32(4)
+
+function PacoSakoTensorizor(
+                           ; relative_perspective = true
+                           , must_lift = false
+                           , must_promote = false )
+  opts = UInt32(0)
+  opts = relative_perspective ? opts | USE_RELATIVE_PERSPECTIVE : opts
+  opts = must_lift ? opts | WITH_MUST_LIFT : opts
+  opts = must_promote ? opts | WITH_MUST_PROMOTE : opts
+
+  PacoSakoTensorizor(opts)
+end
+
+function Base.show(io :: IO, ::MIME"text/plain", t :: PacoSakoTensorizor{O}) where {O}
+  relative_perspective = O & USE_RELATIVE_PERSPECTIVE != 0
+  must_lift = O & WITH_MUST_LIFT != 0
+  must_promote = O & WITH_MUST_PROMOTE != 0
+  println(io, "PacoSakoTensorizor{$O}")
+  println(io, " relative_perspective: ", relative_perspective)
+  println(io, " must_lift: ", must_lift)
+  print(io, " must_promote: ", must_promote)
+end
+
+function Base.size(:: PacoSakoTensorizor{O}) where {O}
+  opts = UInt32(O)
+  layer_count = @pscall(:repr_layer_count_opts, Int64, (UInt32,), opts)
   @assert layer_count > 0 "Layer count must be positive"
   (8, 8, layer_count)
 end
 
-function Base.copy(ps :: PacoSako) :: PacoSako
-  ptr = @pscall(:clone, Ptr{Nothing}, (Ptr{Nothing},), ps.ptr)
-  PacoSako(ptr)
+"""
+    indexreprlength(options)
+
+Given representation options, this method tells you how much memory must be reserved to store the representation.
+"""
+function indexreprlength(opts :: UInt32)
+  @pscall(:get_idx_repr_length, Int64, (UInt32,), opts)
+end
+
+function (tensorizor :: PacoSakoTensorizor{O})(T, buf, games) where {O}
+  @assert size(buf, 4) >= length(games)
+
+  opts = UInt32(O)
+
+  batchsize = length(games)
+  game_length = prod(size(tensorizor))
+
+  # Reset the buffer that will carry the array representation of the games
+  buf[:, :, :, 1:batchsize] .= 0
+
+  # Buffer for storing the index representation of a single game state.
+  #
+  # The crucial advantage of this representation is that only few bytes have
+  # to be uploaded to the GPU per game state evaluation. The amount of data
+  # transfer between the CPU and GPU is reduced significantly.
+  repr_length = indexreprlength(opts)
+  flag_count = repr_length - 33
+  tmp = zeros(UInt32, repr_length)
+
+  # Scatter indices that determine the location of 1s in the array representation
+  scatter_indices = zeros(UInt32, 33, batchsize)
+
+  # Values for the final 5 layers in the array representation
+  layer_flags = zeros(Float32, flag_count, batchsize)
+
+  for (index, ps) in enumerate(games)
+
+    # Get the index representation of this game
+    @pscall(
+      :get_idxrepr_opts,
+      Int64,
+      (Ptr{Nothing}, Ptr{Nothing}, Int64, UInt32),
+      ps.ptr,
+      tmp,
+      length(tmp),
+      opts,
+    )
+
+    # Extract scatter indices and layer values for this game
+    offset = (index - 1) * game_length
+    scatter_indices[:, index] .= 1 .+ tmp[1:33] .+ offset
+    layer_flags[:, index] .= tmp[34:end]
+  end
+
+  # Set the buffer to 1 at the 33 scatter index locations
+  scatter_indices = reshape(scatter_indices, :)
+  buf[scatter_indices] .= 1
+
+  # Set the remaining constant layers
+  layer_flags = convert(T, layer_flags)
+  layer_flags = reshape(layer_flags, 1, 1, flag_count, :)
+  buf[:, :, 26:(25+flag_count), 1:batchsize] .= layer_flags
+
+  # Scale the final layer
+  buf[:, :, 25+flag_count, 1:batchsize] ./= 100
+
+  nothing
+end
+
+
+Base.size(:: Model.DefaultTensorizor{PacoSako}) = size(PacoSakoTensorizor())
+
+function (:: Model.DefaultTensorizor{PacoSako})(buf, T, games)
+  t = PacoSakoTensorizor()
+  t(buf, T, games)
 end
 
 #

@@ -12,6 +12,7 @@ HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 
 [compat]
 julia = "^1.6"

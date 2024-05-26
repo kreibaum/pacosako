@@ -11,7 +11,7 @@ function add_model_artifact(name, file)
   hash_targz = bytes2hex(open(sha256, file_targz))
 
   # Move model to static.kreibaum.dev
-  println("> moving file '$file_targz' to pacoplay")
+  println("> moving file '$file_targz' to pacoplay:static")
   run(`scp -q $file_targz pacoplay:static/`)
   run(`rm $file_targz`)
 
