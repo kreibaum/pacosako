@@ -15,26 +15,25 @@ Target.defaultactivation(:: SakoTarget) = :tanh
 
 Target.defaultlossfunction(:: SakoTarget) = :sumabs2
 
-function blockedpawns(ps:: PacoSako) :: Vector{Float32}
-    buf = zeros(Float32, 128)
-    @pscall(
-        :blocked_pawns_target,
-        Int64,
-        (Ptr{Nothing}, Ptr{Float32}, Int64),
-        ps.ptr,
-        buf,
-        length(buf)
-    )
 
-   buf
-end
-
+"""
+Target which labels the blocked pawns of yourself and the opponent.
+"""
 struct BlockedPawnsTarget <: AbstractTarget{PacoSako} end
 
 Base.length(:: BlockedPawnsTarget) = 128
 
 function Target.label(:: BlockedPawnsTarget, ctx :: LabelContext{PacoSako})
-    blockedpawns(ctx.game)
+  buf = zeros(Float32, 128)
+  @pscall(
+    :blocked_pawns_target,
+    Int64,
+    (Ptr{Nothing}, Ptr{Float32}, Int64),
+    ctx.game.ptr,
+    buf,
+    length(buf)
+  )
+  buf
 end
 
 Target.defaultactivation(:: BlockedPawnsTarget) = :sigmoid
