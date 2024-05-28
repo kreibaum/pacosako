@@ -1,22 +1,22 @@
-mod ml;
-mod opening_book;
-mod utils;
+extern crate console_error_panic_hook;
 
 use js_sys::Float32Array;
-use opening_book::OpeningBook;
+use serde::Deserialize;
+use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
+
 use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
-    editor, fen,
-    setup_options::SetupOptions,
-    DenseBoard, PacoAction, PacoBoard, PacoError,
+    DenseBoard, editor,
+    fen,
+    PacoAction, PacoBoard, PacoError, setup_options::SetupOptions,
 };
-use serde::Deserialize;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-extern crate console_error_panic_hook;
+use pacosako::opening_book::OpeningBook;
+
+mod ml;
+mod utils;
 
 /// This module provides all the methods that should be available on the wasm
 /// version of the library. Any encoding & decoding is handled in here.
-
 #[wasm_bindgen]
 extern "C" {
     fn forwardToMq(messageType: &str, data: &str);
@@ -214,4 +214,9 @@ pub fn subscribe_to_match(data: String) -> Result<(), JsValue> {
     forwardToMq("subscribeToMatchSocket", &data);
 
     Ok(())
+}
+
+#[test]
+fn dummy_test() {
+    // Makes it easier to test compile this crate using Ctrl+F10 in IntelliJ.
 }

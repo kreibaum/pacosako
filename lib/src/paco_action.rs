@@ -1,11 +1,12 @@
 //! Module for the PacoAction and PacoActionSet
 
-use crate::{substrate::BitBoard, BoardPosition, PieceType};
 use serde::{Deserialize, Serialize};
+
+use crate::{BoardPosition, PieceType, substrate::BitBoard};
 
 /// A PacoAction is an action that can be applied to a PacoBoard to modify it.
 /// An action is an atomic part of a move, like picking up a piece or placing it down.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PacoAction {
     /// Lifting a piece starts a move.
     Lift(BoardPosition),

@@ -39,6 +39,7 @@ mod static_include;
 mod substrate;
 pub mod trivial_hash;
 pub mod types;
+pub mod opening_book;
 #[cfg(test)]
 mod testdata;
 
