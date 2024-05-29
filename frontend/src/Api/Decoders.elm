@@ -33,7 +33,7 @@ decodeControlLevel =
         |> Decode.andThen
             (\str ->
                 case str of
-                    "unlocked" ->
+                    "Unlocked" ->
                         Decode.succeed Unlocked
 
                     "LockedByYou" ->
