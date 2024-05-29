@@ -2,7 +2,7 @@ module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Animation exposing (Timeline)
 import Api.DecoderGen
-import Api.Decoders exposing (CurrentMatchState, getActionList)
+import Api.Decoders exposing (ControlLevel(..), CurrentMatchState, getActionList)
 import Api.EncoderGen
 import Api.MessageGen
 import Api.Ports
@@ -28,7 +28,6 @@ import Gen.Route as Route
 import Header
 import Json.Decode as Decode
 import Json.Encode as Encode
-import List.Extra as List
 import Maybe.Extra as Maybe
 import Page
 import PositionView exposing (BoardDecoration(..), DragState, DraggingPieces(..), Highlight(..), OpaqueRenderData)
@@ -36,7 +35,6 @@ import Process
 import Reactive exposing (DeviceOrientation(..))
 import Request
 import Sako
-import SaveState exposing (SaveState(..))
 import Shared
 import Svg exposing (Svg)
 import Svg.Custom as Svg exposing (BoardRotation(..))
@@ -83,7 +81,15 @@ type alias Model =
     , windowHeight : Int
     , visibleHeaderSize : Int
     , elementHeight : Int
+    , aiState : AiState
     }
+
+
+{-| The game page needs to understand if the AI is already running when processing new game states.
+-}
+type AiState
+    = WaitingForAiAnswer
+    | InactiveAi
 
 
 init : Params -> Url.Url -> ( Model, Effect Msg )
@@ -99,6 +105,8 @@ init params url =
             , gameState = Sako.Running
             , whitePlayer = Nothing
             , blackPlayer = Nothing
+            , whiteControl = LockedByOther
+            , blackControl = LockedByOther
             }
       , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
       , focus = Nothing
@@ -111,6 +119,7 @@ init params url =
       , windowHeight = 500
       , visibleHeaderSize = 0
       , elementHeight = 500
+      , aiState = InactiveAi
       }
     , Cmd.batch
         [ -- This is not really nice, but we want to give the websocket time to
@@ -297,14 +306,9 @@ update shared msg model =
             )
 
         DetermineAiMove ->
-            ( model
-            , { board_fen = Fen.writeFen Sako.initialPosition, action_history = model.currentState.actionHistory }
-                |> Api.EncoderGen.determineLegalActions
-                |> Api.MessageGen.determineAiMove
-                |> Effect.fromCmd
-            )
+            determineAiMove model
 
-        -- TODO: This can't deal with two actions comming in at once!
+        -- TODO: This can't deal with two actions coming in at once!
         -- https://github.com/kreibaum/pacosako/issues/123
         AiMoveResponse actions ->
             let
@@ -412,7 +416,7 @@ updateTryRegrabLiftedPiece pos model =
 
 Future improvements:
 
-  - When clicking on a explicity forbidden move, roll back the move.
+  - When clicking on a explicitly forbidden move, roll back the move.
   - When a piece is lifted, clicking another piece that may lift, should lift the new piece.
     Right now, it only puts down the lifted piece and you need to click a second time.
   - When a piece is lifted, clicking on the same piece should put it down.
@@ -572,10 +576,57 @@ in.
 updateCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Effect Msg )
 updateCurrentMatchStateIfKeyCorrect data model =
     if data.key == model.gameKey then
-        updateCurrentMatchState data model
+        let
+            ( m2, e ) =
+                updateCurrentMatchState data model
+
+            ( m3, e2 ) =
+                triggerAiMoveIfNecessary m2
+        in
+        ( m3, Effect.batch [ e, e2 ] )
 
     else
         ( model, Effect.none )
+
+
+{-| Checks if we have "Ai Control" of the current player. If so checks if the AI
+is already running or generates a move.
+-}
+triggerAiMoveIfNecessary : Model -> ( Model, Effect Msg )
+triggerAiMoveIfNecessary model =
+    let
+        sideControl =
+            case model.currentState.controllingPlayer of
+                Sako.White ->
+                    model.currentState.whiteControl
+
+                Sako.Black ->
+                    model.currentState.blackControl
+
+        isAiControl =
+            sideControl == LockedByYourFrontendAi
+
+        isAiInactive =
+            model.aiState == InactiveAi
+    in
+    if isAiControl && isAiInactive then
+        determineAiMove { model | aiState = WaitingForAiAnswer }
+
+    else if not isAiControl && not isAiInactive then
+        ( { model | aiState = InactiveAi }, Effect.none )
+
+    else
+        ( model, Effect.none )
+
+
+determineAiMove : Model -> ( Model, Effect Msg )
+determineAiMove model =
+    ( model
+    , { board_fen = Fen.writeFen Sako.initialPosition, action_history = model.currentState.actionHistory }
+        |> Api.EncoderGen.determineLegalActions
+        |> Api.MessageGen.determineAiMove
+        |> Effect.fromCmd
+    )
 
 
 updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Effect Msg )

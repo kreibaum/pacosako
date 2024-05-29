@@ -1,6 +1,7 @@
-module Api.Decoders exposing (CompressedMatchState, CurrentMatchState, LegalActions(..), PublicUserData, decodeCompressedMatchState, decodeMatchState, decodePublicUserData, getActionList)
+module Api.Decoders exposing (CompressedMatchState, ControlLevel(..), CurrentMatchState, LegalActions(..), PublicUserData, decodeCompressedMatchState, decodeMatchState, decodePublicUserData, getActionList)
 
 import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (required)
 import Sako
 import Timer
 
@@ -14,7 +15,39 @@ type alias CurrentMatchState =
     , gameState : Sako.VictoryState
     , whitePlayer : Maybe PublicUserData
     , blackPlayer : Maybe PublicUserData
+    , whiteControl : ControlLevel
+    , blackControl : ControlLevel
     }
+
+
+type ControlLevel
+    = Unlocked
+    | LockedByYou
+    | LockedByYourFrontendAi
+    | LockedByOther
+
+
+decodeControlLevel : Decoder ControlLevel
+decodeControlLevel =
+    Decode.string
+        |> Decode.andThen
+            (\str ->
+                case str of
+                    "unlocked" ->
+                        Decode.succeed Unlocked
+
+                    "LockedByYou" ->
+                        Decode.succeed LockedByYou
+
+                    "LockedByYourFrontendAi" ->
+                        Decode.succeed LockedByYourFrontendAi
+
+                    "LockedByOther" ->
+                        Decode.succeed LockedByOther
+
+                    _ ->
+                        Decode.fail "Invalid control level"
+            )
 
 
 type alias CompressedMatchState =
@@ -42,6 +75,7 @@ type alias PublicUserData =
 type alias AiMetaData =
     { modelName : String
     , modelStrength : Int
+    , isFrontendAi : Bool
     }
 
 
@@ -60,8 +94,8 @@ endpoints. This is the file for those.
 -}
 decodeMatchState : Decoder CurrentMatchState
 decodeMatchState =
-    Decode.map7
-        (\key actionHistory controllingPlayer timer gameState whitePlayer blackPlayer ->
+    Decode.succeed
+        (\key actionHistory controllingPlayer timer gameState whitePlayer blackPlayer whiteControl blackControl ->
             { key = key
             , actionHistory = actionHistory
             , legalActions = ActionsNotLoaded
@@ -70,15 +104,19 @@ decodeMatchState =
             , gameState = gameState
             , whitePlayer = whitePlayer
             , blackPlayer = blackPlayer
+            , whiteControl = whiteControl
+            , blackControl = blackControl
             }
         )
-        (Decode.field "key" Decode.string)
-        (Decode.field "actions" (Decode.list Sako.decodeAction))
-        (Decode.field "controlling_player" Sako.decodeColor)
-        (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
-        (Decode.field "victory_state" Sako.decodeVictoryState)
-        (Decode.field "white_player" (Decode.nullable decodePublicUserData))
-        (Decode.field "black_player" (Decode.nullable decodePublicUserData))
+        |> required "key" Decode.string
+        |> required "actions" (Decode.list Sako.decodeAction)
+        |> required "controlling_player" Sako.decodeColor
+        |> required "timer" (Decode.maybe Timer.decodeTimer)
+        |> required "victory_state" Sako.decodeVictoryState
+        |> required "white_player" (Decode.nullable decodePublicUserData)
+        |> required "black_player" (Decode.nullable decodePublicUserData)
+        |> required "white_control" decodeControlLevel
+        |> required "black_control" decodeControlLevel
 
 
 decodeCompressedMatchState : Decoder CompressedMatchState
@@ -102,6 +140,7 @@ decodePublicUserData =
 
 decodeAiMetaData : Decoder AiMetaData
 decodeAiMetaData =
-    Decode.map2 AiMetaData
+    Decode.map3 AiMetaData
         (Decode.field "model_name" Decode.string)
         (Decode.field "model_strength" Decode.int)
+        (Decode.field "is_frontend_ai" Decode.bool)
