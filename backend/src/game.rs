@@ -24,6 +24,8 @@ use crate::{
 };
 use crate::protection::backdated_user_assignment::backdate_user_assignment;
 
+mod frontend_ai;
+
 /// Adds the game management API to the given router.
 /// This is expected to be nested at "/api".
 pub fn add_to_router(api_router: Router<AppState>) -> Router<AppState> {
@@ -42,8 +44,14 @@ pub fn add_to_router(api_router: Router<AppState>) -> Router<AppState> {
 /// The Websocket will then have to load it on its own. While that is
 /// mildly inefficient, it decouples the websocket server from the http
 /// server a bit.
+///
+/// TODO: I need to figure out how I can get the UUID of the ephemeral user
+/// session into the room. Otherwise a white AI would not start playing.
+///
+/// Also, this needs to write AI data to the database.
 async fn create_game(
     pool: State<Pool>,
+    session: Option<SessionData>,
     Json(game_parameters): Json<MatchParameters>,
 ) -> Result<String, ServerError> {
     if !game_parameters.is_legal() {
@@ -53,7 +61,43 @@ async fn create_game(
     info!("Creating a new game on client request.");
     let mut conn = pool.conn().await?;
     let mut game = SynchronizedMatch::new_with_key("0", game_parameters.sanitize());
-    db::game::insert(&mut game, &mut conn).await?;
+
+    // Check if we also need to attach an AI to this game.
+    if let Some(ai_side_request) = game_parameters.ai_side_request {
+        let Some(ai) = frontend_ai::find_user_for_model_name(&ai_side_request.model_name, &mut conn).await? else {
+            return Err(ServerError::BadRequest);
+        };
+
+        // Check who the requesting player is.
+        let requesting_player = session.map(|s| s.user_id);
+
+        // Replace None with a random color.
+        let ai_color = ai_side_request.color.unwrap_or_else(|| {
+            if rand::random() {
+                PlayerColor::White
+            } else {
+                PlayerColor::Black
+            }
+        });
+
+        if ai_color == PlayerColor::White {
+            game.white_player = Some(ai);
+            game.black_player = requesting_player;
+        } else {
+            game.white_player = requesting_player;
+            game.black_player = Some(ai);
+        }
+        db::game::insert(&mut game, &mut conn).await?;
+        let metadata = AiMetaData {
+            model_name: ai_side_request.model_name,
+            model_strength: ai_side_request.model_strength,
+            model_temperature: ai_side_request.model_temperature,
+            is_frontend_ai: true,
+        };
+        user::write_one_ai_config_for_game(&game.key, ai_color, &metadata, &mut conn).await?;
+    } else {
+        db::game::insert(&mut game, &mut conn).await?;
+    }
 
     info!("Game created with id {}.", game.key);
     Ok(game.key.to_string())
@@ -102,7 +146,7 @@ async fn post_ai_metadata(
     user::write_one_ai_config_for_game(&key, player_color, &metadata, &mut conn).await?;
 
     // If this side of the game does not have player protection yet, we set it
-    // to this ai player from the session.
+    // to this AI player from the session.
 
     // update game set white_player = ? where id = ? // or black_player
     let key: i64 = key.parse()?;
@@ -117,7 +161,7 @@ async fn post_ai_metadata(
     Ok(())
 }
 
-/// Returns the five moest recently played games. It just returns each current state as fen.
+/// Returns the five most recently played games. It just returns each current state as fen.
 async fn recently_created_games(
     pool: State<Pool>,
 ) -> Result<Json<Vec<CompressedMatchStateClient>>, ServerError> {

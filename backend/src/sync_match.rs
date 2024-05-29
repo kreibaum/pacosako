@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 
-use pacosako::{fen, PacoAction, PacoBoard, PacoError};
+use pacosako::{fen, PacoAction, PacoBoard, PacoError, PlayerColor};
 use pacosako::setup_options::SetupOptions;
 
 use crate::db::{self, Connection};
@@ -17,7 +17,7 @@ use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 
 /// This module implements match synchronization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
-/// already clear and we only implement the Paco Ŝako specific parts.
+/// already clear, and we only implement the Paco Ŝako specific parts.
 
 /// Parameters required to initialize a new instance of the match.
 #[derive(Deserialize, Clone)]
@@ -25,17 +25,29 @@ pub struct MatchParameters {
     timer: Option<TimerConfig>,
     safe_mode: Option<bool>,
     draw_after_n_repetitions: Option<u8>,
+    pub ai_side_request: Option<AiSideRequest>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct AiSideRequest {
+    /// Color the AI should play. Color None means the AI should play randomly.
+    pub color: Option<PlayerColor>,
+    /// This gets looked up in `user_modelName` in the database.
+    pub model_name: String,
+    pub model_strength: usize,
+    pub model_temperature: f32,
 }
 
 impl MatchParameters {
     /// Ensure that all values of the timer config are below 1000000. This
     /// ensures we don't trigger an overflow. See #85.
-    pub fn sanitize(self) -> Self {
-        let timer = self.timer.map(|timer| timer.sanitize());
+    pub fn sanitize(&self) -> Self {
+        let timer = self.timer.clone().map(|timer| timer.sanitize());
         Self {
             timer,
             safe_mode: self.safe_mode,
             draw_after_n_repetitions: self.draw_after_n_repetitions,
+            ai_side_request: self.ai_side_request.clone(),
         }
     }
 
@@ -126,7 +138,7 @@ async fn _store_to_db(
 pub struct CurrentMatchState {
     key: String,
     actions: Vec<StampedAction>,
-    pub controlling_player: pacosako::PlayerColor,
+    pub controlling_player: PlayerColor,
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
     pub setup_options: SetupOptions,
@@ -139,7 +151,7 @@ pub struct CurrentMatchState {
 pub struct CurrentMatchStateClient {
     key: String,
     actions: Vec<StampedAction>,
-    pub controlling_player: pacosako::PlayerColor,
+    pub controlling_player: PlayerColor,
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
     pub setup_options: SetupOptions,
@@ -384,7 +396,7 @@ impl SynchronizedMatch {
     }
 
     /// Updates the timer
-    fn update_timer(&mut self, player: pacosako::PlayerColor) {
+    fn update_timer(&mut self, player: PlayerColor) {
         if let Some(ref mut timer) = self.timer {
             if timer.get_state() == TimerState::NotStarted {
                 // Nothing to do #55
@@ -419,6 +431,7 @@ mod test {
                 timer: None,
                 safe_mode: Some(false),
                 draw_after_n_repetitions: None,
+                ai_side_request: None,
             },
         );
 

@@ -138,13 +138,15 @@ pub async fn write_one_ai_config_for_game(
         PlayerColor::Black => "b",
     };
     let model_strength = ai.model_strength as i64; // does not live long enough otherwise
+    let is_frontend_ai = ai.is_frontend_ai as i64;
     sqlx::query!(
-        "insert or replace into game_aiConfig (game_id, player_color, model_name, model_strength, model_temperature) values (?, ?, ?, ?, ?)",
+        "insert or replace into game_aiConfig (game_id, player_color, model_name, model_strength, model_temperature, is_frontend_ai) values (?, ?, ?, ?, ?, ?)",
         game_key,
         color_string,
         ai.model_name,
         model_strength,
-        ai.model_temperature
+        ai.model_temperature,
+        is_frontend_ai
     ).execute(&mut *connection).await?;
     Ok(())
 }

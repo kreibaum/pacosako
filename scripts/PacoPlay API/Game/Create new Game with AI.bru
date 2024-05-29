@@ -1,0 +1,29 @@
+meta {
+  name: Create new Game with AI
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/create_game
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "timer": {
+      "time_budget_white": 240,
+      "time_budget_black": 240,
+      "increment": 5
+    },
+    "safe_mode": true,
+    "draw_after_n_repetitions": 3,
+    "ai_side_request": {
+      "model_name" : "hedwig",
+      "model_strength": 999,
+      "model_temperature": 1.9,
+      "color": "Black"
+    }
+  }
+}
