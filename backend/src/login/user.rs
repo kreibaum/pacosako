@@ -29,9 +29,19 @@ pub struct AiMetaData {
     pub model_name: String,
     pub model_strength: usize,
     pub model_temperature: f32,
+    pub is_frontend_ai: bool,
 }
 
-/// Allows a logged in user to change their avatar by calling /api/me/avatar
+pub fn is_frontend_ai(user: &Option<PublicUserData>) -> bool {
+    if let Some(user) = user {
+        if let Some(ai) = &user.ai {
+            return ai.is_frontend_ai;
+        }
+    }
+    false
+}
+
+/// Allows a logged-in user to change their avatar by calling /api/me/avatar
 pub async fn set_avatar(
     session: SessionData,
     State(pool): State<Pool>,
@@ -97,7 +107,7 @@ async fn load_one_ai_config_for_game(
     connection: &mut sqlx::pool::PoolConnection<sqlx::Sqlite>,
 ) -> Result<Option<AiMetaData>, sqlx::Error> {
     let res = sqlx::query!(
-        "select model_name, model_strength, model_temperature from game_aiConfig where game_id = ? and player_color = ?",
+        "select model_name, model_strength, model_temperature, is_frontend_ai from game_aiConfig where game_id = ? and player_color = ?",
         game_key,
         color
     )
@@ -109,6 +119,7 @@ async fn load_one_ai_config_for_game(
             model_name: res.model_name,
             model_strength: res.model_strength as usize,
             model_temperature: res.model_temperature,
+            is_frontend_ai: res.is_frontend_ai == Some(1),
         }))
     } else {
         Ok(None)

@@ -21,6 +21,9 @@ use crate::{
     sync_match::{CurrentMatchState, CurrentMatchStateClient, SynchronizedMatch},
 };
 use crate::db::Connection;
+use crate::login::user;
+use crate::login::user::load_user_data_for_game;
+use crate::protection::ControlLevel;
 use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 
 /// Handles all the websocket client logic.
@@ -397,6 +400,10 @@ async fn handle_subscribe_to_match(
 ///
 /// Please note that currently game protection is not persisted across server
 /// restart. This means it is possible that the first move is done by black.
+///
+/// There is another exception with AI play. The side is assigned to the AI with
+/// game_aiConfig set to is_frontend_ai = 1. This the allows the player who
+/// controls the other player to submit moves for the AI.
 async fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
     game: &mut SynchronizedMatch,
@@ -407,31 +414,50 @@ async fn ensure_uuid_is_allowed(
         return Ok(());
     }
 
+    let sender_identity = SocketIdentity::resolve_user(&sender_metadata, conn).await?;
+
     let white_is_moving = game.current_state()?.controlling_player == PlayerColor::White;
 
-    let side_protection = if white_is_moving {
-        &mut room.white_player
+    let (side_protection, other_side_protection) = if white_is_moving {
+        (&mut room.white_player, &mut room.black_player)
     } else {
-        &mut room.black_player
+        (&mut room.black_player, &mut room.white_player)
     };
 
-    let sender_identity = SocketIdentity::resolve_user(&sender_metadata, conn).await?;
 
     let is_allowed = side_protection.test_and_assign(&sender_identity);
 
-    if let Some(user_id) = side_protection.get_user() {
-        if white_is_moving {
-            game.white_player = Some(user_id);
+    if is_allowed {
+        // For persistence, update the game and set the user id for the side.
+        // This permanently tracks the player on the game.
+        if let Some(user_id) = side_protection.get_user() {
+            if white_is_moving {
+                game.white_player = Some(user_id);
+            } else {
+                game.black_player = Some(user_id);
+            }
+        }
+        return Ok(());
+    } else {
+        // We are not allowed to move, but maybe we can play for the AI.
+        // For this, a frontend AI must control the current player and the
+        // sender must control the other side.
+        let (white_player, black_player) = load_user_data_for_game(&game.key, &mut *conn).await?;
+
+        let is_frontend_ai = if white_is_moving {
+            user::is_frontend_ai(&white_player)
         } else {
-            game.black_player = Some(user_id);
+            user::is_frontend_ai(&black_player)
+        };
+
+        let other_side_control = other_side_protection.test(&sender_identity);
+
+        if other_side_control == ControlLevel::LockedByYou && is_frontend_ai {
+            return Ok(());
+        } else {
+            Err(ServerError::NotAllowed("Your browser is not allowed to make moves for the current player.".to_string()))
         }
     }
-
-    if is_allowed {
-        return Ok(());
-    }
-
-    Err(ServerError::NotAllowed("Your browser is not allowed to make moves for the current player.".to_string()))
 }
 
 /// Broadcasts the `CurrentMatchState` to all clients connected to the room.

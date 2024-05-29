@@ -8,8 +8,8 @@ use pacosako::{fen, PacoAction, PacoBoard, PacoError};
 use pacosako::setup_options::SetupOptions;
 
 use crate::db::{self, Connection};
+use crate::login::{user, UserId};
 use crate::login::user::{load_user_data_for_game, PublicUserData};
-use crate::login::UserId;
 use crate::protection::ControlLevel;
 use crate::ServerError;
 use crate::timer::{Timer, TimerConfig, TimerState};
@@ -206,8 +206,18 @@ impl CurrentMatchStateClient {
 
         let sender_identity = SocketIdentity::resolve_user(&sender_metadata, connection).await?;
 
-        let white_control = room.white_player.test(&sender_identity);
-        let black_control = room.black_player.test(&sender_identity);
+        let mut white_control = room.white_player.test(&sender_identity);
+        let mut black_control = room.black_player.test(&sender_identity);
+
+        // If the sender is controlling one side and the other side is a frontend AI,
+        // then they are allowed to control the frontend AI. We need to send the
+        // control accordingly as `LockedByYourFrontendAi`.
+        if white_control == ControlLevel::LockedByYou && user::is_frontend_ai(&black_player) {
+            black_control = ControlLevel::LockedByYourFrontendAi;
+        }
+        if black_control == ControlLevel::LockedByYou && user::is_frontend_ai(&white_player) {
+            white_control = ControlLevel::LockedByYourFrontendAi;
+        }
 
         Ok(Self {
             key: data.key,

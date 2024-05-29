@@ -29,10 +29,15 @@ pub enum SideProtection {
     UserLock(UserId), // A user has locked this side.
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ControlLevel {
+    /// No one controls this side. Take an action to take control.
     Unlocked,
+    /// You control this side.
     LockedByYou,
+    /// Your browser is asked to run the AI for this side.
+    LockedByYourFrontendAi,
+    /// Someone else controls this side.
     LockedByOther,
 }
 
