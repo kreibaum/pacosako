@@ -13,8 +13,6 @@ use crate::ai::glue::{
     action_index_to_action_with_viewpoint, action_to_action_index_with_viewpoint,
 };
 
-mod connection_finder;
-
 /// We store an instance of the opening book in memory after getting it once.
 /// This is in some type  of cell
 /// TODO: This aspect of the module should move back to frontend-wasm.
