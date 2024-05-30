@@ -23,7 +23,6 @@ use crate::{
 use crate::db::Connection;
 use crate::login::user;
 use crate::login::user::load_user_data_for_game;
-use crate::protection::ControlLevel;
 use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 
 /// Handles all the websocket client logic.
@@ -441,7 +440,7 @@ async fn ensure_uuid_is_allowed(
     } else {
         // We are not allowed to move, but maybe we can play for the AI.
         // For this, a frontend AI must control the current player and the
-        // sender must control the other side.
+        // sender must be able to control the other side. (unlocked or control)
         let (white_player, black_player) = load_user_data_for_game(&game.key, &mut *conn).await?;
 
         let is_frontend_ai = if white_is_moving {
@@ -452,7 +451,7 @@ async fn ensure_uuid_is_allowed(
 
         let other_side_control = other_side_protection.test(&sender_identity);
 
-        if other_side_control == ControlLevel::LockedByYou && is_frontend_ai {
+        if other_side_control.can_control_or_take_over() && is_frontend_ai {
             return Ok(());
         } else {
             Err(ServerError::NotAllowed("Your browser is not allowed to make moves for the current player.".to_string()))

@@ -41,6 +41,12 @@ pub enum ControlLevel {
     LockedByOther,
 }
 
+impl ControlLevel {
+    pub fn can_control_or_take_over(self) -> bool {
+        matches!(self, Self::Unlocked | Self::LockedByYou)
+    }
+}
+
 impl SideProtection {
     /// Checks if the side can be controlled by the given socket.
     /// This is for read-only access. This does not lock the side.

@@ -45,9 +45,6 @@ pub fn add_to_router(api_router: Router<AppState>) -> Router<AppState> {
 /// mildly inefficient, it decouples the websocket server from the http
 /// server a bit.
 ///
-/// TODO: I need to figure out how I can get the UUID of the ephemeral user
-/// session into the room. Otherwise a white AI would not start playing.
-///
 /// Also, this needs to write AI data to the database.
 async fn create_game(
     pool: State<Pool>,
