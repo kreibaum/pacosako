@@ -138,6 +138,7 @@ async fn _store_to_db(
 pub struct CurrentMatchState {
     key: String,
     actions: Vec<StampedAction>,
+    is_rollback: bool,
     pub controlling_player: PlayerColor,
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
@@ -151,6 +152,10 @@ pub struct CurrentMatchState {
 pub struct CurrentMatchStateClient {
     key: String,
     actions: Vec<StampedAction>,
+    // We explicitly tell the client about rollbacks, because just receiving a shorter list
+    // of actions can also mean the server is just lagging behind the client. This commonly
+    // happens when the AI cites from the opening book, or the network is bad.
+    pub is_rollback: bool,
     pub controlling_player: PlayerColor,
     pub timer: Option<Timer>,
     pub victory_state: pacosako::VictoryState,
@@ -185,6 +190,7 @@ impl CurrentMatchState {
         Ok(Self {
             key: sync_match.key.clone(),
             actions: sync_match.actions.clone(),
+            is_rollback: false,
             controlling_player: board.controlling_player(),
             timer: sync_match.timer.clone(),
             victory_state,
@@ -234,6 +240,7 @@ impl CurrentMatchStateClient {
         Ok(Self {
             key: data.key,
             actions: data.actions,
+            is_rollback: data.is_rollback,
             controlling_player: data.controlling_player,
             timer: data.timer,
             victory_state: data.victory_state,
@@ -254,6 +261,7 @@ impl CurrentMatchStateClient {
         Ok(Self {
             key: data.key,
             actions: data.actions,
+            is_rollback: data.is_rollback,
             controlling_player: data.controlling_player,
             timer: data.timer,
             victory_state: data.victory_state,
@@ -366,7 +374,9 @@ impl SynchronizedMatch {
     /// Rolls back the game state to the start of the turn of the current player.
     pub fn rollback(&mut self) -> Result<CurrentMatchState, PacoError> {
         Self::rollback_trusted_action_stack(&mut self.actions)?;
-        self.current_state()
+        let mut state = self.current_state()?;
+        state.is_rollback = true;
+        Ok(state)
     }
 
     /// Takes a board state that is provided in terms of an action history and

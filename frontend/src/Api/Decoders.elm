@@ -9,6 +9,7 @@ import Timer
 type alias CurrentMatchState =
     { key : String
     , actionHistory : List Sako.Action
+    , isRollback : Bool
     , legalActions : LegalActions
     , controllingPlayer : Sako.Color
     , timer : Maybe Timer.Timer
@@ -95,9 +96,10 @@ endpoints. This is the file for those.
 decodeMatchState : Decoder CurrentMatchState
 decodeMatchState =
     Decode.succeed
-        (\key actionHistory controllingPlayer timer gameState whitePlayer blackPlayer whiteControl blackControl ->
+        (\key actionHistory isRollback controllingPlayer timer gameState whitePlayer blackPlayer whiteControl blackControl ->
             { key = key
             , actionHistory = actionHistory
+            , isRollback = isRollback
             , legalActions = ActionsNotLoaded
             , controllingPlayer = controllingPlayer
             , timer = timer
@@ -110,6 +112,7 @@ decodeMatchState =
         )
         |> required "key" Decode.string
         |> required "actions" (Decode.list Sako.decodeAction)
+        |> required "is_rollback" Decode.bool
         |> required "controlling_player" Sako.decodeColor
         |> required "timer" (Decode.maybe Timer.decodeTimer)
         |> required "victory_state" Sako.decodeVictoryState

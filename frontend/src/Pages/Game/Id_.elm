@@ -15,6 +15,7 @@ import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
 import Custom.Element exposing (icon, showIf)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
+import Custom.List
 import Effect exposing (Effect)
 import Element exposing (..)
 import Element.Background as Background
@@ -100,6 +101,7 @@ init params url =
             { key = ""
             , actionHistory = []
             , legalActions = Api.Decoders.ActionsNotLoaded
+            , isRollback = False
             , controllingPlayer = Sako.White
             , timer = Nothing
             , gameState = Sako.Running
@@ -168,7 +170,7 @@ type Msg
     | FetchHeaderSize
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
     | PortError String
-    | LegalActionsResponse (List Sako.Action)
+    | LegalActionsResponse { inputActionCount : Int, legalActions : List Sako.Action }
     | DetermineAiMove
     | AiMoveResponse (List Sako.Action)
 
@@ -296,14 +298,18 @@ update shared msg model =
         PortError error ->
             ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
 
-        LegalActionsResponse actions ->
+        LegalActionsResponse { inputActionCount, legalActions } ->
             let
                 currentState =
                     model.currentState
             in
-            ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded actions } }
-            , Effect.none
-            )
+            if List.length currentState.actionHistory == inputActionCount then
+                ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded legalActions } }
+                , Effect.none
+                )
+
+            else
+                ( model, Effect.none )
 
         DetermineAiMove ->
             determineAiMove model
@@ -430,13 +436,8 @@ updateMouseUp shared pos model =
             updateActionInputStep shared action { model | dragState = Nothing }
 
         Nothing ->
-            ( { model
-                | dragState = Nothing
-                , timeline =
-                    Animation.queue
-                        ( Animation.milliseconds 200, PositionView.renderStatic model.rotation model.board )
-                        model.timeline
-              }
+            ( { model | dragState = Nothing }
+                |> softAnimateToCurrentBoard
             , if isQuickRollbackSituation pos model then
                 sendRollback model |> Effect.fromCmd
 
@@ -534,14 +535,8 @@ updateActionInputStep shared action model =
         newState =
             addActionToCurrentMatchState action model.currentState
     in
-    ( { model
-        | board = newBoard
-        , currentState = newState
-        , timeline =
-            Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
-                model.timeline
-      }
+    ( { model | board = newBoard, currentState = newState }
+        |> softAnimateToCurrentBoard
     , Effect.batch
         [ Api.Websocket.DoAction
             { key = model.gameKey
@@ -629,72 +624,98 @@ determineAiMove model =
     )
 
 
-updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Effect Msg )
-updateCurrentMatchState data model =
-    let
-        newBoard =
-            case matchStatesDiff model.currentState data of
-                Just diffActions ->
-                    Sako.doActionsList diffActions model.board
-                        |> Maybe.withDefault model.board
-
-                Nothing ->
-                    Sako.doActionsList data.actionHistory Sako.initialPosition
-                        |> Maybe.withDefault Sako.emptyPosition
-
-        newState =
-            data
-    in
-    ( { model
-        | currentState = newState
-        , board = newBoard
-        , timeline =
+softAnimateToCurrentBoard : Model -> Model
+softAnimateToCurrentBoard model =
+    { model
+        | timeline =
             Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic model.rotation newBoard )
+                ( Animation.milliseconds 200, PositionView.renderStatic model.rotation model.board )
                 model.timeline
-      }
-    , { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
-        |> Api.EncoderGen.determineLegalActions
-        |> Api.MessageGen.determineLegalActions
-        |> Effect.fromCmd
-    )
+    }
+
+
+updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Effect Msg )
+updateCurrentMatchState newState model =
+    let
+        determineActionsEffect =
+            { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
+                |> Api.EncoderGen.determineLegalActions
+                |> Api.MessageGen.determineLegalActions
+                |> Effect.fromCmd
+
+        modelWithRetainedActions =
+            { model
+                | currentState =
+                    { newState
+                        | legalActions = model.currentState.legalActions
+                        , actionHistory = model.currentState.actionHistory
+                    }
+            }
+    in
+    if newState.isRollback then
+        let
+            newBoard =
+                Sako.doActionsList newState.actionHistory Sako.initialPosition
+                    |> Maybe.withDefault Sako.emptyPosition
+        in
+        ( { model | currentState = newState, board = newBoard }
+            |> softAnimateToCurrentBoard
+        , determineActionsEffect
+        )
+
+    else
+        case matchStatesDiff model.currentState newState of
+            -- No action change, but maybe a status change, like a timeout or draw.
+            Custom.List.ListsAreEqual ->
+                if List.isEmpty newState.actionHistory then
+                    -- On empty lists (new games) this triggers initial action determination.
+                    ( modelWithRetainedActions, determineActionsEffect )
+
+                else
+                    ( modelWithRetainedActions, Effect.none )
+
+            Custom.List.NewExtendsOld diffActions ->
+                let
+                    newBoard =
+                        Sako.doActionsList diffActions model.board
+                            |> Maybe.withDefault model.board
+                in
+                ( { model | currentState = newState, board = newBoard }
+                    |> softAnimateToCurrentBoard
+                , determineActionsEffect
+                )
+
+            Custom.List.ListsDontExtendEachOther ->
+                let
+                    newBoard =
+                        Sako.doActionsList newState.actionHistory Sako.initialPosition
+                            |> Maybe.withDefault Sako.emptyPosition
+                in
+                ( { model | currentState = newState, board = newBoard }
+                    |> softAnimateToCurrentBoard
+                , determineActionsEffect
+                )
+
+            -- The old list extends the new list, when the client moves faster than the
+            -- server can acknowledge. We still should take over most of the new state
+            -- and just add the missing actions + legal actions back. But no animation.
+            Custom.List.OldExtendsNew _ ->
+                ( modelWithRetainedActions, Effect.none )
 
 
 {-| Given an old and a new match state, this returns the actions that need to
 be taken to transform the old state into the new state. Returns Nothing if the
 new state does not extend the old state.
 -}
-matchStatesDiff : CurrentMatchState -> CurrentMatchState -> Maybe (List Sako.Action)
+matchStatesDiff : CurrentMatchState -> CurrentMatchState -> Custom.List.ListDiff Sako.Action
 matchStatesDiff old new =
-    historyDiff old.actionHistory new.actionHistory
-
-
-historyDiff : List a -> List a -> Maybe (List a)
-historyDiff old new =
-    case ( old, new ) of
-        ( [], newTail ) ->
-            Just newTail
-
-        ( _, [] ) ->
-            Nothing
-
-        ( o :: oldTail, n :: newTail ) ->
-            if o == n then
-                historyDiff oldTail newTail
-
-            else
-                Nothing
+    Custom.List.diff old.actionHistory new.actionHistory
 
 
 setRotation : BoardRotation -> Model -> Model
 setRotation rotation model =
-    { model
-        | rotation = rotation
-        , timeline =
-            Animation.queue
-                ( Animation.milliseconds 200, PositionView.renderStatic rotation model.board )
-                model.timeline
-    }
+    { model | rotation = rotation }
+        |> softAnimateToCurrentBoard
 
 
 updateWebsocket : Api.Websocket.ServerMessage -> Model -> ( Model, Effect Msg )
