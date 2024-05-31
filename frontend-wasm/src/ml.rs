@@ -1,5 +1,6 @@
-use pacosako::{paco_action::PacoActionSet, DenseBoard, PacoBoard, PlayerColor};
-use rand::Rng;
+use rand::random;
+
+use pacosako::{DenseBoard, paco_action::PacoActionSet, PacoBoard, PlayerColor};
 
 /// Given a DenseBoard, we want to turns this into a model evaluation.
 /// This is a list of the relative policy for various legal actions.
@@ -38,7 +39,7 @@ impl ModelEvaluation {
     }
 
     /// Make sure all the numbers sum to 1.
-    fn normalize_policy(&mut self) {
+    pub fn normalize_policy(&mut self) {
         let sum: f32 = self.policy.iter().map(|(_, p)| p).sum();
         if sum == 0. {
             if !self.policy.is_empty() {
@@ -72,7 +73,7 @@ impl ModelEvaluation {
     /// Samples a random action, assuming the policy is normalized.
     pub fn sample(&self) -> pacosako::PacoAction {
         let mut sum = 0.;
-        let random = rand::thread_rng().gen::<f32>();
+        let random = random::<f32>();
         for (action, p) in &self.policy {
             sum += p;
             if sum >= random {

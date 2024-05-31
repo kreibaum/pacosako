@@ -1,6 +1,8 @@
 extern crate console_error_panic_hook;
 
 use js_sys::Float32Array;
+use rand::{random, Rng};
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 use pacosako::{
@@ -9,8 +11,7 @@ use pacosako::{
     fen,
     PacoAction, PacoBoard, PacoError, setup_options::SetupOptions,
 };
-use serde::{Deserialize, Serialize};
-use pacosako::opening_book::OpeningBook;
+use pacosako::opening_book::{MoveData, OpeningBook, PositionData};
 
 mod ml;
 mod utils;
@@ -164,7 +165,7 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
     if let Some(position_data) = OpeningBook::get(&fen) {
         console_log("Found opening book move.");
 
-        let best_move = position_data.best_move();
+        let best_move = sample_softmax(position_data)?;
 
         // TODO: Submit all actions at once, no need to stagger them.
         // https://github.com/kreibaum/pacosako/issues/123
@@ -188,6 +189,28 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
     }
 
     Ok(())
+}
+
+fn sample_softmax(position_data: &PositionData) -> Result<&MoveData, JsValue> {
+    // First, we apply softmax to the position_data
+    // position_data.suggested_moves[*].move_value holds the softmax input.
+    let mut normalization_factor = 0.0;
+    let mut softmax_values = Vec::with_capacity(position_data.suggested_moves.len());
+    for move_data in &position_data.suggested_moves {
+        let exp_scaled = (20.0 * move_data.move_value).exp();
+        normalization_factor += exp_scaled;
+        softmax_values.push(exp_scaled);
+    }
+
+    let random = random::<f32>();
+    let mut sum = 0.0;
+    for (i, value) in softmax_values.iter().enumerate() {
+        sum += value / normalization_factor;
+        if sum >= random {
+            return Ok(&position_data.suggested_moves[i]);
+        }
+    }
+    Err(JsValue::from_str("Failed to sample position data from opening book."))
 }
 
 async fn determine_ai_action(board: &DenseBoard) -> Result<PacoAction, JsValue> {

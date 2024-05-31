@@ -1,6 +1,7 @@
 // Until modules become available in Web Workers, we need to use importScripts.
 
 declare function importScripts(...urls: string[]): void;
+
 declare function postMessage(params: any): void;
 
 let [wasm_js_hash, wasm_hash] = location.hash.replace("#", "").split("|");
@@ -11,7 +12,16 @@ console.log('Hashes are: ', wasm_js_hash, wasm_hash);
 importScripts(`/js/lib.min.js?hash=${wasm_js_hash}`);
 declare var wasm_bindgen: any;
 
-const { generateRandomPosition, analyzePosition, analyzeReplay, subscribeToMatch, determineLegalActions, initHedwig, determineAiMove, initOpeningBook } = wasm_bindgen;
+const {
+    generateRandomPosition,
+    analyzePosition,
+    analyzeReplay,
+    subscribeToMatch,
+    determineLegalActions,
+    initHedwig,
+    determineAiMove,
+    initOpeningBook
+} = wasm_bindgen;
 
 // Import onnxruntime-web for AI
 importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/ort.min.js');
@@ -61,13 +71,14 @@ function forwardToWasm(messageType: any, data: any) {
 // This can be called from the rust code.
 function forwardToMq(messageType: string, data: string) {
     console.log(`Forwarding message to main thread: ${messageType} ${data}`);
-    postMessage({ type: messageType, data: data });
+    postMessage({type: messageType, data: data});
 }
 
 // Allows the rust code to know the current time.
 // This is only relative to the start of the worker. Otherwise we exceed the
 // 32 bit integer limit.
 let current_timestamp_baseline = Date.now();
+
 function current_timestamp_ms() {
     return Date.now() - current_timestamp_baseline;
 }
@@ -95,7 +106,7 @@ function openDatabase(): Promise<IDBDatabase> {
         request.onupgradeneeded = function (event) {
             const db = request.result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: 'url' });
+                db.createObjectStore(STORE_NAME, {keyPath: 'url'});
             }
         };
 
@@ -135,7 +146,7 @@ function cacheBlob(db: IDBDatabase, url: string, data: Blob): Promise<void> {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction([STORE_NAME], 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        const request = store.put({ url: url, data: data });
+        const request = store.put({url: url, data: data});
 
         request.onsuccess = function () {
             resolve();
@@ -205,7 +216,7 @@ async function evaluate_hedwig(rawInputTensor: Float32Array): Promise<Float32Arr
 }
 
 // The opening book is small enough to be loaded without asking the user.
-const openingBookUrl = 'https://static.kreibaum.dev/2024-05-12-book-hedwig0.8-1000-1.0.json';
+const openingBookUrl = 'https://static.kreibaum.dev/2024-05-31-book-hedwig0.8-1000.json';
 
 async function downloadOpeningBook() {
     let openingBook: Blob = await download_as_blob(openingBookUrl);
