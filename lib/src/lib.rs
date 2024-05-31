@@ -1408,7 +1408,7 @@ pub fn determine_all_moves(board: DenseBoard) -> Result<ExploredState<DenseBoard
     })
 }
 
-fn calculate_interning_hash(board: &DenseBoard) -> u64 {
+pub fn calculate_interning_hash(board: &DenseBoard) -> u64 {
     let mut s = FxHasher::default();
 
     // We care about the board state.

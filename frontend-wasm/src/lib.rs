@@ -1,10 +1,6 @@
 extern crate console_error_panic_hook;
 
 use js_sys::Float32Array;
-use rand::{random, Rng};
-use serde::{Deserialize, Serialize};
-use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
-
 use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
     DenseBoard, editor,
@@ -12,6 +8,9 @@ use pacosako::{
     PacoAction, PacoBoard, PacoError, setup_options::SetupOptions,
 };
 use pacosako::opening_book::{MoveData, OpeningBook, PositionData};
+use rand::{random, Rng};
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
 mod ml;
 mod utils;
@@ -181,14 +180,50 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
 
     let ai_player = board.controlling_player;
 
-    while board.controlling_player == ai_player {
-        let action = determine_ai_action(&board).await?;
-        board.execute_trusted(action).map_err(|e| e.to_string())?;
+    let actions = decide_turn_intuition(&board,vec![]).await.map_err(|e| e.to_string())?;
+    for action in actions{
         let action = serde_json::to_string(&vec![action]).map_err(|e| e.to_string())?;
         forwardToMq("aiMoveDetermined", &action);
     }
 
     Ok(())
+}
+
+/// This is essentially a re-implementation of `decideturn` from Julia.
+async fn decide_turn_intuition( board: &DenseBoard, mut exclude: Vec<u64>) -> Result<Vec<PacoAction>, PacoError> {
+    let ai_player = board.controlling_player;
+
+    let mut actions = vec![];
+
+    let mut game = board.clone();
+
+    while !game.victory_state().is_over() && game.controlling_player == ai_player {
+        let mut eval = ml::evaluate_model(&game).await;
+
+        let action = 'exclude: loop {
+            eval.normalize_policy();
+            let action = eval.sample();
+
+            let mut preview = game.clone();
+            preview.execute_trusted(action)?;
+
+            let hash = pacosako::calculate_interning_hash(&preview);
+            if !exclude.contains(&hash) {
+                exclude.push(hash);
+                break 'exclude action;
+            }
+            eval.policy.retain(|(a, _)| *a == action);
+            if eval.policy.is_empty() {
+                // Recursion with more forbidden states.
+                return Box::pin(decide_turn_intuition( board, exclude )).await;
+            }
+        };
+
+        game.execute_trusted(action)?;
+        actions.push(action);
+    }
+
+    Ok(actions)
 }
 
 fn sample_softmax(position_data: &PositionData) -> Result<&MoveData, JsValue> {
