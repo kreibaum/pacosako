@@ -287,6 +287,15 @@ type alias MatchParameters =
     { timer : Maybe Timer.TimerConfig
     , safeMode : Bool
     , drawAfterNRepetitions : Int
+    , aiSideRequest : Maybe AiSideRequestParameters
+    }
+
+
+type alias AiSideRequestParameters =
+    { modelName : String
+    , modelStrength : Int
+    , modelTemperature : Float
+    , color : Maybe Sako.Color
     }
 
 
@@ -319,6 +328,17 @@ encodeMatchParameters record =
           )
         , ( "safe_mode", Encode.bool record.safeMode )
         , ( "draw_after_n_repetitions", Encode.int record.drawAfterNRepetitions )
+        , ( "ai_side_request", Maybe.map encodeAiSideRequest record.aiSideRequest |> Maybe.withDefault Encode.null )
+        ]
+
+
+encodeAiSideRequest : AiSideRequestParameters -> Value
+encodeAiSideRequest record =
+    Encode.object
+        [ ( "model_name", Encode.string record.modelName )
+        , ( "model_strength", Encode.int record.modelStrength )
+        , ( "model_temperature", Encode.float record.modelTemperature )
+        , ( "color", Maybe.map Sako.encodeColor record.color |> Maybe.withDefault Encode.null )
         ]
 
 

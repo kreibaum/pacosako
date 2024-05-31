@@ -14,6 +14,7 @@ module Sako exposing
     , doActionsList
     , emptyPosition
     , encodeAction
+    , encodeColor
     , enumeratePieceIdentity
     , exportExchangeNotation
     , getPiecesAt
@@ -148,6 +149,16 @@ fromStringColor string =
 decodeColor : Decoder Color
 decodeColor =
     Decode.string |> Decode.andThen fromStringColor
+
+
+encodeColor : Color -> Value
+encodeColor color =
+    case color of
+        White ->
+            Encode.string "White"
+
+        Black ->
+            Encode.string "Black"
 
 
 {-| Represents a Paco Ŝako playing piece with type, color and position.

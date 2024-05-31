@@ -26,7 +26,7 @@ should not have their own message type or their own complicated data.
 -}
 
 import Custom.Element exposing (icon)
-import Element exposing (Element, alignRight, centerX, el, fill, height, padding, paddingEach, paddingXY, px, row, spacing, text, width)
+import Element exposing (Attribute, Element, alignRight, centerX, el, fill, height, padding, paddingEach, paddingXY, px, row, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -226,13 +226,15 @@ gameCodeLabel copyUrlMsg gameKey =
 {-| A gray box. Good to contain some text. You often want a bunch of these
 in a column layout on text heavy pages.
 -}
-grayBox : List (Element msg) -> Element msg
-grayBox content =
+grayBox : List (Attribute msg) -> List (Element msg) -> Element msg
+grayBox attrs content =
     Element.column
-        [ width fill
-        , Background.color (Element.rgba 1 1 1 0.6)
-        , Border.rounded 5
-        ]
+        ([ width fill
+         , Background.color (Element.rgba 1 1 1 0.6)
+         , Border.rounded 5
+         ]
+            ++ attrs
+        )
         content
 
 

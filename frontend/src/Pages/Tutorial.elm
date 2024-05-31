@@ -460,56 +460,56 @@ animationEmbedInner shared key isStarted timeline =
 
 englishTutorial : Shared.Model -> Model -> List (Element Msg)
 englishTutorial shared model =
-    [ grayBox
+    [ grayBox []
         [ heading T.tutorial01Introduction1
         , textParagraph T.tutorial01Introduction2
         , textParagraph T.tutorial01Introduction3
         , youtubeEmbed shared.windowSize model.enabledVideos "yJVcQK2gTdM"
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial02Movement1
         , textParagraph T.tutorial02Movement2
         , textParagraph T.tutorial02Movement3
         , animationEmbed shared model "traditionalChessAnimation"
         , textParagraph T.tutorial02Movement4
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial03CreateUnion1
         , textParagraph T.tutorial03CreateUnion2
         , animationEmbed shared model "creatingUnionAnimation"
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial04MoveUnion1
         , textParagraph T.tutorial04MoveUnion2
         , animationEmbed shared model "movingUnionAnimation"
         , textParagraph T.tutorial04MoveUnion3
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial05TakeOverUnion1
         , textParagraph T.tutorial05TakeOverUnion2
         , animationEmbed shared model "takeoverUnionAnimation"
         , textParagraph T.tutorial05TakeOverUnion3
         , animationEmbed shared model "takeoverUnionAnimation2"
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial06ChainReaction1
         , textParagraph T.tutorial06ChainReaction2
         , textParagraph T.tutorial06ChainReaction3
         , animationEmbed shared model "chainAnimation"
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial07EndGoal1
         , textParagraph T.tutorial07EndGoal2
         , textParagraph T.tutorial07EndGoal3
         ]
     , Content.References.discordInvite
-    , grayBox
+    , grayBox []
         [ heading T.tutorial08Promotions1
         , textParagraph T.tutorial08Promotions2
         , textParagraph T.tutorial08Promotions3
         , animationEmbed shared model "promotionAnimation"
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial09Castling1
         , textParagraph T.tutorial09Castling2
         , textParagraph T.tutorial09Castling3
@@ -517,13 +517,13 @@ englishTutorial shared model =
         , textParagraph T.tutorial09Castling5
         , textParagraph T.tutorial09Castling6
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial10EnPassant1
         , textParagraph T.tutorial10EnPassant2
         , textParagraph T.tutorial10EnPassant3
         , textParagraph T.tutorial10EnPassant4
         ]
-    , grayBox
+    , grayBox []
         [ heading T.tutorial11MoreAboutChains1
         , textParagraph T.tutorial11MoreAboutChains2
         , youtubeEmbed shared.windowSize model.enabledVideos "tQ2JLsFvfxI"

@@ -5,6 +5,7 @@ import Api.Decoders exposing (CompressedMatchState)
 import Api.LocalStorage exposing (CustomTimer)
 import Api.Ports as Ports
 import Browser.Navigation exposing (pushUrl)
+import Components
 import Content.References
 import Custom.Element exposing (icon)
 import Custom.Events exposing (fireMsg, forKey, onKeyUpAttr)
@@ -25,6 +26,7 @@ import Page
 import Reactive
 import RemoteData exposing (WebData)
 import Request
+import Sako exposing (Color(..))
 import Sako.FenView
 import Shared
 import Svg.Custom exposing (BoardRotation(..))
@@ -68,10 +70,11 @@ init shared =
       , rawMinutes = ""
       , rawSeconds = ""
       , rawIncrement = ""
-      , safeMode = True
       , repetitionDraw = True
       , recentGames = RemoteData.Loading
       , key = shared.key
+      , aiViewVisible = False
+      , aiColorChoice = Nothing
       }
     , refreshRecentGames |> Effect.fromCmd
     )
@@ -86,13 +89,14 @@ type Msg
     | SetRawMinutes String
     | SetRawSeconds String
     | SetRawIncrement String
-    | SetSafeMode Bool
     | SetRepetitionDraw Bool
     | RefreshRecentGames
     | GotRecentGames (List CompressedMatchState)
     | ErrorRecentGames Http.Error
     | HttpError Http.Error
     | ToShared Shared.Msg
+    | SetAiViewVisible Bool
+    | SetAiColorChoice (Maybe Sako.Color)
 
 
 type alias Model =
@@ -102,10 +106,11 @@ type alias Model =
     , rawMinutes : String
     , rawSeconds : String
     , rawIncrement : String
-    , safeMode : Bool
     , repetitionDraw : Bool
     , recentGames : WebData (List CompressedMatchState)
     , key : Browser.Navigation.Key
+    , aiViewVisible : Bool
+    , aiColorChoice : Maybe Sako.Color
     }
 
 
@@ -235,11 +240,14 @@ update msg model =
         ToShared outMsg ->
             ( model, Effect.fromShared outMsg )
 
-        SetSafeMode safeModeEnabled ->
-            ( { model | safeMode = safeModeEnabled }, Effect.none )
-
         SetRepetitionDraw repetitionDrawEnabled ->
             ( { model | repetitionDraw = repetitionDrawEnabled }, Effect.none )
+
+        SetAiViewVisible bool ->
+            ( { model | aiViewVisible = bool }, Effect.none )
+
+        SetAiColorChoice maybeColor ->
+            ( { model | aiColorChoice = maybeColor }, Effect.none )
 
 
 refreshRecentGames : Cmd Msg
@@ -295,13 +303,19 @@ createMatch model =
     , Effect.batch
         [ Api.Backend.postMatchRequest
             { timer = buildTimerConfig model.speedSetting
-            , safeMode = model.safeMode
+            , safeMode = True
             , drawAfterNRepetitions =
                 if model.repetitionDraw then
                     3
 
                 else
                     0
+            , aiSideRequest =
+                if model.aiViewVisible then
+                    Just { modelName = "hedwig", modelStrength = 0, modelTemperature = 0.05, color = model.aiColorChoice }
+
+                else
+                    Nothing
             }
             HttpError
             MatchCreatedOnServer
@@ -342,6 +356,7 @@ matchSetupUiDesktop shared model =
         [ Element.row [ height fill, width fill, spacing 15, centerX ]
             [ column [ height fill, width fill, spacing 15 ]
                 [ setupOnlineMatchUi shared model
+                , configureAiUi model
                 , joinOnlineMatchUi model
                 ]
             , column [ height fill, width fill, spacing 15 ]
@@ -360,6 +375,7 @@ matchSetupUiTablet shared model =
     Element.column [ width (fill |> Element.maximum 1120), spacing 10, centerX, paddingXY 10 40 ]
         [ setupOnlineMatchUi shared model
         , joinOnlineMatchUi model
+        , configureAiUi model
         , row [ width fill, spacing 10 ]
             [ Content.References.discordInvite
             , Content.References.officialWebsiteLink
@@ -376,6 +392,7 @@ matchSetupUiPhone : Shared.Model -> Model -> Element Msg
 matchSetupUiPhone shared model =
     Element.column [ width fill, spacing 10, centerX, paddingXY 10 20 ]
         [ setupOnlineMatchUi shared model
+        , configureAiUi model
         , joinOnlineMatchUi model
         , Content.References.discordInvite
         , Content.References.officialWebsiteLink
@@ -471,49 +488,55 @@ setupOnlineMatchUi shared model =
                 ]
             , recentTimerSettings model fontSize shared.recentCustomTimes
             , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
-            , el [ centerX ] (Element.paragraph [] [ safeModeToggle model ])
             , el [ centerX ] (Element.paragraph [] [ repetitionDrawToggle model ])
             , if isTimerOk (buildTimerConfig model.speedSetting) then
-                Input.button
-                    [ Background.color (Element.rgb255 41 204 57)
-                    , Element.mouseOver [ Background.color (Element.rgb255 68 229 84) ]
-                    , centerX
-                    , Border.rounded 5
+                row [ width fill, spacing 10 ]
+                    [ createMatchButton (not model.aiViewVisible)
+                    , aiToggleButton model
                     ]
-                    { onPress = Just CreateMatch
-                    , label =
-                        Element.row
-                            [ height fill
-                            , centerX
-                            , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                            , spacing 5
-                            ]
-                            [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
-                            , Element.text T.createMatch
-                            ]
-                    }
 
               else
                 column [ centerX, spacing 7 ]
                     [ el [ centerX ] (Element.paragraph [ Font.bold ] [ Element.text T.timerMustBePositive ])
-                    , el
-                        [ Background.color (Element.rgb255 200 200 200)
-                        , centerX
-                        , Border.rounded 5
+                    , row [ width fill, spacing 10 ]
+                        [ createMatchButton False
+                        , aiToggleButton model
                         ]
-                        (Element.row
-                            [ height fill
-                            , centerX
-                            , Element.paddingEach { top = 15, right = 20, bottom = 15, left = 20 }
-                            , spacing 5
-                            ]
-                            [ el [ width (px 20) ] (icon [ centerX ] Solid.plusCircle)
-                            , Element.text T.createMatch
-                            ]
-                        )
                     ]
             ]
         )
+
+
+createMatchButton : Bool -> Element Msg
+createMatchButton enable =
+    if enable then
+        Components.colorButton [ centerX ]
+            { background = Element.rgb255 41 204 57
+            , backgroundHover = Element.rgb255 68 229 84
+            , onPress = Just CreateMatch
+            , buttonIcon = icon [ centerX ] Solid.plusCircle
+            , caption = T.createMatch
+            }
+
+    else
+        Components.colorButton [ centerX ]
+            { background = Element.rgb255 200 200 200
+            , backgroundHover = Element.rgb255 200 200 200
+            , onPress = Nothing
+            , buttonIcon = icon [ centerX ] Solid.plusCircle
+            , caption = T.createMatch
+            }
+
+
+aiToggleButton : Model -> Element Msg
+aiToggleButton model =
+    Components.colorButton [ centerX ]
+        { background = Element.rgb255 191 19 113
+        , backgroundHover = Element.rgb255 229 22 136
+        , onPress = Just (SetAiViewVisible (not model.aiViewVisible))
+        , buttonIcon = icon [ centerX ] Solid.robot
+        , caption = T.playWithAi
+        }
 
 
 isTimerOk : Maybe Timer.TimerConfig -> Bool
@@ -639,18 +662,6 @@ timeLimitInputCustom model =
         ]
 
 
-safeModeToggle : Model -> Element Msg
-safeModeToggle model =
-    Input.checkbox []
-        { onChange = SetSafeMode
-        , icon = Input.defaultCheckbox
-        , checked = model.safeMode
-        , label =
-            Input.labelRight []
-                (text T.enableGameProtection)
-        }
-
-
 repetitionDrawToggle : Model -> Element Msg
 repetitionDrawToggle model =
     Input.checkbox []
@@ -661,6 +672,53 @@ repetitionDrawToggle model =
             Input.labelRight []
                 (text T.enableRepetitionDraw)
         }
+
+
+configureAiUi : Model -> Element Msg
+configureAiUi model =
+    if model.aiViewVisible then
+        Components.grayBox [ padding 10, spacing 10 ]
+            [ Element.paragraph [] [ Element.text T.playWithAiL1 ]
+            , wrappedRow [ spacing 10, centerX ]
+                [ aiColorChoiceButton model.aiColorChoice (Just White) Solid.robot T.gameWhite
+                , aiColorChoiceButton model.aiColorChoice Nothing Solid.dice T.playWithAiColorRandom
+                , aiColorChoiceButton model.aiColorChoice (Just Black) Solid.robot T.gameBlack
+                ]
+            , wrappedRow [ spacing 10, centerX ]
+                [ createMatchButton (isTimerOk (buildTimerConfig model.speedSetting))
+                , Components.colorButton [ centerX ]
+                    { background = Element.rgb255 255 68 51
+                    , backgroundHover = Element.rgb255 255 102 102
+                    , onPress = Just (SetAiViewVisible False)
+                    , buttonIcon = icon [ centerX ] Solid.times
+                    , caption = T.playWithAiRemoveAi
+                    }
+                ]
+            ]
+
+    else
+        Element.none
+
+
+aiColorChoiceButton : Maybe Sako.Color -> Maybe Sako.Color -> Icon -> String -> Element Msg
+aiColorChoiceButton modelColor buttonColor captionIcon caption =
+    if modelColor == buttonColor then
+        Components.colorButton []
+            { background = Element.rgb255 180 180 180
+            , backgroundHover = Element.rgb255 180 180 180
+            , onPress = Nothing
+            , buttonIcon = icon [ centerX ] captionIcon
+            , caption = caption
+            }
+
+    else
+        Components.colorButton []
+            { background = Element.rgb255 220 220 220
+            , backgroundHover = Element.rgb255 200 200 200
+            , onPress = Just (SetAiColorChoice buttonColor)
+            , buttonIcon = icon [ centerX ] captionIcon
+            , caption = caption
+            }
 
 
 joinOnlineMatchUi : Model -> Element Msg

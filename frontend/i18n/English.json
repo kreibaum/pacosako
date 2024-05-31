@@ -164,5 +164,9 @@
   "adminUserAssignmentPageTitle": "Admin - User Assignment",
   "adminUserAssignmentL1": "Here you can assign users to games. This is useful for assigning games to the correct user. You'll need special permissions to actually do this. For now, you also need to know people's technical user id.",
   "adminUserAssignmentEnterId": "Enter User Id",
-  "adminUserAssignmentPerform": "Assign user(s) to game"
+  "adminUserAssignmentPerform": "Assign user(s) to game",
+  "playWithAi": "Play with AI",
+  "playWithAiL1": "You can play against the Hedwig AI. Hedwig is a strong AI for Paco Ŝako. It is not perfect, but it is a good challenge for most players. You can choose the color that Hedwig should play.",
+  "playWithAiColorRandom": "Random",
+  "playWithAiRemoveAi": "Remove AI"
 }

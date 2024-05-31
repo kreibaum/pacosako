@@ -151,12 +151,12 @@ view shared model =
 
 innerView : CreateAccountQuery -> List (Element Msg)
 innerView data =
-    [ grayBox
+    [ grayBox []
         [ heading "Create an Account"
         , textParagraph "You don't have an account on PacoPlay yet. Do you want to create an account linked to your Discord profile?"
         ]
     , el [ centerX, padding 40 ]
-        (grayBox
+        (grayBox []
             [ row [ padding 10, spacing 10 ]
                 [ image [ width (px 100), height (px 100) ]
                     { src = "/p/identicon:" ++ data.userDiscordId, description = T.mePageProfileImageAltText }
@@ -164,11 +164,11 @@ innerView data =
                 ]
             ]
         )
-    , grayBox
+    , grayBox []
         [ heading "About the Avatar"
         , textParagraph "This avatar was randomly generated for you. You can change it later. Discord profile pictures are not supported to ease moderation."
         ]
-    , grayBox
+    , grayBox []
         [ heading "What Data Will Be Stored?"
         , textParagraph "We will store your Discord user ID and your display name. We will not store your email address or any other personal information. (We didn't even get that from Discord.)"
         , textParagraph "Any games you play on PacoPlay while logged in will be associated with your account. They are public."

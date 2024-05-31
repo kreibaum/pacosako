@@ -331,7 +331,7 @@ update shared msg model =
             case model.aiState of
                 WaitingForAiAnswer requestStartTime ->
                     -- After ten seconds, reload the page
-                    if Time.posixToMillis now - Time.posixToMillis requestStartTime > 10000 then
+                    if Time.posixToMillis now - Time.posixToMillis requestStartTime > 10000 && not (Sako.isStateOver model.currentState.gameState) then
                         ( { model | aiState = InactiveAi }, Browser.Navigation.reload |> Effect.fromCmd )
 
                     else

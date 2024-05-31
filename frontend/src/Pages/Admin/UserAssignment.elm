@@ -291,11 +291,11 @@ view shared model =
 
 userAssignmentView : Shared.Model -> Model -> List (Element Msg)
 userAssignmentView shared model =
-    [ grayBox
+    [ grayBox []
         [ heading T.adminUserAssignmentPageTitle
         , textParagraph T.adminUserAssignmentL1
         ]
-    , grayBox
+    , grayBox []
         [ Input.text []
             { onChange = TypeUpdateGameId
             , text = model.gameIdRaw
@@ -304,7 +304,7 @@ userAssignmentView shared model =
             }
             |> el [ padding 10 ]
         ]
-    , grayBox
+    , grayBox []
         [ model.replay
             |> Maybe.map (\replay -> gamePreview shared model replay)
             |> Maybe.withDefault Element.none
@@ -312,11 +312,11 @@ userAssignmentView shared model =
     , model.lastHttpError
         |> Maybe.map
             (\e ->
-                grayBox
+                grayBox []
                     [ textParagraph e ]
             )
         |> Maybe.withDefault Element.none
-    , grayBox
+    , grayBox []
         [ colorButton []
             { background = Element.rgb255 51 191 255
             , backgroundHover = Element.rgb255 102 206 255
