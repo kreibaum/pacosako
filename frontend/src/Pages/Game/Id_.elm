@@ -10,6 +10,7 @@ import Api.Websocket
 import Arrow
 import Browser.Dom
 import Browser.Events
+import Browser.Navigation
 import CastingDeco
 import Colors
 import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
@@ -89,7 +90,7 @@ type alias Model =
 {-| The game page needs to understand if the AI is already running when processing new game states.
 -}
 type AiState
-    = WaitingForAiAnswer
+    = WaitingForAiAnswer Posix
     | InactiveAi
 
 
@@ -173,6 +174,7 @@ type Msg
     | LegalActionsResponse { inputActionCount : Int, legalActions : List Sako.Action }
     | DetermineAiMove
     | AiMoveResponse (List Sako.Action)
+    | CheckIfAiIsDead Posix
 
 
 update : Shared.Model -> Msg -> Model -> ( Model, Effect Msg )
@@ -229,7 +231,7 @@ update shared msg model =
             ( setRotation rotation model, Effect.none )
 
         WebsocketMsg serverMessage ->
-            updateWebsocket serverMessage model
+            updateWebsocket shared serverMessage model
 
         WebsocketErrorMsg error ->
             ( model, Api.Ports.logToConsole (Decode.errorToString error) |> Effect.fromCmd )
@@ -322,6 +324,21 @@ update shared msg model =
                     List.head actions |> Maybe.withDefault (Sako.Promote Sako.Queen)
             in
             updateActionInputStep shared action model
+
+        -- I have observed the AI crashing when Bas was playing. Him reloading the page
+        -- fixed the issue. This is a safeguard for extra durability.
+        CheckIfAiIsDead now ->
+            case model.aiState of
+                WaitingForAiAnswer requestStartTime ->
+                    -- After ten seconds, reload the page
+                    if Time.posixToMillis now - Time.posixToMillis requestStartTime > 10000 then
+                        ( { model | aiState = InactiveAi }, Browser.Navigation.reload |> Effect.fromCmd )
+
+                    else
+                        ( model, Effect.none )
+
+                InactiveAi ->
+                    ( model, Effect.none )
 
 
 fetchHeaderSize : Cmd Msg
@@ -568,15 +585,15 @@ updateActionInputStep shared action model =
 {-| Ensure that the update we got actually belongs to the game we are interested
 in.
 -}
-updateCurrentMatchStateIfKeyCorrect : CurrentMatchState -> Model -> ( Model, Effect Msg )
-updateCurrentMatchStateIfKeyCorrect data model =
+updateCurrentMatchStateIfKeyCorrect : Shared.Model -> CurrentMatchState -> Model -> ( Model, Effect Msg )
+updateCurrentMatchStateIfKeyCorrect shared data model =
     if data.key == model.gameKey then
         let
             ( m2, e ) =
                 updateCurrentMatchState data model
 
             ( m3, e2 ) =
-                triggerAiMoveIfNecessary m2
+                triggerAiMoveIfNecessary shared m2
         in
         ( m3, Effect.batch [ e, e2 ] )
 
@@ -587,8 +604,8 @@ updateCurrentMatchStateIfKeyCorrect data model =
 {-| Checks if we have "Ai Control" of the current player. If so checks if the AI
 is already running or generates a move.
 -}
-triggerAiMoveIfNecessary : Model -> ( Model, Effect Msg )
-triggerAiMoveIfNecessary model =
+triggerAiMoveIfNecessary : Shared.Model -> Model -> ( Model, Effect Msg )
+triggerAiMoveIfNecessary shared model =
     let
         sideControl =
             case model.currentState.controllingPlayer of
@@ -605,7 +622,7 @@ triggerAiMoveIfNecessary model =
             model.aiState == InactiveAi
     in
     if isAiControl && isAiInactive then
-        determineAiMove { model | aiState = WaitingForAiAnswer }
+        determineAiMove { model | aiState = WaitingForAiAnswer shared.now }
 
     else if not isAiControl && not isAiInactive then
         ( { model | aiState = InactiveAi }, Effect.none )
@@ -718,14 +735,14 @@ setRotation rotation model =
         |> softAnimateToCurrentBoard
 
 
-updateWebsocket : Api.Websocket.ServerMessage -> Model -> ( Model, Effect Msg )
-updateWebsocket serverMessage model =
+updateWebsocket : Shared.Model -> Api.Websocket.ServerMessage -> Model -> ( Model, Effect Msg )
+updateWebsocket shared serverMessage model =
     case serverMessage of
         Api.Websocket.TechnicalError errorMessage ->
             ( model, Api.Ports.logToConsole errorMessage |> Effect.fromCmd )
 
         Api.Websocket.NewMatchState data ->
-            updateCurrentMatchStateIfKeyCorrect data model
+            updateCurrentMatchStateIfKeyCorrect shared data model
 
         Api.Websocket.TimeDriftRespose data ->
             ( model
@@ -759,6 +776,7 @@ subscriptions model =
             Api.MessageGen.aiMoveDetermined
             Api.DecoderGen.aiMoveDetermined
             AiMoveResponse
+        , Time.every 1000 CheckIfAiIsDead
         ]
 
 
