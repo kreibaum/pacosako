@@ -29,7 +29,6 @@ import Request
 import Sako exposing (Color(..))
 import Sako.FenView
 import Shared
-import Svg.Custom exposing (BoardRotation(..))
 import Timer
 import Translations as T
 import View exposing (View)

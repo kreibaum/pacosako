@@ -15,7 +15,6 @@ import Page
 import Request
 import Shared
 import Translations as T
-import Url exposing (Protocol(..))
 import View exposing (View)
 
 
