@@ -4,7 +4,7 @@ use crate::BoardPosition;
 /// This panics if it is not a valid position. You should only use it on constants.
 /// This is also why we have that lifetime requirement.
 pub const fn pos(s: &'static str) -> BoardPosition {
-    assert_eq!(s.len(), 2);
+    assert!(s.len() == 2);
     let file = s.as_bytes()[0] - b'a';
     let rank = s.as_bytes()[1] - b'1';
     BoardPosition::new(file, rank)
