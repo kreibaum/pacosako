@@ -342,7 +342,7 @@ mod test {
         let now = now + Duration::seconds(500);
         timer.use_time(Black, now);
         assert_eq!(timer.time_left_white, Duration::seconds(277));
-        assert_eq!(timer.time_left_black, Duration::seconds(-267));
+        assert_eq!(timer.time_left_black, Duration::seconds(0));
         assert_eq!(timer.get_state(), TimerState::Timeout(Black));
     }
 
