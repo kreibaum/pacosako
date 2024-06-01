@@ -1,12 +1,13 @@
-use chrono::{DateTime, Duration, Utc};
-use pacosako::PlayerColor;
-use serde::{Deserialize, Serialize};
 use std::convert::From;
+
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+
+use pacosako::PlayerColor;
 
 /// The timer module should encapsulate the game timer state. It is importing
 /// pacosako in order to work with the player colors. Otherwise it is not
 /// specific to Paco Ŝako.
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TimerConfig {
     #[serde(
@@ -26,6 +27,7 @@ pub struct TimerConfig {
     )]
     pub increment: Option<Duration>,
 }
+
 impl TimerConfig {
     /// Ensure that all values of the timer config are below 1000000. This
     /// ensures we don't trigger an overflow. See #85.
@@ -136,18 +138,19 @@ impl Timer {
         let time_left = match player {
             PlayerColor::White => {
                 self.time_left_white -= time_passed;
-                self.time_left_white
+                &mut self.time_left_white
             }
             PlayerColor::Black => {
                 self.time_left_black -= time_passed;
-                self.time_left_black
+                &mut self.time_left_black
             }
         };
 
         self.last_timestamp = now;
 
         // Check if the time ran out
-        if time_left <= Duration::nanoseconds(0) {
+        if *time_left <= Duration::nanoseconds(0) {
+            *time_left = Duration::nanoseconds(0);
             self.timer_state = TimerState::Timeout(player);
         }
 
