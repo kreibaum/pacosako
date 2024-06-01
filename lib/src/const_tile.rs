@@ -4,7 +4,7 @@ use crate::BoardPosition;
 /// This panics if it is not a valid position. You should only use it on constants.
 /// This is also why we have that lifetime requirement.
 pub const fn pos(s: &'static str) -> BoardPosition {
-    assert!(s.len() == 2);
+    assert_eq!(s.len(), 2);
     let file = s.as_bytes()[0] - b'a';
     let rank = s.as_bytes()[1] - b'1';
     BoardPosition::new(file, rank)
@@ -80,7 +80,7 @@ pub const H8: BoardPosition = pos("h8");
 
 #[cfg(test)]
 mod tests {
-    use crate::{const_tile::pos, BoardPosition};
+    use crate::{BoardPosition, const_tile::pos};
 
     /// Verify that for all valid positions the pos function returns the correct BoardPosition.
     /// This is done my turning a BoardPosition into a string and then back into a BoardPosition.
@@ -90,6 +90,7 @@ mod tests {
             for file in 0..8 {
                 let position = BoardPosition::new(file, rank);
                 let string = position.to_string();
+                // This transmutes the lifetime to 'static in order to call pos.
                 let position2 = pos(unsafe { std::mem::transmute::<&str, &'static str>(&string) });
                 assert_eq!(position, position2);
             }

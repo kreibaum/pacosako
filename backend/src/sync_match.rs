@@ -428,7 +428,7 @@ impl SynchronizedMatch {
 
 #[cfg(test)]
 mod test {
-    use pacosako::types::BoardPosition;
+    use pacosako::const_tile::*;
 
     use super::*;
 
@@ -445,9 +445,9 @@ mod test {
             },
         );
 
-        game.do_action(PacoAction::Lift(BoardPosition(10))).unwrap();
+        game.do_action(PacoAction::Lift(C2)).unwrap();
         let current_state = game
-            .do_action(PacoAction::Place(BoardPosition(18)))
+            .do_action(PacoAction::Place(C3))
             .unwrap();
 
         // recalculating the current state does not lead to surprises.

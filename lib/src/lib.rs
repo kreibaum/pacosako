@@ -508,17 +508,17 @@ impl DenseBoard {
         if let Some(piece_type) = piece {
             // When lifting a rook, castling may be forfeit.
             if piece_type == PieceType::Rook {
-                if position == BoardPosition(0) && self.controlling_player == PlayerColor::White {
+                if position == A1 && self.controlling_player == PlayerColor::White {
                     self.castling.white_queen_side = false;
-                } else if position == BoardPosition(7)
+                } else if position == H1
                     && self.controlling_player == PlayerColor::White
                 {
                     self.castling.white_king_side = false;
-                } else if position == BoardPosition(56)
+                } else if position == A8
                     && self.controlling_player == PlayerColor::Black
                 {
                     self.castling.black_queen_side = false;
-                } else if position == BoardPosition(63)
+                } else if position == H8
                     && self.controlling_player == PlayerColor::Black
                 {
                     self.castling.black_king_side = false;
@@ -528,18 +528,18 @@ impl DenseBoard {
             if let Some(partner_type) = partner {
                 // When lifting an enemy rook, castling may be denied from them.
                 if partner_type == PieceType::Rook {
-                    if position == BoardPosition(0) && self.controlling_player == PlayerColor::Black
+                    if position == A1 && self.controlling_player == PlayerColor::Black
                     {
                         self.castling.white_queen_side = false;
-                    } else if position == BoardPosition(7)
+                    } else if position == H1
                         && self.controlling_player == PlayerColor::Black
                     {
                         self.castling.white_king_side = false;
-                    } else if position == BoardPosition(56)
+                    } else if position == A8
                         && self.controlling_player == PlayerColor::White
                     {
                         self.castling.black_queen_side = false;
-                    } else if position == BoardPosition(63)
+                    } else if position == H8
                         && self.controlling_player == PlayerColor::White
                     {
                         self.castling.black_king_side = false;
@@ -754,7 +754,7 @@ impl DenseBoard {
         king_target: BoardPosition,
     ) -> Result<&mut Self, PacoError> {
         if let Some((rook_source, rook_target)) =
-            get_castling_auxiliary_move(king_source, king_target)
+            for_castling_get_rook_move(king_source, king_target)
         {
             self.ensure_board_clean(king_source, king_target)?;
 
@@ -1194,18 +1194,18 @@ impl DenseBoard {
 /// For a given move of the king, determines if this would trigger a castling.
 /// If so, the corresponding rook swap is returned. The first square is "source",
 /// the second is "target".
-pub fn get_castling_auxiliary_move(
+pub fn for_castling_get_rook_move(
     king_source: BoardPosition,
     king_target: BoardPosition,
 ) -> Option<(BoardPosition, BoardPosition)> {
-    if king_source == BoardPosition(4) && king_target == BoardPosition(2) {
-        Some((BoardPosition(0), BoardPosition(3)))
-    } else if king_source == BoardPosition(4) && king_target == BoardPosition(6) {
-        Some((BoardPosition(7), BoardPosition(5)))
-    } else if king_source == BoardPosition(60) && king_target == BoardPosition(58) {
-        Some((BoardPosition(56), BoardPosition(59)))
-    } else if king_source == BoardPosition(60) && king_target == BoardPosition(62) {
-        Some((BoardPosition(63), BoardPosition(61)))
+    if king_source == E1 && king_target == C1 {
+        Some((A1, D1))
+    } else if king_source == E1 && king_target == G1 {
+        Some((H1, F1))
+    } else if king_source == E8 && king_target == C8 {
+        Some((A8, D8))
+    } else if king_source == E8 && king_target == G8 {
+        Some((H8, F8))
     } else {
         None
     }
@@ -2711,5 +2711,12 @@ mod tests {
         execute_action!(board, lift, "c2");
         execute_action!(board, place, "c4");
         assert!(is_sako(&board, board.controlling_player).unwrap());
+    }
+
+    #[test]
+    fn castling_struct_size() {
+        // At 64 bit, this is about 60 bytes more than required.
+        // But we'll rewrite this for PacoŜako960 later, so no change now.
+        assert_eq!(std::mem::size_of::<Castling>(), 4);
     }
 }
