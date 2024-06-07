@@ -191,6 +191,7 @@ type InnerMsg
     | ClearDecoComplete
     | MouseDown CastingDeco.InputMode BoardMousePosition
     | MouseUp CastingDeco.InputMode BoardMousePosition
+    | NormalModeMouseUp BoardMousePosition
     | MouseMove CastingDeco.InputMode BoardMousePosition
     | CopyToClipboard String
     | NextAction
@@ -289,6 +290,13 @@ innerUpdate msg model =
 
         MouseMove mode pos ->
             ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Effect.none )
+
+        NormalModeMouseUp pos ->
+            if pos.x >= 400 then
+                innerUpdate NextAction model
+
+            else
+                innerUpdate PreviousAction model
 
         CopyToClipboard text ->
             ( model, Api.Ports.copy text |> Effect.fromCmd )
@@ -679,7 +687,10 @@ boardViewOk shared model position partialActionHistory =
                 ++ metaDataDecoration model
         , dragPieceData = []
         , mouseDown = Maybe.map MouseDown model.inputMode
-        , mouseUp = Maybe.map MouseUp model.inputMode
+        , mouseUp =
+            Maybe.map MouseUp model.inputMode
+                |> Maybe.withDefault NormalModeMouseUp
+                |> Just
         , mouseMove = Maybe.map MouseMove model.inputMode
         , additionalSvg =
             Svg.PlayerLabel.both
