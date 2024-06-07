@@ -13,7 +13,7 @@ import Browser.Events
 import Browser.Navigation
 import CastingDeco
 import Colors
-import Components exposing (btn, isSelectedIf, viewButton, withMsgIf)
+import Components exposing (btn, colorButton, isSelectedIf, viewButton, withMsgIf)
 import Custom.Element exposing (icon, showIf)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
 import Custom.List
@@ -1159,16 +1159,19 @@ maybeVictoryStateInfo victoryState =
 
 {-| Links to the replay, but only after the game is finished.
 -}
-maybeReplayLink : Model -> Element msg
+maybeReplayLink : Model -> Element Msg
 maybeReplayLink model =
     case model.currentState.gameState of
         Sako.Running ->
             Element.none
 
         _ ->
-            Element.link [ padding 10, Font.underline, Font.color (Element.rgb 0 0 1) ]
-                { url = Route.toHref (Route.Replay__Id_ { id = model.gameKey })
-                , label = Element.text T.gameWatchReplay
+            colorButton [ width fill ]
+                { background = Element.rgb255 51 191 255
+                , backgroundHover = Element.rgb255 102 206 255
+                , onPress = Just (ToShared (Shared.NavigateTo (Route.toHref (Route.Replay__Id_ { id = model.gameKey }))))
+                , buttonIcon = icon [ centerX ] Solid.film
+                , caption = T.gameWatchReplay
                 }
 
 
