@@ -24,7 +24,6 @@ import Colors
 import Components
 import Custom.Element exposing (icon)
 import Custom.Events exposing (BoardMousePosition, KeyBinding, fireMsg, forKey)
-import Custom.List as List
 import Effect exposing (Effect)
 import Element exposing (Element, alignTop, centerX, column, el, fill, fillPortion, height, padding, paddingXY, px, scrollbarY, spacing, width)
 import Element.Background as Background
@@ -38,7 +37,6 @@ import FontAwesome.Solid as Solid
 import Gen.Route as Route
 import Header
 import Http
-import List.Extra as List
 import Notation
 import Page
 import Pages.NotFound
@@ -55,7 +53,6 @@ import Svg.TimerGraphic
 import Time exposing (Posix)
 import Translations as T
 import Url
-import User
 import View exposing (View)
 
 

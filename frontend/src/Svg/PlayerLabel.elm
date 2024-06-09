@@ -11,7 +11,6 @@ module Svg.PlayerLabel exposing
 -}
 
 import Api.Decoders exposing (ControlLevel(..), PublicUserData)
-import Maybe.Extra as Maybe
 import Sako exposing (VictoryState(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
