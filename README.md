@@ -238,6 +238,31 @@ ERROR: CUDA initialization failed: CUDA error (code 999, CUDA_ERROR_UNKNOWN)
 This may happen when you suspend your computer while the CUDA driver is still
 loaded. To fix this, you must restart your computer.
 
+# Working with Python
+
+We have a Python package that can be used to interact with the Rust library.
+It is there to support some statistical analysis Bas has been doing.
+
+You'll need `maturin` from the pyo3 ecosystem: https://pyo3.rs/
+
+Then you need to got to `/python` to build the package:
+
+```bash
+maturin build --release
+```
+
+Afterward, you can install the package with pip:
+
+```bash
+pip install target/wheels/pacosako-$LOOK_IT_UP.whl
+```
+
+When you are just developing the package, you can use the `develop` command:
+
+```bash
+maturin develop --release
+```
+
 # Replay Meta Data
 
 It is possible to attach arbitrary json metadata to a replay.
