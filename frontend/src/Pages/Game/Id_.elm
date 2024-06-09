@@ -194,7 +194,11 @@ update shared msg model =
         MouseDown pos ->
             case model.inputMode of
                 Nothing ->
-                    updateMouseDown shared pos model
+                    if isCurrentSideControlledByPlayer model then
+                        updateMouseDown shared pos model
+
+                    else
+                        ( model, Effect.none )
 
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseDown mode pos model.castingDeco }, Effect.none )
@@ -202,7 +206,11 @@ update shared msg model =
         MouseUp pos ->
             case model.inputMode of
                 Nothing ->
-                    updateMouseUp shared pos model
+                    if isCurrentSideControlledByPlayer model then
+                        updateMouseUp shared pos model
+
+                    else
+                        ( model, Effect.none )
 
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseUp mode pos model.castingDeco }, Effect.none )
@@ -210,7 +218,11 @@ update shared msg model =
         MouseMove pos ->
             case model.inputMode of
                 Nothing ->
-                    updateMouseMove pos model
+                    if isCurrentSideControlledByPlayer model then
+                        updateMouseMove pos model
+
+                    else
+                        ( model, Effect.none )
 
                 Just mode ->
                     ( { model | castingDeco = CastingDeco.mouseMove mode pos model.castingDeco }, Effect.none )
@@ -364,6 +376,35 @@ addActionToCurrentMatchState action state =
         | actionHistory = state.actionHistory ++ [ action ]
         , legalActions = Api.Decoders.ActionsNotLoaded
     }
+
+
+{-| This function decides whether interacting with the board in normal mode
+should be allowed. This prevents the player from lifting pieces when it isn't
+actually their turn.
+-}
+isCurrentSideControlledByPlayer : Model -> Bool
+isCurrentSideControlledByPlayer model =
+    let
+        control =
+            case model.currentState.controllingPlayer of
+                Sako.White ->
+                    model.currentState.whiteControl
+
+                Sako.Black ->
+                    model.currentState.blackControl
+    in
+    case control of
+        Unlocked ->
+            True
+
+        LockedByYou ->
+            True
+
+        LockedByYourFrontendAi ->
+            False
+
+        LockedByOther ->
+            False
 
 
 legalActionAt : CurrentMatchState -> Tile -> Maybe Sako.Action
