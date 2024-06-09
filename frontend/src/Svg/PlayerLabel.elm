@@ -1,20 +1,28 @@
-module Svg.PlayerLabel exposing (both, rotationToYPosition, victoryStateToText)
+module Svg.PlayerLabel exposing
+    ( DataRequiredForPlayers
+    , anonymousPlayerDataFromControl
+    , anonymousProfile
+    , both
+    , rotationToYPosition
+    , victoryStateToText
+    )
 
 {-| Wraps the SVG on top and bottom of the game which shows the players.
 -}
 
-import Api.Decoders exposing (PublicUserData)
+import Api.Decoders exposing (ControlLevel(..), PublicUserData)
 import Maybe.Extra as Maybe
 import Sako exposing (VictoryState(..))
 import Svg exposing (Svg)
 import Svg.Attributes as SvgA
 import Svg.Custom as Svg exposing (BoardRotation(..))
+import Translations as T
 
 
 type alias DataRequiredForPlayers =
     { rotation : BoardRotation
-    , whitePlayer : Maybe PublicUserData
-    , blackPlayer : Maybe PublicUserData
+    , whitePlayer : PublicUserData
+    , blackPlayer : PublicUserData
     , victoryState : VictoryState
     , isWithTimer : Bool
 
@@ -25,7 +33,7 @@ type alias DataRequiredForPlayers =
 
 {-| Renders the SVG for the player labels.
 -}
-both : DataRequiredForPlayers -> List (Maybe (Svg a))
+both : DataRequiredForPlayers -> List (Svg a)
 both model =
     let
         aiXPos =
@@ -37,8 +45,8 @@ both model =
         nameExtension =
             victoryStateToText model.victoryState model.currentPlayer
     in
-    [ model.whitePlayer |> Maybe.map (playerLabelSvg aiXPos yPosition.white nameExtension.white)
-    , model.blackPlayer |> Maybe.map (playerLabelSvg aiXPos yPosition.black nameExtension.black)
+    [ playerLabelSvg aiXPos yPosition.white nameExtension.white model.whitePlayer
+    , playerLabelSvg aiXPos yPosition.black nameExtension.black model.blackPlayer
     ]
 
 
@@ -66,7 +74,7 @@ playerLabelSvg aiXPos yPos nameExtension userData =
                     , SvgA.x aiXPos
                     , SvgA.y "15"
                     ]
-                    [ Svg.text ("🤖 " ++ aiData.modelName) ]
+                    [ Svg.text ("\u{1F916} " ++ aiData.modelName) ]
 
             Nothing ->
                 Svg.text_ [] []
@@ -135,3 +143,51 @@ victoryStateToText victoryState currentPlayer =
 
         _ ->
             { white = "", black = "" }
+
+
+anonymousPlayerDataFromControl : ControlLevel -> PublicUserData
+anonymousPlayerDataFromControl level =
+    case level of
+        Unlocked ->
+            freeSeat
+
+        LockedByYou ->
+            anonymousYou
+
+        LockedByYourFrontendAi ->
+            unknownAi
+
+        LockedByOther ->
+            anonymousProfile
+
+
+anonymousProfile : PublicUserData
+anonymousProfile =
+    { name = T.anonymousPlayerName
+    , avatar = "identicon:pqyaiigckdlmwevfparshsynewowdyyq"
+    , ai = Nothing
+    }
+
+
+anonymousYou : PublicUserData
+anonymousYou =
+    { name = T.anonymousPlayerNameYou
+    , avatar = "identicon:pqyaiigckdlmwevfparshsynewowdyyq"
+    , ai = Nothing
+    }
+
+
+freeSeat : PublicUserData
+freeSeat =
+    { name = T.freeSeatPlayerName
+    , avatar = "identicon:119007"
+    , ai = Nothing
+    }
+
+
+unknownAi : PublicUserData
+unknownAi =
+    { name = T.unknownAiPlayerName
+    , avatar = "identicon:knfsucyomfhuypsqioikbhdsqjzugdvn"
+    , ai = Nothing
+    }

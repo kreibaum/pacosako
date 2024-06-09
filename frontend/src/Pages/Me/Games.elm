@@ -18,7 +18,7 @@ import RemoteData exposing (WebData)
 import Request
 import Sako.FenView
 import Shared
-import Svg.PlayerLabel
+import Svg.PlayerLabel as PlayerLabel
 import Timer exposing (classifyDuration, expectedTimeLimit)
 import Translations as T
 import View exposing (View)
@@ -150,14 +150,6 @@ navigation model =
         ]
 
 
-anonymousProfile : PublicUserData
-anonymousProfile =
-    { name = T.anonymousPlayerName
-    , avatar = "identicon:pqyaiigckdlmwevfparshsynewowdyyq"
-    , ai = Nothing
-    }
-
-
 viewOneGame : Shared.Model -> CompressedMatchState -> Element Msg
 viewOneGame shared game =
     let
@@ -165,13 +157,13 @@ viewOneGame shared game =
             Sako.FenView.viewFenString { fen = game.fen, colorConfig = shared.colorConfig, size = 150 }
 
         profileWhite =
-            Maybe.withDefault anonymousProfile game.whitePlayer
+            Maybe.withDefault PlayerLabel.anonymousProfile game.whitePlayer
 
         profileBlack =
-            Maybe.withDefault anonymousProfile game.blackPlayer
+            Maybe.withDefault PlayerLabel.anonymousProfile game.blackPlayer
 
         emojis =
-            Svg.PlayerLabel.victoryStateToText game.gameState Nothing
+            PlayerLabel.victoryStateToText game.gameState Nothing
 
         duration =
             game.timer

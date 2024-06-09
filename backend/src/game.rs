@@ -245,6 +245,11 @@ async fn branch_game(
 
         db::game::insert(&mut game, &mut conn).await?;
 
+        // Copy over AI configuration if it is present.
+        // Shouldn't I then move the AI configuration to the SynchronizedMatch struct??
+        // Some new GameDao struct to really hammer home the "This is a database object" point?
+        // That would also lend itself to tracking who has won the game / is it over.
+
         Ok(game.key)
     } else {
         Err(ServerError::NotFound)

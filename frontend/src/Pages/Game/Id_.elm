@@ -40,7 +40,7 @@ import Sako
 import Shared
 import Svg exposing (Svg)
 import Svg.Custom as Svg exposing (BoardRotation(..))
-import Svg.PlayerLabel
+import Svg.PlayerLabel exposing (DataRequiredForPlayers)
 import Svg.TimerGraphic
 import Task
 import Tile exposing (Tile(..))
@@ -928,14 +928,20 @@ playViewHighlight model =
 additionalSvg : Shared.Model -> Model -> Maybe (Svg a)
 additionalSvg shared model =
     (Svg.TimerGraphic.playTimerSvg shared.now model
-        :: Svg.PlayerLabel.both
-            { rotation = model.rotation
-            , whitePlayer = model.currentState.whitePlayer
-            , blackPlayer = model.currentState.blackPlayer
-            , victoryState = model.currentState.gameState
-            , isWithTimer = Maybe.isJust model.currentState.timer
-            , currentPlayer = Just model.currentState.controllingPlayer
-            }
+        :: List.map Just
+            (Svg.PlayerLabel.both
+                { rotation = model.rotation
+                , whitePlayer =
+                    model.currentState.whitePlayer
+                        |> Maybe.withDefault (Svg.PlayerLabel.anonymousPlayerDataFromControl model.currentState.whiteControl)
+                , blackPlayer =
+                    model.currentState.blackPlayer
+                        |> Maybe.withDefault (Svg.PlayerLabel.anonymousPlayerDataFromControl model.currentState.blackControl)
+                , victoryState = model.currentState.gameState
+                , isWithTimer = Maybe.isJust model.currentState.timer
+                , currentPlayer = Just model.currentState.controllingPlayer
+                }
+            )
     )
         |> List.filterMap identity
         |> Svg.g []

@@ -50,11 +50,12 @@ import Set
 import Shared
 import Svg
 import Svg.Custom as Svg exposing (BoardRotation(..))
-import Svg.PlayerLabel
+import Svg.PlayerLabel as PlayerLabel
 import Svg.TimerGraphic
 import Time exposing (Posix)
 import Translations as T
 import Url
+import User
 import View exposing (View)
 
 
@@ -693,15 +694,18 @@ boardViewOk shared model position partialActionHistory =
                 |> Just
         , mouseMove = Maybe.map MouseMove model.inputMode
         , additionalSvg =
-            Svg.PlayerLabel.both
+            PlayerLabel.both
                 { rotation = WhiteBottom
-                , whitePlayer = model.whitePlayer
-                , blackPlayer = model.blackPlayer
+                , whitePlayer =
+                    model.whitePlayer
+                        |> Maybe.withDefault PlayerLabel.anonymousProfile
+                , blackPlayer =
+                    model.blackPlayer
+                        |> Maybe.withDefault PlayerLabel.anonymousProfile
                 , victoryState = model.victoryState
                 , isWithTimer = False
                 , currentPlayer = Nothing
                 }
-                |> List.filterMap identity
                 |> Svg.g []
                 |> Just
         , replaceViewport =
