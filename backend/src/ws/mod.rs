@@ -141,7 +141,7 @@ impl ServerState {
     }
     /// Call this method if we determine that a room is not backed by any game
     /// or if the last client disconnects.
-    fn destroy_room(&mut self, key: &String) {
+    fn destroy_room(&mut self, key: &str) {
         self.rooms.remove(key);
     }
 }
@@ -230,7 +230,7 @@ async fn handle_message(
 
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone()).await?;
+            let state = progress_the_timer(&mut game, &key).await?;
 
             store_game(&game, conn).await?;
 
@@ -246,7 +246,7 @@ async fn handle_message(
         } => {
             let mut game = fetch_game(&key, conn).await?;
 
-            let state = progress_the_timer(&mut game, key.clone()).await?;
+            let state = progress_the_timer(&mut game, &key).await?;
 
             if state.victory_state.is_over() {
                 store_game(&game, conn).await?;
@@ -272,7 +272,7 @@ async fn handle_message(
 
 async fn progress_the_timer(
     game: &mut SynchronizedMatch,
-    key: String,
+    key: &str,
 ) -> Result<CurrentMatchState, anyhow::Error> {
     match game.timer_progress() {
         Ok(mut state) => {
@@ -290,72 +290,75 @@ async fn progress_the_timer(
     }
 }
 
+// Handles any message over the websocket.
+// Most of them are about a specific game, so the first step is to load this game,
+// and the last step is to store it.
 async fn handle_client_message(
     msg: ClientMessage,
     sender: SocketId,
     server_state: &mut ServerState,
     conn: &mut db::Connection,
 ) -> Result<(), ServerError> {
-    match msg {
-        ClientMessage::DoAction { key, action } => {
-            let game = fetch_game(&key, conn).await;
-            let Ok(mut game) = game else {
-                server_state.destroy_room(&key);
-                send_error(format!("Game {key} not found"), &sender).await;
-                return Ok(());
-            };
+    let key: &str = match msg {
+        ClientMessage::DoAction { ref key, .. } | ClientMessage::Rollback { ref key } => key,
+        ClientMessage::TimeDriftCheck { send } => {
+            // We do not have a game for this message.
+            respond_to_time_drift_check(send, &sender).await;
+            return Ok(());
+        }
+    };
 
-            let room = server_state.room(&game, sender);
-
-            ensure_uuid_is_allowed(room, &mut game, sender.get_owner()?, conn).await?;
-
-            let state = progress_the_timer(&mut game, key.clone()).await?;
-
-            if state.victory_state.is_over() {
-                store_game(&game, conn).await?;
-                broadcast_state(server_state, &game, state, conn).await;
-                return Ok(());
-            }
-
-            let state = game.do_action(action)?;
+    let game = fetch_game(key, conn).await;
+    let Ok(mut game) = game else {
+        server_state.destroy_room(key);
+        send_error(format!("Game {key} not found"), &sender).await;
+        return Ok(());
+    };
+    {
+        // Whenever we access the game state, we should also advance the timer.
+        // This is in an extra block, so we are sure that this state is not reused.
+        // After the message has been processed, the state is likely different.
+        let state = progress_the_timer(&mut game, key).await?;
+        // If the timer has timed out already, we do not need to do anything else.
+        if state.victory_state.is_over() {
             store_game(&game, conn).await?;
             broadcast_state(server_state, &game, state, conn).await;
+            return Ok(());
         }
-        ClientMessage::Rollback { key } => {
-            let mut game = fetch_game(&key, conn).await?;
-            let room = server_state.room(&game, sender);
+    }
 
-            ensure_uuid_is_allowed(room, &mut game, sender.get_owner()?, conn).await?;
+    let room = server_state.room(&game, sender);
+    ensure_uuid_is_allowed(room, &mut game, sender.get_owner()?, conn).await?;
 
+    let state = match msg {
+        ClientMessage::DoAction { action, .. } => {
+            game.do_action(action)?
+        }
+        ClientMessage::Rollback { .. } => {
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.
                 return Ok(());
             }
 
-            let state = progress_the_timer(&mut game, key.clone()).await?;
-
-            if state.victory_state.is_over() {
-                store_game(&game, conn).await?;
-                broadcast_state(server_state, &game, state, conn).await;
-                return Ok(());
-            }
-
-            let state = game.rollback()?;
-            store_game(&game, conn).await?;
-            broadcast_state(server_state, &game, state, conn).await;
+            game.rollback()?
         }
         ClientMessage::TimeDriftCheck { send } => {
-            send_msg(
-                ServerMessage::TimeDriftResponse {
-                    send,
-                    bounced: Utc::now(),
-                },
-                &sender,
-            )
-                .await;
+            unreachable!("We already handled the TimeDriftCheck message.");
         }
-    }
+    };
+
+    store_game(&game, conn).await?;
+    broadcast_state(server_state, &game, state, conn).await;
+
     Ok(())
+}
+
+async fn respond_to_time_drift_check(sent_at: DateTime<Utc>, sender: &SocketId) {
+    let message = ServerMessage::TimeDriftResponse {
+        send: sent_at,
+        bounced: Utc::now(),
+    };
+    send_msg(message, &sender).await
 }
 
 async fn handle_subscribe_to_match(
