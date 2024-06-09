@@ -13,6 +13,7 @@
       <excludeFolder url="file://$MODULE_DIR$/frontend-wasm/target" />
       <excludeFolder url="file://$MODULE_DIR$/lib/target" />
       <excludeFolder url="file://$MODULE_DIR$/python/target" />
+      <excludeFolder url="file://$MODULE_DIR$/venv" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
