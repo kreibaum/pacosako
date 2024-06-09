@@ -168,5 +168,8 @@
     "playWithAi": "Jugar con una IA",
     "playWithAiL1": "Puedes jugar contra la IA de Hedwig. Hedwig es una potente IA para Paco Ŝako. No es perfecta, pero es un buen desafío para la mayoría de los jugadores. Puedes elegir el color con el que debería jugar Hedwig.",
     "playWithAiColorRandom": "Aleatorio",
-    "playWithAiRemoveAi": "Quitar IA"
+    "playWithAiRemoveAi": "Quitar IA",
+    "unknownAiPlayerName": "IA desconocida",
+    "anonymousPlayerNameYou": "Tú (sin cuenta)",
+    "freeSeatPlayerName": "Asiento libre"
 }
