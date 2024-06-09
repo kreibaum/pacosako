@@ -24,10 +24,11 @@ module Api.Backend exposing
 the server api.
 -}
 
-import Api.Decoders exposing (CompressedMatchState, PublicUserData, decodeCompressedMatchState, decodePublicUserData)
+import Api.Decoders exposing (CompressedMatchState, ControlLevel, PublicUserData, decodeCompressedMatchState, decodeControlLevel, decodePublicUserData)
 import Http exposing (Error)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode exposing (Value)
 import Sako
 import SaveState exposing (SaveState(..), saveStateId)
@@ -394,19 +395,23 @@ type alias Replay =
     , setupOptions : SetupOptions
     , whitePlayer : Maybe PublicUserData
     , blackPlayer : Maybe PublicUserData
+    , whiteControl : ControlLevel
+    , blackControl : ControlLevel
     }
 
 
 decodeReplay : Decoder Replay
 decodeReplay =
-    Decode.map7 Replay
-        (Decode.field "key" Decode.string)
-        (Decode.field "actions" (Decode.list decodeStampedAction))
-        (Decode.field "timer" (Decode.maybe Timer.decodeTimer))
-        (Decode.field "victory_state" Sako.decodeVictoryState)
-        (Decode.field "setup_options" decodeSetupOptions)
-        (Decode.field "white_player" (Decode.nullable decodePublicUserData))
-        (Decode.field "black_player" (Decode.nullable decodePublicUserData))
+    Decode.succeed Replay
+        |> required "key" Decode.string
+        |> required "actions" (Decode.list decodeStampedAction)
+        |> required "timer" (Decode.maybe Timer.decodeTimer)
+        |> required "victory_state" Sako.decodeVictoryState
+        |> required "setup_options" decodeSetupOptions
+        |> required "white_player" (Decode.nullable decodePublicUserData)
+        |> required "black_player" (Decode.nullable decodePublicUserData)
+        |> required "white_control" decodeControlLevel
+        |> required "black_control" decodeControlLevel
 
 
 decodeStampedAction : Decoder ( Sako.Action, Posix )

@@ -12,7 +12,7 @@ is responsible for displaying it / interacting with it.
 import Animation exposing (Timeline)
 import Api.Backend exposing (Replay)
 import Api.DecoderGen
-import Api.Decoders exposing (PublicUserData)
+import Api.Decoders exposing (ControlLevel(..), PublicUserData)
 import Api.EncoderGen
 import Api.MessageGen
 import Api.Ports
@@ -90,6 +90,8 @@ type alias Model =
     , victoryState : VictoryState
     , whitePlayer : Maybe PublicUserData
     , blackPlayer : Maybe PublicUserData
+    , whiteControl : ControlLevel
+    , blackControl : ControlLevel
     }
 
 
@@ -111,6 +113,8 @@ type alias InnerModel =
     , victoryState : VictoryState
     , whitePlayer : Maybe PublicUserData
     , blackPlayer : Maybe PublicUserData
+    , whiteControl : ControlLevel
+    , blackControl : ControlLevel
     }
 
 
@@ -133,6 +137,8 @@ init shared params url =
       , victoryState = Sako.Running
       , whitePlayer = Nothing
       , blackPlayer = Nothing
+      , whiteControl = Unlocked
+      , blackControl = Unlocked
       }
     , Cmd.batch
         [ Api.Backend.getReplay params.id HttpErrorReplay GotReplay
@@ -167,6 +173,8 @@ innerInit model sidebarData =
     , victoryState = model.victoryState
     , whitePlayer = model.whitePlayer
     , blackPlayer = model.blackPlayer
+    , whiteControl = model.whiteControl
+    , blackControl = model.blackControl
     }
 
 
@@ -219,6 +227,8 @@ update msg model =
                 , victoryState = replay.victoryState
                 , whitePlayer = replay.whitePlayer
                 , blackPlayer = replay.blackPlayer
+                , whiteControl = replay.whiteControl
+                , blackControl = replay.blackControl
               }
             , replay
                 |> stripDownReplay
@@ -698,10 +708,10 @@ boardViewOk shared model position partialActionHistory =
                 { rotation = WhiteBottom
                 , whitePlayer =
                     model.whitePlayer
-                        |> Maybe.withDefault PlayerLabel.anonymousProfile
+                        |> Maybe.withDefault (PlayerLabel.anonymousPlayerDataFromControl model.whiteControl)
                 , blackPlayer =
                     model.blackPlayer
-                        |> Maybe.withDefault PlayerLabel.anonymousProfile
+                        |> Maybe.withDefault (PlayerLabel.anonymousPlayerDataFromControl model.blackControl)
                 , victoryState = model.victoryState
                 , isWithTimer = False
                 , currentPlayer = Nothing

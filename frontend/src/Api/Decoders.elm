@@ -1,4 +1,4 @@
-module Api.Decoders exposing (CompressedMatchState, ControlLevel(..), CurrentMatchState, LegalActions(..), PublicUserData, decodeCompressedMatchState, decodeMatchState, decodePublicUserData, getActionList)
+module Api.Decoders exposing (CompressedMatchState, ControlLevel(..), CurrentMatchState, LegalActions(..), PublicUserData, decodeCompressedMatchState, decodeControlLevel, decodeMatchState, decodePublicUserData, getActionList)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required)
