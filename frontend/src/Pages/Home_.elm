@@ -83,7 +83,8 @@ type Msg
     = SetRawMatchId String
     | JoinMatch
     | CreateMatch
-    | MatchCreatedOnServer String
+    | MatchConfirmedByServer String
+    | MatchNotFoundByServer String
     | SetSpeedSetting SpeedSetting
     | SetRawMinutes String
     | SetRawSeconds String
@@ -192,7 +193,9 @@ buildTimerConfig selection =
 
 type MatchConnectionStatus
     = NoMatchConnection
-    | MatchConnectionRequested String
+    | MatchCreationRequested
+    | MatchConnectionRequested
+    | MatchNotFound String
 
 
 update : Msg -> Model -> ( Model, Effect Msg )
@@ -202,13 +205,16 @@ update msg model =
             ( { model | rawMatchId = rawMatchId }, Effect.none )
 
         JoinMatch ->
-            joinMatch model
+            tryJoinMatch model
 
         CreateMatch ->
             createMatch model
 
-        MatchCreatedOnServer newId ->
+        MatchConfirmedByServer newId ->
             joinMatch { model | rawMatchId = newId }
+
+        MatchNotFoundByServer newId ->
+            ( { model | matchConnectionStatus = MatchNotFound newId }, Effect.none )
 
         SetSpeedSetting newSetting ->
             ( { model | speedSetting = newSetting } |> setRawLimit, Effect.none )
@@ -255,7 +261,7 @@ refreshRecentGames =
 
 
 {-| Parse the rawTimeLimit into an integer and take it over to the time limit if
-parsing is successfull.
+parsing is successful.
 -}
 tryParseRawLimit : Model -> Model
 tryParseRawLimit model =
@@ -287,9 +293,29 @@ setRawLimit model =
     }
 
 
+tryJoinMatch : Model -> ( Model, Effect Msg )
+tryJoinMatch model =
+    if String.isEmpty model.rawMatchId then
+        ( { model | matchConnectionStatus = MatchNotFound "" }, Effect.none )
+
+    else
+        ( { model | matchConnectionStatus = MatchConnectionRequested }
+        , Api.Backend.checkGameExists model.rawMatchId
+            HttpError
+            (\exists ->
+                if exists then
+                    MatchConfirmedByServer model.rawMatchId
+
+                else
+                    MatchNotFoundByServer model.rawMatchId
+            )
+            |> Effect.fromCmd
+        )
+
+
 joinMatch : Model -> ( Model, Effect Msg )
 joinMatch model =
-    ( { model | matchConnectionStatus = MatchConnectionRequested model.rawMatchId }
+    ( { model | matchConnectionStatus = MatchConnectionRequested }
     , pushUrl model.key (Route.toHref (Route.Game__Id_ { id = model.rawMatchId })) |> Effect.fromCmd
     )
 
@@ -298,7 +324,7 @@ joinMatch model =
 -}
 createMatch : Model -> ( Model, Effect Msg )
 createMatch model =
-    ( model
+    ( { model | matchConnectionStatus = MatchCreationRequested }
     , Effect.batch
         [ Api.Backend.postMatchRequest
             { timer = buildTimerConfig model.speedSetting
@@ -317,7 +343,7 @@ createMatch model =
                     Nothing
             }
             HttpError
-            MatchCreatedOnServer
+            MatchConfirmedByServer
             |> Effect.fromCmd
         , case model.speedSetting of
             Custom data ->
@@ -399,14 +425,6 @@ matchSetupUiPhone shared model =
         , Content.References.gitHubLink
         , recentGamesList shared model.recentGames
         ]
-
-
-box : Element.Color -> List (Element msg) -> Element msg
-box color content =
-    Element.el [ width fill, centerX, padding 10, Background.color color, Border.rounded 5, Element.alignTop ]
-        (Element.column [ width fill, centerX, spacing 7 ]
-            content
-        )
 
 
 setupOnlineMatchUi : Shared.Model -> Model -> Element Msg
@@ -722,7 +740,7 @@ aiColorChoiceButton modelColor buttonColor captionIcon caption =
 
 joinOnlineMatchUi : Model -> Element Msg
 joinOnlineMatchUi model =
-    box (Element.rgba255 255 255 255 0.6)
+    Components.grayBox [ padding 10 ]
         [ Element.el
             [ centerX
             , Font.size 30
@@ -756,6 +774,13 @@ joinOnlineMatchUi model =
                         ]
                 }
             ]
+        , case model.matchConnectionStatus of
+            MatchNotFound matchId ->
+                Element.el [ centerX, Font.color (Element.rgb255 255 0 0), Element.paddingXY 0 10 ]
+                    (Element.text (String.replace "{0}" matchId T.joinGameNotFound))
+
+            _ ->
+                Element.none
         ]
 
 

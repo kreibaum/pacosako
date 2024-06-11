@@ -3,6 +3,7 @@ module Api.Backend exposing
     , PagedGames
     , Replay
     , SetupOptions
+    , checkGameExists
     , describeError
     , encodeSetupOptions
     , getCurrentLogin
@@ -30,6 +31,7 @@ import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode exposing (Value)
+import Result.Extra as Result
 import Sako
 import SaveState exposing (SaveState(..), saveStateId)
 import Time exposing (Posix)
@@ -268,7 +270,7 @@ encodeCreatePosition position =
 
 
 --------------------------------------------------------------------------------
--- Handling Play Page ----------------------------------------------------------
+-- Handling Landing Page -------------------------------------------------------
 --------------------------------------------------------------------------------
 
 
@@ -298,6 +300,22 @@ type alias AiSideRequestParameters =
     , modelTemperature : Float
     , color : Maybe Sako.Color
     }
+
+
+{-| Send a HEAD request to /api/game/:key and check the return code.
+Only 200 is ok.
+-}
+checkGameExists : String -> Api Bool msg
+checkGameExists key _ successHandler =
+    Http.request
+        { method = "HEAD"
+        , headers = []
+        , url = "/api/game/" ++ key
+        , body = Http.emptyBody
+        , expect = Http.expectWhatever (Result.isOk >> successHandler)
+        , timeout = Nothing
+        , tracker = Nothing
+        }
 
 
 {-| Use this to call the "create game" api of the server.
@@ -343,6 +361,12 @@ encodeAiSideRequest record =
         ]
 
 
+
+--------------------------------------------------------------------------------
+-- Replay Page -----------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
 postRematchFromActionIndex : String -> Int -> Maybe Timer.TimerConfig -> Api String msg
 postRematchFromActionIndex sourceKey actionIndex config errorHandler successHandler =
     Http.post
@@ -371,12 +395,6 @@ encodeBranchParameters key actionIndex config =
                 |> Maybe.withDefault Encode.null
           )
         ]
-
-
-
---------------------------------------------------------------------------------
--- Replay Page -----------------------------------------------------------------
---------------------------------------------------------------------------------
 
 
 getReplay : String -> Api Replay msg

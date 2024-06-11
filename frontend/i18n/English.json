@@ -20,6 +20,7 @@
   "enterMatchId": "Enter Match Id",
   "matchId": "Match Id",
   "joinGame": "Join Game",
+  "joinGameNotFound": "Game '{0}' does not exist.",
   "recentSearchNotAsked": "Search for recent games",
   "recentSearchLoading": "Searching for recent games…",
   "recentSearchError": "Error while searching for games! Try again?",
