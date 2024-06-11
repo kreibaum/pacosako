@@ -563,4 +563,11 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_replay_16069() -> Result<(), PacoError> {
+        let _notation = history_to_replay_notation(DenseBoard::new(), &crate::testdata::REPLAY_16069)?;
+
+        Ok(())
+    }
 }

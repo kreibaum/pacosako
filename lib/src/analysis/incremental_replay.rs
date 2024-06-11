@@ -207,6 +207,10 @@ fn annotate_sako(
             // This usually happens on timeouts.
             break;
         }
+        if board.victory_state.is_over() {
+            // If the game is over, we can't analyze Ŝako.
+            break;
+        }
 
         let giving_sako_after = is_sako(&board, current_player)?;
         let in_sako_after = is_sako(&board, current_player.other())?;
