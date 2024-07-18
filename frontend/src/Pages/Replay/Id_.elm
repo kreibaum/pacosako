@@ -700,6 +700,7 @@ boardViewOk shared model position partialActionHistory =
                 |> Maybe.withDefault NormalModeMouseUp
                 |> Just
         , mouseMove = Maybe.map MouseMove model.inputMode
+        , rightClick = Nothing
         , additionalSvg =
             PlayerLabel.both
                 { rotation = WhiteBottom

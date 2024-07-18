@@ -1,4 +1,4 @@
-module Custom.Events exposing (BoardMousePosition, KeyBinding, KeyMatcher, fireMsg, forKey, onKeyUp, onKeyUpAttr, svgDown, svgMove, svgUp, withAlt, withCtrl)
+module Custom.Events exposing (BoardMousePosition, KeyBinding, KeyMatcher, fireMsg, forKey, onKeyUp, onKeyUpAttr, svgDown, svgMove, svgRightClick, svgUp, withAlt, withCtrl)
 
 {-| The default events we get for SVG graphics are a problem, because they are
 using external coordinates. It is a lot easier to work with internal coordinates
@@ -53,6 +53,11 @@ svgMove rotation message =
 svgUp : BoardRotation -> (BoardMousePosition -> msg) -> Attribute msg
 svgUp rotation message =
     Svg.Events.on "svgup" (Decode.map message (decodeBoardMousePosition rotation))
+
+
+svgRightClick : BoardRotation -> (BoardMousePosition -> msg) -> Attribute msg
+svgRightClick rotation message =
+    Svg.Events.on "svgrightclick" (Decode.map message (decodeBoardMousePosition rotation))
 
 
 

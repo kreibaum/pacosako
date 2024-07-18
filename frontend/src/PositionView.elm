@@ -121,6 +121,7 @@ viewStatic config renderData =
             [ Maybe.map (Events.svgDown renderData.rotation) config.mouseDown
             , Maybe.map (Events.svgUp renderData.rotation) config.mouseUp
             , Maybe.map (Events.svgMove renderData.rotation) config.mouseMove
+            , Maybe.map (Events.svgRightClick renderData.rotation) config.rightClick
             ]
                 |> List.filterMap (\x -> x)
 
@@ -203,6 +204,7 @@ type alias ViewConfig msg =
     , mouseDown : Maybe (BoardMousePosition -> msg)
     , mouseUp : Maybe (BoardMousePosition -> msg)
     , mouseMove : Maybe (BoardMousePosition -> msg)
+    , rightClick : Maybe (BoardMousePosition -> msg)
     , additionalSvg : Maybe (Svg msg)
     , replaceViewport : Maybe Svg.Rect
     }
@@ -217,6 +219,7 @@ staticViewConfig colorConfig =
     , mouseDown = Nothing
     , mouseUp = Nothing
     , mouseMove = Nothing
+    , rightClick = Nothing
     , additionalSvg = Nothing
     , replaceViewport = Nothing
     }

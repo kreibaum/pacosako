@@ -31,7 +31,19 @@ function getSvgCoord(event) {
 
 function mapMouseEvent(node, realName: string, customName: string) {
     node.addEventListener(realName, function (event) {
-        var svgClickEvent = new CustomEvent(customName, {
+        if (event.button === 0) {
+            var svgClickEvent = new CustomEvent(customName, {
+                detail: getSvgCoord(event),
+            });
+            event.currentTarget.dispatchEvent(svgClickEvent);
+        }
+    });
+}
+
+function mapRightClick(node, customName: string) {
+    node.addEventListener("contextmenu", function (event) {
+        event.preventDefault();
+        let svgClickEvent = new CustomEvent(customName, {
             detail: getSvgCoord(event),
         });
         event.currentTarget.dispatchEvent(svgClickEvent);
@@ -64,6 +76,7 @@ var observer = new MutationObserver(function (mutations) {
                     mapMouseEvent(node, "mousedown", "svgdown");
                     mapMouseEvent(node, "mousemove", "svgmove");
                     mapMouseEvent(node, "mouseup", "svgup");
+                    mapRightClick(node, "svgrightclick");
                 });
         }
     });

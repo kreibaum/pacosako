@@ -915,6 +915,7 @@ playPositionView shared model =
             , mouseDown = Just MouseDown
             , mouseUp = Just MouseUp
             , mouseMove = Just MouseMove
+            , rightClick = Just (\_ -> Rollback)
             , additionalSvg = additionalSvg shared model
             , replaceViewport = Just Svg.TimerGraphic.playTimerReplaceViewport
             }

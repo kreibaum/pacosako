@@ -1178,6 +1178,7 @@ boardViewConfig shared model =
     , mouseDown = Just MouseDown
     , mouseUp = Just MouseUp
     , mouseMove = Just MouseMove
+    , rightClick = Nothing
     , additionalSvg = Nothing
     , replaceViewport =
         Just
@@ -1571,6 +1572,7 @@ parsedMarkdownPaste model =
                                 , mouseDown = Nothing
                                 , mouseUp = Nothing
                                 , mouseMove = Nothing
+                                , rightClick = Nothing
                                 , additionalSvg = Nothing
                                 , replaceViewport = Nothing
                                 }
