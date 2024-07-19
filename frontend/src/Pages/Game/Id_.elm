@@ -101,6 +101,7 @@ init params url =
       , currentState =
             { key = ""
             , actionHistory = []
+            , canRollback = False
             , legalActions = Api.Decoders.ActionsNotLoaded
             , isRollback = False
             , controllingPlayer = Sako.White
@@ -171,7 +172,7 @@ type Msg
     | FetchHeaderSize
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
     | PortError String
-    | LegalActionsResponse { inputActionCount : Int, legalActions : List Sako.Action }
+    | LegalActionsResponse { inputActionCount : Int, legalActions : List Sako.Action, canRollback : Bool }
     | DetermineAiMove
     | AiMoveResponse (List Sako.Action)
     | CheckIfAiIsDead Posix
@@ -312,13 +313,13 @@ update shared msg model =
         PortError error ->
             ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
 
-        LegalActionsResponse { inputActionCount, legalActions } ->
+        LegalActionsResponse { inputActionCount, legalActions, canRollback } ->
             let
                 currentState =
                     model.currentState
             in
             if List.length currentState.actionHistory == inputActionCount then
-                ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded legalActions } }
+                ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded legalActions, canRollback = canRollback } }
                 , Effect.none
                 )
 
@@ -375,6 +376,7 @@ addActionToCurrentMatchState action state =
     { state
         | actionHistory = state.actionHistory ++ [ action ]
         , legalActions = Api.Decoders.ActionsNotLoaded
+        , canRollback = False
     }
 
 
@@ -707,6 +709,7 @@ updateCurrentMatchState newState model =
                     { newState
                         | legalActions = model.currentState.legalActions
                         , actionHistory = model.currentState.actionHistory
+                        , canRollback = model.currentState.canRollback
                     }
             }
     in
@@ -1085,10 +1088,7 @@ getRollbackButtonState model =
             RollbackButtonDisabled
 
         Api.Decoders.ActionsLoaded actions ->
-            if List.any Sako.isLiftAction actions then
-                RollbackButtonDisabled
-
-            else if Sako.isStateOver model.currentState.gameState then
+            if not model.currentState.canRollback then
                 RollbackButtonDisabled
 
             else if List.isEmpty actions then

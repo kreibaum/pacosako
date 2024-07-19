@@ -5,12 +5,7 @@ use rand::{random, Rng};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 
-use pacosako::{
-    analysis::{incremental_replay, puzzle, ReplayData},
-    DenseBoard, editor,
-    fen,
-    PacoAction, PacoBoard, PacoError, setup_options::SetupOptions,
-};
+use pacosako::{analysis::{incremental_replay, puzzle, ReplayData}, DenseBoard, editor, fen, PacoAction, PacoBoard, PacoError, setup_options::SetupOptions};
 use pacosako::opening_book::{MoveData, OpeningBook, PositionData};
 
 mod ml;
@@ -30,6 +25,7 @@ extern "C" {
 struct LegalActionsDeterminedData {
     legal_actions: Vec<PacoAction>,
     input_action_count: usize,
+    can_rollback: bool,
 }
 
 #[wasm_bindgen(js_name = "determineLegalActions")]
@@ -44,9 +40,13 @@ pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
     let legal_actions: Vec<PacoAction> =
         data.actions().map_err(|e| e.to_string())?.iter().collect();
 
+    let checkpoint = pacosako::find_last_checkpoint_index(history_data.action_history.iter()).map_err(|e| e.to_string())?;
+    let can_rollback = history_data.action_history.len() > checkpoint;
+
     let legal_actions = LegalActionsDeterminedData {
         legal_actions,
         input_action_count: history_data.action_history.len(),
+        can_rollback,
     };
 
     let legal_actions = serde_json::to_string(&legal_actions).map_err(|e| e.to_string())?;

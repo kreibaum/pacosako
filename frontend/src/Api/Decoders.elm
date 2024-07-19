@@ -9,6 +9,7 @@ import Timer
 type alias CurrentMatchState =
     { key : String
     , actionHistory : List Sako.Action
+    , canRollback : Bool
     , isRollback : Bool
     , legalActions : LegalActions
     , controllingPlayer : Sako.Color
@@ -99,6 +100,7 @@ decodeMatchState =
         (\key actionHistory isRollback controllingPlayer timer gameState whitePlayer blackPlayer whiteControl blackControl ->
             { key = key
             , actionHistory = actionHistory
+            , canRollback = False
             , isRollback = isRollback
             , legalActions = ActionsNotLoaded
             , controllingPlayer = controllingPlayer
