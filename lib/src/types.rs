@@ -240,8 +240,6 @@ impl TryFrom<&str> for BoardPosition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quickcheck::TestResult;
-    use quickcheck_macros::quickcheck;
 
     /// This test verifies the TryFrom<&str> implementation for BoardPosition.
     #[test]
@@ -262,27 +260,21 @@ mod tests {
 
     /// This test verifies that disassembling a BoardPosition into coordinates and back does
     /// not change the BoardPosition.
-    #[quickcheck]
-    fn board_position_coordinate_roundtrip(index: u8) -> TestResult {
-        if index >= 8 * 8 {
-            TestResult::discard()
-        } else {
-            let pos = BoardPosition(index);
+    #[test]
+    fn board_position_coordinate_round_trip() {
+        for pos in BoardPosition::all() {
             let pos2 = BoardPosition::new_checked(pos.x() as i8, pos.y() as i8);
-            TestResult::from_bool(Some(pos) == pos2)
+            assert_eq!(Some(pos), pos2);
         }
     }
 
     /// This test verifies that the TryFrom<&str> implementation for BoardPosition correctly
     /// decodes the debug output for a BoardPosition.
-    #[quickcheck]
-    fn board_position_string_roundtrip(index: u8) -> TestResult {
-        if index >= 8 * 8 {
-            TestResult::discard()
-        } else {
-            let pos = BoardPosition(index);
+    #[test]
+    fn board_position_string_round_trip() {
+        for pos in BoardPosition::all() {
             let pos2 = BoardPosition::try_from(&*format!("{:?}", pos)).ok();
-            TestResult::from_bool(Some(pos) == pos2)
+            assert_eq!(Some(pos), pos2);
         }
     }
 }

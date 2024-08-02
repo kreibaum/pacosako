@@ -28,8 +28,6 @@ rand_distr = "0.4.3"
 
 [dev-dependencies]
 tokio = { version = "1.23.0", features = ["macros", "rt"] } # Required for tests
-quickcheck = "1.0.3"
-quickcheck_macros = "1.0.0"
 ntest = "0.9.0"                                             # Required for timeouts to test potential infinite loops.
 
 [profile.release]
