@@ -22,7 +22,7 @@ fxhash = "0.2.1"
 petgraph = { version = "0.6.2" }
 smallvec = "1.10.0"
 js-sys = "0.3.60"
-wasm-bindgen-futures = "0.4.33"
+wasm-bindgen-futures = "0.4.42"
 async-trait = "0.1.60"
 rand_distr = "0.4.3"
 
