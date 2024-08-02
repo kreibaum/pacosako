@@ -20,7 +20,7 @@ use substrate::{BitBoard, Substrate};
 use substrate::constant_bitboards::{KING_TARGETS, KNIGHT_TARGETS};
 use substrate::dense::DenseSubstrate;
 pub use types::{BoardPosition, PieceType, PlayerColor};
-
+use crate::castling::Castling;
 pub use crate::paco_action::PacoAction;
 
 pub mod ai;
@@ -40,6 +40,7 @@ mod substrate;
 pub mod trivial_hash;
 pub mod types;
 pub mod opening_book;
+pub mod castling;
 #[cfg(test)]
 mod testdata;
 
@@ -225,74 +226,6 @@ pub struct RestingPiece {
     piece_type: PieceType,
     color: PlayerColor,
     position: BoardPosition,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Castling {
-    white_queen_side: bool,
-    white_king_side: bool,
-    black_queen_side: bool,
-    black_king_side: bool,
-}
-
-impl Castling {
-    /// Returns an initial Castling structure where all castling options are possible
-    fn new() -> Self {
-        Castling {
-            white_queen_side: true,
-            white_king_side: true,
-            black_queen_side: true,
-            black_king_side: true,
-        }
-    }
-
-    fn remove_rights_for_color(&mut self, current_player: PlayerColor) {
-        match current_player {
-            PlayerColor::White => {
-                self.white_queen_side = false;
-                self.white_king_side = false;
-            }
-            PlayerColor::Black => {
-                self.black_queen_side = false;
-                self.black_king_side = false;
-            }
-        }
-    }
-
-    fn from_string(input: &str) -> Self {
-        Castling {
-            white_queen_side: input.contains('A'),
-            white_king_side: input.contains('H'),
-            black_queen_side: input.contains('a'),
-            black_king_side: input.contains('h'),
-        }
-    }
-}
-
-impl Display for Castling {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut any_char = false;
-        if self.white_queen_side {
-            write!(f, "A")?;
-            any_char = true;
-        }
-        if self.white_king_side {
-            write!(f, "H")?;
-            any_char = true;
-        }
-        if self.black_queen_side {
-            write!(f, "a")?;
-            any_char = true;
-        }
-        if self.black_king_side {
-            write!(f, "h")?;
-            any_char = true;
-        }
-        if !any_char {
-            write!(f, "-")?;
-        }
-        Ok(())
-    }
 }
 
 /// Represents zero to two lifted pieces
