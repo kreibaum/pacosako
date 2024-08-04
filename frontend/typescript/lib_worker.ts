@@ -18,7 +18,6 @@ const {
     analyzeReplay,
     subscribeToMatch,
     determineLegalActions,
-    initHedwig,
     determineAiMove,
     initOpeningBook
 } = wasm_bindgen;
@@ -64,6 +63,9 @@ function forwardToWasm(messageType: any, data: any) {
     }
     if (messageType === "determineAiMove") {
         determineAiMove(data);
+    }
+    if (messageType === "initAi") {
+        initAi(data);
     }
 }
 
@@ -161,38 +163,93 @@ function cacheBlob(db: IDBDatabase, url: string, data: Blob): Promise<void> {
 // For now, we just instantly start downloading the model and caching it.
 const hedwigModelUrl = 'https://static.kreibaum.dev/hedwig-0.8-infer-int8.onnx';
 
-// TODO: This method should return progress information to the main thread.
 // TODO: There should be a list of models in use an unused models should be deleted.
-async function download_as_blob(url: string): Promise<Blob> {
+async function download_as_blob(url: string, progress_callback: any): Promise<Blob> {
     try {
         const db = await openDatabase();
         let blob = await getCachedBlob(db, url);
 
         if (!blob) {
-            console.log(`Downloading the file ${url}...`);
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
-            }
-            blob = await response.blob();
+            blob = await download_with_progress(url, progress_callback);
             await cacheBlob(db, url, blob);
             console.log(`File cached. Size: ${blob.size} bytes.`);
         } else {
-            console.log(`File loaded from cache. Size: ${blob.size} bytes.`);
+            console.log(`File loaded from cache. Size: ${blob.size} bytes. (${url})`);
         }
 
         return blob;
     } catch (error) {
         console.error(`Error handling the file \${url}: `, error);
+        throw error;
     }
+}
+
+async function download_with_progress(url: string, progress_callback: any): Promise<Blob> {
+    console.log(`Downloading the file ${url}...`);
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+    }
+
+    let contentLength = response.headers.get('Content-Length');
+    if (!contentLength) {
+        console.log("No Content-Length header found. Progress will not be reported.");
+        contentLength = "-1";
+    }
+
+    const total = parseInt(contentLength, 10);
+    let loaded = 0;
+
+    const reader = response.body.getReader();
+    const chunks = [];
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.length;
+        if ( progress_callback ) {
+            progress_callback(loaded, total);
+        }
+    }
+
+    const blob = new Blob(chunks);
+    console.log(`File downloaded. Size: ${blob.size} bytes.`);
+    return blob;
 }
 
 let session: any = undefined;
 
+const hedwigInputShape = [1, 30, 8, 8];
+
+async function initAi(_data : any) {
+    if (session !== undefined) {
+        // Hedwig is already initialized. Just return the status.
+        // TODO: Differentiate between running / not running.
+        forwardToMq("aiStateUpdated", JSON.stringify("InactiveAi"))
+        return;
+    }
+
+    console.log('Initializing AI with data');
+    await downloadAndInitHedwig();
+
+
+    forwardToMq("aiStateUpdated", JSON.stringify("WarmupEvaluation"))
+    // Run a warmup evaluation to make sure the model is loaded.
+    await evaluate_hedwig( new Float32Array(hedwigInputShape.reduce((x, y) => x*y )));
+
+    forwardToMq("aiStateUpdated", JSON.stringify("InactiveAi"))
+}
+
 async function downloadAndInitHedwig() {
-    let hedwig: Blob = await download_as_blob(hedwigModelUrl);
+    let hedwig: Blob = await download_as_blob(hedwigModelUrl,
+        (loaded, total) => forwardToMq("aiStateUpdated", JSON.stringify({
+        state: "ModelLoading",
+        loaded: loaded,
+        total: total
+    })));
     const arrayBuffer = await hedwig.arrayBuffer();  // Convert the Blob to ArrayBuffer
 
+    forwardToMq("aiStateUpdated", JSON.stringify("SessionLoading"))
     session = await ort.InferenceSession.create(arrayBuffer);  // Create the session with ArrayBuffer
 }
 
@@ -204,7 +261,7 @@ async function evaluate_hedwig(rawInputTensor: Float32Array): Promise<Float32Arr
     }
 
     const startTime = performance.now();
-    const inputTensor = new ort.Tensor('float32', rawInputTensor, [1, 30, 8, 8]);
+    const inputTensor = new ort.Tensor('float32', rawInputTensor, hedwigInputShape);
     const feeds = {};
     feeds[session.inputNames[0]] = inputTensor;
 
@@ -219,7 +276,7 @@ async function evaluate_hedwig(rawInputTensor: Float32Array): Promise<Float32Arr
 const openingBookUrl = 'https://static.kreibaum.dev/2024-05-31-book-hedwig0.8-1000.json';
 
 async function downloadOpeningBook() {
-    let openingBook: Blob = await download_as_blob(openingBookUrl);
+    let openingBook: Blob = await download_as_blob(openingBookUrl, undefined);
     initOpeningBook(await openingBook.text());
 }
 

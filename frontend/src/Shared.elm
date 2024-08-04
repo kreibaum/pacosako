@@ -9,6 +9,7 @@ module Shared exposing
     , update
     )
 
+import Ai exposing (AiState)
 import Api.Backend
 import Api.LocalStorage as LocalStorage exposing (CustomTimer, Permission(..))
 import Api.Ports
@@ -18,7 +19,6 @@ import Browser.Navigation exposing (Key)
 import Colors exposing (ColorConfig)
 import Http
 import Json.Decode as Decode exposing (Decoder, Value)
-import Json.Encode exposing (Value)
 import List.Extra as List
 import Request exposing (Request)
 import Time exposing (Posix)
@@ -42,6 +42,9 @@ type alias Model =
     , websocketConnectionState : WebsocketConnectionState
     , lastWebsocketStatusUpdate : Posix
     , colorConfig : ColorConfig
+
+    -- As the AI is managed by the WebWorker, it is Shared state.
+    , aiState : AiState
     }
 
 
@@ -54,6 +57,7 @@ type Msg
     = TriggerSaveLocalStorage
     | TriggerReload
     | HttpError Http.Error
+    | StringError String
     | LogoutSuccess
     | UserHidesGamesArePublicHint
     | SetLanguage Language
@@ -65,6 +69,7 @@ type Msg
     | SetHeaderOpen Bool
     | WebsocketStatusChange WebsocketConnectionState
     | NavigateTo String
+    | SetAiState Ai.AiState
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
@@ -87,6 +92,7 @@ init { key } flags =
       , websocketConnectionState = Api.Websocket.WebsocketConnecting
       , lastWebsocketStatusUpdate = now
       , colorConfig = ls.data.colorConfig
+      , aiState = Ai.initAiState
       }
     , Cmd.none
     )
@@ -127,6 +133,9 @@ update _ msg model =
         HttpError error ->
             ( model, Api.Ports.logToConsole (Api.Backend.describeError error) )
 
+        StringError errorString ->
+            ( model, Api.Ports.logToConsole errorString )
+
         LogoutSuccess ->
             ( model, Cmd.none )
 
@@ -162,6 +171,9 @@ update _ msg model =
 
         NavigateTo target ->
             ( model, Browser.Navigation.load target )
+
+        SetAiState aiState ->
+            ( { model | aiState = aiState }, Cmd.none )
 
 
 {-| Adds a custom timer to the history and trigges a "save to local storage" event.
@@ -235,6 +247,7 @@ subscriptions _ _ =
         , Browser.Events.onResize WindowResize
         , Api.Websocket.listenToStatus WebsocketStatusChange
         , Time.every 1000 UpdateNow
+        , Ai.aiStateSub StringError SetAiState
         ]
 
 

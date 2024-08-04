@@ -1,5 +1,6 @@
 module Pages.Home_ exposing (Model, Msg, Params, page)
 
+import Ai
 import Api.Backend
 import Api.Decoders exposing (CompressedMatchState)
 import Api.LocalStorage exposing (CustomTimer)
@@ -248,8 +249,14 @@ update msg model =
         SetRepetitionDraw repetitionDrawEnabled ->
             ( { model | repetitionDraw = repetitionDrawEnabled }, Effect.none )
 
-        SetAiViewVisible bool ->
-            ( { model | aiViewVisible = bool }, Effect.none )
+        SetAiViewVisible aiViewVisible ->
+            ( { model | aiViewVisible = aiViewVisible }
+            , if aiViewVisible then
+                Effect.fromCmd Ai.startUpAi
+
+              else
+                Effect.none
+            )
 
         SetAiColorChoice maybeColor ->
             ( { model | aiColorChoice = maybeColor }, Effect.none )
@@ -381,7 +388,7 @@ matchSetupUiDesktop shared model =
         [ Element.row [ height fill, width fill, spacing 15, centerX ]
             [ column [ height fill, width fill, spacing 15 ]
                 [ setupOnlineMatchUi shared model
-                , configureAiUi model
+                , configureAiUi shared model
                 , joinOnlineMatchUi model
                 ]
             , column [ height fill, width fill, spacing 15 ]
@@ -400,7 +407,7 @@ matchSetupUiTablet shared model =
     Element.column [ width (fill |> Element.maximum 1120), spacing 10, centerX, paddingXY 10 40 ]
         [ setupOnlineMatchUi shared model
         , joinOnlineMatchUi model
-        , configureAiUi model
+        , configureAiUi shared model
         , row [ width fill, spacing 10 ]
             [ Content.References.discordInvite
             , Content.References.officialWebsiteLink
@@ -417,7 +424,7 @@ matchSetupUiPhone : Shared.Model -> Model -> Element Msg
 matchSetupUiPhone shared model =
     Element.column [ width fill, spacing 10, centerX, paddingXY 10 20 ]
         [ setupOnlineMatchUi shared model
-        , configureAiUi model
+        , configureAiUi shared model
         , joinOnlineMatchUi model
         , Content.References.discordInvite
         , Content.References.officialWebsiteLink
@@ -691,8 +698,8 @@ repetitionDrawToggle model =
         }
 
 
-configureAiUi : Model -> Element Msg
-configureAiUi model =
+configureAiUi : Shared.Model -> Model -> Element Msg
+configureAiUi shared model =
     if model.aiViewVisible then
         Components.grayBox [ padding 10, spacing 10 ]
             [ Element.paragraph [] [ Element.text T.playWithAiL1 ]
@@ -711,6 +718,12 @@ configureAiUi model =
                     , caption = T.playWithAiRemoveAi
                     }
                 ]
+            , case shared.aiState of
+                Ai.NotInitialized progress ->
+                    paragraph [] [ Element.text (Ai.describeInitProgress progress) ]
+
+                _ ->
+                    Element.none
             ]
 
     else

@@ -58,9 +58,14 @@ port analyzeReplay : Value -> Cmd msg
 port subscribeToMatch : Value -> Cmd msg
 
 
-{-| Signs up for the status of the given match.
+{-| Evaluates the currently loaded AI model on the given position.
 -}
 port determineAiMove : Value -> Cmd msg
+
+
+{-| Sets up the default AI model.
+-}
+port initAi : Value -> Cmd msg
 
 
 
@@ -92,3 +97,8 @@ port replayAnalysisCompleted : (Value -> msg) -> Sub msg
 {-| Is called one or more times after the AI is asked to determine a move.
 -}
 port aiMoveDetermined : (Value -> msg) -> Sub msg
+
+
+{-| Is called whenever the AI changes status.
+-}
+port aiStateUpdated : (Value -> msg) -> Sub msg

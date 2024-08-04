@@ -1,5 +1,6 @@
 module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
+import Ai exposing (AiState(..))
 import Animation exposing (Timeline)
 import Api.DecoderGen
 import Api.Decoders exposing (ControlLevel(..), CurrentMatchState, getActionList)
@@ -85,13 +86,6 @@ type alias Model =
     , elementHeight : Int
     , aiState : AiState
     }
-
-
-{-| The game page needs to understand if the AI is already running when processing new game states.
--}
-type AiState
-    = WaitingForAiAnswer Posix
-    | InactiveAi
 
 
 init : Params -> Url.Url -> ( Model, Effect Msg )
@@ -351,6 +345,9 @@ update shared msg model =
                         ( model, Effect.none )
 
                 InactiveAi ->
+                    ( model, Effect.none )
+
+                NotInitialized _ ->
                     ( model, Effect.none )
 
 

@@ -6,6 +6,7 @@ together with a Posix to produce TimerViewData which can then be shown in the
 view.
 -}
 
+import Custom.Decode exposing (decodeConstant)
 import Duration exposing (Duration)
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
@@ -122,19 +123,6 @@ decodeTimerState =
         , Decode.field "Timeout" Sako.decodeColor |> Decode.map Timeout
         , decodeConstant "Stopped" Stopped
         ]
-
-
-decodeConstant : String -> a -> Decoder a
-decodeConstant tag value =
-    Decode.string
-        |> Decode.andThen
-            (\s ->
-                if s == tag then
-                    Decode.succeed value
-
-                else
-                    Decode.fail (s ++ " is not " ++ tag)
-            )
 
 
 {-| The time is not stored in the timer directly, instead we use the current

@@ -158,7 +158,7 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
     let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
     let try_into: Result<DenseBoard, PacoError> = (&data).try_into();
-    let mut board: DenseBoard = try_into.map_err(|e| e.to_string())?;
+    let board: DenseBoard = try_into.map_err(|e| e.to_string())?;
 
     let fen = fen::write_fen(&board);
     // Check if there is a move stored in the opening book. If so, then we take that.
