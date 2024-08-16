@@ -1,4 +1,4 @@
-module Ai exposing (AiInitProgress(..), AiState(..), aiStateSub, describeInitProgress, initAiState, startUpAi)
+module Ai exposing (AiInitProgress(..), AiState(..), aiProgressLabel, aiStateSub, describeInitProgress, initAiState, isInitialized, startUpAi)
 
 {-| We include Machine Learning based AI through ONNX files and use the javascript-side onnx-runtime to execute them.
 We also have an opening book. This means a lot of things need to load (ideally from cache) before the AI is ready to play.
@@ -8,7 +8,12 @@ and once the model takes over the game just stops.
 -}
 
 import Api.MessageGen
+import Components exposing (colorButton)
 import Custom.Decode exposing (decodeConstant)
+import Element exposing (Element, fill, width)
+import FontAwesome.Attributes
+import FontAwesome.Icon
+import FontAwesome.Solid as Solid
 import Json.Decode
 import Json.Encode
 import Time exposing (Posix)
@@ -35,11 +40,24 @@ type AiState
     | InactiveAi
 
 
+{-| Detailed information about where the AI initialisation is currently at. This can help the user understand why they
+are waiting and if there is a problem they can better tell me about it.
+-}
 type AiInitProgress
     = NotStarted
     | ModelLoading Int Int
     | SessionLoading
     | WarmupEvaluation
+
+
+isInitialized : AiState -> Bool
+isInitialized state =
+    case state of
+        NotInitialized _ ->
+            False
+
+        _ ->
+            True
 
 
 describeInitProgress : AiInitProgress -> String
@@ -56,6 +74,23 @@ describeInitProgress progress =
 
         WarmupEvaluation ->
             "Warmup"
+
+
+{-| Shown in the AI setup box while the AI is setting up.
+-}
+aiProgressLabel : AiInitProgress -> Element msg
+aiProgressLabel progress =
+    colorButton [ width fill ]
+        { background = Element.rgb255 180 180 180
+        , backgroundHover = Element.rgb255 180 180 180
+        , onPress = Nothing
+        , buttonIcon =
+            Element.html
+                (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.spin ]
+                    Solid.spinner
+                )
+        , caption = describeInitProgress progress
+        }
 
 
 {-| Decodes the state we get from javascript into a form that Elm can use. The messages are heterogeneous,

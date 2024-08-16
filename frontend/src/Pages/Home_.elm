@@ -1,6 +1,6 @@
 module Pages.Home_ exposing (Model, Msg, Params, page)
 
-import Ai
+import Ai exposing (AiInitProgress)
 import Api.Backend
 import Api.Decoders exposing (CompressedMatchState)
 import Api.LocalStorage exposing (CustomTimer)
@@ -709,7 +709,10 @@ configureAiUi shared model =
                 , aiColorChoiceButton model.aiColorChoice (Just Black) Solid.robot T.gameBlack
                 ]
             , wrappedRow [ spacing 10, centerX ]
-                [ createMatchButton (isTimerOk (buildTimerConfig model.speedSetting))
+                [ createMatchButton
+                    (isTimerOk (buildTimerConfig model.speedSetting)
+                        && Ai.isInitialized shared.aiState
+                    )
                 , Components.colorButton [ centerX ]
                     { background = Element.rgb255 255 68 51
                     , backgroundHover = Element.rgb255 255 102 102
@@ -720,7 +723,7 @@ configureAiUi shared model =
                 ]
             , case shared.aiState of
                 Ai.NotInitialized progress ->
-                    paragraph [] [ Element.text (Ai.describeInitProgress progress) ]
+                    Ai.aiProgressLabel progress
 
                 _ ->
                     Element.none

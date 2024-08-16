@@ -923,6 +923,16 @@ playPositionView shared model =
         )
 
 
+aiLoadingInformation : Shared.Model -> Element msg
+aiLoadingInformation shared =
+    case shared.aiState of
+        NotInitialized progress ->
+            Ai.aiProgressLabel progress
+
+        _ ->
+            Element.none
+
+
 sakoEditorId : String
 sakoEditorId =
     "sako-editor"
@@ -997,6 +1007,7 @@ sidebarLandscape shared model =
             (CopyToClipboard (Url.toString model.gameUrl))
             model.gameKey
         , rollbackButton model
+        , aiLoadingInformation shared
         , showIf (canPromote model.currentState.legalActions) promotionButtonGrid
         , maybeVictoryStateInfo model.currentState.gameState
         , maybeReplayLink model
