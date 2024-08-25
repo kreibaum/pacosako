@@ -17,6 +17,7 @@ import FontAwesome.Solid as Solid
 import Json.Decode
 import Json.Encode
 import Time exposing (Posix)
+import Translations as T
 
 
 initAiState : AiState
@@ -65,19 +66,21 @@ describeInitProgress : AiInitProgress -> String
 describeInitProgress progress =
     case progress of
         NotStarted ->
-            "Not started"
+            T.aiLabelAiNotStarted
 
         StartRequested ->
-            "Starting"
+            T.aiLabelAiStartRequested
 
         ModelLoading loaded total ->
-            "Downloading Model: " ++ String.fromInt loaded ++ "/" ++ String.fromInt total
+            T.aiLabelModelLoading
+                |> String.replace "{0}" (String.fromInt loaded)
+                |> String.replace "{1}" (String.fromInt total)
 
         SessionLoading ->
-            "Setting up Runtime"
+            T.aiLabelSessionLoading
 
         WarmupEvaluation ->
-            "Warmup"
+            T.aiLabelWarmup
 
 
 {-| Shown in the AI setup box while the AI is setting up.
@@ -97,6 +100,8 @@ aiProgressLabel progress =
         }
 
 
+{-| A label you can show to indicate that the AI is taking more time than expected.
+-}
 aiSlowdownLabel : Posix -> Posix -> Element msg
 aiSlowdownLabel now startTime =
     colorButton [ width fill ]
@@ -108,7 +113,10 @@ aiSlowdownLabel now startTime =
                 (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.spin ]
                     Solid.spinner
                 )
-        , caption = "AI stuck? " ++ String.fromInt ((Time.posixToMillis now - Time.posixToMillis startTime) // 1000) ++ "s"
+        , caption =
+            T.aiLabelAiStuck
+                |> String.replace "{0}"
+                    (String.fromInt ((Time.posixToMillis now - Time.posixToMillis startTime) // 1000))
         }
 
 

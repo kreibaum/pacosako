@@ -172,5 +172,11 @@
   "playWithAi": "Play with AI",
   "playWithAiL1": "You can play against the Hedwig AI. Hedwig is a strong AI for Paco Ŝako. It is not perfect, but it is a good challenge for most players. You can choose the color that Hedwig should play.",
   "playWithAiColorRandom": "Random",
-  "playWithAiRemoveAi": "Remove AI"
+  "playWithAiRemoveAi": "Remove AI",
+  "aiLabelAiStuck": "Ai stuck? {0}s",
+  "aiLabelAiNotStarted": "Not started",
+  "aiLabelAiStartRequested": "Start requested",
+  "aiLabelModelLoading": "Downloading Model: {0}/{1}",
+  "aiLabelSessionLoading": "Setting up Runtime",
+  "aiLabelWarmup": "Warming up"
 }
