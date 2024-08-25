@@ -1,4 +1,4 @@
-module Ai exposing (AiInitProgress(..), AiState(..), aiProgressLabel, aiStateSub, describeInitProgress, initAiState, isInitialized, startUpAi)
+module Ai exposing (AiInitProgress(..), AiState(..), aiProgressLabel, aiSlowdownLabel, aiStateSub, describeInitProgress, initAiState, isInitialized, startUpAi)
 
 {-| We include Machine Learning based AI through ONNX files and use the javascript-side onnx-runtime to execute them.
 We also have an opening book. This means a lot of things need to load (ideally from cache) before the AI is ready to play.
@@ -37,7 +37,7 @@ startUpAi =
 type AiState
     = NotInitialized AiInitProgress
     | WaitingForAiAnswer Posix
-    | InactiveAi
+    | AiReadyForRequest
 
 
 {-| Detailed information about where the AI initialisation is currently at. This can help the user understand why they
@@ -45,6 +45,7 @@ are waiting and if there is a problem they can better tell me about it.
 -}
 type AiInitProgress
     = NotStarted
+    | StartRequested
     | ModelLoading Int Int
     | SessionLoading
     | WarmupEvaluation
@@ -65,6 +66,9 @@ describeInitProgress progress =
     case progress of
         NotStarted ->
             "Not started"
+
+        StartRequested ->
+            "Starting"
 
         ModelLoading loaded total ->
             "Downloading Model: " ++ String.fromInt loaded ++ "/" ++ String.fromInt total
@@ -93,6 +97,21 @@ aiProgressLabel progress =
         }
 
 
+aiSlowdownLabel : Posix -> Posix -> Element msg
+aiSlowdownLabel now startTime =
+    colorButton [ width fill ]
+        { background = Element.rgb255 180 180 180
+        , backgroundHover = Element.rgb255 180 180 180
+        , onPress = Nothing
+        , buttonIcon =
+            Element.html
+                (FontAwesome.Icon.viewStyled [ FontAwesome.Attributes.spin ]
+                    Solid.spinner
+                )
+        , caption = "AI stuck? " ++ String.fromInt ((Time.posixToMillis now - Time.posixToMillis startTime) // 1000) ++ "s"
+        }
+
+
 {-| Decodes the state we get from javascript into a form that Elm can use. The messages are heterogeneous,
 so we need to use oneOf.
 
@@ -107,7 +126,7 @@ decodeAiState =
         [ decodeConstant "SessionLoading" (NotInitialized SessionLoading)
         , decodeModelLoading |> Json.Decode.map NotInitialized
         , decodeConstant "WarmupEvaluation" (NotInitialized WarmupEvaluation)
-        , decodeConstant "InactiveAi" InactiveAi
+        , decodeConstant "AiReadyForRequest" AiReadyForRequest
         ]
 
 

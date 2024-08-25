@@ -10,15 +10,16 @@ import Sako
 
 
 type alias LegalActionsDeterminedData =
-    { inputActionCount : Int, legalActions : List Sako.Action, canRollback : Bool }
+    { inputActionCount : Int, legalActions : List Sako.Action, canRollback : Bool, controllingPlayer : Sako.Color }
 
 
 legalActionsDetermined : Decoder LegalActionsDeterminedData
 legalActionsDetermined =
-    Decode.map3 LegalActionsDeterminedData
+    Decode.map4 LegalActionsDeterminedData
         (Decode.field "input_action_count" Decode.int)
         (Decode.field "legal_actions" (Decode.list Sako.decodeAction))
         (Decode.field "can_rollback" Decode.bool)
+        (Decode.field "controlling_player" Sako.decodeColor)
 
 
 randomPositionGenerated : Decoder String

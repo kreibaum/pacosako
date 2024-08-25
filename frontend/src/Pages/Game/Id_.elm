@@ -2,8 +2,8 @@ module Pages.Game.Id_ exposing (Model, Msg, Params, page)
 
 import Ai exposing (AiState(..))
 import Animation exposing (Timeline)
-import Api.DecoderGen
-import Api.Decoders exposing (ControlLevel(..), CurrentMatchState, getActionList)
+import Api.DecoderGen exposing (LegalActionsDeterminedData)
+import Api.Decoders exposing (ControlLevel(..), CurrentMatchState, LegalActions(..), PublicUserData, getActionList)
 import Api.EncoderGen
 import Api.MessageGen
 import Api.Ports
@@ -11,7 +11,6 @@ import Api.Websocket
 import Arrow
 import Browser.Dom
 import Browser.Events
-import Browser.Navigation
 import CastingDeco
 import Colors
 import Components exposing (btn, colorButton, isSelectedIf, viewButton, withMsgIf)
@@ -84,7 +83,6 @@ type alias Model =
     , windowHeight : Int
     , visibleHeaderSize : Int
     , elementHeight : Int
-    , aiState : AiState
     }
 
 
@@ -117,7 +115,6 @@ init params url =
       , windowHeight = 500
       , visibleHeaderSize = 0
       , elementHeight = 500
-      , aiState = InactiveAi
       }
     , Cmd.batch
         [ -- This is not really nice, but we want to give the websocket time to
@@ -166,10 +163,10 @@ type Msg
     | FetchHeaderSize
     | SetVisibleHeaderSize { header : Int, elementHeight : Int }
     | PortError String
-    | LegalActionsResponse { inputActionCount : Int, legalActions : List Sako.Action, canRollback : Bool }
+    | LegalActionsResponse LegalActionsDeterminedData
     | DetermineAiMove
+    | AiStateUpdated
     | AiMoveResponse (List Sako.Action)
-    | CheckIfAiIsDead Posix
 
 
 update : Shared.Model -> Msg -> Model -> ( Model, Effect Msg )
@@ -307,21 +304,30 @@ update shared msg model =
         PortError error ->
             ( model, Api.Ports.logToConsole error |> Effect.fromCmd )
 
-        LegalActionsResponse { inputActionCount, legalActions, canRollback } ->
+        LegalActionsResponse { inputActionCount, legalActions, canRollback, controllingPlayer } ->
             let
                 currentState =
                     model.currentState
             in
             if List.length currentState.actionHistory == inputActionCount then
-                ( { model | currentState = { currentState | legalActions = Api.Decoders.ActionsLoaded legalActions, canRollback = canRollback } }
-                , Effect.none
-                )
+                { model
+                    | currentState =
+                        { currentState
+                            | legalActions = Api.Decoders.ActionsLoaded legalActions
+                            , canRollback = canRollback
+                            , controllingPlayer = controllingPlayer
+                        }
+                }
+                    |> triggerAiMoveIfNecessary shared
 
             else
                 ( model, Effect.none )
 
         DetermineAiMove ->
             determineAiMove model
+
+        AiStateUpdated ->
+            triggerAiMoveIfNecessary shared model
 
         -- TODO: This can't deal with two actions coming in at once!
         -- https://github.com/kreibaum/pacosako/issues/123
@@ -331,24 +337,6 @@ update shared msg model =
                     List.head actions |> Maybe.withDefault (Sako.Promote Sako.Queen)
             in
             updateActionInputStep shared action model
-
-        -- I have observed the AI crashing when Bas was playing. Him reloading the page
-        -- fixed the issue. This is a safeguard for extra durability.
-        CheckIfAiIsDead now ->
-            case model.aiState of
-                WaitingForAiAnswer requestStartTime ->
-                    -- After ten seconds, reload the page
-                    if Time.posixToMillis now - Time.posixToMillis requestStartTime > 10000 && not (Sako.isStateOver model.currentState.gameState) then
-                        ( { model | aiState = InactiveAi }, Browser.Navigation.reload |> Effect.fromCmd )
-
-                    else
-                        ( model, Effect.none )
-
-                InactiveAi ->
-                    ( model, Effect.none )
-
-                NotInitialized _ ->
-                    ( model, Effect.none )
 
 
 fetchHeaderSize : Cmd Msg
@@ -658,14 +646,18 @@ triggerAiMoveIfNecessary shared model =
         isAiControl =
             sideControl == LockedByYourFrontendAi
 
-        isAiInactive =
-            model.aiState == InactiveAi
-    in
-    if isAiControl && isAiInactive then
-        determineAiMove { model | aiState = WaitingForAiAnswer shared.now }
+        isAiReady =
+            shared.aiState == AiReadyForRequest
 
-    else if not isAiControl && not isAiInactive then
-        ( { model | aiState = InactiveAi }, Effect.none )
+        -- This is a proxy for "controlling_player correct" which means the data model is a bit wonky..
+        areLegalActionsDetermined =
+            model.currentState.legalActions /= ActionsNotLoaded
+    in
+    if shared.aiState == Ai.NotInitialized Ai.NotStarted && isThereAnActivePlayerControlledAi model then
+        ( model, Effect.fromShared Shared.StartUpAi )
+
+    else if isAiControl && isAiReady && areLegalActionsDetermined then
+        determineAiMove model
 
     else
         ( model, Effect.none )
@@ -674,10 +666,10 @@ triggerAiMoveIfNecessary shared model =
 determineAiMove : Model -> ( Model, Effect Msg )
 determineAiMove model =
     ( model
-    , { board_fen = Fen.writeFen Sako.initialPosition, action_history = model.currentState.actionHistory }
-        |> Api.EncoderGen.determineLegalActions
-        |> Api.MessageGen.determineAiMove
-        |> Effect.fromCmd
+    , Effect.fromShared
+        (Shared.DetermineAiMove
+            { board_fen = Fen.writeFen Sako.initialPosition, action_history = model.currentState.actionHistory }
+        )
     )
 
 
@@ -707,6 +699,7 @@ updateCurrentMatchState newState model =
                         | legalActions = model.currentState.legalActions
                         , actionHistory = model.currentState.actionHistory
                         , canRollback = model.currentState.canRollback
+                        , controllingPlayer = model.currentState.controllingPlayer
                     }
             }
     in
@@ -817,7 +810,7 @@ subscriptions model =
             Api.MessageGen.aiMoveDetermined
             Api.DecoderGen.aiMoveDetermined
             AiMoveResponse
-        , Time.every 1000 CheckIfAiIsDead
+        , Ai.aiStateSub PortError (\_ -> AiStateUpdated)
         ]
 
 
@@ -923,14 +916,59 @@ playPositionView shared model =
         )
 
 
-aiLoadingInformation : Shared.Model -> Element msg
-aiLoadingInformation shared =
-    case shared.aiState of
-        NotInitialized progress ->
-            Ai.aiProgressLabel progress
+isAiPlayer : Maybe PublicUserData -> Bool
+isAiPlayer data =
+    data |> Maybe.andThen .ai |> Maybe.isJust
+
+
+canPotentiallyControlAi : ControlLevel -> Bool
+canPotentiallyControlAi level =
+    case level of
+        LockedByOther ->
+            False
 
         _ ->
-            Element.none
+            True
+
+
+{-| Checks if either side is an AI where the current browser may need to generate moves. Used to trigger AI init.
+-}
+isThereAnActivePlayerControlledAi : Model -> Bool
+isThereAnActivePlayerControlledAi model =
+    if model.currentState.gameState /= Sako.Running then
+        False
+
+    else if isAiPlayer model.currentState.whitePlayer && canPotentiallyControlAi model.currentState.whiteControl then
+        True
+
+    else if isAiPlayer model.currentState.blackPlayer && canPotentiallyControlAi model.currentState.blackControl then
+        True
+
+    else
+        False
+
+
+{-| If there is reason to load to AI, then this shows the loading progress in the sidebar. Hidden when loaded.
+-}
+aiLoadingInformation : Shared.Model -> Model -> Element msg
+aiLoadingInformation shared model =
+    if isThereAnActivePlayerControlledAi model then
+        case shared.aiState of
+            NotInitialized progress ->
+                Ai.aiProgressLabel progress
+
+            WaitingForAiAnswer startTime ->
+                if Time.posixToMillis shared.now - Time.posixToMillis startTime > 3000 then
+                    Ai.aiSlowdownLabel shared.now startTime
+
+                else
+                    Element.none
+
+            _ ->
+                Element.none
+
+    else
+        Element.none
 
 
 sakoEditorId : String
@@ -1007,7 +1045,7 @@ sidebarLandscape shared model =
             (CopyToClipboard (Url.toString model.gameUrl))
             model.gameKey
         , rollbackButton model
-        , aiLoadingInformation shared
+        , aiLoadingInformation shared model
         , showIf (canPromote model.currentState.legalActions) promotionButtonGrid
         , maybeVictoryStateInfo model.currentState.gameState
         , maybeReplayLink model

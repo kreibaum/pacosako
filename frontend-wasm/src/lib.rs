@@ -3,10 +3,10 @@ extern crate console_error_panic_hook;
 use js_sys::Float32Array;
 use rand::{random, Rng};
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
-use pacosako::{analysis::{incremental_replay, puzzle, ReplayData}, DenseBoard, editor, fen, PacoAction, PacoBoard, PacoError, setup_options::SetupOptions};
 use pacosako::opening_book::{MoveData, OpeningBook, PositionData};
+use pacosako::{analysis::{incremental_replay, puzzle, ReplayData}, editor, fen, setup_options::SetupOptions, DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor};
 
 mod ml;
 mod utils;
@@ -26,6 +26,7 @@ struct LegalActionsDeterminedData {
     legal_actions: Vec<PacoAction>,
     input_action_count: usize,
     can_rollback: bool,
+    controlling_player: PlayerColor,
 }
 
 #[wasm_bindgen(js_name = "determineLegalActions")]
@@ -47,6 +48,7 @@ pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
         legal_actions,
         input_action_count: history_data.action_history.len(),
         can_rollback,
+        controlling_player: data.controlling_player,
     };
 
     let legal_actions = serde_json::to_string(&legal_actions).map_err(|e| e.to_string())?;
@@ -160,32 +162,32 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
     let try_into: Result<DenseBoard, PacoError> = (&data).try_into();
     let board: DenseBoard = try_into.map_err(|e| e.to_string())?;
 
+    let actions = determine_ai_move_inner(&board).await?;
+
+    for action in actions {
+        let action = serde_json::to_string(&vec![action]).map_err(|e| e.to_string())?;
+        forwardToMq("aiMoveDetermined", &action);
+    }
+    forwardToMq("aiStateUpdated", "\"AiReadyForRequest\"");
+
+    Ok(())
+}
+
+/// Ai move determination function where all the message passing related wiring can be ignored.
+async fn determine_ai_move_inner(board: &DenseBoard) -> Result<Vec<PacoAction>, JsValue> {
     let fen = fen::write_fen(&board);
     // Check if there is a move stored in the opening book. If so, then we take that.
     if let Some(position_data) = OpeningBook::get(&fen) {
         console_log("Found opening book move.");
 
         let best_move = sample_softmax(position_data)?;
-
-        // TODO: Submit all actions at once, no need to stagger them.
-        // https://github.com/kreibaum/pacosako/issues/123
-        for action in &best_move.actions {
-            let action = serde_json::to_string(&vec![*action]).map_err(|e| e.to_string())?;
-            forwardToMq("aiMoveDetermined", &action);
-        }
-
-        return Ok(());
+        return Ok(best_move.actions.clone());
     } else {
         console_log(format!("No opening book move found for {}", fen).as_str());
     }
 
     let actions = decide_turn_intuition(&board, vec![]).await.map_err(|e| e.to_string())?;
-    for action in actions {
-        let action = serde_json::to_string(&vec![action]).map_err(|e| e.to_string())?;
-        forwardToMq("aiMoveDetermined", &action);
-    }
-
-    Ok(())
+    Ok(actions)
 }
 
 /// This is essentially a re-implementation of `decideturn` from Julia.

@@ -11,7 +11,9 @@ module Shared exposing
 
 import Ai exposing (AiState)
 import Api.Backend
+import Api.EncoderGen
 import Api.LocalStorage as LocalStorage exposing (CustomTimer, Permission(..))
+import Api.MessageGen
 import Api.Ports
 import Api.Websocket exposing (WebsocketConnectionState)
 import Browser.Events
@@ -21,6 +23,7 @@ import Http
 import Json.Decode as Decode exposing (Decoder, Value)
 import List.Extra as List
 import Request exposing (Request)
+import Sako
 import Time exposing (Posix)
 import Translations exposing (Language(..))
 import User
@@ -70,6 +73,8 @@ type Msg
     | WebsocketStatusChange WebsocketConnectionState
     | NavigateTo String
     | SetAiState Ai.AiState
+    | StartUpAi
+    | DetermineAiMove { board_fen : String, action_history : List Sako.Action }
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )
@@ -174,6 +179,20 @@ update _ msg model =
 
         SetAiState aiState ->
             ( { model | aiState = aiState }, Cmd.none )
+
+        StartUpAi ->
+            if model.aiState == Ai.NotInitialized Ai.NotStarted then
+                ( { model | aiState = Ai.NotInitialized Ai.StartRequested }, Ai.startUpAi )
+
+            else
+                ( model, Cmd.none )
+
+        DetermineAiMove data ->
+            ( { model | aiState = Ai.WaitingForAiAnswer model.now }
+            , data
+                |> Api.EncoderGen.determineLegalActions
+                |> Api.MessageGen.determineAiMove
+            )
 
 
 {-| Adds a custom timer to the history and trigges a "save to local storage" event.

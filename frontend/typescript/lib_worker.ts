@@ -225,7 +225,7 @@ async function initAi(_data : any) {
     if (session !== undefined) {
         // Hedwig is already initialized. Just return the status.
         // TODO: Differentiate between running / not running.
-        forwardToMq("aiStateUpdated", JSON.stringify("InactiveAi"))
+        forwardToMq("aiStateUpdated", JSON.stringify("AiReadyForRequest"))
         return;
     }
 
@@ -237,7 +237,7 @@ async function initAi(_data : any) {
     // Run a warmup evaluation to make sure the model is loaded.
     await evaluate_hedwig( new Float32Array(hedwigInputShape.reduce((x, y) => x*y )));
 
-    forwardToMq("aiStateUpdated", JSON.stringify("InactiveAi"))
+    forwardToMq("aiStateUpdated", JSON.stringify("AiReadyForRequest"))
 }
 
 async function downloadAndInitHedwig() {

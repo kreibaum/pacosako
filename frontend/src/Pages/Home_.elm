@@ -252,7 +252,7 @@ update msg model =
         SetAiViewVisible aiViewVisible ->
             ( { model | aiViewVisible = aiViewVisible }
             , if aiViewVisible then
-                Effect.fromCmd Ai.startUpAi
+                Effect.fromShared Shared.StartUpAi
 
               else
                 Effect.none
