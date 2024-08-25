@@ -15,17 +15,16 @@ tsc
 
 
 # Define the input and output files
-FILES_FOR_MAIN="./build/frontend-ts/static_assets.js ./build/frontend-ts/message_gen.js ./build/frontend-ts/main.js"
 COMBINED_MAIN="./target/js/main.min.js"
 
 # Check if the --dev argument is passed
 if [ "$1" = "--dev" ]; then
     echo "Running in development mode: combining files without minification"
-    cat $FILES_FOR_MAIN > $COMBINED_MAIN
+    cat ./build/frontend-ts/static_assets.js ./build/frontend-ts/message_gen.js ./build/frontend-ts/main.js > $COMBINED_MAIN
     cat ./build/frontend-ts/lib_worker.js > ./target/js/lib_worker.min.js
 else
     echo "Running in production mode: combining, mangling, and compressing files"
-    terser $FILES_FOR_MAIN -o $COMBINED_MAIN --mangle --compress
+    terser ./build/frontend-ts/static_assets.js ./build/frontend-ts/message_gen.js ./build/frontend-ts/main.js -o $COMBINED_MAIN --mangle --compress
     terser ./build/frontend-ts/lib_worker.js -o ./target/js/lib_worker.min.js --mangle --compress
 fi
 
