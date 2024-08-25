@@ -172,5 +172,11 @@
     "unknownAiPlayerName": "IA desconocida",
     "anonymousPlayerNameYou": "Tú (sin cuenta)",
     "freeSeatPlayerName": "Asiento libre",
-    "joinGameNotFound": "El juego '{0}' no existe."
+    "joinGameNotFound": "El juego '{0}' no existe.",
+    "aiLabelAiNotStarted": "No iniciado",
+    "aiLabelAiStuck": "¿Ia atascada? {0}s",
+    "aiLabelAiStartRequested": "Inicio requerido",
+    "aiLabelModelLoading": "Descargando modelo: {0}/{1}",
+    "aiLabelSessionLoading": "Configuración del entorno de ejecución",
+    "aiLabelWarmup": "Calentamiento"
 }
