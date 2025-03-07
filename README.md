@@ -16,37 +16,71 @@ project:
 <img src="https://hosted.weblate.org/widgets/pacoplay/-/main-website/multi-auto.svg" alt="Translation status" />
 </a>
 
-Unfortunately, getting started with development is a bit tricky. The linked Gitpod environment is no longer working.
+# Running the Project for Development
 
-[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/kreibaum/pacosako)
-
-Please note that you need to restart the backend server manually when you make changes to rust code.
-The frontend is already recompiled automatically.
-
-## Running without Gitpod
-
-#### Installations
+## Installations
 
 If you want to run the development environment locally, you will need to have installed:
 
 - Rust, rustup, [wasm-pack](https://github.com/rustwasm/wasm-pack)
-- Elm and [elm-watch](https://github.com/lydell/elm-watch)
+  - `cargo binstall wasm-pack`
+- Elm and [elm-watch](https://github.com/lydell/elm-watch) and [elm-spa](https://www.elm-spa.dev/)
+- python3
+- brotli
+- sqlx-cli (must be 0.5 :-/), e.g. via `cargo install sqlx-cli --version ^0.5`
+- typescript
 
-Then run
+## Internal Dependencies
 
-    cargo build --bin cache_hash --release
-    ./scripts/copy-assets.sh
+The project has a few internal development tools that you'll need to install.
 
-All other installations are done in `./gitpod-init.sh`. Modify this file:
+### Cache Hash
 
-- Change the path for all installations from `home/gitpod/bin` to your preferred path (such
-  as `~/Documents/gitpod/bin/`).
-- Change `pytrans.py` to `pytrans.py English` to get the English version of the website.
+```sh
+cd backend
+cargo build --bin cache_hash --release
+```
 
-Run
+### Pytrans for Translations
 
-    # Initialize target directory, copy static files
-    ./gitpod-init.sh
+```sh
+cd ~/bin # Or any other directory in your PATH
+curl -L -o pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.3/pytrans.py
+chmod +x pytrans.py
+```
+
+## Compile the Project
+
+Let's generate some code first:
+
+```sh
+./scripts/copy-assets.sh
+cd frontend
+pytrans.py English
+elm-spa gen
+cd ../backend
+mkdir -p data
+sqlx database create
+sqlx migrate run
+echo 'discord_client_secret = ""' >> dev-secrets.toml
+```
+
+## Run the Project
+
+### Run the backend
+
+```sh
+cd backend
+cargo run
+```
+
+### Run the frontend
+
+```sh
+./scripts/compile-frontend.sh
+cd frontend
+elm-watch hot
+```
 
 #### Useful Software
 
