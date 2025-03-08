@@ -34,30 +34,25 @@ If you want to run the development environment locally, you will need to have in
 
 The project has a few internal development tools that you'll need to install.
 
-### Cache Hash
+### Cache Hash & i18n_gen
 
 ```sh
 cd backend
 cargo build --bin cache_hash --release
+cargo build --bin i18n_gen --release
 ```
 
-### Pytrans for Translations
+## Required Code Generation
+
+### Frontend
 
 ```sh
-cd ~/bin # Or any other directory in your PATH
-curl -L -o pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.3/pytrans.py
-chmod +x pytrans.py
+./scripts/compile-frontend.sh
 ```
 
-## Compile the Project
-
-Let's generate some code first:
+### Backend
 
 ```sh
-./scripts/copy-assets.sh
-cd frontend
-pytrans.py English
-elm-spa gen
 cd ../backend
 mkdir -p data
 sqlx database create
@@ -82,23 +77,12 @@ cd frontend
 elm-watch hot
 ```
 
-#### Useful Software
+## Useful Software
 
 Building WASM artifacts is faster, if you have wasm-bindgen installed:
 
     cargo install wasm-bindgen-cli
 
-#### Running
-
-Then you run
-
-    # Run elm-watch which keeps the frontend up to date & hot reloads
-    cd frontend
-    elm-watch hot
-
-    # (In a second terminal) run the backend server:
-    cd backend
-    cargo run
 
 ## Rules for Paco Ŝako (Rust Library)
 
@@ -132,15 +116,17 @@ development server. You can set the language you see the UI in by going into
 the `frontend` folder and copying the right language version into position:
 
     # English
-    pytrans.py English
+    ./backend/target/debug/i18n_gen English
     # Dutch
-    pytrans.py Dutch
+    ./backend/target/debug/i18n_gen Dutch
     # Esperanto
-    pytrans.py Esperanto
+    ./backend/target/debug/i18n_gen Esperanto
+    # List all Languages
+    ./backend/target/debug/i18n_gen --list
     # Once you have chosen a language it is remembered any you can rebuild using
-    pytrans.py
+    ./backend/target/debug/i18n_gen
 
-Once you copy this, the dev server should pick up the change and recompile the
+Once you copy this, the dev server `elm-watch hot` should pick up the change and recompile the
 frontend for you.
 
 ### Adding a new language
@@ -152,14 +138,13 @@ translators to translate the file.
 When translations are available, merge changes from weblate into the main branch
 as described above.
 
-Add your language to `frontend/pytrans.json` to make it available to the Elm code.
-Then run `pytrans.py` in the frontend directory. The `Translations.elm` file
-is now updated and the Elm compiler should direct you to the next steps.
+Add your language to `frontend/i18n-config.json` to make it available to the Elm code.
+Then use `i18n_gen` in the frontend directory to switch to it.
 
-Afterwards you also need to update the `languageChoiceV2` function in `Header.elm`.
+Afterwards, you also need to update the `languageChoiceV2` function in `Header.elm`.
 
 Note that locally switching language doesn't work with the buttons, and instead you
-need to run `pytrans.py Esperanto` or the equivalent for your language. This is
+need to run `i18n_gen Esperanto` or the equivalent for your language. This is
 because the language is set at compile time, so the app only has one language at a time.
 
 In the backend you need to adapt the `get_static_language_file` function to make
