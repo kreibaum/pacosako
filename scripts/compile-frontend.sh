@@ -13,19 +13,20 @@ scripts/copy-assets.sh
 scripts/compile-wasm.sh
 
 cp frontend/static/* target/assets/
-cd frontend
+cd frontend || exit
 
-# English is the default
-pytrans.py English
+# Codegen must happen before elm-spa builds
+../backend/target/debug/i18n_gen
 elm-spa build
 
+cd .. || exit
 # Iterate through all languages
-pytrans.py --run compile
+scripts/compile-all-languages.sh
 
 # Switch back to English, nice when running this manually in a dev environment.
-pytrans.py English
-
-cd ..
+cd frontend || exit
+../backend/target/debug/i18n_gen English
+cd .. || exit
 
 # Typescript
 scripts/compile-ts.sh

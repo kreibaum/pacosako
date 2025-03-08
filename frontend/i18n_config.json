@@ -1,0 +1,36 @@
+{
+    "mainLanguage": "English",
+    "output": ".elm-i18n/Translations.elm",
+    "translatedTo": [
+        {
+            "filename": "i18n/English.json",
+            "name": "English",
+            "locale": "en"
+        },
+        {
+            "filename": "i18n/Dutch.json",
+            "name": "Dutch",
+            "locale": "nl"
+        },
+        {
+            "filename": "i18n/Esperanto.json",
+            "name": "Esperanto",
+            "locale": "eo"
+        },
+        {
+            "filename": "i18n/de.json",
+            "name": "German",
+            "locale": "de"
+        },
+        {
+            "filename": "i18n/sv.json",
+            "name": "Swedish",
+            "locale": "sv"
+        },
+        {
+            "filename": "i18n/Spanish.json",
+            "name": "Spanish",
+            "locale": "es"
+        }
+    ]
+}

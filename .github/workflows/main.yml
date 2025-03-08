@@ -79,27 +79,17 @@ jobs:
             ~/.cargo
           key: build
 
-      - name: Build cache_hash binary
+      - name: Build cache_hash binary and i18n_gen binary
         run: |
           cd backend
           cargo build --bin cache_hash --release
+          cargo build --bin i18n_gen
           cd ..
 
       - uses: actions/setup-node@v4
 
       - name: Install Elm
         run: sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-
-      - name: Install pytrans.py
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/bin
-          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
-          curl -L -o $GITHUB_WORKSPACE/bin/pytrans.py https://github.com/kreibaum/pytrans.py/releases/download/v0.0.3/pytrans.py
-          chmod +x $GITHUB_WORKSPACE/bin/pytrans.py
-          ls $GITHUB_WORKSPACE/bin
 
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.4.0

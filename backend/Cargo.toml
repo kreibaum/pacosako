@@ -14,6 +14,10 @@ path = "src/main.rs"
 name = "cache_hash"
 path = "src/utils/cache_hash.rs"
 
+[[bin]]
+name = "i18n_gen"
+path = "src/utils/i18n_gen.rs"
+
 [dependencies]
 aes-gcm = { version = "0.10.3", features = ["std"] }
 anyhow = "1.0"
@@ -27,6 +31,7 @@ cached = { version = "0.49.2", default-features = false, features = [
     "proc_macro",
 ] }
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5.31", features = ["derive"] }
 dashmap = "5.5.3"
 file-rotate = "0.7.5"
 futures-util = "0.3.29"
