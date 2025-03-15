@@ -4,8 +4,8 @@
 //! https://github.com/kreibaum/pytrans.py/
 mod i18n_file_writer;
 
-use clap::{Command, Parser};
-use serde::{Deserialize, Serialize};
+use clap::Parser;
+use serde::{Deserialize};
 use std::collections::HashMap;
 use std::fs::read_to_string;
 
@@ -70,7 +70,7 @@ fn main() {
     let current_dev_lang = read_to_string(DEV_FILE).unwrap_or(config.main_language.clone());
 
     if cli.list {
-        show_list_of_available_languages(&config, current_dev_lang);
+        show_list_of_available_languages(&config);
         std::process::exit(0);
     }
 
@@ -81,7 +81,7 @@ fn main() {
     i18n_file_writer::render_one_file(cli, &config, current_dev_lang);
 }
 
-fn show_list_of_available_languages(config: &TranslationConfig, current_dev_lang: String) {
+fn show_list_of_available_languages(config: &TranslationConfig) {
     for lang in &config.translated_to {
         println!("{}\t{}\t{}", lang.name, lang.filename, lang.locale);
     }
