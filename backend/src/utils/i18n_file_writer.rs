@@ -1,8 +1,8 @@
+use crate::{Cli, Language, LanguageFile, TranslationConfig, DEV_FILE};
 use serde::Serialize;
 use std::collections::HashMap;
-use tera::{Context, Tera};
 use std::fs::read_to_string;
-use crate::{Cli, Language, LanguageFile, TranslationConfig, DEV_FILE};
+use tera::{Context, Tera};
 
 #[derive(Debug, Serialize)]
 pub struct TeraInfo {
@@ -56,7 +56,7 @@ translatedKeys =
 {% endfor %}
 "#;
 
-pub fn render_file( info : &TeraInfo ) -> String {
+pub fn render_file(info: &TeraInfo) -> String {
     let mut tera = Tera::default();
     tera.add_raw_template("elm_template", TEMPLATE)
         .expect("Failed to add template");
@@ -68,8 +68,8 @@ pub fn render_file( info : &TeraInfo ) -> String {
     context.insert("this_language", &info.this_language);
     context.insert("dictionary", &info.dictionary);
 
-    tera.render("elm_template", &context).expect("Template rendering failed")
-
+    tera.render("elm_template", &context)
+        .expect("Template rendering failed")
 }
 
 pub fn render_one_file(cli: Cli, config: &TranslationConfig, current_dev_lang: String) {
@@ -123,12 +123,24 @@ pub fn render_one_file(cli: Cli, config: &TranslationConfig, current_dev_lang: S
     };
 
     let elm_file = render_file(&info);
+    // Create directory if it doesn't exist
+    // Remember to only use the folder part. I.e. this does not work as it creates a folder named
+    // like the file I am trying to write:
+    // std::fs::create_dir_all(&config.output).expect("Could not create output directory");
+    // instead
+    std::fs::create_dir_all(
+        std::path::Path::new(&config.output)
+            .parent()
+            .expect("Could not get parent directory"),
+    )
+    .expect("Could not create output directory");
+
     std::fs::write(&config.output, elm_file).expect("Could not write Elm file");
 }
 
-fn escape( translation : &str ) -> String {
+fn escape(translation: &str) -> String {
     // Replace \ with \\, " with \" and newline with \n.
-    translation.clone()
+    translation
         .replace(r"\", r"\\")
         .replace(r#"""#, r#"\""#)
         .replace("\n", r#"\n"#)
