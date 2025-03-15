@@ -178,5 +178,6 @@
   "aiLabelAiStartRequested": "Start requested",
   "aiLabelModelLoading": "Downloading Model: {0}/{1}",
   "aiLabelSessionLoading": "Setting up Runtime",
-  "aiLabelWarmup": "Warming up"
+  "aiLabelWarmup": "Warming up",
+  "translationNotComplete": "This translation is {0}% done. Help us complete it!"
 }

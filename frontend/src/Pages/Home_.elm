@@ -396,6 +396,7 @@ matchSetupUiDesktop shared model =
                 , Content.References.discordInvite
                 , Content.References.officialWebsiteLink
                 , Content.References.twitchLink
+                , Content.References.translationSuggestion
                 , Content.References.gitHubLink
                 ]
             ]
@@ -418,6 +419,7 @@ matchSetupUiTablet shared model =
             [ Content.References.twitchLink
             , Content.References.gitHubLink
             ]
+        , Content.References.translationSuggestion
         , recentGamesList shared model.recentGames
         ]
 
@@ -432,6 +434,7 @@ matchSetupUiPhone shared model =
         , Content.References.discordInvite
         , Content.References.officialWebsiteLink
         , Content.References.twitchLink
+        , Content.References.translationSuggestion
         , Content.References.gitHubLink
         , recentGamesList shared model.recentGames
         ]

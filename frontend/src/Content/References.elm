@@ -1,9 +1,10 @@
-module Content.References exposing (discordInvite, gitHubLink, officialWebsiteLink, posterumCupInvite, twitchLink)
+module Content.References exposing (discordInvite, gitHubLink, officialWebsiteLink, posterumCupInvite, twitchLink, translationSuggestion)
 
 import Element exposing (Element, centerX, clip, column, el, fill, height, image, maximum, newTabLink, padding, paragraph, px, rgba255, row, spacing, text, width)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
+import Header exposing (flagForLanguage)
 import StaticAssets
 import Svg.Discord
 import Svg.Github
@@ -100,3 +101,27 @@ posterumCupInvite =
                     { src = StaticAssets.pspcPacoplayBanner, description = "An invitation to join the Paco Sako Posterum Cup. The competition is taking place on 6th April 2025." }
             }
         )
+
+translationSuggestion : Element msg
+translationSuggestion =
+    let
+        translationPercent = 100.0 * toFloat T.translatedKeys / toFloat T.totalKeys |> truncate
+    in
+    if translationPercent < 100 then
+        smallBanner
+            { url = "https://hosted.weblate.org/engage/pacoplay/"
+            , label =
+                row [ width fill, centerX, spacing 5 ]
+                    [ el [ width (px 50), padding 10, centerX ]
+                        (flagForLanguage T.compiledLanguage)
+                    , el
+                        [ Font.size 25
+                        , centerX, width fill
+                        ]
+                        (paragraph [ width fill ] [ T.translationNotComplete
+                            |> String.replace "{0}" (String.fromInt translationPercent)
+                            |> text ])
+                    ]
+            }
+    else
+        Element.none
