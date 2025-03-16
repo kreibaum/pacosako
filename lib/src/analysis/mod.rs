@@ -18,6 +18,8 @@ mod opening;
 pub mod puzzle;
 pub mod reverse_amazon_search;
 pub(crate) mod tree;
+pub mod sako_witness;
+pub mod graph;
 
 #[derive(Serialize, PartialEq, Debug)]
 pub struct ReplayData {

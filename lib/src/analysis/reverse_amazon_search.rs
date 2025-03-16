@@ -7,14 +7,14 @@ use std::{
     ops::Add,
 };
 
+use super::{graph, tree};
+use crate::analysis::graph::{FirstEdge, Graph};
 use crate::{
-    BoardPosition,
     calculate_interning_hash,
-    DenseBoard,
-    PacoAction, PacoBoard, PacoError, PieceType, PlayerColor, substrate::{BitBoard, constant_bitboards::KNIGHT_TARGETS, Substrate}, trivial_hash::TrivialHashBuilder,
+    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
+    trivial_hash::TrivialHashBuilder,
+    BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
 };
-
-use super::tree;
 
 pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
     let tree = explore_paco_tree(board, for_player)?;
@@ -37,6 +37,26 @@ pub fn find_paco_sequences(
         {
             result.push(trace);
         }
+    }
+
+    Ok(result)
+}
+
+pub fn find_paco_sequences_2(
+    board: &DenseBoard,
+    attacking_player: PlayerColor,
+) -> Result<Vec<Vec<PacoAction>>, PacoError> {
+    let board_hash = calculate_interning_hash(board);
+    let mut graph = explore_paco_tree_2(board, attacking_player)?;
+    graph.edges_in.remove(&board_hash);
+
+    let mut result = vec![];
+
+    for paco_position in graph.marked_nodes.keys() {
+        // Problem: We can't use the whole `graph`, so we can't have a helper
+        // function defined on `graph`. (.marked_nodes is already in use)
+        // if let Some(trace) =
+        // Still, next should be some method defined inside the graph module.
     }
 
     Ok(result)
@@ -133,6 +153,42 @@ fn explore_paco_tree(
     })
 }
 
+/// Rewrite based on common graph module.
+fn explore_paco_tree_2(
+    board: &DenseBoard,
+    attacking_player: PlayerColor,
+) -> Result<Graph<(), FirstEdge>, PacoError> {
+    let board = normalize_board_for_sako_search(board, attacking_player)?;
+
+    // First, find out if we actually need to do anything.
+    let search = reverse_amazon_squares(&board, attacking_player)?;
+    if search.starting_tiles.is_empty() {
+        return Ok(Graph::default());
+    }
+
+    // Clone the board (if not already cloned) and correctly set the controlling player.
+    let mut board: DenseBoard = board.into_owned();
+    board.controlling_player = attacking_player;
+
+    // We are searching for actions that capture the king.
+    let king_capture_action =
+        PacoAction::Place(board.substrate.find_king(attacking_player.other())?);
+
+    graph::breadth_first_search::<(), FirstEdge>(
+        board,
+        |board, board_hash, ctx| {
+            // We care about paco states.
+            // They are found by capturing the king.
+            let action = ctx.edges_in.get(&board_hash)?.action;
+            if action == king_capture_action {
+                return Some(());
+            }
+            return None;
+        },
+        |action| search.contains_action(action)
+    )
+}
+
 /// This eliminates some states that the board could be in. This simplifies the
 /// search code a bit. We assure, that:
 ///
@@ -165,6 +221,16 @@ fn normalize_board_for_sako_search(
 pub struct ReverseAmazonSearchResult {
     pub chaining_tiles: BitBoard,
     pub starting_tiles: BitBoard,
+}
+
+impl ReverseAmazonSearchResult {
+    fn contains_action(&self, action: PacoAction) -> bool {
+        match action {
+            PacoAction::Lift(p) => self.starting_tiles.contains(p),
+            PacoAction::Place(p) => self.chaining_tiles.contains(p),
+            PacoAction::Promote(_) => true,
+        }
+    }
 }
 
 /// Tracks all the information that we need during a search.
@@ -328,14 +394,14 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 
             if Some(current) == ctx.lifted_tile
                 && we_can_start_from_here(
-                ctx,
-                ctx.lifted_type.expect(
-                    "lifted type must always be available when lifted tile is available",
-                ),
-                dx,
-                dy,
-                distance,
-            )
+                    ctx,
+                    ctx.lifted_type.expect(
+                        "lifted type must always be available when lifted tile is available",
+                    ),
+                    dx,
+                    dy,
+                    distance,
+                )
             {
                 // We can also start from the lifted square.
                 ctx.starting_tiles.insert(current);
@@ -452,10 +518,10 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 mod tests {
     use ntest::timeout;
 
-    use crate::{const_tile::*, DenseBoard, fen, PacoAction, PacoBoard, PlayerColor};
+    use crate::{const_tile::*, fen, DenseBoard, PacoAction, PacoBoard, PlayerColor};
 
-    use super::*;
     use super::reverse_amazon_squares;
+    use super::*;
 
     #[test]
     fn initial_board() {
