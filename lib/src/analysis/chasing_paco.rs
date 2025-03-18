@@ -4,15 +4,12 @@
 //! the number of positions we need to analyze.
 
 use crate::{
-    DenseBoard, determine_all_moves, PacoAction, PacoBoard, PacoError, PlayerColor,
-    trace_first_move, VictoryState,
+    determine_all_moves, trace_first_move, DenseBoard, PacoAction, PacoBoard, PacoError,
+    PlayerColor, VictoryState,
 };
+use reverse_amazon_search::is_sako;
 
 use super::reverse_amazon_search;
-
-pub fn my_is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
-    reverse_amazon_search::is_sako(board, for_player)
-}
 
 /// Checks if the given board state is "Chasing Paco in 2". This can use either
 /// player's perspective. The board must be settled. (No active chain.)
@@ -51,15 +48,12 @@ pub fn is_chasing_paco_in_2(
     // Filter out the settled boards on which the opponent is in Ŝako now.
     'attacks: for attack_hash in &explored_attacks.settled {
         let attack_board = &explored_attacks.by_hash[attack_hash];
-        // TODO: This does not yet use the amazon search algorithm.
-        // But just swapping it in with is_sako(..) defined as
-        // explore_paco_tree(..).paco_positions.is_empty() didn't work.
-        // Needs more investigation. Maybe this is even a bug in the amazon search?
-        if my_is_sako(attack_board, attacker)? {
+        if is_sako(attack_board, attacker)? {
             // This is a settled board to analyze further. Is there any defense
             // against Ŝako?
             // Uniting with the king is a valid defense.
-            if my_is_sako(attack_board, attacker.other())? {
+            let for_player = attacker.other();
+            if is_sako(attack_board, for_player)? {
                 continue;
             }
             assert_eq!(attack_board.controlling_player, attacker.other(), "{}", crate::fen::write_fen(attack_board));
@@ -69,7 +63,7 @@ pub fn is_chasing_paco_in_2(
             // options.
             for defense_hash in &explored_defense.settled {
                 let defense_board = &explored_defense.by_hash[defense_hash];
-                if !my_is_sako(defense_board, attacker)? {
+                if !is_sako(defense_board, attacker)? {
                     continue 'attacks;
                 }
             }
@@ -86,8 +80,8 @@ pub fn is_chasing_paco_in_2(
 
 #[cfg(test)]
 mod tests {
-    use crate::BoardPosition;
     use crate::fen;
+    use crate::BoardPosition;
     use crate::PacoAction::*;
 
     use super::*;
