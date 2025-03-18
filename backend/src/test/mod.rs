@@ -14,19 +14,20 @@ use crate::{config, db::Connection, sync_match::SynchronizedMatch};
 // Bad apples are identified until 3000.
 const MIN_GAME_ID: i64 = 1;
 // const MAX_GAME_ID: i64 = 100;
-const MAX_GAME_ID: i64 = 3000;
+const MAX_GAME_ID: i64 = 5000;
 const MIN_GAME_ACTION_COUNT: usize = 12; // Only keep games with at least this many actions
 
 // Use regex [0-9]{5} in the csv to find games that are really slow (> 10s).
 #[rustfmt::skip]
-const BAD_APPLES: [i64; 33] = [183, 288, 301, 374, 376, 377, 431, 484, 914,
-    1389, 1432, 1555, 1621, 1806, 1854, 1886, 1887, 1977, 1978,
-    2038, 2414, 2448, 2543, 2649, 2726, 2727, 2804, 2892, 2917, 2991, 2992, 2998, 3000];
+const BAD_APPLES: [i64; 45] = [183, 288, 301, 374, 376, 377, 378, 431, 484, 914,
+    1194, 1247, 1249, 1389, 1432, 1555, 1619, 1621, 1806, 1854, 1886, 1887, 1977,
+    1978, 2038, 2414, 2448, 2543, 2649, 2726, 2727, 2804, 2892, 2917, 2991, 2992,
+    2998, 3000, 3403, 3568, 3878, 4102, 4818, 4919, 4931];
 
-// Note that 1977, 1978, 2892 are really bad.
+// Note that 1977, 1978, 2892, 4919, 4931 are really bad.
 
 #[tokio::test]
-#[ignore] // Can't run in CI, because it needs "production" database access
+// #[ignore] // Can't run in CI, because it needs "production" database access
 async fn paco_2_performance() {
     let config = config::load_config();
 

@@ -8,7 +8,8 @@ use std::{
 };
 
 use super::{graph, tree};
-use crate::analysis::graph::{FirstEdge, Graph};
+use crate::analysis::graph::edge::FirstEdge;
+use crate::analysis::graph::Graph;
 use crate::{
     calculate_interning_hash,
     substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
@@ -17,10 +18,23 @@ use crate::{
 };
 
 pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
-    let tree = explore_paco_tree(board, for_player)?;
+    let tree = explore_paco_tree_new(board, for_player)?;
 
-    Ok(!tree.paco_positions.is_empty())
+    Ok(!tree.marked_nodes.is_empty())
 }
+
+
+/* pub fn find_paco_sequences(
+    board: &DenseBoard,
+    attacking_player: PlayerColor,
+) -> Result<Vec<Vec<PacoAction>>, PacoError> {
+    panic!("at the disco");
+    println!("Comparing results for board: {:?}", write_fen(board));
+    let result_1 = find_paco_sequences_1(board, attacking_player)?;
+    let result_2 = find_paco_sequences_2(board, attacking_player)?;
+    assert_eq!(result_1, result_2);
+    Ok(result_2)
+} */
 
 pub fn find_paco_sequences(
     board: &DenseBoard,
@@ -47,16 +61,12 @@ pub fn find_paco_sequences_2(
     attacking_player: PlayerColor,
 ) -> Result<Vec<Vec<PacoAction>>, PacoError> {
     let board_hash = calculate_interning_hash(board);
-    let mut graph = explore_paco_tree_2(board, attacking_player)?;
-    graph.edges_in.remove(&board_hash);
+    let mut graph = explore_paco_tree_new(board, attacking_player)?;
 
     let mut result = vec![];
 
-    for paco_position in graph.marked_nodes.keys() {
-        // Problem: We can't use the whole `graph`, so we can't have a helper
-        // function defined on `graph`. (.marked_nodes is already in use)
-        // if let Some(trace) =
-        // Still, next should be some method defined inside the graph module.
+    for &paco_position in graph.marked_nodes.keys() {
+        result.push(graph::trace_actions_back_to(paco_position, board_hash, &graph.edges_in))
     }
 
     Ok(result)
@@ -154,7 +164,7 @@ fn explore_paco_tree(
 }
 
 /// Rewrite based on common graph module.
-fn explore_paco_tree_2(
+fn explore_paco_tree_new(
     board: &DenseBoard,
     attacking_player: PlayerColor,
 ) -> Result<Graph<(), FirstEdge>, PacoError> {
@@ -169,6 +179,7 @@ fn explore_paco_tree_2(
     // Clone the board (if not already cloned) and correctly set the controlling player.
     let mut board: DenseBoard = board.into_owned();
     board.controlling_player = attacking_player;
+    board.draw_state.reset_half_move_counter();
 
     // We are searching for actions that capture the king.
     let king_capture_action =
@@ -185,7 +196,7 @@ fn explore_paco_tree_2(
             }
             return None;
         },
-        |action| search.contains_action(action)
+        |action| search.contains_action(action),
     )
 }
 
@@ -394,14 +405,14 @@ fn slide_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 
             if Some(current) == ctx.lifted_tile
                 && we_can_start_from_here(
-                    ctx,
-                    ctx.lifted_type.expect(
-                        "lifted type must always be available when lifted tile is available",
-                    ),
-                    dx,
-                    dy,
-                    distance,
-                )
+                ctx,
+                ctx.lifted_type.expect(
+                    "lifted type must always be available when lifted tile is available",
+                ),
+                dx,
+                dy,
+                distance,
+            )
             {
                 // We can also start from the lifted square.
                 ctx.starting_tiles.insert(current);
@@ -517,11 +528,12 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 #[cfg(test)]
 mod tests {
     use ntest::timeout;
-
-    use crate::{const_tile::*, fen, DenseBoard, PacoAction, PacoBoard, PlayerColor};
+    use petgraph::visit::{EdgeCount, NodeCount};
 
     use super::reverse_amazon_squares;
     use super::*;
+    use crate::export::find_paco_sequences;
+    use crate::{const_tile::*, fen, DenseBoard, PacoAction, PacoBoard, PlayerColor};
 
     #[test]
     fn initial_board() {
