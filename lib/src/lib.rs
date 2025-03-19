@@ -9,16 +9,16 @@ use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::ops::Add;
 
-use fxhash::{FxHasher, FxHashMap, FxHashSet};
+use fxhash::{FxHashMap, FxHashSet, FxHasher};
 use serde::{Deserialize, Serialize};
 
 use const_tile::*;
 use draw_state::DrawState;
 use paco_action::PacoActionSet;
 use setup_options::SetupOptions;
-use substrate::{BitBoard, Substrate};
 use substrate::constant_bitboards::{KING_TARGETS, KNIGHT_TARGETS};
 use substrate::dense::DenseSubstrate;
+use substrate::{BitBoard, Substrate};
 pub use types::{BoardPosition, PieceType, PlayerColor};
 
 pub use crate::paco_action::PacoAction;
@@ -1511,31 +1511,6 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<BitBoard, PacoError>
     }
 
     Ok(all_threats)
-}
-
-/// Executes a sequence of paco sako actions as a given player if those actions
-/// are legal for the given player.
-pub fn execute_sequence<T: PacoBoard>(
-    board: &T,
-    sequence: Vec<PacoAction>,
-    as_player: PlayerColor,
-) -> Result<T, PacoError> {
-    if sequence.is_empty() {
-        // Nothing to do when we get an empty move.
-        return Err(PacoError::MissingInput);
-    }
-    // this needs to clone the input as we may run into an error in the middle
-    // of the sequence.
-    let mut new_state = board.clone();
-    for action in sequence {
-        if new_state.controlling_player() == as_player {
-            new_state.execute(action)?;
-        } else {
-            return Err(PacoError::NotYourTurn);
-        }
-    }
-
-    Ok(new_state)
 }
 
 /// Finds the last point in the action sequence where the active player changed.
