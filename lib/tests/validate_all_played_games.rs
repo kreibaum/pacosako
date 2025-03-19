@@ -33,6 +33,8 @@ impl RegressionValidation {
 
 const SLOW_GAMES: &[usize] = &[4102, 2038, 4097, 2265, 2534, 3428, 3995, 1865, 3362, 464];
 
+/// This test ensures that on all covered games, the set of legal moves can never change.
+/// It does that by comparing the legal moves against a known database.
 #[test]
 fn regression_run() {
     println!("Testing the whole regression database...");

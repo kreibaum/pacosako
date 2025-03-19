@@ -15,11 +15,11 @@ use crate::{
         repr::index_representation,
     },
     analysis::{self, reverse_amazon_search},
-    BoardPosition, DenseBoard,
-    determine_all_threats,
-    fen, PacoAction, PacoBoard, PieceType::*,
-    PlayerColor,
-    setup_options::SetupOptions, VictoryState,
+    determine_all_threats, fen,
+    setup_options::SetupOptions,
+    BoardPosition, DenseBoard, PacoAction, PacoBoard,
+    PieceType::*,
+    PlayerColor, VictoryState,
 };
 
 #[no_mangle]
@@ -544,6 +544,9 @@ pub unsafe extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
 /// Needs to use the output memory to return these, so it may not return
 /// all the chains that were found.
 ///
+/// If the given board suggests a promotion, this will always promote to a queen
+/// which may miss some paco sequences.
+///
 /// # Safety
 ///
 /// To make this function safe to call, you need to ensure that ps points to a
@@ -558,31 +561,12 @@ pub unsafe extern "C" fn find_paco_sequences(
 ) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
-    if !ps.required_action.is_promote() {
-        let actions = reverse_amazon_search::find_paco_sequences(ps, ps.controlling_player());
-        let Ok(actions) = actions else {
-            println!("Error in the reverse amazon search: {:?}", actions);
-            println!("Position: {}", fen::write_fen(ps));
-            return -1;
-        };
-        return write_out_chain(actions, ps, reserved_space, out);
-    }
-
-    let explored = crate::determine_all_moves(ps.clone());
-
-    let Ok(explored) = explored else {
+    let actions = reverse_amazon_search::find_paco_sequences(ps, ps.controlling_player());
+    let Ok(actions) = actions else {
+        println!("Error in the reverse amazon search: {:?}", actions);
+        println!("Position: {}", fen::write_fen(ps));
         return -1;
     };
-
-    let mut actions = vec![];
-    // Is there a state where the black king is dancing?
-    for (hash, board) in explored.by_hash.into_iter() {
-        if explored.settled.contains(&hash) && board.king_in_union(ps.controlling_player.other()) {
-            if let Some(trace) = crate::trace_first_move(hash, &explored.found_via) {
-                actions.push(trace);
-            }
-        }
-    }
 
     write_out_chain(actions, ps, reserved_space, out)
 }
@@ -698,7 +682,7 @@ pub unsafe extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) ->
 /// Test module
 #[cfg(test)]
 mod tests {
-    use crate::{DenseBoard, substrate::dense::DenseSubstrate};
+    use crate::{substrate::dense::DenseSubstrate, DenseBoard};
 
     /// Checks if a DenseBoard can be serialized and deserialized without
     /// breaking. Thomas reported this as broken on 2023-12-02.

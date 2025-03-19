@@ -5,9 +5,8 @@ use std::ops::Add;
 
 use super::graph;
 use crate::analysis::graph::edge::FirstEdge;
-use crate::analysis::graph::Graph;
+use crate::analysis::graph::{iter_traces, Graph};
 use crate::{
-    calculate_interning_hash,
     substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate}
     ,
     BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
@@ -25,16 +24,11 @@ pub fn find_paco_sequences(
     attacking_player: PlayerColor,
 ) -> Result<Vec<Vec<PacoAction>>, PacoError> {
     let board = normalize_board_for_sako_search(board, attacking_player)?;
-    let board_hash = calculate_interning_hash(&board);
     let graph = explore_paco_tree(board)?;
 
-    let mut result = vec![];
-
-    for &paco_position in graph.marked_nodes.keys() {
-        result.push(graph::trace_actions_back_to(paco_position, board_hash, &graph.edges_in))
-    }
-
-    Ok(result)
+    Ok(iter_traces(&graph)
+        .map(|(trace, _)| trace)
+        .collect())
 }
 
 /// This uses the "reverse amazon algorithm" to find all the possible ways to
@@ -62,10 +56,10 @@ fn explore_paco_tree(
 
     graph::breadth_first_search::<(), FirstEdge>(
         board,
-        |_board, board_hash, ctx| {
+        |_board, board_hash, g, _ctx| {
             // We care about paco states.
             // They are found by capturing the king.
-            let action = ctx.edges_in.get(&board_hash)?.action;
+            let action = g.edges_in.get(&board_hash)?.action;
             if action == king_capture_action {
                 return Some(());
             }

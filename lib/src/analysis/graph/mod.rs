@@ -2,6 +2,8 @@
 //! graph implementation in this project. This is another attempt at
 //! unifying all the graphs used.
 //!
+//! Replaces: `ExploredStateAmazon` and `ExploredState`.
+//!
 //! Specifically, I need to replace:
 //!
 //! ```none
@@ -29,6 +31,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 
 pub mod edge;
+pub mod all_moves;
 
 /// Abstract Graph type. Represents the board state as only a hash.
 /// All the nodes are stored in `edges_in.keys` with optional additional
@@ -39,6 +42,7 @@ pub mod edge;
 pub struct Graph<NodeMarker, E: EdgeData> {
     pub marked_nodes: HashMap<u64, NodeMarker, TrivialHashBuilder>,
     pub edges_in: HashMap<u64, E, TrivialHashBuilder>,
+    pub created_from_hash: u64,
 }
 
 impl<M, E: EdgeData> Default for Graph<M, E> {
@@ -46,8 +50,13 @@ impl<M, E: EdgeData> Default for Graph<M, E> {
         Graph {
             marked_nodes: HashMap::with_hasher(TrivialHashBuilder),
             edges_in: HashMap::with_hasher(TrivialHashBuilder),
+            created_from_hash: 0,
         }
     }
+}
+
+pub struct SearchContext {
+    pub player_changed: bool,
 }
 
 /// Performs a breadth first search through the actions in a move and discovers
@@ -60,9 +69,11 @@ impl<M, E: EdgeData> Default for Graph<M, E> {
 /// action set that is considered.
 pub fn breadth_first_search<M, E: EdgeData>(
     mut board: DenseBoard,
-    marker_function: impl Fn(&DenseBoard, u64, &Graph<M, E>) -> Option<M>,
+    marker_function: impl Fn(&DenseBoard, u64, &Graph<M, E>, &SearchContext) -> Option<M>,
     is_action_considered: impl Fn(PacoAction) -> bool,
 ) -> Result<Graph<M, E>, PacoError> {
+    let created_from_hash = calculate_interning_hash(&board);
+
     // Search context. We search only inside a single move.
     let search_player = board.controlling_player;
 
@@ -73,6 +84,7 @@ pub fn breadth_first_search<M, E: EdgeData>(
     let mut result: Graph<M, E> = Graph {
         marked_nodes: HashMap::default(),
         edges_in: HashMap::default(),
+        created_from_hash,
     };
 
     // Removes the need to copy the draw state.
@@ -84,10 +96,12 @@ pub fn breadth_first_search<M, E: EdgeData>(
     // Pull entries from the todo_list until it is empty.
     'todo_loop: while let Some(todo) = todo_list.pop_front() {
         let todo_hash = calculate_interning_hash(&todo);
-        if let Some(marker) = marker_function(&todo, todo_hash, &result) {
+        let player_changed = todo.controlling_player != search_player;
+        let ctx = SearchContext { player_changed };
+        if let Some(marker) = marker_function(&todo, todo_hash, &result, &ctx) {
             result.marked_nodes.insert(todo_hash, marker);
         }
-        if todo.controlling_player != search_player {
+        if player_changed {
             // We don't search from these, but still mark them. (just did that)
             continue 'todo_loop;
         }
@@ -143,4 +157,17 @@ pub fn trace_actions_back_to<E: EdgeData>(
         trace.push(action);
         pivot = next;
     }
+}
+
+/// Iterates over all marked nodes in the graph and traces each of them back to
+/// the initial state.
+/// Returns an iterator over the traces.
+pub fn iter_traces<M, E: EdgeData>(
+    graph: &Graph<M, E>,
+) -> impl Iterator<Item=(Vec<PacoAction>, &M)> {
+    graph.marked_nodes.iter()
+        .map(|(hash, marker)| {
+            let trace = trace_actions_back_to(*hash, graph.created_from_hash, &graph.edges_in);
+            (trace, marker.clone())
+        })
 }

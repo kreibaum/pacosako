@@ -1546,11 +1546,11 @@ pub fn find_last_checkpoint_index<'a>(
 mod tests {
     use std::convert::{TryFrom, TryInto};
 
-    use parser::Square;
-
-    use crate::analysis::is_sako;
-
     use super::*;
+    use crate::analysis::graph::all_moves::determine_all_reachable_settled_states;
+    use crate::analysis::graph::iter_traces;
+    use crate::analysis::is_sako;
+    use parser::Square;
 
     /// Helper macro to execute moves in unit tests.
     macro_rules! execute_action {
@@ -1579,15 +1579,11 @@ mod tests {
     fn find_sako_states(board: DenseBoard) -> Result<Vec<DenseBoard>, PacoError> {
         let opponent = board.controlling_player().other();
 
-        let explored_state = determine_all_moves(board)?;
-
-        let mut result = vec![];
-        for (hash, board) in explored_state.by_hash.into_iter() {
-            if explored_state.settled.contains(&hash) && board.king_in_union(opponent) {
-                result.push(board);
-            }
-        }
-        Ok(result)
+        let graph = determine_all_reachable_settled_states(board.clone())?;
+        Ok(iter_traces(&graph).map(|(_, b)| b)
+            .filter(|&b| b.king_in_union(opponent))
+            .cloned()
+            .collect())
     }
 
     #[test]
