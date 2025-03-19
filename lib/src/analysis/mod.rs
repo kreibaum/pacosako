@@ -6,8 +6,8 @@ use std::fmt::Display;
 use serde::Serialize;
 
 use crate::{
-    BoardPosition, DenseBoard, determine_all_threats, Hand, PacoAction, PacoBoard,
-    PacoError, PieceType, PlayerColor, substrate::Substrate,
+    determine_all_threats, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoAction,
+    PacoBoard, PacoError, PieceType, PlayerColor,
 };
 
 use self::incremental_replay::history_to_replay_notation_incremental;
@@ -17,7 +17,6 @@ pub mod incremental_replay;
 mod opening;
 pub mod puzzle;
 pub mod reverse_amazon_search;
-pub(crate) mod tree;
 pub mod sako_witness;
 pub mod graph;
 
@@ -309,8 +308,8 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
 mod tests {
     use PacoAction::*;
 
-    use crate::{fen, testdata::REPLAY_13103};
     use crate::const_tile::*;
+    use crate::{fen, testdata::REPLAY_13103};
 
     use super::*;
 

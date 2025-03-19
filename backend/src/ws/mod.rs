@@ -12,18 +12,18 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use pacosako::{PacoAction, PlayerColor};
 
+use crate::db::Connection;
+use crate::login::user;
+use crate::login::user::load_user_data_for_game;
+use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 use crate::{
     actors::websocket::SocketId,
     db,
     login::SessionId,
     protection::SideProtection,
-    ServerError,
     sync_match::{CurrentMatchState, CurrentMatchStateClient, SynchronizedMatch},
+    ServerError,
 };
-use crate::db::Connection;
-use crate::login::user;
-use crate::login::user::load_user_data_for_game;
-use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 
 /// Handles all the websocket client logic.
 pub mod wake_up_queue;
@@ -342,7 +342,7 @@ async fn handle_client_message(
 
             game.rollback()?
         }
-        ClientMessage::TimeDriftCheck { send } => {
+        ClientMessage::TimeDriftCheck { .. } => {
             unreachable!("We already handled the TimeDriftCheck message.");
         }
     };

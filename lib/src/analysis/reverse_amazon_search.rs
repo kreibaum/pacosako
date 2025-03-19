@@ -1,18 +1,15 @@
 //! Functions to check if we are in a Sako position.
 
 use core::fmt::Debug;
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Add,
-};
+use std::ops::Add;
 
 use super::graph;
 use crate::analysis::graph::edge::FirstEdge;
 use crate::analysis::graph::Graph;
 use crate::{
     calculate_interning_hash,
-    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
-    trivial_hash::TrivialHashBuilder,
+    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate}
+    ,
     BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
 };
 
@@ -29,7 +26,7 @@ pub fn find_paco_sequences(
 ) -> Result<Vec<Vec<PacoAction>>, PacoError> {
     let board = normalize_board_for_sako_search(board, attacking_player)?;
     let board_hash = calculate_interning_hash(&board);
-    let mut graph = explore_paco_tree(board)?;
+    let graph = explore_paco_tree(board)?;
 
     let mut result = vec![];
 
@@ -38,12 +35,6 @@ pub fn find_paco_sequences(
     }
 
     Ok(result)
-}
-
-#[derive(Default)]
-struct ExploredStateAmazon {
-    pub paco_positions: HashSet<u64, TrivialHashBuilder>,
-    pub found_via: HashMap<u64, (PacoAction, u64), TrivialHashBuilder>,
 }
 
 /// This uses the "reverse amazon algorithm" to find all the possible ways to
@@ -71,7 +62,7 @@ fn explore_paco_tree(
 
     graph::breadth_first_search::<(), FirstEdge>(
         board,
-        |board, board_hash, ctx| {
+        |_board, board_hash, ctx| {
             // We care about paco states.
             // They are found by capturing the king.
             let action = ctx.edges_in.get(&board_hash)?.action;
@@ -410,7 +401,6 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 #[cfg(test)]
 mod tests {
     use ntest::timeout;
-    use petgraph::visit::{EdgeCount, NodeCount};
 
     use super::reverse_amazon_squares;
     use super::*;

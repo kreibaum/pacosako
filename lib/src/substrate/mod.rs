@@ -4,7 +4,7 @@
 
 use std::ops::{BitAnd, BitOr, Not};
 
-use crate::{BoardPosition, PacoError, parser::Square, PieceType, PlayerColor};
+use crate::{parser::Square, BoardPosition, PacoError, PieceType, PlayerColor};
 
 pub mod constant_bitboards;
 pub mod dense;
@@ -24,11 +24,6 @@ pub trait Substrate {
     /// Checks for a specific piece type
     fn is_piece(&self, player: PlayerColor, pos: BoardPosition, piece: PieceType) -> bool {
         self.get_piece(player, pos) == Some(piece)
-    }
-    /// Determines whether the given player would be allowed to chain-dance to the given position.
-    /// This is always possible for empty squares (end chain) and when there is an opponent piece.
-    fn is_danceable(&self, player: PlayerColor, pos: BoardPosition) -> bool {
-        self.is_empty(pos) || self.has_piece(player.other(), pos)
     }
     /// Sets the piece at the given position.
     fn set_piece(&mut self, player: PlayerColor, pos: BoardPosition, piece: PieceType);
