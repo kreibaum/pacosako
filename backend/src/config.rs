@@ -97,5 +97,5 @@ fn load_config_inner() -> Result<EnvironmentConfig, String> {
 }
 
 fn is_utility_test(args: &str) -> bool {
-    args == "test::paco_2_performance" || args == "test::all_settled_states::all_the_games"
+    args.starts_with("test::")
 }

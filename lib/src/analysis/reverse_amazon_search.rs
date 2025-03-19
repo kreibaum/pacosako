@@ -2,12 +2,11 @@
 
 use core::fmt::Debug;
 use std::{
-    borrow::Cow,
-    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     ops::Add,
 };
 
-use super::{graph, tree};
+use super::graph;
 use crate::analysis::graph::edge::FirstEdge;
 use crate::analysis::graph::Graph;
 use crate::{
@@ -18,50 +17,19 @@ use crate::{
 };
 
 pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
-    let tree = explore_paco_tree_new(board, for_player)?;
+    let board = normalize_board_for_sako_search(board, for_player)?;
+    let tree = explore_paco_tree(board)?;
 
     Ok(!tree.marked_nodes.is_empty())
 }
-
-
-/* pub fn find_paco_sequences(
-    board: &DenseBoard,
-    attacking_player: PlayerColor,
-) -> Result<Vec<Vec<PacoAction>>, PacoError> {
-    panic!("at the disco");
-    println!("Comparing results for board: {:?}", write_fen(board));
-    let result_1 = find_paco_sequences_1(board, attacking_player)?;
-    let result_2 = find_paco_sequences_2(board, attacking_player)?;
-    assert_eq!(result_1, result_2);
-    Ok(result_2)
-} */
 
 pub fn find_paco_sequences(
     board: &DenseBoard,
     attacking_player: PlayerColor,
 ) -> Result<Vec<Vec<PacoAction>>, PacoError> {
-    let board_hash = calculate_interning_hash(board);
-    let mut tree = explore_paco_tree(board, attacking_player)?;
-    tree.found_via.remove(&board_hash);
-
-    let mut result = vec![];
-
-    for paco_position in tree.paco_positions.iter() {
-        if let Some(trace) = tree::trace_first_move_redesign_sparse(paco_position, &tree.found_via)
-        {
-            result.push(trace);
-        }
-    }
-
-    Ok(result)
-}
-
-pub fn find_paco_sequences_2(
-    board: &DenseBoard,
-    attacking_player: PlayerColor,
-) -> Result<Vec<Vec<PacoAction>>, PacoError> {
-    let board_hash = calculate_interning_hash(board);
-    let mut graph = explore_paco_tree_new(board, attacking_player)?;
+    let board = normalize_board_for_sako_search(board, attacking_player)?;
+    let board_hash = calculate_interning_hash(&board);
+    let mut graph = explore_paco_tree(board)?;
 
     let mut result = vec![];
 
@@ -89,101 +57,17 @@ struct ExploredStateAmazon {
 /// Variant of tree exploration that stores fewer "found via" entries.
 /// Also stores hashes instead of full boards.
 fn explore_paco_tree(
-    board: &DenseBoard,
-    attacking_player: PlayerColor,
-) -> Result<ExploredStateAmazon, PacoError> {
-    let board = normalize_board_for_sako_search(board, attacking_player)?;
-
-    // First, find out if we actually need to do anything.
-    let search = reverse_amazon_squares(&board, attacking_player)?;
-    if search.starting_tiles.is_empty() {
-        return Ok(ExploredStateAmazon::default());
-    }
-
-    // We found some starting tiles, this means we actually need to work.
-    let mut todo_list: VecDeque<DenseBoard> = VecDeque::new();
-    let mut paco_positions: HashSet<u64, TrivialHashBuilder> = HashSet::default();
-    let mut found_via: HashMap<u64, (PacoAction, u64), TrivialHashBuilder> = HashMap::default();
-
-    // Clone the board (if not already cloned) and correctly set the controlling player.
-    let mut board: DenseBoard = board.into_owned();
-    board.controlling_player = attacking_player;
-    // Clear the draw state to reduce what we need to copy.
-    // This is only ok, because we are tracking hashes only that
-    board.draw_state.reset_half_move_counter();
-
-    // The paco positions we are interested in are the one that end with a
-    // king capture.
-    let king_capture_action =
-        PacoAction::Place(board.substrate.find_king(attacking_player.other())?);
-
-    // Add the starting positions to the todo list.
-    todo_list.push_back(board);
-
-    // Pull entries from the todo_list until it is empty.
-    while let Some(todo) = todo_list.pop_front() {
-        // Execute all actions within the chaining_tiles.
-        'action_loop: for action in todo.actions()? {
-            if let PacoAction::Lift(p) = action {
-                if !search.starting_tiles.contains(p) {
-                    continue 'action_loop;
-                }
-            } else if let PacoAction::Place(p) = action {
-                // Skip actions that are not in the chaining_tiles.
-                // Promotions are never skipped.
-                if !search.chaining_tiles.contains(p) {
-                    continue 'action_loop;
-                }
-            }
-            let mut b = todo.clone();
-            b.execute_trusted(action)?;
-            let b_hash = calculate_interning_hash(&b);
-            let todo_hash = calculate_interning_hash(&todo);
-
-            if action == king_capture_action {
-                // We found a paco position!
-                paco_positions.insert(b_hash);
-            }
-
-            // Look up if this action is still to be explored. Otherwise we have
-            // nothing to do and can continue the 'action_loop.
-            if let Entry::Vacant(v_entry) = found_via.entry(b_hash) {
-                v_entry.insert((action, todo_hash));
-                if !b.is_settled() {
-                    // We will look at the possible chain moves later.
-                    todo_list.push_back(b);
-                }
-            }
-        }
-    }
-
-    Ok(ExploredStateAmazon {
-        paco_positions,
-        found_via,
-    })
-}
-
-/// Rewrite based on common graph module.
-fn explore_paco_tree_new(
-    board: &DenseBoard,
-    attacking_player: PlayerColor,
+    board: DenseBoard
 ) -> Result<Graph<(), FirstEdge>, PacoError> {
-    let board = normalize_board_for_sako_search(board, attacking_player)?;
-
     // First, find out if we actually need to do anything.
-    let search = reverse_amazon_squares(&board, attacking_player)?;
+    let search = reverse_amazon_squares(&board, board.controlling_player)?;
     if search.starting_tiles.is_empty() {
         return Ok(Graph::default());
     }
 
-    // Clone the board (if not already cloned) and correctly set the controlling player.
-    let mut board: DenseBoard = board.into_owned();
-    board.controlling_player = attacking_player;
-    board.draw_state.reset_half_move_counter();
-
     // We are searching for actions that capture the king.
     let king_capture_action =
-        PacoAction::Place(board.substrate.find_king(attacking_player.other())?);
+        PacoAction::Place(board.substrate.find_king(board.controlling_player.other())?);
 
     graph::breadth_first_search::<(), FirstEdge>(
         board,
@@ -207,23 +91,21 @@ fn explore_paco_tree_new(
 /// - On settled boards, this does not matter.
 /// - We don't want to deal with the different promotion options in the search.
 ///   - So if the current move starts with a promotion, we just promote to a queen.
-///   - This requires a copy of the board, so we have to return a Cow.
 fn normalize_board_for_sako_search(
     board: &DenseBoard,
     attacking_player: PlayerColor,
-) -> Result<Cow<'_, DenseBoard>, PacoError> {
+) -> Result<DenseBoard, PacoError> {
+    let mut board = board.clone();
     if !board.is_settled() && board.controlling_player() != attacking_player {
         return Err(PacoError::SearchNotAllowed(
             "Board is not settled but attacking player is not in control.".to_string(),
         ));
     }
-    let board = if board.required_action.is_promote() {
-        let mut board = board.clone();
+    if board.required_action.is_promote() && !board.victory_state.is_over() {
         board.execute(PacoAction::Promote(PieceType::Queen))?;
-        Cow::Owned(board)
-    } else {
-        Cow::Borrowed(board)
-    };
+    }
+    board.controlling_player = attacking_player;
+
     Ok(board)
 }
 
@@ -532,7 +414,6 @@ mod tests {
 
     use super::reverse_amazon_squares;
     use super::*;
-    use crate::export::find_paco_sequences;
     use crate::{const_tile::*, fen, DenseBoard, PacoAction, PacoBoard, PlayerColor};
 
     #[test]

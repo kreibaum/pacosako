@@ -50,13 +50,20 @@ impl<M, E: EdgeData> Default for Graph<M, E> {
     }
 }
 
+/// Performs a breadth first search through the actions in a move and discovers
+/// a graph.
+///
+/// The `marker_function` is called for every node in the graph.
+/// Use it to mark the nodes you are looking for.
+///
+/// The `is_action_considered` function allows you to further restrict the
+/// action set that is considered.
 pub fn breadth_first_search<M, E: EdgeData>(
-    board: impl Into<DenseBoard>,
+    mut board: DenseBoard,
     marker_function: impl Fn(&DenseBoard, u64, &Graph<M, E>) -> Option<M>,
     is_action_considered: impl Fn(PacoAction) -> bool,
 ) -> Result<Graph<M, E>, PacoError> {
     // Search context. We search only inside a single move.
-    let mut board = board.into();
     let search_player = board.controlling_player;
 
     // Working sets / lists. These drive the algorithm.
@@ -132,7 +139,8 @@ pub fn trace_actions_back_to<E: EdgeData>(
             trace.reverse();
             return trace;
         };
-        let (action, pivot) = parent.first();
+        let (action, next) = parent.first();
         trace.push(action);
+        pivot = next;
     }
 }
