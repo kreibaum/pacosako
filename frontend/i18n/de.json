@@ -125,5 +125,7 @@
     "tutorial10EnPassant4": "In Paco Ŝako ist en passant am Anfang, in der Mitte und am Ende einer Kette erlaubt.",
     "tutorial11MoreAboutChains1": "Erfahre mehr über Kettenreaktionen von Felix",
     "tutorial11MoreAboutChains2": "Du kannst mehr über Kettenreaktionen und Schleifen von Felix Albers, dem Erfinder von Paco Ŝako, erfahren. Dieses Englische Video gibt eine kurze Zusammenfassung dieses Tutorials und dann weitere Aspekte und Situationen des Spiels im zweiten Teil des Videos ab 1:10.",
-    "translationNotComplete": "Unsere deutsche Übersetzung ist zu {0}% vollständig. Mach mit!"
+    "translationNotComplete": "Unsere deutsche Übersetzung ist zu {0}% vollständig. Mach mit!",
+    "timerMustBePositive": "Die Uhr kann nicht auf/unter Null starten!",
+    "joinGameNotFound": "Das Spiel '{0}' gibt es nicht."
 }
