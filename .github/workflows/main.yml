@@ -27,7 +27,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         id: rust
 
-      - name: Cache cargo build
+      - name: Cache Cargo Build
         uses: actions/cache@v4
         with:
           path: |
@@ -38,25 +38,25 @@ jobs:
           restore-keys: |
             rust-cache-${{ steps.rust.outputs.cachekey }}-
 
-      - name: Install SQLX-tooling
-        uses: baptiste0928/cargo-install@v3.0.1
-        with:
-          crate: sqlx-cli
-          version: latest
+      - name: Install SQLX Tooling
+        uses: cargo install sqlx-cli --version ^0.5
 
       - name: Setup Database
         run: scripts/setup-fresh-database.sh
 
-      - name: Run all rust tests in the cargo workspace
+      - name: Run all Rust Tests in the Cargo Workspace
         run: cargo test --release
+
+      - name: Compile all Binaries
+        run: cargo build --all --release
 
       - name: Compile Frontend
         run: scripts/compile-frontend.sh
 
-      - name: Create artifact deploy.tar.gz for deployment
+      - name: Create Artifact deploy.tar.gz for Deployment
         run: scripts/package-artifact.sh
 
-      - name: Publish artifact
+      - name: Publish Artifact
         uses: actions/upload-artifact@v4
         with:
           name: deploy

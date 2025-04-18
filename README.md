@@ -53,6 +53,10 @@ it can compile the rust code.
 scripts/setup-fresh-database.sh
 ```
 
+If you are getting `error: error returned from database: disk I/O error` when
+running this, check if maybe you deleted `database.sqlite` but kept around
+the `database.sqlite-wal` and `database.sqlite-shm` files. If so, delete them.
+
 ## Fake a Secrets File
 
 You can't get the real discord client secret, so you need to create a fake one.
