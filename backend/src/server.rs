@@ -7,8 +7,8 @@ use axum::{
     http::{header, HeaderMap},
     middleware,
     response::IntoResponse,
-    Router,
     routing::{get, post},
+    Router,
 };
 use serde::Deserialize;
 use tera::Context;
@@ -18,15 +18,15 @@ use tower_cookies::{CookieManagerLayer, Cookies};
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::{
-    AppState,
     caching,
-    db::Pool, EnvironmentConfig, game,
-    grafana,
-    language, login::{
+    db::Pool,
+    game, grafana, language,
+    login::{
         self,
         session::SessionData,
         user::{self, load_public_user_data},
-    }, replay_data, secret_login, templates,
+    },
+    replay_data, secret_login, templates, AppState, EnvironmentConfig,
 };
 
 pub async fn run(state: AppState) {
@@ -65,22 +65,22 @@ pub async fn run(state: AppState) {
             "/websocket",
             get(crate::actors::websocket::websocket_handler),
         )
-        .nest_service("/a", ServeDir::new("../target/assets/").precompressed_br())
+        .nest_service("/a", ServeDir::new("../web-target/assets/").precompressed_br())
         .nest_service(
             "/js/lib.min.js",
-            ServeFile::new("../target/js/lib.min.js").precompressed_br(),
+            ServeFile::new("../web-target/js/lib.min.js").precompressed_br(),
         )
         .nest_service(
             "/js/lib.wasm",
-            ServeFile::new("../target/js/lib.wasm").precompressed_br(),
+            ServeFile::new("../web-target/js/lib.wasm").precompressed_br(),
         )
         .nest_service(
             "/js/lib_worker.min.js",
-            ServeFile::new("../target/js/lib_worker.min.js").precompressed_br(),
+            ServeFile::new("../web-target/js/lib_worker.min.js").precompressed_br(),
         )
         .nest_service(
             "/js/main.min.js",
-            ServeFile::new("../target/js/main.min.js").precompressed_br(),
+            ServeFile::new("../web-target/js/main.min.js").precompressed_br(),
         )
         .nest("/api", api)
         .with_state(state.clone())
@@ -114,8 +114,8 @@ async fn index(
     );
     debug!(
         "File {} has hash: {}",
-        "../target/js/main.min.js",
-        caching::hash_file("../target/js/main.min.js", true)
+        "../web-target/js/main.min.js",
+        caching::hash_file("../web-target/js/main.min.js", true)
     );
 
     let mut context = Context::new();
@@ -126,23 +126,23 @@ async fn index(
     );
     context.insert(
         "main_hash",
-        &caching::hash_file("../target/js/main.min.js", !config.dev_mode),
+        &caching::hash_file("../web-target/js/main.min.js", !config.dev_mode),
     );
     context.insert(
         "lib_worker_hash",
-        &caching::hash_file("../target/js/lib_worker.min.js", !config.dev_mode),
+        &caching::hash_file("../web-target/js/lib_worker.min.js", !config.dev_mode),
     );
     context.insert(
         "wasm_js_hash",
-        &caching::hash_file("../target/js/lib.min.js", !config.dev_mode),
+        &caching::hash_file("../web-target/js/lib.min.js", !config.dev_mode),
     );
     context.insert(
         "wasm_hash",
-        &caching::hash_file("../target/js/lib.wasm", !config.dev_mode),
+        &caching::hash_file("../web-target/js/lib.wasm", !config.dev_mode),
     );
     context.insert(
         "favicon_hash",
-        &caching::hash_file("../target/assets/favicon.svg", !config.dev_mode),
+        &caching::hash_file("../web-target/assets/favicon.svg", !config.dev_mode),
     );
 
     // Check data for currently logged in user.
@@ -243,8 +243,9 @@ async fn elm_js(config: State<EnvironmentConfig>, query: Query<LangQuery>) -> im
 /// ./scripts/compile-ts.sh to (re-)build.
 pub fn elm_filename(lang: &str, use_min_js: bool) -> &'static str {
     if use_min_js {
-        language::get_static_language_file(lang).unwrap_or("../target/js/elm.en.min.js")
+        // TODO: This should serve brotli, if accepted.
+        language::get_static_language_file(lang).unwrap_or("../web-target/js/elm.en.min.js")
     } else {
-        "../target/elm.js"
+        "../web-target/elm.js"
     }
 }

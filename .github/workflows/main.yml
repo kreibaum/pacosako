@@ -6,18 +6,18 @@ name: CI
 on:
   # Triggers the workflow on push or pull request events but only for the master branch
   push:
-    branches: [master]
+    branches: [ master ]
   pull_request:
-    branches: [master]
+    branches: [ master ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  test:
-    name: Run unit tests
-    runs-on: ubuntu-22.04
+  build_and_test:
+    name: Run all tests and build artifacts
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -26,14 +26,16 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache multiple paths
+      - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: |
-            backend/target
-            lib/target
-            ~/.cargo
-          key: unittest
+            target
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: rust-cache-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            rust-cache-${{ steps.toolchain.outputs.cachekey }}-
 
       - name: Install SQLX-tooling
         uses: baptiste0928/cargo-install@v3.0.1
@@ -41,87 +43,23 @@ jobs:
           crate: sqlx-cli
           version: latest
 
-      - name: Run library tests
-        run: |
-          pwd
-          cd lib
-          cargo test
-          cd ..
-
-      - name: Run backend tests
+      - name: Setup Database
         run: |
           pwd
           cd backend
           mkdir -p data
           sqlx database create
           sqlx migrate run
-          cargo test
           cd ..
 
-  build:
-    name: Build artifact
-    runs-on: ubuntu-20.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Cache multiple paths
-        uses: actions/cache@v4
-        with:
-          path: |
-            backend/target
-            ~/.cargo
-          key: build
-
-      - name: Build cache_hash binary and i18n_gen binary
-        run: |
-          cd backend
-          cargo build --bin cache_hash --release
-          cargo build --bin i18n_gen
-          cd ..
-
-      - uses: actions/setup-node@v4
-
-      - name: Install Elm
-        run: sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root
-
-      - name: Install wasm-pack
-        uses: jetli/wasm-pack-action@v0.4.0
+      - name: Run all rust tests in the cargo workspace
+        run: cargo test --release
 
       - name: Compile Frontend
-        run: |
-          export PATH="$GITHUB_WORKSPACE/bin:$PATH"
-          ./scripts/compile-frontend.sh
+        run: ./scripts/compile-frontend.sh
 
-      - name: Install SQLX-tooling
-        uses: baptiste0928/cargo-install@v3.0.1
-        with:
-          crate: sqlx-cli
-          version: latest
-
-      - name: Compile Server in release mode
-        run: |
-          cd backend
-          mkdir -p data
-          sqlx database create
-          sqlx migrate run
-          cargo build --release
-          cd ..
-
-      - name: Create artifact for Website
-        run: |
-          mkdir -p deploy/target
-          mkdir -p deploy/backend/templates
-          cp ./backend/target/release/pacosako-tool-server ./deploy/backend/pacosako
-          cp ./backend/templates/* ./deploy/backend/templates
-          cp -r ./target/* ./deploy/target/
-          tar -zcf deploy.tar.gz deploy
+      - name: Create artifact deploy.tar.gz for deployment
+        run: ./scripts/package-artifact.sh
 
       - name: Publish artifact
         uses: actions/upload-artifact@v4
@@ -133,7 +71,7 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-20.04
     if: github.ref == 'refs/heads/master'
-    needs: [test, build]
+    needs: [ build_and_test ]
 
     steps:
       - name: Checkout

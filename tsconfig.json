@@ -5,12 +5,12 @@
             "es2019",
             "dom"
         ],
-        "outDir": "build/frontend-ts"
+        "outDir": "web-build/frontend-ts"
     },
     "files": [
         "frontend/typescript/main.ts",
         "frontend/typescript/lib_worker.ts",
         "frontend/typescript/message_gen.ts",
         "frontend/typescript/static_assets.ts"
-    ],
+    ]
 }

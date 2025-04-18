@@ -1,10 +1,10 @@
 {
-    "targets": {
-        "Pacoplay frontend": {
-            "inputs": [
-                "src/Main.elm"
-            ],
-            "output": "../target/elm.js"
-        }
+  "targets": {
+    "Pacoplay frontend": {
+      "inputs": [
+        "src/Main.elm"
+      ],
+      "output": "../web-target/elm.js"
     }
+  }
 }

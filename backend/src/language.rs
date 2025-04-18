@@ -76,12 +76,12 @@ fn is_language_supported(lang: &str) -> bool {
 /// Returns the path to the minified compiled elm file if the language is supported.
 pub fn get_static_language_file(lang: &str) -> Option<&'static str> {
     match lang {
-        "en" => Some("../target/js/elm.en.min.js"),
-        "nl" => Some("../target/js/elm.nl.min.js"),
-        "eo" => Some("../target/js/elm.eo.min.js"),
-        "de" => Some("../target/js/elm.de.min.js"),
-        "sv" => Some("../target/js/elm.sv.min.js"),
-        "es" => Some("../target/js/elm.es.min.js"),
+        "en" => Some("../web-target/js/elm.en.min.js"),
+        "nl" => Some("../web-target/js/elm.nl.min.js"),
+        "eo" => Some("../web-target/js/elm.eo.min.js"),
+        "de" => Some("../web-target/js/elm.de.min.js"),
+        "sv" => Some("../web-target/js/elm.sv.min.js"),
+        "es" => Some("../web-target/js/elm.es.min.js"),
         _ => None,
     }
 }

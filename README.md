@@ -18,46 +18,67 @@ project:
 
 # Running the Project for Development
 
-## Installations
+Sorry, this is a bit of a mess.
+
+## Install Required Software
 
 If you want to run the development environment locally, you will need to have installed:
 
 - Rust, rustup, [wasm-pack](https://github.com/rustwasm/wasm-pack)
-  - `cargo binstall wasm-pack`
-- Elm and [elm-watch](https://github.com/lydell/elm-watch) and [elm-spa](https://www.elm-spa.dev/)
-- python3
+    - `cargo binstall wasm-pack`
+- Elm and [elm-watch](https://github.com/lydell/elm-watch) and [elm-spa](https://www.elm-spa.dev/) (via npm)
+- terser (via npm)
 - brotli
 - sqlx-cli (must be 0.5 :-/), e.g. via `cargo install sqlx-cli --version ^0.5`
-- typescript
+- typescript (via npm)
 
-## Internal Dependencies
+For the npm packages, consider
 
-The project has a few internal development tools that you'll need to install.
+- `sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root`
 
-### Cache Hash & i18n_gen
+If you want to work on the AI, you also need
 
-```sh
-cd backend
-cargo build --bin cache_hash --release
-cargo build --bin i18n_gen --release
-```
+- julia
 
-## Required Code Generation
+And there is some work towards a python package as well
 
-### Frontend
+- python3
 
-```sh
-./scripts/compile-frontend.sh
-```
+## Set up Database
 
-### Backend
+The project uses SQLx for database access. You need to create a database before
+it can compile the rust code.
 
 ```sh
 cd ../backend
 mkdir -p data
 sqlx database create
 sqlx migrate run
+cd ..
+```
+
+## Fake a Secrets File
+
+You can't get the real discord client secret, so you need to create a fake one.
+We use Discord to manage logins so we don't have to deal with emails and account
+recoveries.
+
+```sh
 echo 'discord_client_secret = ""' >> dev-secrets.toml
+```
+
+## Build everything
+
+The project has a few internal development tools that you'll need to build.
+
+```sh
+cargo build --all --release
+```
+
+## Compile the Frontend
+
+```sh
+./scripts/compile-frontend.sh
 ```
 
 ## Run the Project
@@ -82,7 +103,6 @@ elm-watch hot
 Building WASM artifacts is faster, if you have wasm-bindgen installed:
 
     cargo install wasm-bindgen-cli
-
 
 ## Rules for Paco Ŝako (Rust Library)
 
@@ -116,15 +136,15 @@ development server. You can set the language you see the UI in by going into
 the `frontend` folder and copying the right language version into position:
 
     # English
-    ./backend/target/debug/i18n_gen English
+    ./backend/target/release/i18n_gen English
     # Dutch
-    ./backend/target/debug/i18n_gen Dutch
+    ./backend/target/release/i18n_gen Dutch
     # Esperanto
-    ./backend/target/debug/i18n_gen Esperanto
+    ./backend/target/release/i18n_gen Esperanto
     # List all Languages
-    ./backend/target/debug/i18n_gen --list
+    ./backend/target/release/i18n_gen --list
     # Once you have chosen a language it is remembered any you can rebuild using
-    ./backend/target/debug/i18n_gen
+    ./backend/target/release/i18n_gen
 
 Once you copy this, the dev server `elm-watch hot` should pick up the change and recompile the
 frontend for you.
@@ -158,11 +178,13 @@ username-password user by inserting it directly into the database with
 
 ```sql
 -- First, insert the user into the user table
-INSERT INTO user (name, avatar) VALUES ('Rolf Kreibaum', 'identicon:204bedcd9a44b3e1db26e7619bca694d');
+INSERT INTO user (name, avatar)
+VALUES ('Rolf Kreibaum', 'identicon:204bedcd9a44b3e1db26e7619bca694d');
 
 -- Then, retrieve the ID of the newly inserted user and use it to insert into the login table
 INSERT INTO login (user_id, type, identifier, hashed_password)
-VALUES (last_insert_rowid(), 'password', 'rolf', '$argon2id$v=19$m=19456,t=2,p=1$OsG1y7Fvnq1FW8gKvlK4gQ$ryEgps/NG93d/Nyp8ri0GMR+LHymyb7ivnw5vnE4Q7U');
+VALUES (last_insert_rowid(), 'password', 'rolf',
+        '$argon2id$v=19$m=19456,t=2,p=1$OsG1y7Fvnq1FW8gKvlK4gQ$ryEgps/NG93d/Nyp8ri0GMR+LHymyb7ivnw5vnE4Q7U');
 ```
 
 To get the `argon2` hash of a password, run the server locally

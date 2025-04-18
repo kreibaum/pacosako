@@ -1,14 +1,11 @@
 #!/bin/bash
-
-# Gives us access to cache_hash, if compiled earlier in ./backend with
-# cargo build --bin cache_hash --release
-export PATH="$PWD/backend/target/release:$PATH"
+source ./scripts/prelude.sh || exit 1
 
 # Source directory
 src_dir="frontend/static/"
 
 # Destination directory
-dst_dir="target/assets/"
+dst_dir="web-target/assets/"
 
 # Output Elm file & ts file
 elm_file="frontend/.asset-list/StaticAssets.elm"
@@ -28,6 +25,7 @@ echo "var static_assets: any = {};" >> "${ts_file}"
 
 # Iterate over files in source directory
 for src_file in "${src_dir}"*; do
+    echo "Copying over ${src_file}"
     # Get the file name
     filename=$(basename "${src_file}")
 
@@ -35,7 +33,7 @@ for src_file in "${src_dir}"*; do
     cp "${src_file}" "${dst_dir}${filename}"
 
     # Pre-compress with brotli
-    brotli -f "${dst_dir}${filename}"
+    brotli $BROTLI_OPTS "${dst_dir}${filename}"
 
     # Calculate the hash of the file
     hash=$(cache_hash "${src_file}")
