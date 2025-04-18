@@ -50,6 +50,14 @@ jobs:
       - name: Compile all Binaries
         run: cargo build --all --release
 
+      - uses: actions/setup-node@v4
+
+      - name: Install Elm
+        run: sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
       - name: Compile Frontend
         run: scripts/compile-frontend.sh
 
