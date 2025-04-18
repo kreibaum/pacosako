@@ -25,6 +25,7 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        id: rust
 
       - name: Cache cargo build
         uses: actions/cache@v4
@@ -33,9 +34,9 @@ jobs:
             target
             ~/.cargo/registry
             ~/.cargo/git
-          key: rust-cache-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+          key: rust-cache-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            rust-cache-${{ steps.toolchain.outputs.cachekey }}-
+            rust-cache-${{ steps.rust.outputs.cachekey }}-
 
       - name: Install SQLX-tooling
         uses: baptiste0928/cargo-install@v3.0.1
@@ -44,22 +45,16 @@ jobs:
           version: latest
 
       - name: Setup Database
-        run: |
-          pwd
-          cd backend
-          mkdir -p data
-          sqlx database create
-          sqlx migrate run
-          cd ..
+        run: scripts/setup-fresh-database.sh
 
       - name: Run all rust tests in the cargo workspace
         run: cargo test --release
 
       - name: Compile Frontend
-        run: ./scripts/compile-frontend.sh
+        run: scripts/compile-frontend.sh
 
       - name: Create artifact deploy.tar.gz for deployment
-        run: ./scripts/package-artifact.sh
+        run: scripts/package-artifact.sh
 
       - name: Publish artifact
         uses: actions/upload-artifact@v4
@@ -69,13 +64,13 @@ jobs:
 
   deploy:
     # The type of runner that the job will run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/master'
     needs: [ build_and_test ]
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Check out deployment artifact
         uses: actions/download-artifact@v4

@@ -50,11 +50,7 @@ The project uses SQLx for database access. You need to create a database before
 it can compile the rust code.
 
 ```sh
-cd ../backend
-mkdir -p data
-sqlx database create
-sqlx migrate run
-cd ..
+scripts/setup-fresh-database.sh
 ```
 
 ## Fake a Secrets File
@@ -78,7 +74,7 @@ cargo build --all --release
 ## Compile the Frontend
 
 ```sh
-./scripts/compile-frontend.sh
+scripts/compile-frontend.sh
 ```
 
 ## Run the Project
@@ -93,7 +89,7 @@ cargo run
 ### Run the frontend
 
 ```sh
-./scripts/compile-frontend.sh
+scripts/compile-frontend.sh
 cd frontend
 elm-watch hot
 ```

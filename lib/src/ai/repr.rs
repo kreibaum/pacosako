@@ -50,7 +50,7 @@
 //!
 
 use crate::{
-    BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor, substrate::Substrate,
+    substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
 };
 
 /// Fills in the tensor representation of the board.
@@ -249,8 +249,8 @@ mod tests {
 
     use super::*;
 
-// Examples verified manually with LibreOffice Calc:
-    // ./scripts/board-representation-index-verification-util.ods
+    // Examples verified manually with LibreOffice Calc:
+    // scripts/board-representation-index-verification-util.ods
 
     #[test]
     fn initial_board() {

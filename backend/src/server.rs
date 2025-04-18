@@ -240,7 +240,7 @@ async fn elm_js(config: State<EnvironmentConfig>, query: Query<LangQuery>) -> im
 /// language version.
 /// This is required for hot reloading to work. For typescript we don't have
 /// hot reloading so we always use the minified version. Run
-/// ./scripts/compile-ts.sh to (re-)build.
+/// scripts/compile-ts.sh to (re-)build.
 pub fn elm_filename(lang: &str, use_min_js: bool) -> &'static str {
     if use_min_js {
         // TODO: This should serve brotli, if accepted.

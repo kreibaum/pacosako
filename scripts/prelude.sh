@@ -1,5 +1,5 @@
 # This script is intended to be sourced from other scripts in the project.
-# source ./scripts/prelude.sh || exit 1
+# source scripts/prelude.sh || exit 1
 
 ## Check if we are running in the correct directory
 ANCHOR_FILE="project-root-anchor.md"
@@ -18,6 +18,8 @@ case ":$PATH:" in
 esac
 
 ## Create directories if they don't exist
+mkdir -p backend/data
+
 mkdir -p web-build/elm
 mkdir -p web-build/frontend-ts
 mkdir -p web-build/frontend-wasm

@@ -1,5 +1,5 @@
 #!/bin/bash
-source ./scripts/prelude.sh || exit 1
+source scripts/prelude.sh || exit 1
 
 # Compiles the library into a WebAssembly file.
 # It then gets copied to the `web-target` folder.

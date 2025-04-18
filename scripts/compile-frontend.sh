@@ -1,5 +1,5 @@
 #!/bin/bash
-source ./scripts/prelude.sh || exit 1
+source scripts/prelude.sh || exit 1
 
 scripts/copy-assets.sh
 
