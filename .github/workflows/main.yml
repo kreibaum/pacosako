@@ -39,7 +39,7 @@ jobs:
             rust-cache-${{ steps.rust.outputs.cachekey }}-
 
       - name: Install SQLX Tooling
-        uses: cargo install sqlx-cli --version ^0.5
+        run: cargo install sqlx-cli --version ^0.5
 
       - name: Setup Database
         run: scripts/setup-fresh-database.sh
