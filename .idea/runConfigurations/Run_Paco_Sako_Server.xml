@@ -1,5 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Paco Sako Server" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="buildProfileId" value="dev" />
     <option name="command" value="run --package pacosako-tool-server --bin pacosako-tool-server" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/backend" />
     <envs />

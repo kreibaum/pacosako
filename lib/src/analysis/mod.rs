@@ -6,7 +6,7 @@ use std::fmt::Display;
 use serde::Serialize;
 
 use crate::{
-    determine_all_threats, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoAction,
+    substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoAction,
     PacoBoard, PacoError, PieceType, PlayerColor,
 };
 
@@ -17,7 +17,6 @@ pub mod incremental_replay;
 mod opening;
 pub mod puzzle;
 pub mod reverse_amazon_search;
-pub mod sako_witness;
 pub mod graph;
 
 #[derive(Serialize, PartialEq, Debug)]
@@ -279,28 +278,6 @@ pub fn history_to_replay_notation(
 ) -> Result<ReplayData, PacoError> {
     // This turns off the clock and ignores the callback.
     history_to_replay_notation_incremental(&initial_board, actions, || 0, |_| {})
-}
-
-pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
-    // If the game is already over, we don't need to check for ŝako.
-    if board.victory_state().is_over() {
-        return Ok(false);
-    }
-    let mut board = board.clone();
-    // Required for e.g. r2q1Ck1/ppp1n2p/4f2c/3d4/1b1o1e1P/2E1P3/P1P2PP1/2KR1B2 w 1 AHah - -
-    if board.required_action.is_promote() {
-        board.execute(PacoAction::Promote(PieceType::Queen))?;
-    }
-    board.controlling_player = for_player;
-
-    for threat in determine_all_threats(&board)? {
-        // Check if the opponent's king is on this square.
-        if board.substrate.is_piece(board.controlling_player.other(), threat, PieceType::King) {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
 }
 
 // Test module

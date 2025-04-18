@@ -1,8 +1,10 @@
 //! Module for the PacoAction and PacoActionSet
 
 use serde::{Deserialize, Serialize};
+use std::ops::BitAnd;
 
-use crate::{BoardPosition, PieceType, substrate::BitBoard};
+use crate::PieceType::{Knight, Queen};
+use crate::{substrate::BitBoard, BoardPosition, PieceType};
 
 /// A PacoAction is an action that can be applied to a PacoBoard to modify it.
 /// An action is an atomic part of a move, like picking up a piece or placing it down.
@@ -44,8 +46,23 @@ impl PieceTypeSet {
     fn contains(self, piece: PieceType) -> bool {
         self.0 & (1 << piece as u8) != 0
     }
-    fn all_promotion_options() -> Self {
+
+    /// Returns "Queen, Knight, Bishop or Rook" as promotion options.
+    pub const fn all_promotion_options() -> Self {
         PieceTypeSet(0b011110)
+    }
+
+    /// Returns "Queen or Knight" as a promotion options.
+    pub const fn good_promotion_option() -> Self {
+        PieceTypeSet((1 << Queen as u8) + (1 << Knight as u8))
+    }
+}
+
+impl BitAnd for PieceTypeSet {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        PieceTypeSet(self.0 & rhs.0)
     }
 }
 
@@ -165,5 +182,29 @@ impl IntoIterator for PacoActionSet {
                 bits: set.0 as u64,
             },
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::PieceType::{Bishop, Rook};
+    #[test]
+    fn all_promotion_options() {
+        let set = PieceTypeSet::all_promotion_options();
+        assert_eq!(set.len(), 4);
+        assert!(set.contains(Queen));
+        assert!(set.contains(Knight));
+        assert!(set.contains(Bishop));
+        assert!(set.contains(Rook));
+    }
+
+    #[test]
+    fn good_promotion_option() {
+        let set = PieceTypeSet::good_promotion_option();
+        assert_eq!(set.len(), 2);
+        assert!(set.contains(Queen));
+        assert!(set.contains(Knight));
     }
 }

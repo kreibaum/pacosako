@@ -89,6 +89,9 @@ pub enum PacoError {
     GameIsOver,
     #[error("There are no legal actions.")]
     NoLegalActions,
+    /// This error should never happen - it indicates a bug.
+    #[error("An internal error in the engine was detected:")]
+    InternalEngineError(String),
 }
 
 impl From<serde_json::Error> for PacoError {
@@ -1278,6 +1281,7 @@ impl PacoBoard for DenseBoard {
                 // discard chaining into a blocked pawn (or similar).
                 PacoActionSet::PlaceSet(self.threat_place_targets(position, piece))
             }
+            // Pairs never threaten.
             Hand::Pair { .. } => PacoActionSet::default(),
         }
     }
@@ -1452,7 +1456,7 @@ pub fn trace_first_move<S: std::hash::BuildHasher>(
 
 /// Given a Paco Ŝako board, determines which squares are threatened by the
 /// currently active player. Returns an array of booleans, one for each square.
-fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<BitBoard, PacoError> {
+pub fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<BitBoard, PacoError> {
     let mut all_threats = BitBoard::default();
 
     // This needs to follow all chain moves. Non-terminal chain actions are
@@ -1483,6 +1487,8 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<BitBoard, PacoError>
         for action in todo.actions()? {
             if let PacoAction::Place(target_position) = action {
                 let target_pieces = todo.get_at(target_position);
+                // This part makes sure that we only follow chain moves.
+                // We already collected the threats on empty places earlier.
                 if target_pieces.0.is_none() || target_pieces.1.is_none() {
                     // This is a very special case, but we need to test for
                     // en passant chaining.
@@ -1549,7 +1555,7 @@ mod tests {
     use super::*;
     use crate::analysis::graph::all_moves::determine_all_reachable_settled_states;
     use crate::analysis::graph::iter_traces;
-    use crate::analysis::is_sako;
+    use crate::analysis::reverse_amazon_search::is_sako;
     use parser::Square;
 
     /// Helper macro to execute moves in unit tests.

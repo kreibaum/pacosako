@@ -67,12 +67,16 @@ impl Square {
         self.white.is_none() && self.black.is_none()
     }
 
+    pub fn is_pair(&self) -> bool {
+        self.white.is_some() && self.black.is_some()
+    }
+
     pub fn from_hand(hand: &Hand, controlling_player: PlayerColor) -> Self {
         Square {
             white: hand.piece(),
             black: hand.partner(),
         }
-        .flip_if(controlling_player == Black)
+            .flip_if(controlling_player == Black)
     }
 
     /// Turns a square into a hand. We need some extra information to do that.

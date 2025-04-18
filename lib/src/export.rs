@@ -14,7 +14,7 @@ use crate::{
         glue::{action_index_to_action, action_to_action_index},
         repr::index_representation,
     },
-    analysis::{self, reverse_amazon_search},
+    analysis::reverse_amazon_search,
     determine_all_threats, fen,
     setup_options::SetupOptions,
     BoardPosition, DenseBoard, PacoAction, PacoBoard,
@@ -521,7 +521,7 @@ pub extern "C" fn random_position() -> *mut DenseBoard {
 #[no_mangle]
 pub unsafe extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
     let ps: &DenseBoard = unsafe { &*ps };
-    analysis::is_sako(ps, ps.controlling_player.other()).unwrap()
+    reverse_amazon_search::is_sako(ps, ps.controlling_player.other()).unwrap()
 }
 
 /// Returns a number between 0 and 64 that counts how many squares are threatened

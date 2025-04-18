@@ -5,11 +5,14 @@
 
 mod all_settled_states;
 
+use std::hash::Hash;
 use std::io::Write;
 
 use crate::config::EnvironmentConfig;
 use crate::{config, db::Connection, sync_match::SynchronizedMatch};
-use pacosako::{DenseBoard, PacoAction};
+use pacosako::analysis::graph::threatened_squares::determine_all_threatened_squares;
+use pacosako::fen::write_fen;
+use pacosako::{calculate_interning_hash, BoardPosition, DenseBoard, PacoAction, PacoBoard};
 
 // Loads games MIN_GAME_ID..=MAX_GAME_ID, inclusive
 // Bad apples are identified until 3000.
@@ -27,6 +30,68 @@ const BAD_APPLES: [i64; 45] = [183, 288, 301, 374, 376, 377, 378, 431, 484, 914,
 
 // Note that 1977, 1978, 2892, 4919, 4931 are really bad.
 
+
+// cargo test test::determine_all_moves_test --release -- --nocapture
+#[tokio::test]
+#[ignore] // Can't run in CI, because it needs "production" database access
+async fn determine_all_moves_test() {
+    let config = config::load_config();
+
+    let games = load_and_filter_matches(config).await;
+
+    'games: for game in games {
+        let mut board = DenseBoard::new();
+        for action in game.actions {
+            let action = (&action).into();
+            board.execute_trusted(action).unwrap();
+
+            if board.victory_state.is_over() {
+                continue 'games;
+            }
+
+            if board.is_settled() {
+                let hash = calculate_interning_hash(&board);
+                let is_hash = hash == 7602812353642096749;
+                let fen = write_fen(&board);
+                println!("Board {}, action {:?}, hash {hash}", fen, action);
+
+                // Old code
+                let old_threats = pacosako::determine_all_threats(&board).expect("Old code failed");
+
+                // New code
+                let new_threats = determine_all_threatened_squares(board.clone()).expect("New code failed");
+
+                if old_threats != new_threats {
+                    for y in (0..8).rev() {
+                        for x in (0..8) {
+                            let pos = BoardPosition::new(x, y);
+                            if old_threats.contains(pos) {
+                                print!("X");
+                            } else {
+                                print!(".");
+                            }
+                        }
+                        print!("   ");
+                        for x in (0..8) {
+                            let pos = BoardPosition::new(x, y);
+                            if new_threats.contains(pos) {
+                                print!("X");
+                            } else {
+                                print!(".");
+                            }
+                        }
+                        println!();
+                    }
+                    println!();
+                }
+
+                assert_eq!(old_threats, new_threats);
+            }
+        }
+    }
+}
+
+// cargo test test::paco_2_performance --release -- --nocapture
 #[tokio::test]
 #[ignore] // Can't run in CI, because it needs "production" database access
 async fn paco_2_performance() {

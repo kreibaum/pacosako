@@ -6,13 +6,17 @@ use std::ops::Add;
 use super::graph;
 use crate::analysis::graph::edge::FirstEdge;
 use crate::analysis::graph::{iter_traces, Graph};
+use crate::paco_action::{PacoActionSet, PieceTypeSet};
 use crate::{
-    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate}
-    ,
+    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
     BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
 };
 
 pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, PacoError> {
+    if board.victory_state().is_over() {
+        return Ok(false);
+    }
+
     let board = normalize_board_for_sako_search(board, for_player)?;
     let tree = explore_paco_tree(board)?;
 
@@ -65,7 +69,7 @@ fn explore_paco_tree(
             }
             return None;
         },
-        |action| search.contains_action(action),
+        |todo| todo.actions().map(|s| search.restrict_actions(s)),
     )
 }
 
@@ -109,6 +113,17 @@ impl ReverseAmazonSearchResult {
             PacoAction::Promote(_) => true,
         }
     }
+
+    /// Given a set of actions, restricts them by what is relevant for the search.
+    /// As an under-promotion can never be relevant for a paco search, we exclude
+    /// those as well.
+    pub fn restrict_actions(&self, actions: PacoActionSet) -> PacoActionSet {
+        match actions {
+            PacoActionSet::LiftSet(set) => PacoActionSet::LiftSet(set & self.starting_tiles),
+            PacoActionSet::PlaceSet(set) => PacoActionSet::PlaceSet(set & self.chaining_tiles),
+            PacoActionSet::PromoteSet(set) => PacoActionSet::PromoteSet(set & PieceTypeSet::good_promotion_option()),
+        }
+    }
 }
 
 /// Tracks all the information that we need during a search.
@@ -134,24 +149,7 @@ impl<'a> AmazonContext<'a> {
         attacking_player: PlayerColor,
     ) -> Result<AmazonContext<'a>, PacoError> {
         // Determine if there is an en-passant square we have to care about.
-        let (en_passant_tile, en_passant_slide_from) = if let Some(pos) = board.en_passant {
-            // Find square the pawn now is on.
-            let en_passant_slide_from = pos
-                .advance_pawn(attacking_player.other())
-                .expect("The en-passant square should never be at the border.");
-            // Check if this is a pair. Otherwise we don't care.
-            // We need our own piece in the pair there to chain into it.
-            if board
-                .substrate
-                .has_piece(attacking_player, en_passant_slide_from)
-            {
-                (Some(pos), Some(en_passant_slide_from))
-            } else {
-                (None, None)
-            }
-        } else {
-            (None, None)
-        };
+        let (en_passant_tile, en_passant_slide_from) = Self::en_passant_context(board, attacking_player).unzip();
 
         let mut todo_list = BitBoard::default();
         let king_position = board.substrate.find_king(attacking_player.other())?;
@@ -172,6 +170,23 @@ impl<'a> AmazonContext<'a> {
             lifted_tile: board.lifted_piece.position(),
             lifted_type: board.lifted_piece.piece(),
         })
+    }
+
+    fn en_passant_context(board: &DenseBoard, attacking_player: PlayerColor) -> Option<(BoardPosition, BoardPosition)> {
+        // Find square the pawn now is on.
+        let en_passant_slide_from = board.en_passant?
+            .advance_pawn(attacking_player.other())
+            .expect("The en-passant square should never be at the border.");
+        // Check if this is a pair. Otherwise, we don't care.
+        // We need our own piece in the pair there to chain into it.
+        if board
+            .substrate
+            .has_piece(attacking_player, en_passant_slide_from)
+        {
+            Some((board.en_passant?, en_passant_slide_from))
+        } else {
+            None
+        }
     }
 
     /// Takes an arbitrary tile from the todo list that was not visited yet and

@@ -25,7 +25,11 @@
 //! This module makes the assumption, that the hash is free from collisions.
 
 use crate::analysis::graph::edge::EdgeData;
+use crate::const_tile::A8;
+use crate::fen::write_fen;
+use crate::paco_action::PacoActionSet;
 use crate::trivial_hash::TrivialHashBuilder;
+use crate::PacoAction::Lift;
 use crate::{calculate_interning_hash, DenseBoard, PacoAction, PacoBoard, PacoError};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
@@ -65,12 +69,13 @@ pub struct SearchContext {
 /// The `marker_function` is called for every node in the graph.
 /// Use it to mark the nodes you are looking for.
 ///
-/// The `is_action_considered` function allows you to further restrict the
+/// The `actions` function allows you to further restrict the
 /// action set that is considered.
+/// Or you pass in `|todo| todo.actions()` for no restrictions.
 pub fn breadth_first_search<M, E: EdgeData>(
     mut board: DenseBoard,
     marker_function: impl Fn(&DenseBoard, u64, &Graph<M, E>, &SearchContext) -> Option<M>,
-    is_action_considered: impl Fn(PacoAction) -> bool,
+    actions: impl Fn(&DenseBoard) -> Result<PacoActionSet, PacoError>,
 ) -> Result<Graph<M, E>, PacoError> {
     let created_from_hash = calculate_interning_hash(&board);
 
@@ -105,12 +110,11 @@ pub fn breadth_first_search<M, E: EdgeData>(
             // We don't search from these, but still mark them. (just did that)
             continue 'todo_loop;
         }
-        'action_loop: for action in todo.actions()? {
-            if !is_action_considered(action) {
-                continue 'action_loop;
-            }
+        for action in actions(&todo)? {
             let mut next = todo.clone();
-            next.execute_trusted(action)?;
+            let is_problem = action == Lift(A8);
+            //next.execute_trusted(action)?;
+            next.execute(action).expect(&format!("Error executing action {:?} on board {}", action, write_fen(&todo)));
             let next_hash = calculate_interning_hash(&next);
 
             match result.edges_in.entry(next_hash) {
@@ -168,6 +172,6 @@ pub fn iter_traces<M, E: EdgeData>(
     graph.marked_nodes.iter()
         .map(|(hash, marker)| {
             let trace = trace_actions_back_to(*hash, graph.created_from_hash, &graph.edges_in);
-            (trace, marker.clone())
+            (trace, marker)
         })
 }
