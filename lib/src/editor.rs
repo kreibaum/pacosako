@@ -2,7 +2,8 @@ use std::cmp::max;
 
 /// Support functions for the pacoplay editor.
 use crate::{analysis::reverse_amazon_search, DenseBoard, PacoError};
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
+
 
 /// Find a board with a long paco chain and return it.
 /// This tries a fixed amount of times and returns the best result.
@@ -11,12 +12,12 @@ use rand::{thread_rng, Rng};
 /// To avoid everything involving promotions, we'll exclude boards which
 /// have promotions as part of any chain.
 pub fn random_position(tries: u32) -> Result<DenseBoard, PacoError> {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let mut best_board = DenseBoard::new();
     let mut best_chain_length = 0;
     let mut best_amount_of_chains = 0;
     for _ in 0..tries {
-        let board: DenseBoard = rng.gen();
+        let board: DenseBoard = rng.random();
         let white_sequences =
             reverse_amazon_search::find_paco_sequences(&board, crate::PlayerColor::White)?;
 
@@ -58,7 +59,7 @@ pub fn random_position(tries: u32) -> Result<DenseBoard, PacoError> {
         // we'll take this board.
         if longest_shortest_sequence > best_chain_length
             || (longest_shortest_sequence == best_chain_length
-                && amount_of_chains > best_amount_of_chains)
+            && amount_of_chains > best_amount_of_chains)
         {
             best_board = board;
             best_chain_length = longest_shortest_sequence;

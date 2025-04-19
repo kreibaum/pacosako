@@ -3,4 +3,12 @@ members = [
     "backend",
     "lib",
     "frontend-wasm",
+    #    "python",
 ]
+resolver = "3"
+
+[profile.release]
+debug = true
+
+[profile.release.package.frontend-wasm]
+opt-level = "s"

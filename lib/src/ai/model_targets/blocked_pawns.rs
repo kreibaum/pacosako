@@ -1,5 +1,5 @@
-use crate::{BoardPosition, DenseBoard, PieceType, PlayerColor};
 use crate::substrate::{BitBoard, Substrate};
+use crate::{BoardPosition, DenseBoard, PieceType, PlayerColor};
 
 /// Write out which paws are blocked from moving. This is for both players, so we need 128 f32 values
 /// of output space.
@@ -11,17 +11,18 @@ use crate::substrate::{BitBoard, Substrate};
 /// # Safety
 ///
 /// The ps pointer must be valid. The out pointer must be valid and have at least `reserved_space` reserved.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocked_pawns_target(ps: *mut DenseBoard, out: *mut f32, reserved_space: i64) -> i64 {
     if reserved_space < 128 {
         return -1;
     }
 
-    let board = &*ps;
+    let board = unsafe { &*ps };
     let my_blocked_pawns = blocked_pawns(board, board.controlling_player);
     let opponent_blocked_pawns = blocked_pawns(board, board.controlling_player.other());
 
-    let out = std::slice::from_raw_parts_mut(out, 128);
+    let out = unsafe { std::slice::from_raw_parts_mut(out, 128) };
     // Zero out the output space
     for i in 0..128 {
         out[i] = 0.0;

@@ -14,6 +14,7 @@
       <excludeFolder url="file://$MODULE_DIR$/lib/target" />
       <excludeFolder url="file://$MODULE_DIR$/python/target" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludePattern pattern="elm-stuff" />
     </content>
     <orderEntry type="inheritedJdk" />

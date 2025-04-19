@@ -24,7 +24,7 @@ use axum::{
     extract::{Query, State},
     response::{IntoResponse, Redirect},
 };
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use tower_cookies::{cookie::SameSite, Cookie, Cookies};
 use urlencoding::encode;
@@ -105,7 +105,7 @@ pub fn generate_link(config: &EnvironmentConfig, can_delete: bool) -> DiscordLog
     };
 
     let url = format!("https://discord.com/api/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify&state={}",
-        config.discord_client_id, encode(&redirect_uri), state);
+                      config.discord_client_id, encode(&redirect_uri), state);
 
     DiscordLoginLink {
         url,
@@ -307,8 +307,8 @@ async fn get_user_for_discord_user_id(
         "SELECT user_id FROM login WHERE type = 'discord' AND identifier = ?",
         discord_user_id
     )
-    .fetch_optional(&mut *conn)
-    .await?;
+        .fetch_optional(&mut *conn)
+        .await?;
 
     let Some(res) = res else {
         return Ok(None);
@@ -353,7 +353,7 @@ pub async fn please_create_account(
         &format!("identicon:{}", user_info.id),
         &mut conn,
     )
-    .await?;
+        .await?;
 
     // Associate the user with the discord login
     user::create_discord_login(user_id, user_info.id, &mut conn).await?;

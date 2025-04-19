@@ -6,8 +6,8 @@
 //! store it as flags on an u32 integer.
 
 use crate::{
-    BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor, RequiredAction,
-    substrate::Substrate,
+    substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
+    RequiredAction,
 };
 
 use super::repr;
@@ -137,7 +137,8 @@ impl FlexibleRepresentationOptions {
 }
 
 /// "With Opts" version of repr_layer_count.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub extern "C" fn repr_layer_count_opts(opts: u32) -> i64 {
     let Ok(options) = FlexibleRepresentationOptions::new(opts) else {
         return -1;
@@ -429,7 +430,7 @@ mod test {
                 }
                 let actions: Vec<_> = actions.into_iter().collect();
                 let action_count = actions.len();
-                let action = actions[rand::random::<usize>() % action_count];
+                let action = actions[rand::random_range(0..action_count)];
                 board.execute(action)?;
             }
 

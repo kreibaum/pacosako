@@ -249,11 +249,6 @@ fn sample_softmax(position_data: &PositionData) -> Result<&MoveData, JsValue> {
     Err(JsValue::from_str("Failed to sample position data from opening book."))
 }
 
-async fn determine_ai_action(board: &DenseBoard) -> Result<PacoAction, JsValue> {
-    let eval = ml::evaluate_model(board).await;
-    Ok(eval.with_temperature(0.01).sample())
-}
-
 /// Accepts the opening book that was just downloaded / taken from cache.
 #[wasm_bindgen(js_name = "initOpeningBook")]
 pub fn init_opening_book(data: String) -> Result<(), JsValue> {

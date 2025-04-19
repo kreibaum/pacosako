@@ -4,16 +4,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 
-use pacosako::{fen, PacoAction, PacoBoard, PacoError, PlayerColor};
 use pacosako::setup_options::SetupOptions;
+use pacosako::{fen, PacoAction, PacoBoard, PacoError, PlayerColor};
 
 use crate::db::{self, Connection};
-use crate::login::{user, UserId};
 use crate::login::user::{load_user_data_for_game, PublicUserData};
+use crate::login::{user, UserId};
 use crate::protection::ControlLevel;
-use crate::ServerError;
 use crate::timer::{Timer, TimerConfig, TimerState};
 use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
+use crate::ServerError;
 
 /// This module implements match synchronization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
@@ -352,7 +352,7 @@ impl SynchronizedMatch {
         // Check if control changed. That would indicate that we need to add a
         // timer increment for the player that just finished their turn.
         if board.controlling_player() != controlling_player {
-            if let Some(ref mut timer) = &mut self.timer {
+            if let Some(timer) = &mut self.timer {
                 timer.increment(controlling_player);
             }
         }
@@ -398,7 +398,7 @@ impl SynchronizedMatch {
 
     /// Checks if the timer is in NotStarted mode and starts it in that case.
     fn ensure_timer_is_running(&mut self) {
-        if let Some(ref mut timer) = &mut self.timer {
+        if let Some(timer) = &mut self.timer {
             if timer.get_state() == TimerState::NotStarted {
                 timer.start(Utc::now());
             }

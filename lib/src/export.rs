@@ -15,14 +15,15 @@ use crate::{
         repr::index_representation,
     },
     analysis::{self, reverse_amazon_search},
-    BoardPosition, DenseBoard,
-    determine_all_threats,
-    fen, PacoAction, PacoBoard, PieceType::*,
-    PlayerColor,
-    setup_options::SetupOptions, VictoryState,
+    determine_all_threats, fen,
+    setup_options::SetupOptions,
+    BoardPosition, DenseBoard, PacoAction, PacoBoard,
+    PieceType::*,
+    PlayerColor, VictoryState,
 };
 
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub extern "C" fn new() -> *mut DenseBoard {
     leak_to_julia(DenseBoard::with_options(&SetupOptions {
         draw_after_n_repetitions: 3,
@@ -43,7 +44,8 @@ fn leak_to_julia(board: DenseBoard) -> *mut DenseBoard {
 ///
 /// To make this function safe to call, you need to make sure that the pointer
 /// is valid and that the memory is not used anymore.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn drop(ps: *mut DenseBoard) {
     // Looks like it does not do anything, but should actually deallocate the
     // memory of the PacoSako data structure.
@@ -56,7 +58,8 @@ pub unsafe extern "C" fn drop(ps: *mut DenseBoard) {
 /// # Safety
 ///
 /// The ps pointer must be valid.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn print(ps: *mut DenseBoard) {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     println!("{:?}", ps);
@@ -68,7 +71,8 @@ pub unsafe extern "C" fn print(ps: *mut DenseBoard) {
 /// # Safety
 ///
 /// The ps pointer must be valid.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn clone(ps: *mut DenseBoard) -> *mut DenseBoard {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     Box::into_raw(Box::from(ps.clone()))
@@ -80,7 +84,8 @@ pub unsafe extern "C" fn clone(ps: *mut DenseBoard) -> *mut DenseBoard {
 /// # Safety
 ///
 /// The ps pointer must be valid.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     match ps.controlling_player() {
@@ -97,7 +102,8 @@ pub unsafe extern "C" fn current_player(ps: *mut DenseBoard) -> i64 {
 ///
 /// The ps pointer must be valid. The out pointer must be valid and the
 /// reserved_space must really be available.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn movelabel(
     ps: *mut DenseBoard,
     action: u8,
@@ -121,7 +127,7 @@ pub unsafe extern "C" fn movelabel(
         _ => "??".to_string(),
     };
 
-    write_byte_string(&label, out, reserved_space)
+    unsafe { write_byte_string(&label, out, reserved_space) }
 }
 
 /// Stores a 0 terminated array into the array given by the out pointer. The
@@ -132,7 +138,8 @@ pub unsafe extern "C" fn movelabel(
 ///
 /// The ps pointer must be valid. The out pointer must be valid and have at
 /// least 64 bytes of space.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn legal_actions(ps: *mut DenseBoard, mut out: *mut u8) {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     if let Ok(ls) = ps.actions() {
@@ -186,7 +193,8 @@ impl PlayerAlign for PacoAction {
 ///
 /// The pointer must point to a valid DenseBoard. The action does not have to be
 /// a legal action, nor does it have to be a valid action.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
 
@@ -208,7 +216,8 @@ pub unsafe extern "C" fn apply_action_bang(ps: *mut DenseBoard, action: u8) -> i
 /// # Safety
 ///
 /// The pointer must point to a valid DenseBoard.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn status(ps: *mut DenseBoard) -> i64 {
     use crate::PlayerColor::*;
     let ps: &mut DenseBoard = unsafe { &mut *ps };
@@ -228,7 +237,8 @@ pub unsafe extern "C" fn status(ps: *mut DenseBoard) -> i64 {
 /// # Safety
 ///
 /// The pointer must point to a valid DenseBoard.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn half_move_count(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     ps.half_move_count as i64
@@ -239,7 +249,8 @@ pub unsafe extern "C" fn half_move_count(ps: *mut DenseBoard) -> i64 {
 /// # Safety
 ///
 /// The pointer must point to a valid DenseBoard.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn move_count(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     ps.move_count as i64
@@ -250,7 +261,8 @@ pub unsafe extern "C" fn move_count(ps: *mut DenseBoard) -> i64 {
 /// # Safety
 ///
 /// The pointer must point to a valid DenseBoard.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn action_count(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
     ps.action_count as i64
@@ -266,7 +278,8 @@ pub unsafe extern "C" fn action_count(ps: *mut DenseBoard) -> i64 {
 /// # Safety
 ///
 /// The pointer must point to a valid DenseBoard.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn serialize_len(ps: *mut DenseBoard) -> i64 {
     let ps: &mut DenseBoard = unsafe { &mut *ps };
 
@@ -291,7 +304,8 @@ pub unsafe extern "C" fn serialize_len(ps: *mut DenseBoard) -> i64 {
 ///
 /// The out pointer must point to a valid u8 array with at least serialize_len(ps)
 /// bytes of space. The ps pointer must point to a valid DenseBoard.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn serialize(
     ps: *mut DenseBoard,
     mut out: *mut u8,
@@ -333,10 +347,11 @@ pub unsafe extern "C" fn serialize(
 /// # Safety
 ///
 /// The bincode_ptr must point to a valid u8 array with at least reserved_space.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn deserialize(bincode_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
     // Convert the pointer to a slice
-    let bincode_slice = std::slice::from_raw_parts(bincode_ptr, reserved_space as usize);
+    let bincode_slice = unsafe { std::slice::from_raw_parts(bincode_ptr, reserved_space as usize) };
 
     let board: Result<DenseBoard, _> = bincode::deserialize(bincode_slice);
     match board {
@@ -351,7 +366,8 @@ pub unsafe extern "C" fn deserialize(bincode_ptr: *mut u8, reserved_space: i64) 
 /// Layers are:
 /// (Pawn, Rook, Knight, Bishop, Queen, King) x (White, Black) x (settled, lifted) # 24
 /// Single layers for flags, 4xCastling + en passant + no-progress # 6
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub extern "C" fn repr_layer_count() -> i64 {
     24 + 6
 }
@@ -370,7 +386,8 @@ pub extern "C" fn repr_layer_count() -> i64 {
 /// # Returns
 ///
 /// The number of u32 that must be reserved to store the index representation.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub extern "C" fn get_idx_repr_length(opts: u32) -> i64 {
     let Ok(options) = FlexibleRepresentationOptions::new(opts) else {
         return -1;
@@ -400,7 +417,8 @@ pub extern "C" fn get_idx_repr_length(opts: u32) -> i64 {
 /// To make this function safe to call, you need to ensure that ps points to
 /// a valid DenseBoard. Additionally, the `out` pointer must point to a memory
 /// block of at least reserved_space u32.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_idxrepr_opts(
     ps: *mut DenseBoard,
     out: *mut u32,
@@ -416,9 +434,9 @@ pub unsafe extern "C" fn get_idxrepr_opts(
         return -1;
     }
 
-    let ps: &mut DenseBoard = &mut *ps;
+    let ps: &mut DenseBoard = unsafe { &mut *ps };
     // Turn out into a slice for the safe code to use
-    let out: &mut [u32] = std::slice::from_raw_parts_mut(out, reserved_space as usize);
+    let out: &mut [u32] = unsafe { std::slice::from_raw_parts_mut(out, reserved_space as usize) };
 
     let Ok(repr) = options.index_representation(ps) else {
         return -3;
@@ -438,7 +456,8 @@ pub unsafe extern "C" fn get_idxrepr_opts(
 /// To make this function safe to call, you need to ensure that the out pointer
 /// points to a memory block of at least 38 u32. Additionally, you need to ensure
 /// that ps points to a valid DenseBoard.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 #[deprecated] // use get_idxrepr_opts
 pub unsafe extern "C" fn get_idxrepr(
     ps: *mut DenseBoard,
@@ -478,7 +497,8 @@ fn mirror_paco_position(pos: BoardPosition) -> BoardPosition {
 ///
 /// To make this function safe to call, you need to ensure that ps1 and ps2
 /// point to valid DenseBoard instances.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i64 {
     let ps1: &DenseBoard = unsafe { &*ps1 };
     let ps2: &DenseBoard = unsafe { &*ps2 };
@@ -497,7 +517,8 @@ pub unsafe extern "C" fn equals(ps1: *mut DenseBoard, ps2: *mut DenseBoard) -> i
 ///
 /// To make this function safe to call, you need to ensure that ps points to a
 /// valid DenseBoard instance.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hash(ps: *mut DenseBoard) -> u64 {
     use std::hash::{Hash, Hasher};
     let ps: &DenseBoard = unsafe { &*ps };
@@ -507,7 +528,8 @@ pub unsafe extern "C" fn hash(ps: *mut DenseBoard) -> u64 {
 }
 
 /// Returns a random position.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub extern "C" fn random_position() -> *mut DenseBoard {
     leak_to_julia(rand::random())
 }
@@ -518,7 +540,8 @@ pub extern "C" fn random_position() -> *mut DenseBoard {
 ///
 /// To make this function safe to call, you need to ensure that ps points to a
 /// valid DenseBoard instance.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
     let ps: &DenseBoard = unsafe { &*ps };
     analysis::is_sako(ps, ps.controlling_player.other()).unwrap()
@@ -531,7 +554,8 @@ pub unsafe extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
 ///
 /// To make this function safe to call, you need to ensure that ps points to a
 /// valid DenseBoard instance.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
@@ -550,7 +574,8 @@ pub unsafe extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
 /// valid DenseBoard instance.
 /// Additionally, you need to ensure that out points to a memory block of at least
 /// reserved_space u8.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn find_paco_sequences(
     ps: *mut DenseBoard,
     out: *mut u8,
@@ -634,12 +659,13 @@ fn write_out_chain(
 /// valid DenseBoard instance.
 /// Additionally, you need to ensure that out points to a memory block of at least
 /// reserved_space u8.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn write_fen(ps: *mut DenseBoard, out: *mut u8, reserved_space: i64) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
     let fen_string = fen::write_fen(ps);
-    write_byte_string(&fen_string, out, reserved_space)
+    unsafe { write_byte_string(&fen_string, out, reserved_space) }
 }
 
 unsafe fn write_byte_string(string: &str, out: *mut u8, reserved_space: i64) -> i64 {
@@ -668,7 +694,8 @@ unsafe fn write_byte_string(string: &str, out: *mut u8, reserved_space: i64) -> 
 ///
 /// To make this function safe to call, you need to ensure that fen_ptr points to a
 /// valid memory block of at least reserved_space u8.
-#[no_mangle]
+// SAFETY: there is no other global function of this name.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) -> *mut DenseBoard {
     // Read bytes into a buffer vector
     let mut buffer = Vec::with_capacity(reserved_space as usize);
@@ -698,7 +725,7 @@ pub unsafe extern "C" fn parse_fen(mut fen_ptr: *mut u8, reserved_space: i64) ->
 /// Test module
 #[cfg(test)]
 mod tests {
-    use crate::{DenseBoard, substrate::dense::DenseSubstrate};
+    use crate::{substrate::dense::DenseSubstrate, DenseBoard};
 
     /// Checks if a DenseBoard can be serialized and deserialized without
     /// breaking. Thomas reported this as broken on 2023-12-02.

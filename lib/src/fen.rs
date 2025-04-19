@@ -35,8 +35,8 @@ use lazy_regex::regex_captures;
 use lazy_static::lazy_static;
 
 use crate::{
-    BoardPosition, Castling, DenseBoard, Hand, PacoError, parser::Square, PlayerColor,
-    RequiredAction, substrate::Substrate,
+    parser::Square, substrate::Substrate, BoardPosition, Castling, DenseBoard, Hand, PacoError,
+    PlayerColor, RequiredAction,
 };
 
 /// This needs its own method or rustfmt gets unhappy.
@@ -273,6 +273,7 @@ mod tests {
     use crate::DenseBoard;
     use crate::PacoAction;
     use crate::PacoBoard;
+    use rand::{rng, Rng};
 
     use super::*;
 
@@ -349,11 +350,9 @@ mod tests {
     /// Generate some random boards and roundtrip them through the serialization
     #[test]
     fn roundtrip() {
-        use rand::{Rng, thread_rng};
-
-        let mut rng = thread_rng();
+        let mut rng = rng();
         for _ in 0..1000 {
-            let board: DenseBoard = rng.gen();
+            let board: DenseBoard = rng.random();
             let fen = write_fen(&board);
             println!("Fen: {}", fen);
             let board_after_roundtrip = parse_fen(&fen).unwrap();
@@ -365,16 +364,15 @@ mod tests {
     /// of actions (1-5) on the board first.
     #[test]
     fn roundtrip_after_actions() {
-        use rand::{prelude::IteratorRandom, Rng, thread_rng};
+        use rand::{prelude::IteratorRandom, rng, Rng};
 
-        let mut rng = thread_rng();
         for _ in 0..1000 {
-            let mut board: DenseBoard = rng.gen();
+            let mut board: DenseBoard = rng().random();
             println!("Starting board: {}", write_fen(&board));
-            let action_count = rng.gen_range(1..=5);
+            let action_count = rng().random_range(1..=5);
             for _ in 0..action_count {
                 // We can't trust that the game didn't just end earlier.
-                if let Some(action) = board.actions().unwrap().iter().choose(&mut rng) {
+                if let Some(action) = board.actions().unwrap().iter().choose(&mut rng()) {
                     board.execute_trusted(action).unwrap();
                     print!("-> {:?} ", action);
                 }

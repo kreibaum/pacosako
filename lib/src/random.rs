@@ -4,13 +4,13 @@ use crate::substrate::Substrate;
 use crate::BoardPosition;
 use crate::PieceType::*;
 use crate::PlayerColor::{Black, White};
-use rand::distributions::{Distribution, Standard};
+use rand::distr::{Distribution, StandardUniform};
 use rand::Rng;
 
 /// Defines a random generator for Paco Ŝako games that are not over yet.
 /// I.e. where both kings are still free. This works by placing the pieces
 /// randomly on the board.
-impl Distribution<DenseBoard> for Standard {
+impl Distribution<DenseBoard> for StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> DenseBoard {
         let mut board = DenseBoard::new();
 
@@ -47,7 +47,7 @@ impl Distribution<DenseBoard> for Standard {
             if i.0 < 8
                 && board.substrate.is_piece(White, i, Pawn)
                 && (!board.substrate.has_piece(Black, i)
-                    || board.substrate.is_piece(Black, i, King))
+                || board.substrate.is_piece(Black, i, King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_white(&board, rng);
@@ -64,7 +64,7 @@ impl Distribution<DenseBoard> for Standard {
             if i.0 >= 56
                 && board.substrate.is_piece(Black, i, Pawn)
                 && (!board.substrate.has_piece(White, i)
-                    || board.substrate.is_piece(White, i, King))
+                || board.substrate.is_piece(White, i, King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_black(&board, rng);
@@ -102,7 +102,7 @@ impl Distribution<DenseBoard> for Standard {
         }
 
         // Randomize current player
-        board.controlling_player = if rng.gen() { White } else { Black };
+        board.controlling_player = if rng.random() { White } else { Black };
 
         // Figure out if any castling permissions remain
         let white_king_in_position = board.substrate.is_piece(White, E1, King);
@@ -125,7 +125,7 @@ impl Distribution<DenseBoard> for Standard {
 /// The runtime of this function is not deterministic. (Geometric distribution)
 fn random_empty_position<R: Rng + ?Sized>(board: &DenseBoard, rng: &mut R) -> BoardPosition {
     loop {
-        let candidate = BoardPosition(rng.gen_range(0..64));
+        let candidate = BoardPosition(rng.random_range(0..64));
         if board.substrate.is_empty(candidate) {
             return candidate;
         }
@@ -139,7 +139,7 @@ fn random_position_without_white<R: Rng + ?Sized>(
     rng: &mut R,
 ) -> BoardPosition {
     loop {
-        let candidate = BoardPosition(rng.gen_range(0..64));
+        let candidate = BoardPosition(rng.random_range(0..64));
         if !board.substrate.has_piece(White, candidate) {
             return candidate;
         }
@@ -153,7 +153,7 @@ fn random_position_without_black<R: Rng + ?Sized>(
     rng: &mut R,
 ) -> BoardPosition {
     loop {
-        let candidate = BoardPosition(rng.gen_range(0..64));
+        let candidate = BoardPosition(rng.random_range(0..64));
         if !board.substrate.has_piece(Black, candidate) {
             return candidate;
         }
@@ -163,14 +163,13 @@ fn random_position_without_black<R: Rng + ?Sized>(
 #[cfg(test)]
 mod tests {
     use crate::{fen, substrate::Substrate, DenseBoard, PieceType, PlayerColor::*};
+    use rand::Rng;
 
     #[test]
     fn random_dense_board_consistent() {
-        use rand::{thread_rng, Rng};
-
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..1000 {
-            let board: DenseBoard = rng.gen();
+            let board: DenseBoard = rng.random();
             let fen = fen::write_fen(&board);
 
             // Count pieces

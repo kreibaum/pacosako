@@ -55,6 +55,7 @@ jobs:
       - name: Install Elm
         run: sudo npm install -g elm elm-spa@latest typescript terser --unsafe-perm=true --allow-root
 
+      # https://rustwasm.github.io/docs/wasm-bindgen/wasm-bindgen-test/continuous-integration.html#github-actions
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
