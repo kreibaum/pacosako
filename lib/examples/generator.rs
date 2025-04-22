@@ -8,7 +8,7 @@ fn main() {
 }
 
 pub fn build_file(path: &str, size: usize) -> Result<(), std::io::Error> {
-    let mut rng = rand::rng();
+    let mut rng = rand::thread_rng();
     let mut file = File::create(path)?;
     write!(file, "[")?;
     write!(file, "{}", rng.next_u64())?;

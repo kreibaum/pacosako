@@ -2,7 +2,7 @@
 name = "frontend-wasm"
 version = "0.1.0"
 authors = ["Rolf Kreibaum <rolf.kreibaum@posteo.de>"]
-edition = "2024"
+edition = "2021"
 description = "Pacosako frontend support library compiled to WebAssembly"
 repository = "https://github.com/kreibaum/pacosako"
 
@@ -16,7 +16,7 @@ default = ["console_error_panic_hook"]
 # We are not using this directly, but this is still required for wasm-bindgen to work.
 # See https://docs.rs/getrandom/#webassembly-support
 getrandom = { version = "0.2", features = ["js"] }
-rand = "0.9.1"
+rand = "0.8.5"
 wasm-bindgen = "0.2.92"
 wasm-bindgen-futures = "0.4.42"
 web-sys = { version = "0.3.64", features = [
@@ -44,3 +44,7 @@ wasm-bindgen-test = "0.3.34"
 # Skips wasm-opt for local build. This is way faster.
 [package.metadata.wasm-pack.profile.dev]
 wasm-opt = false
+
+# https://docs.rs/getrandom/latest/getrandom/#opt-in-backends
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']

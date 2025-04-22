@@ -2,7 +2,7 @@
 name = "pacosako-rust"
 version = "0.1.0"
 authors = ["rolf"]
-edition = "2024"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -10,7 +10,7 @@ name = "pacosako"
 path = "src/lib.rs"
 
 [dependencies]
-rand = "0.9.1"
+rand = "0.8.5"
 nom = "7.1.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

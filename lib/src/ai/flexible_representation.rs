@@ -430,7 +430,7 @@ mod test {
                 }
                 let actions: Vec<_> = actions.into_iter().collect();
                 let action_count = actions.len();
-                let action = actions[rand::random_range(0..action_count)];
+                let action = actions[rand::random::<usize>() % action_count];
                 board.execute(action)?;
             }
 
