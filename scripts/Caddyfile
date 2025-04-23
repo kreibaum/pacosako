@@ -18,6 +18,8 @@ dev.pacoplay.com {
 # Static artifact hosting for ML models
 static.kreibaum.dev {
 	root * /home/pacosako/static
-	file_server browse
+	file_server browse {
+		precompressed br
+	}
 	header Access-Control-Allow-Origin "*"
 }
