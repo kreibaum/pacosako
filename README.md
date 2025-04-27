@@ -7,7 +7,7 @@
 
 This is the codebase for the [pacoplay.com website](http://pacoplay.com). It has a frontend written in
 [Elm](https://elm-lang.org) and a backend written in [Rust](https://rust-lang.org) based on the
-Rocket server framework.
+Axum server framework.
 
 If you want to help with the translation, you can do so on our [Weblate](https://hosted.weblate.org/engage/pacoplay/)
 project:

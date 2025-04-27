@@ -120,7 +120,7 @@ fn init_logger() {
 // Start the server ////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-/// Initialize the database Pool and register it as a Rocket state.
+/// Initialize the database Pool. This will be managed as an Axum state.
 pub async fn init_database_pool(config: EnvironmentConfig) -> Pool {
     info!("Creating database pool");
     let now = std::time::Instant::now();
