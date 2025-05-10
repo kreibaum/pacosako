@@ -1,4 +1,5 @@
 use super::DenseBoard;
+use crate::castling::Castling;
 use crate::const_tile::*;
 use crate::substrate::Substrate;
 use crate::BoardPosition;
@@ -108,14 +109,18 @@ impl Distribution<DenseBoard> for Standard {
         let white_king_in_position = board.substrate.is_piece(White, E1, King);
         let black_king_in_position = board.substrate.is_piece(White, E8, King);
 
-        board.castling.white_queen_side =
-            white_king_in_position && board.substrate.is_piece(White, A1, Rook);
-        board.castling.white_king_side =
-            white_king_in_position && board.substrate.is_piece(White, H1, Rook);
-        board.castling.black_queen_side =
-            black_king_in_position && board.substrate.is_piece(Black, A8, Rook);
-        board.castling.black_king_side =
-            black_king_in_position && board.substrate.is_piece(Black, H8, Rook);
+        if !(white_king_in_position && board.substrate.is_piece(White, A1, Rook)) {
+            board.castling.white_queen_side = Castling::FORFEIT;
+        }
+        if !(white_king_in_position && board.substrate.is_piece(White, H1, Rook)) {
+            board.castling.white_king_side = Castling::FORFEIT;
+        }
+        if !(black_king_in_position && board.substrate.is_piece(Black, A8, Rook)) {
+            board.castling.black_queen_side = Castling::FORFEIT;
+        }
+        if !(black_king_in_position && board.substrate.is_piece(Black, H8, Rook)) {
+            board.castling.black_king_side = Castling::FORFEIT;
+        }
 
         board
     }

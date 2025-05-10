@@ -5,11 +5,10 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
-use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::ops::Add;
 
-use castling::Castling;
+use castling::{get_castling_details, Castling};
 use fxhash::{FxHashMap, FxHashSet, FxHasher};
 use serde::{Deserialize, Serialize};
 
@@ -441,31 +440,11 @@ impl DenseBoard {
 
         if let Some(piece_type) = piece {
             // When lifting a rook, castling may be forfeit.
-            if piece_type == PieceType::Rook {
-                if position == A1 && self.controlling_player == PlayerColor::White {
-                    self.castling.white_queen_side = false;
-                } else if position == H1 && self.controlling_player == PlayerColor::White {
-                    self.castling.white_king_side = false;
-                } else if position == A8 && self.controlling_player == PlayerColor::Black {
-                    self.castling.black_queen_side = false;
-                } else if position == H8 && self.controlling_player == PlayerColor::Black {
-                    self.castling.black_king_side = false;
-                }
+            if piece_type == PieceType::Rook || partner == Some(PieceType::Rook) {
+                self.castling.forfeit_rights_for_lifting_rook(position);
             }
 
             if let Some(partner_type) = partner {
-                // When lifting an enemy rook, castling may be denied from them.
-                if partner_type == PieceType::Rook {
-                    if position == A1 && self.controlling_player == PlayerColor::Black {
-                        self.castling.white_queen_side = false;
-                    } else if position == H1 && self.controlling_player == PlayerColor::Black {
-                        self.castling.white_king_side = false;
-                    } else if position == A8 && self.controlling_player == PlayerColor::White {
-                        self.castling.black_queen_side = false;
-                    } else if position == H8 && self.controlling_player == PlayerColor::White {
-                        self.castling.black_king_side = false;
-                    }
-                }
                 self.lifted_piece = Hand::Pair {
                     piece: piece_type,
                     partner: partner_type,
@@ -962,62 +941,18 @@ impl DenseBoard {
             board_clone.required_action = RequiredAction::Lift;
             determine_all_threats(&board_clone)
         };
-        // Check if the castling right was not void earlier
-        if self.controlling_player == PlayerColor::White && self.castling.white_queen_side {
-            // Check if the spaces are empty
-            if self.substrate.is_empty(B1)
-                && self.substrate.is_empty(C1)
-                && self.substrate.is_empty(D1)
-            {
-                // Check that there are no threats
-                if lazy_threats.is_none() {
-                    lazy_threats = Some(calc_threats()?);
-                }
-                let threats = lazy_threats.unwrap();
-                if !threats[C1] && !threats[D1] && !threats[E1] {
-                    targets_on_board.insert(C1);
-                }
-            }
-        }
-        if self.controlling_player == PlayerColor::White && self.castling.white_king_side {
-            // Check if the spaces are empty
-            if self.substrate.is_empty(F1) && self.substrate.is_empty(G1) {
-                // Check that there are no threats
-                if lazy_threats.is_none() {
-                    lazy_threats = Some(calc_threats()?);
-                }
-                let threats = lazy_threats.unwrap();
-                if !threats[E1] && !threats[F1] && !threats[G1] {
-                    targets_on_board.insert(G1);
-                }
-            }
-        }
-        if self.controlling_player == PlayerColor::Black && self.castling.black_queen_side {
-            // Check if the spaces are empty
-            if self.substrate.is_empty(B8)
-                && self.substrate.is_empty(C8)
-                && self.substrate.is_empty(D8)
-            {
-                // Check that there are no threats
-                if lazy_threats.is_none() {
-                    lazy_threats = Some(calc_threats()?);
-                }
-                let threats = lazy_threats.unwrap();
-                if !threats[C8] && !threats[D8] && !threats[E8] {
-                    targets_on_board.insert(C8);
-                }
-            }
-        }
-        if self.controlling_player == PlayerColor::Black && self.castling.black_king_side {
-            // Check if the spaces are empty
-            if self.substrate.is_empty(F8) && self.substrate.is_empty(G8) {
-                // Check that there are no threats
-                if lazy_threats.is_none() {
-                    lazy_threats = Some(calc_threats()?);
-                }
-                let threats = lazy_threats.unwrap();
-                if !threats[E8] && !threats[F8] && !threats[G8] {
-                    targets_on_board.insert(G8);
+
+        for cci in self.castling.options(self.controlling_player) {
+            if let Some(details) = get_castling_details(cci) {
+                if self.substrate.all_empty(details.must_be_empty) {
+                    // Check that there are no threats
+                    if lazy_threats.is_none() {
+                        lazy_threats = Some(calc_threats()?);
+                    }
+                    let threats = lazy_threats.expect("Threat calculation failed!");
+                    if (threats & details.must_be_safe).is_empty() {
+                        targets_on_board.insert(details.place_target);
+                    }
                 }
             }
         }
@@ -2227,7 +2162,7 @@ mod tests {
         squares.insert(F1, Square::white(Bishop));
         squares.insert(H1, Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
-        board.castling.white_queen_side = false;
+        board.castling.white_queen_side = Castling::FORFEIT;
 
         execute_action!(board, lift, "e1");
 
@@ -2244,7 +2179,7 @@ mod tests {
         squares.insert(B5, Square::black(Bishop));
         squares.insert(H1, Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
-        board.castling.white_queen_side = false;
+        board.castling.white_queen_side = Castling::FORFEIT;
 
         execute_action!(board, lift, "e1");
 
@@ -2265,7 +2200,7 @@ mod tests {
         squares.insert(pos("b8"), Square::black(Rook));
         squares.insert(pos("a1"), Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
-        board.castling.white_king_side = false;
+        board.castling.white_king_side = Castling::FORFEIT;
 
         execute_action!(board, lift, "e1");
 

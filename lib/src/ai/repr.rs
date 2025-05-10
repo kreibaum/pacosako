@@ -50,7 +50,8 @@
 //!
 
 use crate::{
-    substrate::Substrate, BoardPosition, castling::Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
+    castling::Castling, substrate::Substrate, BoardPosition, DenseBoard, PacoBoard, PieceType,
+    PlayerColor,
 };
 
 /// Fills in the tensor representation of the board.
@@ -182,13 +183,13 @@ impl<'a> Output<'a> {
     }
 
     fn push_white_castling(&mut self, castling: Castling) {
-        self.push_bool(castling.white_queen_side);
-        self.push_bool(castling.white_king_side);
+        self.push_bool(castling.white_queen_side.is_available());
+        self.push_bool(castling.white_king_side.is_available());
     }
 
     fn push_black_castling(&mut self, castling: Castling) {
-        self.push_bool(castling.black_queen_side);
-        self.push_bool(castling.black_king_side);
+        self.push_bool(castling.black_queen_side.is_available());
+        self.push_bool(castling.black_king_side.is_available());
     }
 }
 

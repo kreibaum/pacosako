@@ -21,6 +21,10 @@ pub trait Substrate {
     fn is_empty(&self, pos: BoardPosition) -> bool {
         !self.has_piece(PlayerColor::White, pos) && !self.has_piece(PlayerColor::Black, pos)
     }
+    /// Returns whether the give BitBoard is empty for both players.
+    fn all_empty(&self, bitboard: BitBoard) -> bool {
+        bitboard.iter().all(|pos| self.is_empty(pos))
+    }
     /// Checks for a specific piece type
     fn is_piece(&self, player: PlayerColor, pos: BoardPosition, piece: PieceType) -> bool {
         self.get_piece(player, pos) == Some(piece)

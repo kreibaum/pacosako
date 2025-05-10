@@ -6,8 +6,8 @@
 //! store it as flags on an u32 integer.
 
 use crate::{
-    substrate::Substrate, BoardPosition, castling::Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
-    RequiredAction,
+    castling::Castling, substrate::Substrate, BoardPosition, DenseBoard, PacoBoard, PieceType,
+    PlayerColor, RequiredAction,
 };
 
 use super::repr;
@@ -146,7 +146,6 @@ pub extern "C" fn repr_layer_count_opts(opts: u32) -> i64 {
     options.layer_count() as i64
 }
 
-
 /// There are (piece types) * colors * (lifted/placed) = 6 * 2 * 2 = 24 layers
 /// for the piece position tensor.
 const INDEX_REPRESENTATION_LAYER_COUNT: usize = 24;
@@ -241,17 +240,26 @@ impl IndexRepresentation {
     }
 
     /// Adds four layers for castling rights. Values are 0 or 1.
+    /// This assumes standard position, no Fischer randomization.
     fn push_castling(&mut self, castling: Castling) {
         if self.used_perspective() == PlayerColor::White {
-            self.boolean_layers.push(castling.white_queen_side as u32);
-            self.boolean_layers.push(castling.white_king_side as u32);
-            self.boolean_layers.push(castling.black_queen_side as u32);
-            self.boolean_layers.push(castling.black_king_side as u32);
+            self.boolean_layers
+                .push(castling.white_queen_side.is_available() as u32);
+            self.boolean_layers
+                .push(castling.white_king_side.is_available() as u32);
+            self.boolean_layers
+                .push(castling.black_queen_side.is_available() as u32);
+            self.boolean_layers
+                .push(castling.black_king_side.is_available() as u32);
         } else {
-            self.boolean_layers.push(castling.black_queen_side as u32);
-            self.boolean_layers.push(castling.black_king_side as u32);
-            self.boolean_layers.push(castling.white_queen_side as u32);
-            self.boolean_layers.push(castling.white_king_side as u32);
+            self.boolean_layers
+                .push(castling.black_queen_side.is_available() as u32);
+            self.boolean_layers
+                .push(castling.black_king_side.is_available() as u32);
+            self.boolean_layers
+                .push(castling.white_queen_side.is_available() as u32);
+            self.boolean_layers
+                .push(castling.white_king_side.is_available() as u32);
         }
     }
 
@@ -407,8 +415,8 @@ mod test {
             representation.write_vec(),
             vec![
                 64, 129, 194, 259, 324, 197, 134, 71, 8, 9, 11, 12, 13, 14, 15, 26, 432, 433, 434,
-                435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 1554, 1, 1, 1, 1, 1,
-                1, 0, 1,
+                435, 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 1554, 1, 1, 1, 1,
+                1, 1, 0, 1,
             ]
         );
 

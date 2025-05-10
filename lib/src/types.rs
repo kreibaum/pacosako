@@ -163,6 +163,45 @@ impl BoardFile {
             _ => panic!("Invalid file"),
         }
     }
+
+    /// Returns the character on the file as lowercase.
+    pub fn to_char(&self) -> char {
+        use BoardFile::*;
+        match self {
+            FileA => 'a',
+            FileB => 'b',
+            FileC => 'c',
+            FileD => 'd',
+            FileE => 'e',
+            FileF => 'f',
+            FileG => 'g',
+            FileH => 'h',
+        }
+    }
+
+    /// For a given file letter, return the file and player color.
+    /// This is used for parsing FEN strings.
+    pub fn from_char(letter: char) -> Option<(BoardFile, PlayerColor)> {
+        use BoardFile::*;
+        let is_lowercase = letter.is_ascii_lowercase();
+        let player_color = if is_lowercase {
+            PlayerColor::Black
+        } else {
+            PlayerColor::White
+        };
+
+        match letter.to_ascii_lowercase() {
+            'a' => Some((FileA, player_color)),
+            'b' => Some((FileB, player_color)),
+            'c' => Some((FileC, player_color)),
+            'd' => Some((FileD, player_color)),
+            'e' => Some((FileE, player_color)),
+            'f' => Some((FileF, player_color)),
+            'g' => Some((FileG, player_color)),
+            'h' => Some((FileH, player_color)),
+            _ => None,
+        }
+    }
 }
 
 // TODO: This should really be renamed "Tile" to match the frontend.

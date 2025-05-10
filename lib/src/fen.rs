@@ -35,8 +35,8 @@ use lazy_regex::regex_captures;
 use lazy_static::lazy_static;
 
 use crate::{
-    BoardPosition, castling::Castling, DenseBoard, Hand, PacoError, parser::Square, PlayerColor,
-    RequiredAction, substrate::Substrate,
+    castling::Castling, parser::Square, substrate::Substrate, types::BoardFile, BoardPosition,
+    DenseBoard, Hand, PacoError, PlayerColor, RequiredAction,
 };
 
 /// This needs its own method or rustfmt gets unhappy.
@@ -165,7 +165,7 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
         result.set_hand(new_hand);
 
         result.draw_state.no_progress_half_moves = move_count.parse().unwrap();
-        result.castling = Castling::from_string(castling);
+        result.castling = Castling::from_fen(castling, BoardFile::FileE, BoardFile::FileE)?;
         result.en_passant = BoardPosition::try_from(en_passant).ok();
 
         Ok(result)
@@ -211,7 +211,7 @@ pub fn write_fen(input: &DenseBoard) -> String {
         "{}",
         write_hand(&input.lifted_piece, input.controlling_player)
     )
-        .unwrap();
+    .unwrap();
 
     write!(
         result,
@@ -222,13 +222,13 @@ pub fn write_fen(input: &DenseBoard) -> String {
             'b'
         },
         input.draw_state.no_progress_half_moves,
-        input.castling,
+        input.castling.into_fen(),
         input
             .en_passant
             .map(|sq| sq.to_string())
             .unwrap_or_else(|| "-".to_owned()),
     )
-        .unwrap();
+    .unwrap();
 
     result
 }
@@ -349,7 +349,7 @@ mod tests {
     /// Generate some random boards and roundtrip them through the serialization
     #[test]
     fn roundtrip() {
-        use rand::{Rng, thread_rng};
+        use rand::{thread_rng, Rng};
 
         let mut rng = thread_rng();
         for _ in 0..1000 {
@@ -365,7 +365,7 @@ mod tests {
     /// of actions (1-5) on the board first.
     #[test]
     fn roundtrip_after_actions() {
-        use rand::{prelude::IteratorRandom, Rng, thread_rng};
+        use rand::{prelude::IteratorRandom, thread_rng, Rng};
 
         let mut rng = thread_rng();
         for _ in 0..1000 {
