@@ -1,12 +1,17 @@
 extern crate console_error_panic_hook;
 
 use js_sys::Float32Array;
-use rand::{random, Rng};
+use rand::random;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
 use pacosako::opening_book::{MoveData, OpeningBook, PositionData};
-use pacosako::{analysis::{incremental_replay, puzzle, ReplayData}, editor, fen, setup_options::SetupOptions, DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor};
+use pacosako::{
+    analysis::{incremental_replay, puzzle, ReplayData},
+    editor, fen,
+    setup_options::SetupOptions,
+    DenseBoard, PacoAction, PacoBoard, PacoError, PlayerColor,
+};
 
 mod ml;
 mod utils;
@@ -41,7 +46,8 @@ pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
     let legal_actions: Vec<PacoAction> =
         data.actions().map_err(|e| e.to_string())?.iter().collect();
 
-    let checkpoint = pacosako::find_last_checkpoint_index(history_data.action_history.iter()).map_err(|e| e.to_string())?;
+    let checkpoint = pacosako::find_last_checkpoint_index(history_data.action_history.iter())
+        .map_err(|e| e.to_string())?;
     let can_rollback = history_data.action_history.len() > checkpoint;
 
     let legal_actions = LegalActionsDeterminedData {
@@ -186,12 +192,17 @@ async fn determine_ai_move_inner(board: &DenseBoard) -> Result<Vec<PacoAction>, 
         console_log(format!("No opening book move found for {}", fen).as_str());
     }
 
-    let actions = decide_turn_intuition(&board, vec![]).await.map_err(|e| e.to_string())?;
+    let actions = decide_turn_intuition(&board, vec![])
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(actions)
 }
 
 /// This is essentially a re-implementation of `decideturn` from Julia.
-async fn decide_turn_intuition(board: &DenseBoard, mut exclude: Vec<u64>) -> Result<Vec<PacoAction>, PacoError> {
+async fn decide_turn_intuition(
+    board: &DenseBoard,
+    mut exclude: Vec<u64>,
+) -> Result<Vec<PacoAction>, PacoError> {
     let ai_player = board.controlling_player;
 
     let mut actions = vec![];
@@ -246,7 +257,9 @@ fn sample_softmax(position_data: &PositionData) -> Result<&MoveData, JsValue> {
             return Ok(&position_data.suggested_moves[i]);
         }
     }
-    Err(JsValue::from_str("Failed to sample position data from opening book."))
+    Err(JsValue::from_str(
+        "Failed to sample position data from opening book.",
+    ))
 }
 
 /// Accepts the opening book that was just downloaded / taken from cache.

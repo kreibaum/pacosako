@@ -12,22 +12,22 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use pacosako::{PacoAction, PlayerColor};
 
+use crate::db::Connection;
+use crate::login::user;
+use crate::login::user::load_user_data_for_game;
+use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 use crate::{
     actors::websocket::SocketId,
     db,
     login::SessionId,
     protection::SideProtection,
-    ServerError,
     sync_match::{CurrentMatchState, CurrentMatchStateClient, SynchronizedMatch},
+    ServerError,
 };
-use crate::db::Connection;
-use crate::login::user;
-use crate::login::user::load_user_data_for_game;
-use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 
+pub mod socket_auth;
 /// Handles all the websocket client logic.
 pub mod wake_up_queue;
-pub mod socket_auth;
 
 // Everything can send messages to the logic. The logic is a singleton.
 pub static TO_LOGIC: OnceCell<Sender<LogicMsg>> = OnceCell::new();
@@ -111,7 +111,9 @@ async fn loop_logic_server(
                 ServerError::NotAllowed(_) => {
                     warn!("Error in the websocket: Not allowed.");
                 }
-                _ => { warn!("Error in the websocket: {:?}", e); }
+                _ => {
+                    warn!("Error in the websocket: {:?}", e);
+                }
             }
         }
     }
@@ -216,7 +218,10 @@ async fn handle_message(
                     }
                 }
                 Message::Binary(payload) => {
-                    Err(anyhow::Error::msg(format!("Binary message received: {:?}", payload)))?;
+                    Err(anyhow::Error::msg(format!(
+                        "Binary message received: {:?}",
+                        payload
+                    )))?;
                 }
                 Message::Ping(_) | Message::Pong(_) => {}
                 Message::Close(_) => {
@@ -331,9 +336,7 @@ async fn handle_client_message(
     ensure_uuid_is_allowed(room, &mut game, sender.get_owner()?, conn).await?;
 
     let state = match msg {
-        ClientMessage::DoAction { action, .. } => {
-            game.do_action(action)?
-        }
+        ClientMessage::DoAction { action, .. } => game.do_action(action)?,
         ClientMessage::Rollback { .. } => {
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.
@@ -342,7 +345,7 @@ async fn handle_client_message(
 
             game.rollback()?
         }
-        ClientMessage::TimeDriftCheck { send } => {
+        ClientMessage::TimeDriftCheck { .. } => {
             unreachable!("We already handled the TimeDriftCheck message.");
         }
     };
@@ -383,7 +386,8 @@ async fn handle_subscribe_to_match(
             wake_up_queue::put_utc(&key, next_reminder).await;
         }
     }
-    let client_state = CurrentMatchStateClient::try_new(state, room, sender.get_owner()?, conn).await?;
+    let client_state =
+        CurrentMatchStateClient::try_new(state, room, sender.get_owner()?, conn).await?;
 
     let response = ServerMessage::CurrentMatchState(Box::new(client_state));
     send_msg(response, &sender).await;
@@ -426,7 +430,6 @@ async fn ensure_uuid_is_allowed(
         (&mut room.black_player, &mut room.white_player)
     };
 
-
     let is_allowed = side_protection.test_and_assign(&sender_identity);
 
     if is_allowed {
@@ -457,25 +460,40 @@ async fn ensure_uuid_is_allowed(
         if other_side_control.can_control_or_take_over() && is_frontend_ai {
             return Ok(());
         } else {
-            Err(ServerError::NotAllowed("Your browser is not allowed to make moves for the current player.".to_string()))
+            Err(ServerError::NotAllowed(
+                "Your browser is not allowed to make moves for the current player.".to_string(),
+            ))
         }
     }
 }
 
 /// Broadcasts the `CurrentMatchState` to all clients connected to the room.
 /// Each client gets their own view, as they have different control levels.
-async fn broadcast_state(server_state: &mut ServerState, game: &SynchronizedMatch, state: CurrentMatchState, conn: &mut Connection) {
-    let Some(room) = server_state.rooms.get_mut(&game.key) else { return; };
+async fn broadcast_state(
+    server_state: &mut ServerState,
+    game: &SynchronizedMatch,
+    state: CurrentMatchState,
+    conn: &mut Connection,
+) {
+    let Some(room) = server_state.rooms.get_mut(&game.key) else {
+        return;
+    };
 
     let mut disconnected_sockets = vec![];
     'socket_loop: for target in &room.connected {
         if let Ok(sender_metadata) = target.get_owner() {
-            let Ok(client_state) = CurrentMatchStateClient::try_new(state.clone(), room, sender_metadata, conn).await else {
+            let Ok(client_state) =
+                CurrentMatchStateClient::try_new(state.clone(), room, sender_metadata, conn).await
+            else {
                 // Other sockets should learn about the state, so we silently ignore
                 warn!("Could not create client state for socket {:?}", target);
                 continue 'socket_loop;
             };
-            send_msg(ServerMessage::CurrentMatchState(Box::new(client_state)), target).await;
+            send_msg(
+                ServerMessage::CurrentMatchState(Box::new(client_state)),
+                target,
+            )
+            .await;
         } else {
             // If the socket is not alive, we remove it from the room.
             disconnected_sockets.push(*target);
