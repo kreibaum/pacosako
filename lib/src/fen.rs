@@ -35,7 +35,7 @@ use lazy_regex::regex_captures;
 use lazy_static::lazy_static;
 
 use crate::{
-    BoardPosition, Castling, DenseBoard, Hand, PacoError, parser::Square, PlayerColor,
+    BoardPosition, castling::Castling, DenseBoard, Hand, PacoError, parser::Square, PlayerColor,
     RequiredAction, substrate::Substrate,
 };
 

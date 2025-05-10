@@ -1,11 +1,11 @@
 use std::fmt;
 use std::ops::Add;
 
+use crate::substrate::BitBoard;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::fmt::Display;
-use crate::substrate::BitBoard;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PieceType {
@@ -74,6 +74,14 @@ pub enum PlayerColor {
 }
 
 impl PlayerColor {
+    pub const fn expect_u8(value: u8) -> PlayerColor {
+        match value {
+            0 => PlayerColor::White,
+            1 => PlayerColor::Black,
+            _ => panic!("Invalid player color"),
+        }
+    }
+
     pub fn forward_direction(self) -> i8 {
         match self {
             PlayerColor::White => 1,
@@ -81,11 +89,16 @@ impl PlayerColor {
         }
     }
 
-    pub fn home_row(self) -> u8 {
+    pub const fn home_rank(self) -> BoardRank {
         match self {
-            PlayerColor::White => 0,
-            PlayerColor::Black => 7,
+            PlayerColor::White => BoardRank::Rank1,
+            PlayerColor::Black => BoardRank::Rank8,
         }
+    }
+
+    #[deprecated(note = "Use home_rank() instead")]
+    pub const fn home_row(self) -> u8 {
+        self.home_rank() as u8
     }
 
     pub fn other(self) -> Self {
@@ -112,6 +125,46 @@ impl PlayerColor {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoardRank {
+    Rank1 = 0,
+    Rank2 = 1,
+    Rank3 = 2,
+    Rank4 = 3,
+    Rank5 = 4,
+    Rank6 = 5,
+    Rank7 = 6,
+    Rank8 = 7,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoardFile {
+    FileA = 0,
+    FileB = 1,
+    FileC = 2,
+    FileD = 3,
+    FileE = 4,
+    FileF = 5,
+    FileG = 6,
+    FileH = 7,
+}
+
+impl BoardFile {
+    pub const fn expect_u8(value: u8) -> BoardFile {
+        match value {
+            0 => BoardFile::FileA,
+            1 => BoardFile::FileB,
+            2 => BoardFile::FileC,
+            3 => BoardFile::FileD,
+            4 => BoardFile::FileE,
+            5 => BoardFile::FileF,
+            6 => BoardFile::FileG,
+            7 => BoardFile::FileH,
+            _ => panic!("Invalid file"),
+        }
+    }
+}
+
 // TODO: This should really be renamed "Tile" to match the frontend.
 // That is also less ambiguous.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -126,10 +179,10 @@ impl Add<(i8, i8)> for BoardPosition {
 }
 
 impl BoardPosition {
-    pub fn x(self) -> u8 {
+    pub const fn x(self) -> u8 {
         self.0 % 8
     }
-    pub fn y(self) -> u8 {
+    pub const fn y(self) -> u8 {
         self.0 / 8
     }
     pub const fn new(x: u8, y: u8) -> Self {

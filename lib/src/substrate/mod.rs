@@ -63,27 +63,30 @@ pub trait Substrate {
 pub struct BitBoard(pub u64);
 
 impl BitBoard {
+    pub const fn empty() -> BitBoard {
+        BitBoard(0)
+    }
     pub fn iter(self) -> BitBoardIter {
         BitBoardIter { bits: self.0 }
     }
-    pub fn is_empty(self) -> bool {
+    pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
     pub fn contains(self, pos: BoardPosition) -> bool {
         (self.0 & (1u64 << pos.0)) != 0
     }
-    pub fn insert(&mut self, pos: BoardPosition) -> bool {
+    pub const fn insert(&mut self, pos: BoardPosition) -> bool {
         self.insert_all(BitBoard(1u64 << pos.0))
     }
-    pub fn insert_all(&mut self, other: BitBoard) -> bool {
+    pub const fn insert_all(&mut self, other: BitBoard) -> bool {
         let old = self.0;
         self.0 |= other.0;
         old != self.0
     }
-    pub fn remove(&mut self, pos: BoardPosition) {
+    pub const fn remove(&mut self, pos: BoardPosition) {
         self.0 &= !(1u64 << pos.0);
     }
-    pub fn len(self) -> u8 {
+    pub const fn len(self) -> u8 {
         self.0.count_ones() as u8
     }
 }
@@ -152,7 +155,7 @@ impl IntoIterator for BitBoard {
 }
 
 impl FromIterator<BoardPosition> for BitBoard {
-    fn from_iter<T: IntoIterator<Item=BoardPosition>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = BoardPosition>>(iter: T) -> Self {
         let mut result = BitBoard(0);
         for pos in iter {
             result.insert(pos);
@@ -162,7 +165,7 @@ impl FromIterator<BoardPosition> for BitBoard {
 }
 
 impl<'a> FromIterator<&'a BoardPosition> for BitBoard {
-    fn from_iter<T: IntoIterator<Item=&'a BoardPosition>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = &'a BoardPosition>>(iter: T) -> Self {
         let mut result = BitBoard(0);
         for pos in iter {
             result.insert(*pos);

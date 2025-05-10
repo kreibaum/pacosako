@@ -9,27 +9,30 @@ use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::ops::Add;
 
-use fxhash::{FxHasher, FxHashMap, FxHashSet};
+use castling::Castling;
+use fxhash::{FxHashMap, FxHashSet, FxHasher};
 use serde::{Deserialize, Serialize};
 
 use const_tile::*;
 use draw_state::DrawState;
 use paco_action::PacoActionSet;
 use setup_options::SetupOptions;
-use substrate::{BitBoard, Substrate};
 use substrate::constant_bitboards::{KING_TARGETS, KNIGHT_TARGETS};
 use substrate::dense::DenseSubstrate;
+use substrate::{BitBoard, Substrate};
 pub use types::{BoardPosition, PieceType, PlayerColor};
 
 pub use crate::paco_action::PacoAction;
 
 pub mod ai;
 pub mod analysis;
+pub mod castling;
 pub mod const_tile;
 pub mod draw_state;
 pub mod editor;
 pub mod export;
 pub mod fen;
+pub mod opening_book;
 pub mod paco_action;
 pub mod parser;
 pub mod progress;
@@ -37,11 +40,10 @@ pub mod random;
 pub mod setup_options;
 mod static_include;
 mod substrate;
-pub mod trivial_hash;
-pub mod types;
-pub mod opening_book;
 #[cfg(test)]
 mod testdata;
+pub mod trivial_hash;
+pub mod types;
 
 #[derive(thiserror::Error, Clone, Debug, Serialize)]
 pub enum PacoError {
@@ -225,74 +227,6 @@ pub struct RestingPiece {
     piece_type: PieceType,
     color: PlayerColor,
     position: BoardPosition,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Castling {
-    white_queen_side: bool,
-    white_king_side: bool,
-    black_queen_side: bool,
-    black_king_side: bool,
-}
-
-impl Castling {
-    /// Returns an initial Castling structure where all castling options are possible
-    fn new() -> Self {
-        Castling {
-            white_queen_side: true,
-            white_king_side: true,
-            black_queen_side: true,
-            black_king_side: true,
-        }
-    }
-
-    fn remove_rights_for_color(&mut self, current_player: PlayerColor) {
-        match current_player {
-            PlayerColor::White => {
-                self.white_queen_side = false;
-                self.white_king_side = false;
-            }
-            PlayerColor::Black => {
-                self.black_queen_side = false;
-                self.black_king_side = false;
-            }
-        }
-    }
-
-    fn from_string(input: &str) -> Self {
-        Castling {
-            white_queen_side: input.contains('A'),
-            white_king_side: input.contains('H'),
-            black_queen_side: input.contains('a'),
-            black_king_side: input.contains('h'),
-        }
-    }
-}
-
-impl Display for Castling {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut any_char = false;
-        if self.white_queen_side {
-            write!(f, "A")?;
-            any_char = true;
-        }
-        if self.white_king_side {
-            write!(f, "H")?;
-            any_char = true;
-        }
-        if self.black_queen_side {
-            write!(f, "a")?;
-            any_char = true;
-        }
-        if self.black_king_side {
-            write!(f, "h")?;
-            any_char = true;
-        }
-        if !any_char {
-            write!(f, "-")?;
-        }
-        Ok(())
-    }
 }
 
 /// Represents zero to two lifted pieces
@@ -510,17 +444,11 @@ impl DenseBoard {
             if piece_type == PieceType::Rook {
                 if position == A1 && self.controlling_player == PlayerColor::White {
                     self.castling.white_queen_side = false;
-                } else if position == H1
-                    && self.controlling_player == PlayerColor::White
-                {
+                } else if position == H1 && self.controlling_player == PlayerColor::White {
                     self.castling.white_king_side = false;
-                } else if position == A8
-                    && self.controlling_player == PlayerColor::Black
-                {
+                } else if position == A8 && self.controlling_player == PlayerColor::Black {
                     self.castling.black_queen_side = false;
-                } else if position == H8
-                    && self.controlling_player == PlayerColor::Black
-                {
+                } else if position == H8 && self.controlling_player == PlayerColor::Black {
                     self.castling.black_king_side = false;
                 }
             }
@@ -528,20 +456,13 @@ impl DenseBoard {
             if let Some(partner_type) = partner {
                 // When lifting an enemy rook, castling may be denied from them.
                 if partner_type == PieceType::Rook {
-                    if position == A1 && self.controlling_player == PlayerColor::Black
-                    {
+                    if position == A1 && self.controlling_player == PlayerColor::Black {
                         self.castling.white_queen_side = false;
-                    } else if position == H1
-                        && self.controlling_player == PlayerColor::Black
-                    {
+                    } else if position == H1 && self.controlling_player == PlayerColor::Black {
                         self.castling.white_king_side = false;
-                    } else if position == A8
-                        && self.controlling_player == PlayerColor::White
-                    {
+                    } else if position == A8 && self.controlling_player == PlayerColor::White {
                         self.castling.black_queen_side = false;
-                    } else if position == H8
-                        && self.controlling_player == PlayerColor::White
-                    {
+                    } else if position == H8 && self.controlling_player == PlayerColor::White {
                         self.castling.black_king_side = false;
                     }
                 }
@@ -1477,7 +1398,9 @@ fn determine_all_threats<T: PacoBoard>(board: &T) -> Result<BitBoard, PacoError>
         actions
             .iter()
             .filter_map(PacoAction::position)
-            .for_each(|p| { all_threats.insert(p); });
+            .for_each(|p| {
+                all_threats.insert(p);
+            });
 
         // Follow place actions that form a chain.
         for action in todo.actions()? {
@@ -1542,7 +1465,7 @@ pub fn execute_sequence<T: PacoBoard>(
 /// The action stack is assumed to only contain legal moves and the moves are
 /// not validated.
 pub fn find_last_checkpoint_index<'a>(
-    actions: impl Iterator<Item=&'a PacoAction>,
+    actions: impl Iterator<Item = &'a PacoAction>,
 ) -> Result<usize, PacoError> {
     let mut board = DenseBoard::new();
     let mut action_counter = 0;
@@ -1866,7 +1789,9 @@ mod tests {
             // Rook threatens column
             D1, D2, D3, D4, D5, D6, D7, D8,
             // Pawn threats overlap with Rook threats.
-        ].iter().collect();
+        ]
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1890,10 +1815,11 @@ mod tests {
 
         let expected_threats: BitBoard = vec![
             // Knight threats
-            A1, A3, B4, D4, E1, E3,
-            // Pawn threats (from d4)
+            A1, A3, B4, D4, E1, E3, // Pawn threats (from d4)
             C5, E5,
-        ].iter().collect();
+        ]
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1918,7 +1844,9 @@ mod tests {
             A1, B2, C3, D4, E5, F6, G7, H8, // Main diagonal
             // Additional knight threats
             F4, H4, E5, E7, F8, G6, F7,
-        ].iter().collect();
+        ]
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1943,10 +1871,11 @@ mod tests {
 
         let expected_threats: BitBoard = vec![
             // Threats by the free pawn on E5
-            D6, F6,
-            // Threats by en passant chain through F6
+            D6, F6, // Threats by en passant chain through F6
             E7, G7,
-        ].iter().collect();
+        ]
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1959,8 +1888,7 @@ mod tests {
             if expected[i] != received[i] {
                 differences.push(format!(
                     "At {i} I expected {} but got {}.",
-                    expected[i],
-                    received[i]
+                    expected[i], received[i]
                 ));
             }
         }
@@ -2575,7 +2503,8 @@ mod tests {
     }
 
     #[test]
-    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_this_turn() -> Result<(), PacoError> {
+    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_this_turn(
+    ) -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
 
         // White

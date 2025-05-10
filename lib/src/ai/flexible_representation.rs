@@ -6,7 +6,7 @@
 //! store it as flags on an u32 integer.
 
 use crate::{
-    substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
+    substrate::Substrate, BoardPosition, castling::Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
     RequiredAction,
 };
 

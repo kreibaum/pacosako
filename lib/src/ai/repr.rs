@@ -50,7 +50,7 @@
 //!
 
 use crate::{
-    substrate::Substrate, BoardPosition, Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
+    substrate::Substrate, BoardPosition, castling::Castling, DenseBoard, PacoBoard, PieceType, PlayerColor,
 };
 
 /// Fills in the tensor representation of the board.
