@@ -1,6 +1,5 @@
 extern crate lazy_static;
 
-use std::cmp::{max, min};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -43,6 +42,7 @@ mod substrate;
 mod testdata;
 pub mod trivial_hash;
 pub mod types;
+pub mod variants;
 
 #[derive(thiserror::Error, Clone, Debug, Serialize)]
 pub enum PacoError {
@@ -305,11 +305,26 @@ pub trait PacoBoard: Clone + Eq + Hash {
 impl DenseBoard {
     /// Creates a new board with the current default options.
     pub fn new() -> Self {
-        Self::with_options(&SetupOptions::default())
+        Self::with_options_but_default_fen(&SetupOptions::default())
     }
     /// Creates a new board with the given options.
-    pub fn with_options(options: &SetupOptions) -> Self {
+    pub fn with_options(options: &SetupOptions) -> Result<Self, PacoError> {
+        if let Some(starting_fen) = &options.starting_fen {
+            let fen_board = fen::parse_fen(starting_fen)?;
+            Ok(DenseBoard {
+                draw_state: DrawState::with_options(options),
+                ..fen_board
+            })
+        } else {
+            Ok(DenseBoard::with_options_but_default_fen(options))
+        }
+    }
+
+    /// Private variant of with_options that does not consider fen, but also
+    /// does not have to bubble up fen errors because of that.
+    fn with_options_but_default_fen(options: &SetupOptions) -> DenseBoard {
         use PieceType::*;
+
         let mut result: Self = DenseBoard {
             substrate: DenseSubstrate::default(),
             controlling_player: PlayerColor::White,
@@ -490,7 +505,7 @@ impl DenseBoard {
                 // Special case to handle castling
                 if piece == PieceType::King {
                     self.en_passant = None;
-                    return self.place_king(position, target);
+                    return self.place_king(target);
                 }
 
                 // Read the piece currently on the board at the target position
@@ -650,16 +665,19 @@ impl DenseBoard {
 
     fn place_king(
         &mut self,
-        king_source: BoardPosition,
-        king_target: BoardPosition,
+        place_target: BoardPosition,
     ) -> Result<&mut Self, PacoError> {
-        if let Some((rook_source, rook_target)) =
-            for_castling_get_rook_move(king_source, king_target)
-        {
-            self.ensure_board_clean(king_source, king_target)?;
-
-            // Swap rooks
-            self.swap(rook_source, rook_target);
+        // Rook movement for castling
+        let mut king_target = place_target;
+        'cci: for cci in self.castling.options(self.controlling_player) {
+            if let Some(details) = castling::get_castling_details(cci) {
+                if details.place_target == place_target {
+                    // Move Rook (and partner) to the target position
+                    self.swap(details.rook_from, details.rook_to);
+                    king_target = details.king_to;
+                    break 'cci;
+                }
+            }
         }
 
         // Place down the king
@@ -679,22 +697,6 @@ impl DenseBoard {
         // progress according to FIDE rules.
         draw_state::record_position(self);
         Ok(self)
-    }
-
-    /// Some extra safety checks to make sure we don't overwrite pieces when castling.
-    fn ensure_board_clean(
-        &mut self,
-        king_source: BoardPosition,
-        king_target: BoardPosition,
-    ) -> Result<(), PacoError> {
-        let king_min = min(king_source.0, king_target.0);
-        let king_max = max(king_source.0, king_target.0);
-        for i in (king_min + 1)..king_max {
-            if !self.substrate.is_empty(BoardPosition(i)) {
-                return Err(PacoError::NoSpaceToMoveTheKing(BoardPosition(i)));
-            }
-        }
-        Ok(())
     }
 
     /// Promotes the current promotion target to the given type.
@@ -1400,9 +1402,10 @@ pub fn execute_sequence<T: PacoBoard>(
 /// The action stack is assumed to only contain legal moves and the moves are
 /// not validated.
 pub fn find_last_checkpoint_index<'a>(
-    actions: impl Iterator<Item = &'a PacoAction>,
+    setup: &SetupOptions,
+    actions: impl Iterator<Item=&'a PacoAction>,
 ) -> Result<usize, PacoError> {
-    let mut board = DenseBoard::new();
+    let mut board = DenseBoard::with_options(setup)?;
     let mut action_counter = 0;
     let mut last_checkpoint_index = action_counter;
     let mut last_controlling_player = board.controlling_player();
@@ -1725,8 +1728,8 @@ mod tests {
             D1, D2, D3, D4, D5, D6, D7, D8,
             // Pawn threats overlap with Rook threats.
         ]
-        .iter()
-        .collect();
+            .iter()
+            .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1753,8 +1756,8 @@ mod tests {
             A1, A3, B4, D4, E1, E3, // Pawn threats (from d4)
             C5, E5,
         ]
-        .iter()
-        .collect();
+            .iter()
+            .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1780,8 +1783,8 @@ mod tests {
             // Additional knight threats
             F4, H4, E5, E7, F8, G6, F7,
         ]
-        .iter()
-        .collect();
+            .iter()
+            .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1809,8 +1812,8 @@ mod tests {
             D6, F6, // Threats by en passant chain through F6
             E7, G7,
         ]
-        .iter()
-        .collect();
+            .iter()
+            .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -2215,7 +2218,7 @@ mod tests {
     #[test]
     fn test_rollback_empty() -> Result<(), PacoError> {
         let actions = [];
-        assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
+        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 0);
         Ok(())
     }
 
@@ -2223,7 +2226,7 @@ mod tests {
     fn test_rollback_single_lift() -> Result<(), PacoError> {
         use PacoAction::*;
         let actions = [Lift(pos("d2"))];
-        assert_eq!(find_last_checkpoint_index(actions.iter())?, 0);
+        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 0);
         Ok(())
     }
 
@@ -2231,7 +2234,7 @@ mod tests {
     fn test_rollback_settled_changed() -> Result<(), PacoError> {
         use PacoAction::*;
         let actions = [Lift(pos("e2")), Place(pos("e4"))];
-        assert_eq!(find_last_checkpoint_index(actions.iter())?, 2);
+        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 2);
         Ok(())
     }
 
@@ -2245,7 +2248,7 @@ mod tests {
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("d5")), Place(pos("d4")),
             Lift(pos("b2")), Place(pos("b4")), Lift(pos("d4")), Place(pos("d3")),
             Lift(pos("d3")), Place(pos("b2")), Lift(pos("b2")), Place(pos("b1"))];
-        assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
+        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
         Ok(())
     }
 
@@ -2259,7 +2262,7 @@ mod tests {
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
             Lift(pos("c3")), Place(pos("b1"))];
-        assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
+        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
         Ok(())
     }
 
@@ -2272,7 +2275,7 @@ mod tests {
             Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
             Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
             Lift(pos("c3")), Place(pos("b1")), Promote(PieceType::Queen), Lift(pos("h5"))];
-        assert_eq!(find_last_checkpoint_index(actions.iter())?, 14);
+        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
         Ok(())
     }
 
@@ -2288,7 +2291,7 @@ mod tests {
             Lift(pos("f5")), Place(pos("f6")), Lift(pos("a6")), Place(pos("a5")),
             Lift(pos("f6")), Place(pos("f7")), Lift(pos("a5")), Place(pos("a4")),
             Lift(pos("f7")), Place(E8)];
-        assert_eq!(find_last_checkpoint_index(actions.iter())?, 22);
+        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 22);
         Ok(())
     }
 
@@ -2438,8 +2441,7 @@ mod tests {
     }
 
     #[test]
-    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_this_turn(
-    ) -> Result<(), PacoError> {
+    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_this_turn() -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
 
         // White

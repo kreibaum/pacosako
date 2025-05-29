@@ -137,6 +137,17 @@ pub enum BoardRank {
     Rank8 = 7,
 }
 
+impl BoardRank {
+    /// Combines with a file to produce a position.
+    pub fn and_file(self, file: BoardFile) -> BoardPosition {
+        self.and_u8(file as u8)
+    }
+    /// Combines with a file to produce a position.
+    pub fn and_u8(self, file: u8) -> BoardPosition {
+        BoardPosition::new(file, self as u8)
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BoardFile {
     FileA = 0,

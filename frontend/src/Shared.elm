@@ -74,7 +74,7 @@ type Msg
     | NavigateTo String
     | SetAiState Ai.AiState
     | StartUpAi
-    | DetermineAiMove { board_fen : String, action_history : List Sako.Action }
+    | DetermineAiMove { action_history : List Sako.Action, setup : Sako.SetupOptions }
 
 
 init : Request -> Flags -> ( Model, Cmd Msg )

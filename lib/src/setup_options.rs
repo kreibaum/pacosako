@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 pub struct SetupOptions {
     pub safe_mode: bool,
     pub draw_after_n_repetitions: u8,
+    /// For Fischer random we capture the initial position as a fen string.
+    /// May be optional
+    pub starting_fen: Option<String>,
 }
 
 impl Default for SetupOptions {
@@ -19,6 +22,7 @@ impl Default for SetupOptions {
             // We default to 0 because we want to be able to deserialize legacy
             // versions from the database.
             draw_after_n_repetitions: 0,
+            starting_fen: None,
         }
     }
 }
@@ -38,14 +42,14 @@ impl<'de> Deserialize<'de> for SetupOptions {
 
 impl From<SetupOptionsAllOptional> for SetupOptions {
     fn from(options: SetupOptionsAllOptional) -> Self {
-        let mut result = Self::default();
-        if let Some(safe_mode) = options.safe_mode {
-            result.safe_mode = safe_mode;
+        let default = Self::default();
+        SetupOptions {
+            safe_mode: options.safe_mode.unwrap_or(default.safe_mode),
+            draw_after_n_repetitions: options
+                .draw_after_n_repetitions
+                .unwrap_or(default.draw_after_n_repetitions),
+            starting_fen: options.starting_fen.or(default.starting_fen),
         }
-        if let Some(draw_after_n_repetitions) = options.draw_after_n_repetitions {
-            result.draw_after_n_repetitions = draw_after_n_repetitions;
-        }
-        result
     }
 }
 
@@ -55,6 +59,7 @@ impl From<SetupOptionsAllOptional> for SetupOptions {
 pub struct SetupOptionsAllOptional {
     safe_mode: Option<bool>,
     draw_after_n_repetitions: Option<u8>,
+    starting_fen: Option<String>,
 }
 
 /// Test module to see if this works as expected on known strings.
@@ -98,11 +103,24 @@ mod tests {
     }
 
     #[test]
-    fn with_all_options() {
+    fn with_all_options_2022() {
         let json = r#"{"safe_mode": false, "draw_after_n_repetitions": 3}"#;
         let options: SetupOptionsAllOptional = serde_json::from_str(json).unwrap();
         let options: SetupOptions = options.into();
         assert!(!options.safe_mode);
         assert_eq!(options.draw_after_n_repetitions, 3);
+    }
+
+    #[test]
+    fn with_fen() {
+        let json =
+            r#"{"starting_fen": "bqnnrbkr/pppppppp/8/8/8/8/PPPPPPPP/BQNNRBKR w 0 EHeh - -"}"#;
+        let options: SetupOptionsAllOptional = serde_json::from_str(json).unwrap();
+        println!("{:?}", options);
+        let options: SetupOptions = options.into();
+        assert_eq!(
+            options.starting_fen.unwrap(),
+            "bqnnrbkr/pppppppp/8/8/8/8/PPPPPPPP/BQNNRBKR w 0 EHeh - -"
+        );
     }
 }

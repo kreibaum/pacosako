@@ -31,7 +31,6 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Element.Region
-import Fen
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
@@ -367,13 +366,11 @@ copyReplayMetaDataIntoInner model =
 stripDownReplay :
     Replay
     ->
-        { board_fen : String
-        , action_history : List Sako.Action
-        , setup : Api.Backend.SetupOptions
+        { action_history : List Sako.Action
+        , setup : Sako.SetupOptions
         }
 stripDownReplay replay =
-    { board_fen = Fen.initialBoardFen
-    , action_history = removeTimestamps replay.actions
+    { action_history = removeTimestamps replay.actions
     , setup = replay.setupOptions
     }
 

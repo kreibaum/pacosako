@@ -3,18 +3,22 @@ module Sako exposing
     , Color(..)
     , Piece
     , Position
+    , SetupOptions
     , Type(..)
     , VictoryState(..)
     , actionTile
     , decodeAction
     , decodeColor
     , decodeFlatTile
+    , decodeSetupOptions
     , decodeVictoryState
     , doAction
     , doActionsList
+    , dummySetupOptions
     , emptyPosition
     , encodeAction
     , encodeColor
+    , encodeSetupOptions
     , enumeratePieceIdentity
     , exportExchangeNotation
     , getPiecesAt
@@ -23,9 +27,7 @@ module Sako exposing
     , isAt
     , isChaining
     , isColor
-    , isLiftAction
     , isPromoting
-    , isStateOver
     , liftedAtTile
     , toStringType
     )
@@ -247,16 +249,6 @@ type Action
     | Promote Type
 
 
-isLiftAction : Action -> Bool
-isLiftAction action =
-    case action of
-        Lift _ ->
-            True
-
-        _ ->
-            False
-
-
 decodeAction : Decoder Action
 decodeAction =
     Decode.oneOf
@@ -303,16 +295,6 @@ type VictoryState
     | TimeoutVictory Color
     | NoProgressDraw
     | RepetitionDraw
-
-
-isStateOver : VictoryState -> Bool
-isStateOver state =
-    case state of
-        Running ->
-            False
-
-        _ ->
-            True
 
 
 decodeVictoryState : Decoder VictoryState
@@ -482,8 +464,8 @@ doPlaceSingleAction piece tile position =
         doEnPassantPreparation tile position
             |> doPlaceSingleActionNoSpecialMoves piece tile
 
-    else if isCastlingMove piece tile then
-        doCastlingMove tile position
+    else if isCastlingMove piece tile position then
+        Just (doCastlingMove piece tile position)
 
     else
         doPlaceSingleActionNoSpecialMoves piece tile position
@@ -515,52 +497,75 @@ doEnPassantPreparation (Tile x y) position =
         position
 
 
-{-| A castling move is can be identified by checking if the king moves more
-than one square in the x direction.
+{-| Identifies a castling move. Since we introduced Fischer random chess,
+there are two conditions to check.
+
+  - We must be placing the king and either of
+      - The king must move more than one square in the x direction.
+      - The "place target" is occupied by a piece of the same color.
+
+Having either of these conditions is a neccessary, but not sufficient for a
+castling move to be valid. But we leave move validation to the rust code which
+can check sufficient conditions.
+
 -}
-isCastlingMove : Piece -> Tile -> Bool
-isCastlingMove piece tile =
-    piece.pieceType == King && abs (Tile.getX tile - Tile.getX piece.position) > 1
+isCastlingMove : Piece -> Tile -> Position -> Bool
+isCastlingMove piece tile position =
+    piece.pieceType
+        == King
+        && (abs (Tile.getX tile - Tile.getX piece.position)
+                > 1
+                || List.any (\p -> isAt tile p && isColor piece.color p) position.pieces
+           )
 
 
-{-| Places the king and moves the Rook (maybe with partner). This function can
+{-| Places the king and moves the Rook (maybe with partner). This function must
 only be called if you have verified that castling really takes place.
+
+To work with Fischer random chess, we need to figure out the actual king and
+rook movement.
+
 -}
-doCastlingMove : Tile -> Position -> Maybe Position
-doCastlingMove tile position =
-    Maybe.map
-        (\( rookFromTile, rookToTile ) ->
-            unsafePlaceAt tile position
-                |> unsafeDirectMove rookFromTile rookToTile
-        )
-        (getCastlingRookTiles tile)
+doCastlingMove : Piece -> Tile -> Position -> Position
+doCastlingMove king tile position =
+    let
+        (Tile tx ty) =
+            tile
 
+        (Tile kx _) =
+            king.position
 
-{-| Given a tile the king moves into in a castling action, this retuns the
-resulting movement of the rook.
--}
-getCastlingRookTiles : Tile -> Maybe ( Tile, Tile )
-getCastlingRookTiles tile =
-    case tile of
-        -- White Queenside
-        Tile 2 0 ->
-            Just ( Tile 0 0, Tile 3 0 )
+        -- Are we king side or queen side?
+        isQueenSide =
+            tx < kx
 
-        -- White Kingside
-        Tile 6 0 ->
-            Just ( Tile 7 0, Tile 5 0 )
+        ( new_kx, new_rx ) =
+            if isQueenSide then
+                ( 2, 3 )
 
-        -- Black Queenside
-        Tile 2 7 ->
-            Just ( Tile 0 7, Tile 3 7 )
+            else
+                ( 6, 5 )
 
-        -- Black Kingside
-        Tile 6 7 ->
-            Just ( Tile 7 7, Tile 5 7 )
+        -- Try to grap the rook that was clicked (Fischer) and if there is none
+        -- fall back to standard rook positioning.
+        rx =
+            List.filter (\p -> isAt tile p && isColor king.color p) position.pieces
+                |> List.head
+                |> Maybe.map (\rook -> Tile.getX rook.position)
+                |> Maybe.withDefault
+                    (if isQueenSide then
+                        0
 
-        -- Invalid castling move
-        _ ->
-            Nothing
+                     else
+                        7
+                    )
+    in
+    -- The king is currently in hand and can not conflict with any piece on the
+    -- board for now. So we first move the rook. Then we place the king.
+    -- This ordering is important for Fischer random.
+    position
+        |> unsafeDirectMove (Tile rx ty) (Tile new_rx ty)
+        |> unsafePlaceAt (Tile new_kx ty)
 
 
 {-| This function can be called when a single piece is placed and it has already
@@ -609,8 +614,11 @@ unsafePlaceChainAction piece tile position =
     }
 
 
-{-| Calling this function is olny valid when the hand and the target position
+{-| Places all pieces in hand to the `tile` without any checks.
+
+Calling this function is only valid when the hand and the target position
 don't have two pieces of the same color between them.
+
 -}
 unsafePlaceAt : Tile -> Position -> Position
 unsafePlaceAt tile position =
@@ -624,6 +632,8 @@ unsafePlaceAt tile position =
     }
 
 
+{-| Moves all pieces on the `from` tile to the `to` tile without any checks.
+-}
 unsafeDirectMove : Tile -> Tile -> Position -> Position
 unsafeDirectMove from to position =
     { position
@@ -633,6 +643,8 @@ unsafeDirectMove from to position =
     }
 
 
+{-| Moves a single piece on the `from` tile to the `to` tile if it is there.
+-}
 unsafeDirectMovePiece : Tile -> Tile -> Piece -> Piece
 unsafeDirectMovePiece from to piece =
     if piece.position == from then
@@ -702,6 +714,49 @@ emptyPosition =
 positionFromPieces : List Piece -> Position
 positionFromPieces pieces =
     { emptyPosition | pieces = pieces }
+
+
+{-| The state also depends on its initial setup.
+-}
+type alias SetupOptions =
+    { safeMode : Bool
+    , drawAfterNRepetitions : Int
+    , startingFen : String
+    }
+
+
+dummySetupOptions : SetupOptions
+dummySetupOptions =
+    { safeMode = True
+    , drawAfterNRepetitions = 3
+    , startingFen = default_starting_fen
+    }
+
+
+default_starting_fen : String
+default_starting_fen =
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 0 AHah - -"
+
+
+encodeSetupOptions : SetupOptions -> Value
+encodeSetupOptions options =
+    Encode.object
+        [ ( "safe_mode", Encode.bool options.safeMode )
+        , ( "draw_after_n_repetitions", Encode.int options.drawAfterNRepetitions )
+        , ( "starting_fen", Encode.string options.startingFen )
+        ]
+
+
+decodeSetupOptions : Decoder SetupOptions
+decodeSetupOptions =
+    Decode.map3 SetupOptions
+        (Decode.field "safe_mode" Decode.bool)
+        (Decode.field "draw_after_n_repetitions" Decode.int)
+        (Decode.field "starting_fen"
+            (Decode.nullable Decode.string
+                |> Decode.map (Maybe.withDefault default_starting_fen)
+            )
+        )
 
 
 

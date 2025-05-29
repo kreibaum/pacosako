@@ -402,8 +402,15 @@ update msg model =
             )
 
         RequestAnalysePosition position ->
+            let
+                dummySetupOptions =
+                    Sako.dummySetupOptions
+            in
             ( model
-            , { board_fen = Fen.writeFen position, action_history = [] }
+            , { action_history = []
+              , setup =
+                    { dummySetupOptions | startingFen = Fen.writeFen position }
+              }
                 |> Api.EncoderGen.analyzePosition
                 |> Api.MessageGen.analyzePosition
                 |> Effect.fromCmd

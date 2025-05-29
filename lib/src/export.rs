@@ -25,10 +25,13 @@ use crate::{
 // SAFETY: there is no other global function of this name.
 #[unsafe(no_mangle)]
 pub extern "C" fn new() -> *mut DenseBoard {
-    leak_to_julia(DenseBoard::with_options(&SetupOptions {
-        draw_after_n_repetitions: 3,
-        ..Default::default()
-    }))
+    leak_to_julia(
+        DenseBoard::with_options(&SetupOptions {
+            draw_after_n_repetitions: 3,
+            ..Default::default()
+        })
+        .expect("Error when creating dense board with options."),
+    )
 }
 
 /// Leaks the memory (for now) and returns a pointer.
@@ -559,9 +562,7 @@ pub unsafe extern "C" fn is_sako_for_other_player(ps: *mut DenseBoard) -> bool {
 pub unsafe extern "C" fn my_threat_count(ps: *mut DenseBoard) -> i64 {
     let ps: &DenseBoard = unsafe { &*ps };
 
-    determine_all_threats(ps)
-        .unwrap()
-        .len() as i64
+    determine_all_threats(ps).unwrap().len() as i64
 }
 
 /// Finds all the paco sequences that are possible in the given position.

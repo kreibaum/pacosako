@@ -1,4 +1,4 @@
-module Fen exposing (initialBoardFen, parseFen, urlDecode, urlEncode, writeFen)
+module Fen exposing (parseFen, urlDecode, urlEncode, writeFen)
 
 {-| This module implements an extension of X-Fen that can represent settled Paco
 Ŝako boards (i.e. boards without an active chain) together with most state.
@@ -9,15 +9,9 @@ But it is a lot less advanced, parsing only part of the properties.
 
 -}
 
-import Color exposing (black)
 import List.Extra as List
 import Sako exposing (Color(..), Piece, Type(..))
 import Tile exposing (Tile(..))
-
-
-initialBoardFen : String
-initialBoardFen =
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 0 AHah - -"
 
 
 

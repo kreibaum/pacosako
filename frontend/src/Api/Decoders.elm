@@ -5,10 +5,13 @@ import Json.Decode.Pipeline exposing (required)
 import Sako
 import Timer
 
-
+{-| Ground truth about the current state of the match. Without any animations or
+ongoing user interactions.
+-}
 type alias CurrentMatchState =
     { key : String
     , actionHistory : List Sako.Action
+    , setupOptions : Sako.SetupOptions
     , canRollback : Bool
     , isRollback : Bool
     , legalActions : LegalActions
@@ -97,9 +100,10 @@ endpoints. This is the file for those.
 decodeMatchState : Decoder CurrentMatchState
 decodeMatchState =
     Decode.succeed
-        (\key actionHistory isRollback controllingPlayer timer gameState whitePlayer blackPlayer whiteControl blackControl ->
+        (\key actionHistory setupOptions isRollback controllingPlayer timer gameState whitePlayer blackPlayer whiteControl blackControl ->
             { key = key
             , actionHistory = actionHistory
+            , setupOptions = setupOptions
             , canRollback = False
             , isRollback = isRollback
             , legalActions = ActionsNotLoaded
@@ -114,6 +118,7 @@ decodeMatchState =
         )
         |> required "key" Decode.string
         |> required "actions" (Decode.list Sako.decodeAction)
+        |> required "setup_options" Sako.decodeSetupOptions
         |> required "is_rollback" Decode.bool
         |> required "controlling_player" Sako.decodeColor
         |> required "timer" (Decode.maybe Timer.decodeTimer)

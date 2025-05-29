@@ -62,34 +62,10 @@ impl Castling {
     /// Returns a Castling for Fischer random chess.
     pub fn fischer(left_rook: BoardFile, king: BoardFile, right_rook: BoardFile) -> Castling {
         Castling {
-            white_queen_side: CompactCastlingIdentifier::new(
-                CastlingIdentifier {
-                    king_file: king,
-                    rook_file: left_rook,
-                },
-                PlayerColor::White,
-            ),
-            white_king_side: CompactCastlingIdentifier::new(
-                CastlingIdentifier {
-                    king_file: king,
-                    rook_file: right_rook,
-                },
-                PlayerColor::White,
-            ),
-            black_queen_side: CompactCastlingIdentifier::new(
-                CastlingIdentifier {
-                    king_file: king,
-                    rook_file: left_rook,
-                },
-                PlayerColor::Black,
-            ),
-            black_king_side: CompactCastlingIdentifier::new(
-                CastlingIdentifier {
-                    king_file: king,
-                    rook_file: right_rook,
-                },
-                PlayerColor::Black,
-            ),
+            white_queen_side: CompactCastlingIdentifier::new(king, left_rook, PlayerColor::White),
+            white_king_side: CompactCastlingIdentifier::new(king, right_rook, PlayerColor::White),
+            black_queen_side: CompactCastlingIdentifier::new(king, left_rook, PlayerColor::Black),
+            black_king_side: CompactCastlingIdentifier::new(king, right_rook, PlayerColor::Black),
         }
     }
 
@@ -162,13 +138,7 @@ impl Castling {
             black_king
         };
 
-        let compact_id = CompactCastlingIdentifier::new(
-            CastlingIdentifier {
-                king_file,
-                rook_file,
-            },
-            color,
-        );
+        let compact_id = CompactCastlingIdentifier::new(king_file, rook_file, color);
 
         // Assign to the appropriate field based on side and color
         if color.is_white() {
@@ -192,7 +162,7 @@ impl Castling {
         Ok(())
     }
 
-    pub fn into_fen(&self) -> String {
+    pub fn into_fen(self) -> String {
         let mut result = String::new();
         push_fen_identifier_name(&mut result, self.white_queen_side);
         push_fen_identifier_name(&mut result, self.white_king_side);
@@ -228,9 +198,9 @@ fn push_fen_identifier_name(result: &mut String, side: CompactCastlingIdentifier
 pub struct CompactCastlingIdentifier(u8);
 
 impl CompactCastlingIdentifier {
-    fn new(ci: CastlingIdentifier, color: PlayerColor) -> CompactCastlingIdentifier {
-        let king_file_bits = ci.king_file as u8;
-        let rook_file_bits = (ci.rook_file as u8) << 3;
+    pub fn new(king: BoardFile, rook: BoardFile, color: PlayerColor) -> CompactCastlingIdentifier {
+        let king_file_bits = king as u8;
+        let rook_file_bits = (rook as u8) << 3;
         let color_bit = (color as u8) << 6;
         // Set the availability bit (bit 7) to 1
         let availability_bit = 0b1000_0000;
@@ -294,7 +264,7 @@ pub struct CastlingDetails {
     pub rook_from: BoardPosition,
     pub rook_to: BoardPosition,
     /// The place action target square for triggering the castling.
-    /// For normal castling, this is the king_to. Otherwise it is the rook_from.
+    /// For normal castling, this is the king_to. Otherwise, it is the rook_from.
     /// This makes sure we are downward compatible with regular paco sako but
     /// also avoid ambiguity with regular king moves.
     pub place_target: BoardPosition,
@@ -392,7 +362,10 @@ pub fn get_castling_details(cci: CompactCastlingIdentifier) -> Option<CastlingDe
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ai::repr;
     use crate::const_tile::*;
+    use crate::PacoAction::{Lift, Place};
+    use crate::{fen, PacoBoard, RequiredAction};
 
     macro_rules! file_range_tests {
         ($($name:ident: $input:expr => $expected:expr,)*) => {
@@ -518,10 +491,86 @@ mod test {
                         BoardFile::expect_u8(king),
                         BoardFile::expect_u8(king),
                     )
-                    .expect("Fen didn't parse as expected");
+                        .expect("Fen didn't parse as expected");
                     assert_eq!(castling, parsed_castling);
                 }
             }
         }
+    }
+
+    /// This macro executes a sequence of actions, the first being a lift action
+    /// and the rest being place actions.
+    /// You can't use it for promotions.
+    macro_rules! do_move {
+    ($board:expr, $from:expr, $($to:expr),+) => {
+        {
+            $board.execute(Lift($from)).expect("Lift action failed");
+            $(
+                $board.execute(Place($to)).expect("Place action failed");
+            )+
+        }
+    };
+}
+
+    /// This reproduces a case where castling was incorrectly implemented and the rook was
+    /// replaced by the king.
+    #[test]
+    fn king_should_not_eat_rook() -> Result<(), PacoError> {
+        let mut board = fen::parse_fen("brnbnqkr/pppppppp/8/8/8/8/PPPPPPPP/BRNBNQKR w 0 BHbh - -")?;
+
+        do_move!(board, C1, D3);
+        do_move!(board, E8, D6);
+        do_move!(board, E1, F3);
+        do_move!(board, E7, E5);
+        do_move!(board, E2, E4);
+        do_move!(board, D8, H4);
+        do_move!(board, F3, G5);
+        do_move!(board, C8, E7);
+        do_move!(board, D3, F4);
+        do_move!(board, E7, F5);
+        do_move!(board, F1, C4);
+        do_move!(board, D6, C4); // union
+        do_move!(board, D1, E2);
+        do_move!(board, C4, B6);
+        do_move!(board, G1, B1);
+
+        println!("{:?}", fen::write_fen(&board));
+        assert_eq!(
+            fen::write_fen(&board),
+            "br3qkr/pppp1ppp/1t6/4pnN1/4PN1b/8/PPPPBPPP/B1KR3R b 3 bh - -"
+        );
+
+        let mut out = [0; 38];
+        repr::index_representation(&board, &mut out);
+
+        Ok(())
+    }
+
+    #[test]
+    fn king_should_not_eat_rook2() -> Result<(), PacoError> {
+        let mut board = fen::parse_fen("nnrkqrbb/pppppppp/8/8/8/8/PPPPPPPP/NNRKQRBB w 0 CFcf - -")?;
+
+        do_move!(board, F2, F4);
+        do_move!(board, B8, C6);
+        do_move!(board, E1, H4);
+        do_move!(board, F7, F6);
+        do_move!(board, G1, B6);
+        do_move!(board, E8, G6);
+        do_move!(board, D1, F1); // O-O
+
+        println!("{:?}", fen::write_fen(&board));
+        assert_eq!(
+            fen::write_fen(&board),
+            "n1rk1rbb/ppppp1pp/1Bn2pq1/8/5P1Q/8/PPPPP1PP/NNR2RKB b 7 cf - -"
+        );
+
+        let mut out = [0; 38];
+        repr::index_representation(&board, &mut out);
+
+        do_move!(board, C6, E5);
+
+        assert_eq!(board.required_action, RequiredAction::Lift);
+
+        Ok(())
     }
 }

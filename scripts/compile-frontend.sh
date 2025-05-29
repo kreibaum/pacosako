@@ -5,6 +5,7 @@ scripts/copy-assets.sh
 
 scripts/compile-wasm.sh
 
+mkdir -p target/assets
 cp frontend/static/* target/assets/
 cd frontend || exit
 

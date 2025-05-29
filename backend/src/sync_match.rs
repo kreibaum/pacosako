@@ -1,19 +1,20 @@
 use std::convert::TryFrom;
 
 use chrono::{DateTime, Utc};
+use pacosako::variants::PieceSetupParameters;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 
-use pacosako::{fen, PacoAction, PacoBoard, PacoError, PlayerColor};
 use pacosako::setup_options::SetupOptions;
+use pacosako::{fen, variants, PacoAction, PacoBoard, PacoError, PlayerColor};
 
 use crate::db::{self, Connection};
-use crate::login::{user, UserId};
 use crate::login::user::{load_user_data_for_game, PublicUserData};
+use crate::login::{user, UserId};
 use crate::protection::ControlLevel;
-use crate::ServerError;
 use crate::timer::{Timer, TimerConfig, TimerState};
 use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
+use crate::ServerError;
 
 /// This module implements match synchronization on top of an instance manager.
 /// That means when code in this module runs, the match it is running in is
@@ -26,6 +27,7 @@ pub struct MatchParameters {
     safe_mode: Option<bool>,
     draw_after_n_repetitions: Option<u8>,
     pub ai_side_request: Option<AiSideRequest>,
+    piece_setup: PieceSetupParameters,
 }
 
 #[derive(Deserialize, Clone)]
@@ -48,6 +50,7 @@ impl MatchParameters {
             safe_mode: self.safe_mode,
             draw_after_n_repetitions: self.draw_after_n_repetitions,
             ai_side_request: self.ai_side_request.clone(),
+            piece_setup: self.piece_setup.clone(),
         }
     }
 
@@ -303,6 +306,7 @@ impl SynchronizedMatch {
         let setup_options = SetupOptions {
             safe_mode: params.safe_mode.unwrap_or(true),
             draw_after_n_repetitions: params.draw_after_n_repetitions.unwrap_or(3),
+            starting_fen: variants::piece_setup_fen(params.piece_setup),
         };
 
         Self {
@@ -319,7 +323,7 @@ impl SynchronizedMatch {
     pub fn project(&self) -> Result<pacosako::DenseBoard, PacoError> {
         // Here we don't need to validate the move, this was done before they
         // have been added to the action list.
-        let mut board = pacosako::DenseBoard::with_options(&self.setup_options);
+        let mut board = pacosako::DenseBoard::with_options(&self.setup_options)?;
         for action in &self.actions {
             board.execute_trusted(action.action)?;
         }
@@ -373,7 +377,7 @@ impl SynchronizedMatch {
 
     /// Rolls back the game state to the start of the turn of the current player.
     pub fn rollback(&mut self) -> Result<CurrentMatchState, PacoError> {
-        Self::rollback_trusted_action_stack(&mut self.actions)?;
+        Self::rollback_trusted_action_stack(&self.setup_options, &mut self.actions)?;
         let mut state = self.current_state()?;
         state.is_rollback = true;
         Ok(state)
@@ -384,9 +388,9 @@ impl SynchronizedMatch {
     /// Rolling back on a settled board state does nothing.
     /// The action stack is assumed to only contain legal moves and the moves are
     /// not validated.
-    fn rollback_trusted_action_stack(actions: &mut Vec<StampedAction>) -> Result<(), PacoError> {
+    fn rollback_trusted_action_stack(setup: &SetupOptions, actions: &mut Vec<StampedAction>) -> Result<(), PacoError> {
         let last_checkpoint_index =
-            pacosako::find_last_checkpoint_index(actions.iter().map(|a| &a.action))?;
+            pacosako::find_last_checkpoint_index(setup, actions.iter().map(|a| &a.action))?;
 
         // Remove all moves to get back to last_checkpoint_index
         while actions.len() > last_checkpoint_index {
@@ -442,13 +446,12 @@ mod test {
                 safe_mode: Some(false),
                 draw_after_n_repetitions: None,
                 ai_side_request: None,
+                piece_setup: PieceSetupParameters::DefaultPieceSetup,
             },
         );
 
         game.do_action(PacoAction::Lift(C2)).unwrap();
-        let current_state = game
-            .do_action(PacoAction::Place(C3))
-            .unwrap();
+        let current_state = game.do_action(PacoAction::Place(C3)).unwrap();
 
         // recalculating the current state does not lead to surprises.
         let current_state_2 = game.current_state().unwrap();

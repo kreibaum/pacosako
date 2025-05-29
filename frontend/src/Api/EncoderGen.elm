@@ -4,36 +4,40 @@ module Api.EncoderGen exposing (..)
 still written by hand for now.
 -}
 
-import Api.Backend
 import Json.Encode as Encode exposing (Value)
 import Sako
 
-
-determineLegalActions : { board_fen : String, action_history : List Sako.Action } -> Value
-determineLegalActions { board_fen, action_history } =
+determineLegalActions :
+    { action_history : List Sako.Action
+    , setup : Sako.SetupOptions
+    }
+    -> Value
+determineLegalActions { action_history, setup } =
     Encode.object
-        [ ( "board_fen", Encode.string board_fen )
-        , ( "action_history", Encode.list Sako.encodeAction action_history )
+        [ ( "action_history", Encode.list Sako.encodeAction action_history )
+        , ( "setup", Sako.encodeSetupOptions setup )
         ]
 
 
-analyzePosition : { board_fen : String, action_history : List Sako.Action } -> Value
-analyzePosition { board_fen, action_history } =
+analyzePosition :
+    { action_history : List Sako.Action
+    , setup : Sako.SetupOptions
+    }
+    -> Value
+analyzePosition { action_history, setup } =
     Encode.object
-        [ ( "board_fen", Encode.string board_fen )
-        , ( "action_history", Encode.list Sako.encodeAction action_history )
+        [ ( "action_history", Encode.list Sako.encodeAction action_history )
+        , ( "setup", Sako.encodeSetupOptions setup )
         ]
 
 
 analyzeReplay :
-    { board_fen : String
-    , action_history : List Sako.Action
-    , setup : Api.Backend.SetupOptions
+    { action_history : List Sako.Action
+    , setup : Sako.SetupOptions
     }
     -> Value
-analyzeReplay { board_fen, action_history, setup } =
+analyzeReplay { action_history, setup } =
     Encode.object
-        [ ( "board_fen", Encode.string board_fen )
-        , ( "action_history", Encode.list Sako.encodeAction action_history )
-        , ( "setup", Api.Backend.encodeSetupOptions setup )
+        [ ( "action_history", Encode.list Sako.encodeAction action_history )
+        , ( "setup", Sako.encodeSetupOptions setup )
         ]

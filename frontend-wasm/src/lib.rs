@@ -46,7 +46,7 @@ pub fn determine_legal_actions(data: String) -> Result<(), JsValue> {
     let legal_actions: Vec<PacoAction> =
         data.actions().map_err(|e| e.to_string())?.iter().collect();
 
-    let checkpoint = pacosako::find_last_checkpoint_index(history_data.action_history.iter())
+    let checkpoint = pacosako::find_last_checkpoint_index(&history_data.setup, history_data.action_history.iter())
         .map_err(|e| e.to_string())?;
     let can_rollback = history_data.action_history.len() > checkpoint;
 
@@ -82,17 +82,23 @@ pub fn generate_random_position(data: String) -> Result<(), JsValue> {
 
 #[derive(Deserialize)]
 struct ActionHistoryBoardRepr {
-    board_fen: String,
     action_history: Vec<PacoAction>,
+    setup: SetupOptions,
 }
 
 impl TryFrom<&ActionHistoryBoardRepr> for DenseBoard {
     type Error = PacoError;
 
     fn try_from(value: &ActionHistoryBoardRepr) -> Result<Self, Self::Error> {
-        let mut board = fen::parse_fen(&value.board_fen)?;
+        let mut board = DenseBoard::with_options(&value.setup)?;
         for action in &value.action_history {
-            board.execute(*action)?;
+            console_log(format!("Executing action: {:?}", action).as_str());
+            let result = board.execute(*action);
+            if let Err(e) = result {
+                console_log(format!("Error executing the action {:?}: {}", action, e).as_str());
+                return Err(e);
+            }
+            result?;
         }
         Ok(board)
     }
@@ -112,20 +118,13 @@ pub fn analyze_position(data: String) -> Result<(), JsValue> {
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct AnalyzeReplayData {
-    board_fen: String,
-    action_history: Vec<PacoAction>,
-    setup: SetupOptions,
-}
-
 #[wasm_bindgen(js_name = "analyzeReplay")]
 pub fn analyze_replay(data: String) -> Result<(), JsValue> {
     utils::set_panic_hook();
-    let data: AnalyzeReplayData = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    let data: ActionHistoryBoardRepr = serde_json::from_str(&data).map_err(|e| e.to_string())?;
 
-    let analysis = history_to_replay_notation(&data.board_fen, &data.action_history, &data.setup)
-        .map_err(|e| e.to_string())?;
+    let analysis =
+        history_to_replay_notation(&data.action_history, &data.setup).map_err(|e| e.to_string())?;
 
     analyze_replay_respond(&analysis);
 
@@ -141,13 +140,12 @@ pub fn analyze_replay_respond(analysis: &ReplayData) {
 }
 
 fn history_to_replay_notation(
-    board_fen: &str,
     action_history: &[PacoAction],
     setup: &SetupOptions,
 ) -> Result<ReplayData, PacoError> {
     // This "initial_board" stuff really isn't great. This should be included
     // into the setup options eventually.
-    let mut initial_board = fen::parse_fen(board_fen)?;
+    let mut initial_board = DenseBoard::with_options(setup)?;
 
     // Apply setup options to the initial board
     initial_board.draw_state.draw_after_n_repetitions = setup.draw_after_n_repetitions;

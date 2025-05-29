@@ -93,6 +93,7 @@ init params url =
       , currentState =
             { key = ""
             , actionHistory = []
+            , setupOptions = Sako.dummySetupOptions
             , canRollback = False
             , legalActions = Api.Decoders.ActionsNotLoaded
             , isRollback = False
@@ -602,7 +603,7 @@ updateActionInputStep shared action model =
 
           else
             Effect.none
-        , { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
+        , { action_history = newState.actionHistory, setup = model.currentState.setupOptions }
             |> Api.EncoderGen.determineLegalActions
             |> Api.MessageGen.determineLegalActions
             |> Effect.fromCmd
@@ -668,7 +669,7 @@ determineAiMove model =
     ( model
     , Effect.fromShared
         (Shared.DetermineAiMove
-            { board_fen = Fen.writeFen Sako.initialPosition, action_history = model.currentState.actionHistory }
+            { action_history = model.currentState.actionHistory, setup = model.currentState.setupOptions }
         )
     )
 
@@ -687,7 +688,7 @@ updateCurrentMatchState : CurrentMatchState -> Model -> ( Model, Effect Msg )
 updateCurrentMatchState newState model =
     let
         determineActionsEffect =
-            { board_fen = Fen.writeFen Sako.initialPosition, action_history = newState.actionHistory }
+            { action_history = newState.actionHistory, setup = newState.setupOptions }
                 |> Api.EncoderGen.determineLegalActions
                 |> Api.MessageGen.determineLegalActions
                 |> Effect.fromCmd
@@ -702,11 +703,18 @@ updateCurrentMatchState newState model =
                         , controllingPlayer = model.currentState.controllingPlayer
                     }
             }
+
+        setupOptionsChanged =
+            model.currentState.setupOptions /= newState.setupOptions
     in
-    if newState.isRollback then
+    if newState.isRollback || setupOptionsChanged then
         let
+            startingPosition =
+                Fen.parseFen newState.setupOptions.startingFen
+                    |> Maybe.withDefault Sako.emptyPosition
+
             newBoard =
-                Sako.doActionsList newState.actionHistory Sako.initialPosition
+                Sako.doActionsList newState.actionHistory startingPosition
                     |> Maybe.withDefault Sako.emptyPosition
         in
         ( { model | currentState = newState, board = newBoard }
@@ -738,8 +746,12 @@ updateCurrentMatchState newState model =
 
             Custom.List.ListsDontExtendEachOther ->
                 let
+                    startingPosition =
+                        Fen.parseFen newState.setupOptions.startingFen
+                            |> Maybe.withDefault Sako.emptyPosition
+
                     newBoard =
-                        Sako.doActionsList newState.actionHistory Sako.initialPosition
+                        Sako.doActionsList newState.actionHistory startingPosition
                             |> Maybe.withDefault Sako.emptyPosition
                 in
                 ( { model | currentState = newState, board = newBoard }
