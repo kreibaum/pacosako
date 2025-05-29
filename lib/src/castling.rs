@@ -273,6 +273,13 @@ pub struct CastlingDetails {
     pub must_be_safe: BitBoard,
 }
 
+impl CastlingDetails {
+    pub fn is_king_side(&self) -> bool {
+        // If the rook file is to the right of the king file, it is king-side.
+        (self.rook_from.file() as u8) > (self.king_from.file() as u8)
+    }
+}
+
 const fn file_range(a: BoardFile, b: BoardFile, rank: BoardRank) -> BitBoard {
     let mut range = BitBoard::empty();
     let (min_file, max_file) = if (a as u8) < (b as u8) {

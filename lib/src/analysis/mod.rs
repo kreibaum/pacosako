@@ -5,12 +5,9 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
-use crate::{
-    BoardPosition, DenseBoard, determine_all_threats, Hand, PacoAction, PacoBoard,
-    PacoError, PieceType, PlayerColor, substrate::Substrate,
-};
-
 use self::incremental_replay::history_to_replay_notation_incremental;
+use crate::PieceType::King;
+use crate::{castling, determine_all_threats, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor};
 
 pub mod chasing_paco;
 pub mod incremental_replay;
@@ -38,10 +35,12 @@ pub struct HalfMove {
     metadata: HalfMoveMetadata,
 }
 
-/// Represents a single section in a half move. Like [g2>Pf3].
+/// Represents a single section in a half-move. Like `g2xPf3`.
 #[derive(Serialize, PartialEq, Eq, Debug, Clone)]
 pub struct HalfMoveSection {
+    /// The index of the last action that is part of this section.
     action_index: usize,
+    /// The label of the section, like "g2xPf3" or "0-0".
     label: String,
 }
 
@@ -91,6 +90,9 @@ pub(crate) enum NotationAtom {
         partner: PieceType,
         at: BoardPosition,
     },
+    EndMoveCastle {
+        kingside: bool,
+    },
     Promote {
         to: PieceType,
     },
@@ -103,6 +105,7 @@ impl NotationAtom {
             NotationAtom::ContinueChain { .. }
                 | NotationAtom::EndMoveCalm { .. }
                 | NotationAtom::EndMoveFormUnion { .. }
+                | NotationAtom::EndMoveCastle {..}
         )
     }
     fn is_lift(&self) -> bool {
@@ -126,6 +129,13 @@ impl Display for NotationAtom {
             NotationAtom::EndMoveCalm { at } => write!(f, ">{}", at),
             NotationAtom::EndMoveFormUnion { partner, at } => {
                 write!(f, "x{}{}", letter(partner), at)
+            }
+            NotationAtom::EndMoveCastle { kingside } => {
+                if *kingside {
+                    write!(f, "0-0")
+                } else {
+                    write!(f, "0-0-0")
+                }
             }
             NotationAtom::Promote { to } => write!(f, "={}", letter(to)),
         }
@@ -181,6 +191,20 @@ fn apply_action_semantically(
             }
         }
         PacoAction::Place(at) => {
+            // Check if we are castling
+            if board.lifted_piece.piece() == Some(King) {
+                for cci in board.castling.options(board.controlling_player) {
+                    if let Some(details) = castling::get_castling_details(cci) {
+                        if details.place_target == at {
+                            // We are castling, execute the action and return
+                            board.execute(action)?;
+                            return Ok(NotationAtom::EndMoveCastle { kingside: details.is_king_side() });
+                        }
+                    }
+                }
+            }
+
+
             // Remember the opponent's piece at the target position.
             let partner = board
                 .substrate
@@ -209,44 +233,31 @@ fn apply_action_semantically(
 }
 
 /// Turns a list of notation atoms into a list of sections.
-/// the initial 2-move is combined into a single section.
+/// The initial 2-move is combined into a single section.
 fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<HalfMoveSection> {
     let mut result: Vec<HalfMoveSection> = Vec::new();
 
     let mut already_squashed = false;
-    // Stores the king's original position to detect castling.
-    let mut potentially_castling = None;
+    // Stores if this is a king move
+    let mut is_this_a_king_move = false;
 
     'atom_loop: for (i, atom) in atoms.iter().enumerate() {
         if let NotationAtom::StartMoveSinge {
             mover: PieceType::King,
             at,
-        } = atom
-        {
-            potentially_castling = Some(*at);
+        } = atom {
+            is_this_a_king_move = true;
         }
 
-        if let Some(from) = potentially_castling {
-            if atom.is_place() {
-                if let NotationAtom::EndMoveCalm { at } = atom {
-                    // This can never happen when the result is empty, so we can unwrap.
-                    let last = result.last_mut().unwrap();
+        if is_this_a_king_move && atom.is_place() {
+            if let NotationAtom::EndMoveCastle { kingside } = atom {
+                // This can never happen when the result is empty, so we can unwrap.
+                let last = result.last_mut().unwrap();
 
-                    let from = from.0 as i8;
-                    let to = at.0 as i8;
-                    if to - from == 2 {
-                        last.label = "0-0".to_string();
-                        last.action_index = i + initial_index + 1;
-                        already_squashed = true;
-                        continue 'atom_loop;
-                    }
-                    if to - from == -2 {
-                        last.label = "0-0-0".to_string();
-                        last.action_index = i + initial_index + 1;
-                        already_squashed = true;
-                        continue 'atom_loop;
-                    }
-                }
+                last.label = if *kingside { "0-0".to_string() } else { "0-0-0".to_string() };
+                last.action_index = i + initial_index + 1;
+                already_squashed = true;
+                continue 'atom_loop;
             }
             // Otherwise, we just continue. This is a regular King movement.
         }
@@ -307,10 +318,10 @@ pub fn is_sako(board: &DenseBoard, for_player: PlayerColor) -> Result<bool, Paco
 mod tests {
     use PacoAction::*;
 
-    use crate::{fen, testdata::REPLAY_13103};
-    use crate::const_tile::*;
-
     use super::*;
+    use crate::const_tile::*;
+    use crate::PlayerColor::White;
+    use crate::{fen, testdata::REPLAY_13103};
 
     #[test]
     fn empty_list() {
@@ -527,6 +538,45 @@ mod tests {
                     metadata: HalfMoveMetadata::default(),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn test_fischer_castling_notation() {
+        let setup = "rnnqkrbb/pppppppp/8/8/8/8/PPPPPPPP/RNNQKRBB w 0 AFaf - -";
+        let initial_board = fen::parse_fen(setup).unwrap();
+
+        let replay = history_to_replay_notation(
+            initial_board,
+            &[
+                Lift(F2), Place(F4),
+                Lift(D7), Place(D5),
+                Lift(G1), Place(C5),
+                Lift(B8), Place(C6),
+                Lift(E1), Place(F1),
+                Lift(C8), Place(D6),
+            ],
+        )
+            .expect("Error in input data");
+
+        println!("{:?}", replay.notation[4]);
+
+        assert_eq!(
+            replay.notation[4],
+            HalfMove {
+                move_number: 3,
+                current_player: White,
+                actions: vec![
+                    HalfMoveSection { action_index: 10, label: "0-0".to_string() }],
+                paco_actions: vec![Lift(E1), Place(F1)],
+                metadata: HalfMoveMetadata {
+                    gives_sako: false,
+                    missed_paco: false,
+                    gives_opponent_paco_opportunity: false,
+                    paco_in_2_found: false,
+                    paco_in_2_missed: false
+                }
+            }
         );
     }
 

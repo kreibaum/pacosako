@@ -1049,26 +1049,6 @@ impl DenseBoard {
     }
 }
 
-/// For a given move of the king, determines if this would trigger a castling.
-/// If so, the corresponding rook swap is returned. The first square is "source",
-/// the second is "target".
-pub fn for_castling_get_rook_move(
-    king_source: BoardPosition,
-    king_target: BoardPosition,
-) -> Option<(BoardPosition, BoardPosition)> {
-    if king_source == E1 && king_target == C1 {
-        Some((A1, D1))
-    } else if king_source == E1 && king_target == G1 {
-        Some((H1, F1))
-    } else if king_source == E8 && king_target == C8 {
-        Some((A8, D8))
-    } else if king_source == E8 && king_target == G8 {
-        Some((H8, F8))
-    } else {
-        None
-    }
-}
-
 impl PacoBoard for DenseBoard {
     fn execute(&mut self, action: PacoAction) -> Result<&mut Self, PacoError> {
         // This can be optimized a lot. But the current implementation is at

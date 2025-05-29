@@ -120,7 +120,7 @@ impl PlayerColor {
         self == PlayerColor::White
     }
 
-    pub(crate) fn all() -> impl Iterator<Item = Self> {
+    pub(crate) fn all() -> impl Iterator<Item=Self> {
         [Self::White, Self::Black].iter().copied()
     }
 }
@@ -145,6 +145,19 @@ impl BoardRank {
     /// Combines with a file to produce a position.
     pub fn and_u8(self, file: u8) -> BoardPosition {
         BoardPosition::new(file, self as u8)
+    }
+    pub const fn expect_u8(value: u8) -> BoardRank {
+        match value {
+            0 => BoardRank::Rank1,
+            1 => BoardRank::Rank2,
+            2 => BoardRank::Rank3,
+            3 => BoardRank::Rank4,
+            4 => BoardRank::Rank5,
+            5 => BoardRank::Rank6,
+            6 => BoardRank::Rank7,
+            7 => BoardRank::Rank8,
+            _ => panic!("Invalid file"),
+        }
     }
 }
 
@@ -232,8 +245,14 @@ impl BoardPosition {
     pub const fn x(self) -> u8 {
         self.0 % 8
     }
+    pub const fn file(self) -> BoardFile {
+        BoardFile::expect_u8(self.x())
+    }
     pub const fn y(self) -> u8 {
         self.0 / 8
+    }
+    pub const fn rank(self) -> BoardRank {
+        BoardRank::expect_u8(self.y())
     }
     pub const fn new(x: u8, y: u8) -> Self {
         Self(x + 8 * y)
@@ -292,7 +311,7 @@ impl BoardPosition {
     }
 
     /// Returns all possible positions on the board.
-    pub fn all() -> impl Iterator<Item = Self> {
+    pub fn all() -> impl Iterator<Item=Self> {
         (0..64).map(Self)
     }
 }

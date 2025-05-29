@@ -27,7 +27,7 @@ pub struct MatchParameters {
     safe_mode: Option<bool>,
     draw_after_n_repetitions: Option<u8>,
     pub ai_side_request: Option<AiSideRequest>,
-    piece_setup: PieceSetupParameters,
+    piece_setup: Option<PieceSetupParameters>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -306,7 +306,7 @@ impl SynchronizedMatch {
         let setup_options = SetupOptions {
             safe_mode: params.safe_mode.unwrap_or(true),
             draw_after_n_repetitions: params.draw_after_n_repetitions.unwrap_or(3),
-            starting_fen: variants::piece_setup_fen(params.piece_setup),
+            starting_fen: variants::piece_setup_fen(params.piece_setup.unwrap_or(PieceSetupParameters::DefaultPieceSetup)),
         };
 
         Self {
@@ -446,7 +446,7 @@ mod test {
                 safe_mode: Some(false),
                 draw_after_n_repetitions: None,
                 ai_side_request: None,
-                piece_setup: PieceSetupParameters::DefaultPieceSetup,
+                piece_setup: None,
             },
         );
 
