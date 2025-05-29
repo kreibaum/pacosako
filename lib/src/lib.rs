@@ -230,7 +230,7 @@ pub struct RestingPiece {
 
 /// Represents zero to two lifted pieces
 /// The owner of the pieces must be tracked externally, usually this will be the current player.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Hand {
     Empty,
     Single {

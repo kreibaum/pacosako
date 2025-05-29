@@ -34,6 +34,7 @@ use std::collections::HashMap;
 use lazy_regex::regex_captures;
 use lazy_static::lazy_static;
 
+use crate::PieceType::King;
 use crate::PlayerColor::{Black, White};
 use crate::{castling::Castling, parser::Square, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoBoard, PacoError, PlayerColor, RequiredAction};
 
@@ -163,8 +164,21 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
         result.set_hand(new_hand);
 
         result.draw_state.no_progress_half_moves = move_count.parse().unwrap();
-        let white_king = result.substrate.find_king(White);
-        let black_king = result.substrate.find_king(Black);
+
+        // We need to find the kings, which is surprisingly tricky.
+        // They may be in hand, which means we need to look at the lifted piece
+        // and the substrate.
+        let mut white_king = result.substrate.find_king(White);
+        let mut black_king = result.substrate.find_king(Black);
+
+        if new_hand.piece() == Some(King) {
+            let king_hovers_above = new_hand.position().expect("Hand must have a position if it has a piece.");
+            if result.controlling_player == White {
+                white_king = Ok(king_hovers_above);
+            } else {
+                black_king = Ok(king_hovers_above);
+            }
+        }
 
         if let (Ok(white_king), Ok(black_king)) = (white_king, black_king) {
             result.castling = Castling::from_fen(castling, white_king.file(), black_king.file())?;
