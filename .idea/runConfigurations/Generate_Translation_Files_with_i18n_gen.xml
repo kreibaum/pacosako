@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Generate Translation Files with pytrans.py" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="pytrans.py" />
+  <configuration default="false" name="Generate Translation Files with i18n_gen" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="../target/release/i18n_gen" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />

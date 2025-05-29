@@ -289,6 +289,7 @@ type alias MatchParameters =
     , safeMode : Bool
     , drawAfterNRepetitions : Int
     , aiSideRequest : Maybe AiSideRequestParameters
+    , isFischerRandom : Bool
     }
 
 
@@ -346,6 +347,15 @@ encodeMatchParameters record =
         , ( "safe_mode", Encode.bool record.safeMode )
         , ( "draw_after_n_repetitions", Encode.int record.drawAfterNRepetitions )
         , ( "ai_side_request", Maybe.map encodeAiSideRequest record.aiSideRequest |> Maybe.withDefault Encode.null )
+        , ( "piece_setup"
+          , Encode.string
+                (if record.isFischerRandom then
+                    "FischerRandom"
+
+                 else
+                    "DefaultPieceSetup"
+                )
+          )
         ]
 
 

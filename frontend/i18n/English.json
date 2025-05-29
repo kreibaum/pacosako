@@ -179,5 +179,6 @@
   "aiLabelModelLoading": "Downloading Model: {0}/{1}",
   "aiLabelSessionLoading": "Setting up Runtime",
   "aiLabelWarmup": "Warming up",
-  "translationNotComplete": "This translation is {0}% done. Help us complete it!"
+  "translationNotComplete": "This translation is {0}% done. Help us complete it!",
+  "enableFischerRandom": "Ŝako 960 variation"
 }

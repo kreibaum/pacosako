@@ -70,7 +70,7 @@ init shared =
       , rawMinutes = ""
       , rawSeconds = ""
       , rawIncrement = ""
-      , repetitionDraw = True
+      , isFischerRandom = False
       , recentGames = RemoteData.Loading
       , key = shared.key
       , aiViewVisible = False
@@ -90,7 +90,7 @@ type Msg
     | SetRawMinutes String
     | SetRawSeconds String
     | SetRawIncrement String
-    | SetRepetitionDraw Bool
+    | SetFischerRandom Bool
     | RefreshRecentGames
     | GotRecentGames (List CompressedMatchState)
     | ErrorRecentGames Http.Error
@@ -107,7 +107,7 @@ type alias Model =
     , rawMinutes : String
     , rawSeconds : String
     , rawIncrement : String
-    , repetitionDraw : Bool
+    , isFischerRandom : Bool
     , recentGames : WebData (List CompressedMatchState)
     , key : Browser.Navigation.Key
     , aiViewVisible : Bool
@@ -246,8 +246,8 @@ update msg model =
         ToShared outMsg ->
             ( model, Effect.fromShared outMsg )
 
-        SetRepetitionDraw repetitionDrawEnabled ->
-            ( { model | repetitionDraw = repetitionDrawEnabled }, Effect.none )
+        SetFischerRandom isFischerRandom ->
+            ( { model | isFischerRandom = isFischerRandom }, Effect.none )
 
         SetAiViewVisible aiViewVisible ->
             ( { model | aiViewVisible = aiViewVisible }
@@ -336,18 +336,14 @@ createMatch model =
         [ Api.Backend.postMatchRequest
             { timer = buildTimerConfig model.speedSetting
             , safeMode = True
-            , drawAfterNRepetitions =
-                if model.repetitionDraw then
-                    3
-
-                else
-                    0
+            , drawAfterNRepetitions = 3
             , aiSideRequest =
                 if model.aiViewVisible then
                     Just { modelName = "hedwig", modelStrength = 0, modelTemperature = 0.05, color = model.aiColorChoice }
 
                 else
                     Nothing
+            , isFischerRandom = model.isFischerRandom
             }
             HttpError
             MatchConfirmedByServer
@@ -518,7 +514,7 @@ setupOnlineMatchUi shared model =
                 ]
             , recentTimerSettings model fontSize shared.recentCustomTimes
             , el [ centerX ] (Element.paragraph [] [ timeLimitInputLabel model ])
-            , el [ centerX ] (Element.paragraph [] [ repetitionDrawToggle model ])
+            , el [ centerX ] (Element.paragraph [] [ fischerRandomToggle model ])
             , if isTimerOk (buildTimerConfig model.speedSetting) then
                 row [ width fill, spacing 10 ]
                     [ createMatchButton (not model.aiViewVisible)
@@ -692,15 +688,15 @@ timeLimitInputCustom model =
         ]
 
 
-repetitionDrawToggle : Model -> Element Msg
-repetitionDrawToggle model =
+fischerRandomToggle : Model -> Element Msg
+fischerRandomToggle model =
     Input.checkbox []
-        { onChange = SetRepetitionDraw
+        { onChange = SetFischerRandom
         , icon = Input.defaultCheckbox
-        , checked = model.repetitionDraw
+        , checked = model.isFischerRandom
         , label =
             Input.labelRight []
-                (text T.enableRepetitionDraw)
+                (text T.enableFischerRandom)
         }
 
 
