@@ -100,7 +100,7 @@ pub fn fischer_random() -> DenseBoard {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{fen, substrate::BitBoard};
+    use crate::substrate::BitBoard;
 
     /// Verifies that a random board has the right piece count in roughly the
     /// right position.
@@ -134,15 +134,5 @@ mod test {
             assert_eq!(board.substrate.find_pieces(White, King).len(), 1);
             assert_eq!(board.substrate.find_pieces(Black, King).len(), 1);
         }
-    }
-
-    #[test]
-    fn temp_show_me_some_fischer() {
-        for _ in 0..10 {
-            let fischer = fischer_random();
-            let fen = fen::write_fen(&fischer);
-            println!("{fen}");
-        }
-        assert_eq!(1, 2);
     }
 }
