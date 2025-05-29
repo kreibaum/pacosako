@@ -34,10 +34,8 @@ use std::collections::HashMap;
 use lazy_regex::regex_captures;
 use lazy_static::lazy_static;
 
-use crate::{
-    castling::Castling, parser::Square, substrate::Substrate, types::BoardFile, BoardPosition,
-    DenseBoard, Hand, PacoError, PlayerColor, RequiredAction,
-};
+use crate::PlayerColor::{Black, White};
+use crate::{castling::Castling, parser::Square, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoBoard, PacoError, PlayerColor, RequiredAction};
 
 /// This needs its own method or rustfmt gets unhappy.
 fn fen_regex(input: &str) -> Option<(&str, &str, &str, &str, &str, &str, &str)> {
@@ -165,7 +163,18 @@ pub fn parse_fen(input: &str) -> Result<DenseBoard, PacoError> {
         result.set_hand(new_hand);
 
         result.draw_state.no_progress_half_moves = move_count.parse().unwrap();
-        result.castling = Castling::from_fen(castling, BoardFile::FileE, BoardFile::FileE)?;
+        let white_king = result.substrate.find_king(White);
+        let black_king = result.substrate.find_king(Black);
+
+        if let (Ok(white_king), Ok(black_king)) = (white_king, black_king) {
+            result.castling = Castling::from_fen(castling, white_king.file(), black_king.file())?;
+        } else {
+            // If there is no king, wa can't castle. If only one side has a king,
+            // this isn't a real game either.
+            // No castling.
+            result.castling = Castling::forfeit();
+        }
+
         result.en_passant = BoardPosition::try_from(en_passant).ok();
 
         Ok(result)
@@ -211,7 +220,7 @@ pub fn write_fen(input: &DenseBoard) -> String {
         "{}",
         write_hand(&input.lifted_piece, input.controlling_player)
     )
-    .unwrap();
+        .unwrap();
 
     write!(
         result,
@@ -228,7 +237,7 @@ pub fn write_fen(input: &DenseBoard) -> String {
             .map(|sq| sq.to_string())
             .unwrap_or_else(|| "-".to_owned()),
     )
-    .unwrap();
+        .unwrap();
 
     result
 }
@@ -298,9 +307,11 @@ mod tests {
     /// Test that the new empty is properly serialized and deserialized.
     #[test]
     fn empty_board() {
-        let fen_string = "8/8/8/8/8/8/8/8 w 0 AHah - -";
+        let fen_string = "8/8/8/8/8/8/8/8 w 0 - - -";
         let board = parse_fen(fen_string).unwrap();
-        assert_eq!(board, DenseBoard::empty());
+        let mut empty = DenseBoard::empty();
+        empty.castling = Castling::forfeit();
+        assert_eq!(board, empty);
         assert_eq!(write_fen(&board), fen_string);
     }
 

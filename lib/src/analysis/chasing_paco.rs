@@ -4,8 +4,8 @@
 //! the number of positions we need to analyze.
 
 use crate::{
-    DenseBoard, determine_all_moves, PacoAction, PacoBoard, PacoError, PlayerColor,
-    trace_first_move, VictoryState,
+    determine_all_moves, trace_first_move, DenseBoard, PacoAction, PacoBoard, PacoError,
+    PlayerColor, VictoryState,
 };
 
 use super::reverse_amazon_search;
@@ -86,8 +86,8 @@ pub fn is_chasing_paco_in_2(
 
 #[cfg(test)]
 mod tests {
-    use crate::BoardPosition;
     use crate::fen;
+    use crate::BoardPosition;
     use crate::PacoAction::*;
 
     use super::*;
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn chasing_paco_2_detected_example_a() -> Result<(), PacoError> {
-        let setup = "r2q2k1/ppp1n2p/4c2e/3f1C2/1b1O1p1P/2S1P3/PPP2PP1/2KR1B2 w 0 AHah - -";
+        let setup = "r2q2k1/ppp1n2p/4c2e/3f1C2/1b1O1p1P/2S1P3/PPP2PP1/2KR1B2 w 0 - - -";
         let board = fen::parse_fen(setup).unwrap();
 
         let mut good_white_attacks =

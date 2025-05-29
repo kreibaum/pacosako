@@ -48,7 +48,7 @@ impl Distribution<DenseBoard> for Standard {
             if i.0 < 8
                 && board.substrate.is_piece(White, i, Pawn)
                 && (!board.substrate.has_piece(Black, i)
-                    || board.substrate.is_piece(Black, i, King))
+                || board.substrate.is_piece(Black, i, King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_white(&board, rng);
@@ -65,7 +65,7 @@ impl Distribution<DenseBoard> for Standard {
             if i.0 >= 56
                 && board.substrate.is_piece(Black, i, Pawn)
                 && (!board.substrate.has_piece(White, i)
-                    || board.substrate.is_piece(White, i, King))
+                || board.substrate.is_piece(White, i, King))
             {
                 let free_index = loop {
                     let candidate = random_position_without_black(&board, rng);
@@ -107,7 +107,7 @@ impl Distribution<DenseBoard> for Standard {
 
         // Figure out if any castling permissions remain
         let white_king_in_position = board.substrate.is_piece(White, E1, King);
-        let black_king_in_position = board.substrate.is_piece(White, E8, King);
+        let black_king_in_position = board.substrate.is_piece(Black, E8, King);
 
         if !(white_king_in_position && board.substrate.is_piece(White, A1, Rook)) {
             board.castling.white_queen_side = Castling::FORFEIT;

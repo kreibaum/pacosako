@@ -257,7 +257,7 @@ impl CastlingIdentifier {
 }
 
 /// For a castling move, the details to check if the move is legal and to execute it.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct CastlingDetails {
     pub king_from: BoardPosition,
     pub king_to: BoardPosition,
@@ -480,6 +480,20 @@ mod test {
         assert_eq!(castling.white_king_side.0, 0b10_101_100);
         assert_eq!(castling.black_queen_side.0, 0b11_011_100);
         assert_eq!(castling.black_king_side.0, 0b11_101_100);
+    }
+
+    #[test]
+    fn castling_properly_decoded_from_fen() -> Result<(), PacoError> {
+        let board = fen::parse_fen("nbbrqnkr/pppppppp/8/8/8/8/PPPPPPPP/NBBRQNKR w 0 DHdh - -")?;
+        let wks = get_castling_details(board.castling.white_king_side).unwrap();
+
+        assert_eq!(wks.king_from, G1);
+        assert_eq!(wks.king_to, G1);
+        assert_eq!(wks.rook_from, H1);
+        assert_eq!(wks.rook_to, F1);
+        assert_eq!(wks.place_target, H1);
+
+        Ok(())
     }
 
     #[test]
