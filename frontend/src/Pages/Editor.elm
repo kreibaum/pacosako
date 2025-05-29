@@ -493,7 +493,9 @@ replayLoaded actionCount replay model =
             List.take actionCount replay.actions |> List.map (\( a, _ ) -> a)
 
         maybeBoard =
-            Sako.doActionsList actions Sako.initialPosition
+            replay.setupOptions.startingFen
+                |> Fen.parseFen
+                |> Maybe.andThen (Sako.doActionsList actions)
     in
     case maybeBoard of
         Just board ->

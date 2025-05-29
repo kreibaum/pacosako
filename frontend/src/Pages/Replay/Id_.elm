@@ -31,6 +31,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Element.Region
+import Fen
 import FontAwesome.Icon exposing (Icon)
 import FontAwesome.Solid as Solid
 import Gen.Route as Route
@@ -80,6 +81,7 @@ type alias Model =
     -- We store this inside & outside because of race conditions.
     , replayMetaData : ReplayMetaDataProcessed
     , actionHistory : List Sako.Action
+    , setupOptions : Sako.SetupOptions
     , key : String
     , navigationKey : Browser.Navigation.Key
     , now : Posix
@@ -96,6 +98,8 @@ type alias InnerModel =
     , replay_url : Url.Url
     , navigationKey : Browser.Navigation.Key
     , actionHistory : List Sako.Action
+    , setupOptions : Sako.SetupOptions
+    , startingPosition : Sako.Position
     , sidebarData : List Notation.HalfMove
     , replayMetaData : ReplayMetaDataProcessed
     , opening : String
@@ -127,6 +131,7 @@ init shared params url =
       , replay = DownloadingReplayData
       , replayMetaData = Api.ReplayMetaData.empty
       , actionHistory = []
+      , setupOptions = Sako.dummySetupOptions
       , key = params.id
       , navigationKey = shared.key
       , now = Time.millisToPosix 0
@@ -152,16 +157,23 @@ type alias ReplayData =
 -}
 innerInit : Model -> ReplayData -> InnerModel
 innerInit model sidebarData =
+    let
+        startingPosition =
+            Fen.parseFen model.setupOptions.startingFen
+                |> Maybe.withDefault Sako.initialPosition
+    in
     { key = model.key
     , replay_url = model.replay_url
     , navigationKey = model.navigationKey
     , actionHistory = model.actionHistory
+    , setupOptions = model.setupOptions
+    , startingPosition = startingPosition
     , sidebarData = sidebarData.notation
     , replayMetaData = model.replayMetaData
     , opening = sidebarData.opening
     , progress = sidebarData.progress
     , selected = Notation.initialSectionIndex
-    , timeline = Animation.init (PositionView.renderStatic WhiteBottom Sako.initialPosition)
+    , timeline = Animation.init (PositionView.renderStatic WhiteBottom startingPosition)
     , castingDeco = CastingDeco.initModel
     , inputMode = Nothing
     , showMovementIndicators = True
@@ -225,6 +237,7 @@ update msg model =
                 , blackPlayer = replay.blackPlayer
                 , whiteControl = replay.whiteControl
                 , blackControl = replay.blackControl
+                , setupOptions = replay.setupOptions
               }
             , replay
                 |> stripDownReplay
@@ -673,7 +686,7 @@ currentBoard model =
             List.take actionIndex model.actionHistory
     in
     if List.length actions == actionIndex then
-        Sako.doActionsList actions Sako.initialPosition
+        Sako.doActionsList actions model.startingPosition
             |> Maybe.map (\x -> ReplayOk x actions)
             |> Maybe.withDefault ReplayError
 

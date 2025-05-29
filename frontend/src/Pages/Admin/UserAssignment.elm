@@ -7,6 +7,7 @@ import Custom.Element exposing (icon)
 import Effect exposing (Effect)
 import Element exposing (Element, centerX, column, el, fill, height, padding, px, row, spacing, width)
 import Element.Input as Input
+import Fen
 import FontAwesome.Solid as Solid
 import Gen.Params.Admin.UserAssignment exposing (Params)
 import Header
@@ -374,7 +375,9 @@ gamePreviewImage shared replay =
             List.map Tuple.first replay.actions
 
         position =
-            Sako.initialPosition |> Sako.doActionsList actionHistory
+            replay.setupOptions.startingFen
+                |> Fen.parseFen
+                |> Maybe.andThen (Sako.doActionsList actionHistory)
     in
     position
         |> Maybe.map (PositionView.renderStatic WhiteBottom)
