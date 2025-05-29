@@ -82,8 +82,7 @@ var observer = new MutationObserver(function (mutations) {
     });
 });
 
-observer.observe(document.body, { childList: true, subtree: true });
-
+observer.observe(document.body, {childList: true, subtree: true});
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +93,7 @@ observer.observe(document.body, { childList: true, subtree: true });
 let localStorageData = JSON.parse(localStorage.getItem('localStorage'));
 
 // Pass the window size to elm on init. This way we already know it on startup.
-let windowSize = { "width": window.innerWidth, "height": window.innerHeight };
+let windowSize = {"width": window.innerWidth, "height": window.innerHeight};
 let elmFlags = {
     "windowSize": windowSize,
     "localStorage": localStorageData,
@@ -235,7 +234,7 @@ if (app.ports.copy) {
 /**
  * The browser stores a uuid that is send over the websocket to prevent other
  * people from moving your pieces.
- * 
+ *
  * https://github.com/kreibaum/pacosako/issues/53
  */
 function getUUID(): string {
@@ -249,7 +248,7 @@ function getUUID(): string {
 
 /**
  * Wrapper for the websocket that takes care of several additional aspects:
- * 
+ *
  * - Registering to the elm port
  * - Forwarding messages that were send before the websocket could be created
  * - Trying multiple ways to connect.
@@ -272,7 +271,7 @@ class WebsocketWrapper {
     /**
      * Tries to connect to a websocket and returns it after the connection has
      * been opened. Resolves to undefined otherwise.
-     * @param websocket_url 
+     * @param websocket_url
      */
     private try_connect(websocket_url: string): Promise<WebSocket | undefined> {
         console.log(`Attempting connection to: ${websocket_url}.`)
@@ -313,18 +312,6 @@ class WebsocketWrapper {
     }
 
     /**
-     * This fallback connection connects directly on the websocket port, as
-     * given by the server on /api/websocket/port.
-     * This will only work when connected via unsecure http.
-     */
-    private async fallback_connection(): Promise<WebSocket | undefined> {
-        let websocket_port = await fetch("/api/websocket/port").then((r) =>
-            r.text()
-        );
-        return this.try_connect(`ws://${window.location.hostname}:${websocket_port}`)
-    }
-
-    /**
      * Establish websocket connection.
      */
     private async connect() {
@@ -332,10 +319,6 @@ class WebsocketWrapper {
         let ws = await this.gitpod_connection()
         if (!ws) {
             ws = await this.direct_connection()
-        }
-        if (!ws) {
-            console.warn("Using fallback websocket connection!")
-            ws = await this.fallback_connection()
         }
         if (!ws) {
             console.error("No websocket connection established.")
@@ -363,7 +346,7 @@ class WebsocketWrapper {
         }
     }
 
-    /** 
+    /**
      * If the websocket is open, send the message. Otherwise put it in the queue.
      */
     public trySend(msg: any) {
@@ -456,8 +439,8 @@ window.addEventListener('scroll', function (e) {
 if (app.ports.scrollTrigger) {
     // Wait 10 ms before calling app.ports.scrollTrigger.send(null);
     setTimeout(() => {
-        app.ports.scrollTrigger.send(null);
-    }
+            app.ports.scrollTrigger.send(null);
+        }
         , 10);
 }
 
