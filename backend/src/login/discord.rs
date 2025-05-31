@@ -3,11 +3,11 @@
 //! This module is for the Discord OAuth2 login. It works with the following steps:
 //! 1. Generates links for the client to redirect to Discord.
 //! 2. Processes the "back from Discord" redirect. Which is:
-//!   a. Receives the OAuth2 code from Discord,
-//!   b. requests the access token and
-//!   c. loads user information from /users/@me
+//!    a. Receives the OAuth2 code from Discord,
+//!    b. requests the access token and
+//!    c. loads user information from /users/@me
 //! 3. Processes new user onboarding.
-//!   a. This also calls /users/@me
+//!    a. This also calls /users/@me
 //!
 //! Note that while Discord OAuth2 delivers a refresh token, we don't use it.
 //! We only check with Discord once, to understand who logged in and then have
@@ -105,7 +105,7 @@ pub fn generate_link(config: &EnvironmentConfig, can_delete: bool) -> DiscordLog
     };
 
     let url = format!("https://discord.com/api/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify&state={}",
-        config.discord_client_id, encode(&redirect_uri), state);
+                      config.discord_client_id, encode(&redirect_uri), state);
 
     DiscordLoginLink {
         url,
@@ -307,8 +307,8 @@ async fn get_user_for_discord_user_id(
         "SELECT user_id FROM login WHERE type = 'discord' AND identifier = ?",
         discord_user_id
     )
-    .fetch_optional(&mut *conn)
-    .await?;
+        .fetch_optional(&mut *conn)
+        .await?;
 
     let Some(res) = res else {
         return Ok(None);
@@ -353,7 +353,7 @@ pub async fn please_create_account(
         &format!("identicon:{}", user_info.id),
         &mut conn,
     )
-    .await?;
+        .await?;
 
     // Associate the user with the discord login
     user::create_discord_login(user_id, user_info.id, &mut conn).await?;

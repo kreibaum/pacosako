@@ -179,7 +179,7 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
 
 /// Ai move determination function where all the message passing related wiring can be ignored.
 async fn determine_ai_move_inner(board: &DenseBoard) -> Result<Vec<PacoAction>, JsValue> {
-    let fen = fen::write_fen(&board);
+    let fen = fen::write_fen(board);
     // Check if there is a move stored in the opening book. If so, then we take that.
     if let Some(position_data) = OpeningBook::get(&fen) {
         console_log("Found opening book move.");
@@ -190,7 +190,7 @@ async fn determine_ai_move_inner(board: &DenseBoard) -> Result<Vec<PacoAction>, 
         console_log(format!("No opening book move found for {}", fen).as_str());
     }
 
-    let actions = decide_turn_intuition(&board, vec![])
+    let actions = decide_turn_intuition(board, vec![])
         .await
         .map_err(|e| e.to_string())?;
     Ok(actions)
@@ -284,7 +284,6 @@ pub fn init_opening_book(data: String) -> Result<(), JsValue> {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// TODO: This has proven not really useful, I should get rid of it again.
-
 /// Subscribes to the game on the server.
 #[wasm_bindgen(js_name = "subscribeToMatch")]
 pub fn subscribe_to_match(data: String) -> Result<(), JsValue> {

@@ -134,7 +134,7 @@ async fn post_action_to_game(
         uuid: params.uuid,
         session_id: session.map(|s| s.session_id),
     })
-    .await;
+        .await;
 }
 
 async fn post_ai_metadata(
@@ -152,9 +152,7 @@ async fn post_ai_metadata(
     // update game set white_player = ? where id = ? // or black_player
     let key: i64 = key.parse()?;
     if let Some(game) = db::game::select(key, &mut conn).await? {
-        if game.white_player.is_none() && player_color == PlayerColor::White {
-            db::game::set_player(key, player_color, session.user_id, &mut conn).await?;
-        } else if game.black_player.is_none() && player_color == PlayerColor::Black {
+        if game.player(player_color).is_none() {
             db::game::set_player(key, player_color, session.user_id, &mut conn).await?;
         }
     }
@@ -209,7 +207,7 @@ async fn my_games(
         params.limit as i64,
         &mut conn,
     )
-    .await?;
+        .await?;
 
     let total_games = db::game::count_for_player(session.user_id.0, &mut conn).await? as usize;
 

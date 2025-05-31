@@ -232,7 +232,7 @@ if (app.ports.copy) {
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * The browser stores a uuid that is send over the websocket to prevent other
+ * The browser stores a uuid that is sent over the websocket to prevent other
  * people from moving your pieces.
  *
  * https://github.com/kreibaum/pacosako/issues/53

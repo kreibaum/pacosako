@@ -8,10 +8,10 @@ use std::{
 };
 
 use crate::{
-    BoardPosition,
     calculate_interning_hash,
-    DenseBoard,
-    PacoAction, PacoBoard, PacoError, PieceType, PlayerColor, substrate::{BitBoard, constant_bitboards::KNIGHT_TARGETS, Substrate}, trivial_hash::TrivialHashBuilder,
+    substrate::{constant_bitboards::KNIGHT_TARGETS, BitBoard, Substrate},
+    trivial_hash::TrivialHashBuilder,
+    BoardPosition, DenseBoard, PacoAction, PacoBoard, PacoError, PieceType, PlayerColor,
 };
 
 use super::tree;
@@ -452,10 +452,10 @@ fn knight_targets(ctx: &mut AmazonContext, from: BoardPosition) {
 mod tests {
     use ntest::timeout;
 
-    use crate::{const_tile::*, DenseBoard, fen, PacoAction, PacoBoard, PlayerColor};
+    use crate::{const_tile::*, fen, DenseBoard, PacoAction, PacoBoard, PlayerColor};
 
-    use super::*;
     use super::reverse_amazon_squares;
+    use super::*;
 
     #[test]
     fn initial_board() {
@@ -554,8 +554,8 @@ mod tests {
             fen::parse_fen("1n2k1n1/ppp2ppp/3p2NE/6RB/2P3PA/i6C/P2F4/REBQ3K w 0 AHah - -")
                 .expect("Error in fen parsing.");
 
-        board.execute_trusted(PacoAction::Lift(pos("d2"))).unwrap();
-        board.execute_trusted(PacoAction::Place(pos("d4"))).unwrap();
+        board.execute_trusted(PacoAction::Lift(D2)).unwrap();
+        board.execute_trusted(PacoAction::Place(D4)).unwrap();
 
         let search = reverse_amazon_squares(&board, PlayerColor::Black)
             .expect("Error in reverse amazon search.");
@@ -730,7 +730,7 @@ mod tests {
             fen::parse_fen("rn2Srkt/pp3e1p/8/8/1P1AP1bA/4ed2/P1P1F2P/R3K2R b 0 AHah - -")
                 .expect("Error in fen parsing.");
 
-        board.execute_trusted(PacoAction::Lift(pos("g4"))).unwrap();
+        board.execute_trusted(PacoAction::Lift(G4)).unwrap();
 
         let search = reverse_amazon_squares(&board, PlayerColor::Black)
             .expect("Error in reverse amazon search.");
@@ -770,7 +770,7 @@ mod tests {
         assert!(search.chaining_tiles.contains(G4));
         assert!(search.chaining_tiles.contains(F8));
 
-        board.execute_trusted(PacoAction::Lift(pos("d6"))).unwrap();
+        board.execute_trusted(PacoAction::Lift(D6)).unwrap();
 
         let search = reverse_amazon_squares(&board, PlayerColor::Black)
             .expect("Error in reverse amazon search.");
@@ -803,8 +803,8 @@ mod tests {
             fen::parse_fen("rn2k1nr/pppppppp/4E2q/8/2E5/8/PP1PKPPP/RNBQ1BNR b 0 AHah - -")
                 .expect("Error in fen parsing.");
 
-        board.execute_trusted(PacoAction::Lift(pos("h6"))).unwrap();
-        board.execute_trusted(PacoAction::Place(pos("e6"))).unwrap();
+        board.execute_trusted(PacoAction::Lift(H6)).unwrap();
+        board.execute_trusted(PacoAction::Place(E6)).unwrap();
 
         let mut sequences = find_paco_sequences(&board, PlayerColor::Black)
             .expect("Error in paco sequence search.");

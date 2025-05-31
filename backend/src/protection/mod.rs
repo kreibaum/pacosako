@@ -120,7 +120,7 @@ impl SideProtection {
 impl From<&SocketIdentity> for SideProtection {
     fn from(SocketIdentity { uuid, user_id }: &SocketIdentity) -> Self {
         if let Some(user_id) = user_id {
-            SideProtection::UserLock(user_id.clone())
+            SideProtection::UserLock(*user_id)
         } else {
             SideProtection::UuidLock(uuid.clone())
         }

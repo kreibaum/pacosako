@@ -49,9 +49,9 @@ pub async fn caching_middleware_fn(request: Request, next: Next) -> impl IntoRes
     let is_static_file = path.starts_with("/a/") || path.starts_with("/js/");
     let is_cache_busted = is_static_file
         && request
-            .uri()
-            .query()
-            .map_or(false, |query| query.contains("hash"));
+        .uri()
+        .query()
+        .is_some_and(|query| query.contains("hash"));
 
     let mut response = next.run(request).await;
 

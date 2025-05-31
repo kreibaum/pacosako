@@ -11,7 +11,6 @@ use castling::{get_castling_details, Castling};
 use fxhash::{FxHashMap, FxHashSet, FxHasher};
 use serde::{Deserialize, Serialize};
 
-use const_tile::*;
 use draw_state::DrawState;
 use paco_action::PacoActionSet;
 use setup_options::SetupOptions;
@@ -332,7 +331,7 @@ impl DenseBoard {
             lifted_piece: Hand::Empty,
             en_passant: None,
             promotion: None,
-            castling: Castling::new(),
+            castling: Castling::default(),
             victory_state: VictoryState::Running,
             draw_state: DrawState::with_options(options),
             half_move_count: 1,
@@ -378,7 +377,7 @@ impl DenseBoard {
             lifted_piece: Hand::Empty,
             en_passant: None,
             promotion: None,
-            castling: Castling::new(),
+            castling: Castling::default(),
             victory_state: VictoryState::Running,
             draw_state: DrawState::default(),
             half_move_count: 1,
@@ -1277,7 +1276,7 @@ pub fn trace_first_move<S: std::hash::BuildHasher>(
 
     loop {
         let parents = found_via.get(&pivot)?;
-        let (action, parent) = parents.get(0)?;
+        let (action, parent) = parents.first()?;
         trace.push(*action);
         if let Some(p) = parent {
             pivot = *p;
@@ -1410,13 +1409,11 @@ pub fn find_last_checkpoint_index<'a>(
 
 #[cfg(test)]
 mod tests {
-    use std::convert::{TryFrom, TryInto};
-
-    use parser::Square;
-
-    use crate::analysis::is_sako;
-
     use super::*;
+    use crate::analysis::is_sako;
+    use const_tile::*;
+    use parser::Square;
+    use std::convert::TryInto;
 
     /// Helper macro to execute moves in unit tests.
     macro_rules! execute_action {
@@ -1437,10 +1434,6 @@ mod tests {
         }};
     }
 
-    fn pos(identifier: &str) -> BoardPosition {
-        BoardPosition::try_from(identifier).unwrap()
-    }
-
     /// Helper function to make tests of "determine all moves" easier.
     fn find_sako_states(board: DenseBoard) -> Result<Vec<DenseBoard>, PacoError> {
         let opponent = board.controlling_player().other();
@@ -1459,8 +1452,8 @@ mod tests {
     #[test]
     fn test_simple_sako() {
         let mut squares = HashMap::new();
-        squares.insert(pos("c4"), Square::white(PieceType::Bishop));
-        squares.insert(pos("f7"), Square::black(PieceType::King));
+        squares.insert(C4, Square::white(PieceType::Bishop));
+        squares.insert(F7, Square::black(PieceType::King));
 
         let sako_states = find_sako_states(DenseBoard::from_squares(squares)).unwrap();
 
@@ -1470,8 +1463,8 @@ mod tests {
     #[test]
     fn test_simple_non_sako() {
         let mut squares = HashMap::new();
-        squares.insert(pos("c4"), Square::white(PieceType::Bishop));
-        squares.insert(pos("f8"), Square::black(PieceType::King));
+        squares.insert(C4, Square::white(PieceType::Bishop));
+        squares.insert(F8, Square::black(PieceType::King));
 
         let sako_states = find_sako_states(DenseBoard::from_squares(squares)).unwrap();
 
@@ -1481,9 +1474,9 @@ mod tests {
     #[test]
     fn test_chain_sako() {
         let mut squares = HashMap::new();
-        squares.insert(pos("c4"), Square::white(PieceType::Bishop));
-        squares.insert(pos("f7"), Square::pair(PieceType::Rook, PieceType::Pawn));
-        squares.insert(pos("f5"), Square::black(PieceType::King));
+        squares.insert(C4, Square::white(PieceType::Bishop));
+        squares.insert(F7, Square::pair(PieceType::Rook, PieceType::Pawn));
+        squares.insert(F5, Square::black(PieceType::King));
 
         let sako_states = find_sako_states(DenseBoard::from_squares(squares)).unwrap();
 
@@ -1497,9 +1490,9 @@ mod tests {
         // Set up a situation where en passant can happen.
         let mut squares = HashMap::new();
         // White pawn that moves two squares forward
-        squares.insert(pos("d2"), Square::white(Pawn));
+        squares.insert(D2, Square::white(Pawn));
         // Black pawn that will unite en passant
-        squares.insert(pos("e4"), Square::black(Pawn));
+        squares.insert(E4, Square::black(Pawn));
         // White pawn to block the black pawn from advancing, reducing the black action space.
         squares.insert(BoardPosition::new(4, 2), Square::white(Pawn));
         let mut board = DenseBoard::from_squares(squares);
@@ -1510,7 +1503,7 @@ mod tests {
         execute_action!(board, lift, "e4");
 
         // Check if the correct legal moves are returned
-        assert_eq!(pos("d3"), board.en_passant.unwrap());
+        assert_eq!(D3, board.en_passant.unwrap());
         assert!(board.actions().unwrap().contains(PacoAction::Place(D3)));
 
         // Execute en passant union
@@ -1530,15 +1523,15 @@ mod tests {
 
         // Set up a situation where en passant can happen.
         let mut squares = HashMap::new();
-        squares.insert(pos("c4"), Square::black(Pawn));
-        squares.insert(pos("d2"), Square::pair(Pawn, Knight));
+        squares.insert(C4, Square::black(Pawn));
+        squares.insert(D2, Square::pair(Pawn, Knight));
         squares.insert(E1, Square::white(King));
         let mut board = DenseBoard::from_squares(squares);
 
         execute_action!(board, lift, "d2");
         execute_action!(board, place, "d4");
 
-        assert_eq!(pos("d3"), board.en_passant.unwrap());
+        assert_eq!(D3, board.en_passant.unwrap());
 
         let sako_states = find_sako_states(board).unwrap();
 
@@ -1647,7 +1640,7 @@ mod tests {
         execute_action!(board, lift, "e7");
         execute_action!(board, place, "e5");
 
-        assert_eq!(pos("e6"), board.en_passant.unwrap());
+        assert_eq!(E6, board.en_passant.unwrap());
 
         // White move
         execute_action!(board, lift, "c5");
@@ -1666,15 +1659,15 @@ mod tests {
         use PieceType::*;
 
         let mut squares = HashMap::new();
-        squares.insert(pos("c2"), Square::white(Pawn));
-        squares.insert(pos("e3"), Square::pair(Rook, Pawn));
-        squares.insert(pos("d1"), Square::white(King));
-        squares.insert(pos("c5"), Square::black(Pawn));
+        squares.insert(C2, Square::white(Pawn));
+        squares.insert(E3, Square::pair(Rook, Pawn));
+        squares.insert(D1, Square::white(King));
+        squares.insert(C5, Square::black(Pawn));
 
         let board = DenseBoard::from_squares(squares);
 
         let received_threats = determine_all_threats(&board).unwrap();
-        let expected_threats: BitBoard = vec![B3, D3].iter().collect();
+        let expected_threats: BitBoard = [B3, D3].iter().collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1692,16 +1685,16 @@ mod tests {
         use PieceType::*;
 
         let mut squares = HashMap::new();
-        squares.insert(pos("c2"), Square::white(Pawn));
-        squares.insert(pos("d3"), Square::pair(Rook, Pawn));
-        squares.insert(pos("g3"), Square::white(King));
-        squares.insert(pos("c5"), Square::black(Pawn));
+        squares.insert(C2, Square::white(Pawn));
+        squares.insert(D3, Square::pair(Rook, Pawn));
+        squares.insert(G3, Square::white(King));
+        squares.insert(C5, Square::black(Pawn));
 
         let board = DenseBoard::from_squares(squares);
 
         let received_threats = determine_all_threats(&board).unwrap();
 
-        let expected_threats: BitBoard = vec![
+        let expected_threats: BitBoard = [
             // Rook threatens row, cut of by king on G3
             A3, B3, C3, D3, E3, F3, G3, // H3
             // Rook threatens column
@@ -1721,17 +1714,17 @@ mod tests {
         use PieceType::*;
 
         let mut squares = HashMap::new();
-        squares.insert(pos("c2"), Square::white(Knight));
-        squares.insert(pos("b4"), Square::black(Pawn));
-        squares.insert(pos("d4"), Square::pair(Pawn, Pawn));
-        squares.insert(pos("f4"), Square::pair(Pawn, Pawn));
-        squares.insert(pos("e3"), Square::white(King));
+        squares.insert(C2, Square::white(Knight));
+        squares.insert(B4, Square::black(Pawn));
+        squares.insert(D4, Square::pair(Pawn, Pawn));
+        squares.insert(F4, Square::pair(Pawn, Pawn));
+        squares.insert(E3, Square::white(King));
 
         let board = DenseBoard::from_squares(squares);
 
         let received_threats = determine_all_threats(&board).unwrap();
 
-        let expected_threats: BitBoard = vec![
+        let expected_threats: BitBoard = [
             // Knight threats
             A1, A3, B4, D4, E1, E3, // Pawn threats (from d4)
             C5, E5,
@@ -1748,14 +1741,14 @@ mod tests {
         use PieceType::*;
 
         let mut squares = HashMap::new();
-        squares.insert(pos("g7"), Square::white(Pawn));
-        squares.insert(pos("g6"), Square::pair(Knight, Pawn));
+        squares.insert(G7, Square::white(Pawn));
+        squares.insert(G6, Square::pair(Knight, Pawn));
         squares.insert(H8, Square::pair(Knight, Pawn));
         let board = DenseBoard::from_squares(squares);
 
         let received_threats = determine_all_threats(&board).unwrap();
 
-        let expected_threats: BitBoard = vec![
+        let expected_threats: BitBoard = [
             // Queen threats
             A8, B8, C8, D8, E8, F8, G8, H8, // Row 8
             H1, H2, H3, H4, H5, H6, H7, H8, // Column H
@@ -1775,19 +1768,19 @@ mod tests {
         use PieceType::*;
 
         let mut squares = HashMap::new();
-        squares.insert(pos("e5"), Square::white(Pawn));
-        squares.insert(pos("f7"), Square::pair(Pawn, Pawn));
+        squares.insert(E5, Square::white(Pawn));
+        squares.insert(F7, Square::pair(Pawn, Pawn));
         let mut board = DenseBoard::from_squares(squares);
         board.controlling_player = PlayerColor::Black;
 
         execute_action!(board, lift, "f7");
         execute_action!(board, place, "f5");
 
-        assert_eq!(pos("f6"), board.en_passant.unwrap());
+        assert_eq!(F6, board.en_passant.unwrap());
 
         let received_threats = determine_all_threats(&board).unwrap();
 
-        let expected_threats: BitBoard = vec![
+        let expected_threats: BitBoard = [
             // Threats by the free pawn on E5
             D6, F6, // Threats by en passant chain through F6
             E7, G7,
@@ -1798,7 +1791,7 @@ mod tests {
         assert_threats(expected_threats, received_threats);
     }
 
-    /// Throws with a detailed explanation, if the threats differ.
+    /// Throws with a detailed explanation if the threats differ.
     fn assert_threats(expected: BitBoard, received: BitBoard) {
         let mut differences: Vec<String> = vec![];
 
@@ -2169,7 +2162,7 @@ mod tests {
         assert!(!board
             .actions()
             .unwrap()
-            .contains(PacoAction::Place(pos("g1"))));
+            .contains(PacoAction::Place(G1)));
     }
 
     /// It is legal to castle if the rook moves across a field in Ŝako.
@@ -2180,8 +2173,8 @@ mod tests {
 
         let mut squares = HashMap::new();
         squares.insert(E1, Square::white(King));
-        squares.insert(pos("b8"), Square::black(Rook));
-        squares.insert(pos("a1"), Square::white(Rook));
+        squares.insert(B8, Square::black(Rook));
+        squares.insert(A1, Square::white(Rook));
         let mut board = DenseBoard::from_squares(squares);
         board.castling.white_king_side = Castling::FORFEIT;
 
@@ -2190,7 +2183,7 @@ mod tests {
         assert!(board
             .actions()
             .unwrap()
-            .contains(PacoAction::Place(pos("c1"))));
+            .contains(PacoAction::Place(C1)));
     }
 
     /// Tests rollback on the initial position. I expect nothing to happen.
@@ -2205,7 +2198,7 @@ mod tests {
     #[test]
     fn test_rollback_single_lift() -> Result<(), PacoError> {
         use PacoAction::*;
-        let actions = [Lift(pos("d2"))];
+        let actions = [Lift(D2)];
         assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 0);
         Ok(())
     }
@@ -2213,7 +2206,7 @@ mod tests {
     #[test]
     fn test_rollback_settled_changed() -> Result<(), PacoError> {
         use PacoAction::*;
-        let actions = [Lift(pos("e2")), Place(pos("e4"))];
+        let actions = [Lift(E2), Place(E4)];
         assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 2);
         Ok(())
     }
@@ -2224,10 +2217,10 @@ mod tests {
     fn test_rollback_promotion() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-            let actions = [Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
-            Lift(pos("c3")), Place(pos("d5")), Lift(pos("d5")), Place(pos("d4")),
-            Lift(pos("b2")), Place(pos("b4")), Lift(pos("d4")), Place(pos("d3")),
-            Lift(pos("d3")), Place(pos("b2")), Lift(pos("b2")), Place(pos("b1"))];
+            let actions = [Lift(B1), Place(C3), Lift(D7), Place(D5),
+            Lift(C3), Place(D5), Lift(D5), Place(D4),
+            Lift(B2), Place(B4), Lift(D4), Place(D3),
+            Lift(D3), Place(B2), Lift(B2), Place(B1)];
         assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
         Ok(())
     }
@@ -2238,10 +2231,10 @@ mod tests {
     fn test_rollback_promotion_opponent() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-            let actions = [Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
-            Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
-            Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
-            Lift(pos("c3")), Place(pos("b1"))];
+            let actions = [Lift(B1), Place(C3), Lift(D7), Place(D5),
+            Lift(C3), Place(D5), Lift(H7), Place(H6),
+            Lift(D5), Place(C3), Lift(H6), Place(H5),
+            Lift(C3), Place(B1)];
         assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
         Ok(())
     }
@@ -2251,10 +2244,10 @@ mod tests {
     fn test_rollback_promotion_start_turn() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-            let actions = [Lift(pos("b1")), Place(pos("c3")), Lift(pos("d7")), Place(pos("d5")),
-            Lift(pos("c3")), Place(pos("d5")), Lift(pos("h7")), Place(pos("h6")),
-            Lift(pos("d5")), Place(pos("c3")), Lift(pos("h6")), Place(pos("h5")),
-            Lift(pos("c3")), Place(pos("b1")), Promote(PieceType::Queen), Lift(pos("h5"))];
+            let actions = [Lift(B1), Place(C3), Lift(D7), Place(D5),
+            Lift(C3), Place(D5), Lift(H7), Place(H6),
+            Lift(D5), Place(C3), Lift(H6), Place(H5),
+            Lift(C3), Place(B1), Promote(PieceType::Queen), Lift(H5)];
         assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
         Ok(())
     }
@@ -2265,12 +2258,12 @@ mod tests {
     fn test_rollback_promotion_king_union() -> Result<(), PacoError> {
         use PacoAction::*;
         #[rustfmt::skip]
-            let actions = [Lift(pos("f2")), Place(pos("f4")), Lift(pos("f7")), Place(pos("f5")),
-            Lift(pos("g2")), Place(pos("g4")), Lift(pos("f5")), Place(pos("g4")),
-            Lift(pos("f4")), Place(pos("f5")), Lift(pos("a7")), Place(pos("a6")),
-            Lift(pos("f5")), Place(pos("f6")), Lift(pos("a6")), Place(pos("a5")),
-            Lift(pos("f6")), Place(pos("f7")), Lift(pos("a5")), Place(pos("a4")),
-            Lift(pos("f7")), Place(E8)];
+            let actions = [Lift(F2), Place(F4), Lift(F7), Place(F5),
+            Lift(G2), Place(G4), Lift(F5), Place(G4),
+            Lift(F4), Place(F5), Lift(A7), Place(A6),
+            Lift(F5), Place(F6), Lift(A6), Place(A5),
+            Lift(F6), Place(F7), Lift(A5), Place(A4),
+            Lift(F7), Place(E8)];
         assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 22);
         Ok(())
     }

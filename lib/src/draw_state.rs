@@ -18,6 +18,7 @@ pub struct DrawState {
     /// Progress is:
     ///  - Increasing the amount of dancing pieces by forming a pair.
     ///  - Promoting a pawn.
+    ///
     /// Unlike regular chess moving a pawn forward does not count as progress.
     /// Castling does not count as progress either, just like in regular chess.
     pub no_progress_half_moves: u8,

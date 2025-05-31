@@ -30,17 +30,10 @@ pub struct Castling {
     pub black_king_side: CompactCastlingIdentifier,
 }
 
-impl Castling {
-    pub const FORFEIT: CompactCastlingIdentifier = CompactCastlingIdentifier(0);
-
-    pub const WHITE_QUEEN: CompactCastlingIdentifier = CompactCastlingIdentifier(0b10_000_100);
-    pub const WHITE_KING: CompactCastlingIdentifier = CompactCastlingIdentifier(0b10_111_100);
-    pub const BLACK_QUEEN: CompactCastlingIdentifier = CompactCastlingIdentifier(0b11_000_100);
-    pub const BLACK_KING: CompactCastlingIdentifier = CompactCastlingIdentifier(0b11_111_100);
-
+impl Default for Castling {
     /// Returns an initial Castling where all castling options are possible
     /// This is for the default position.
-    pub fn new() -> Self {
+    fn default() -> Self {
         Castling {
             white_queen_side: Castling::WHITE_QUEEN,
             white_king_side: Castling::WHITE_KING,
@@ -48,6 +41,15 @@ impl Castling {
             black_king_side: Castling::BLACK_KING,
         }
     }
+}
+
+impl Castling {
+    pub const FORFEIT: CompactCastlingIdentifier = CompactCastlingIdentifier(0);
+
+    pub const WHITE_QUEEN: CompactCastlingIdentifier = CompactCastlingIdentifier(0b10_000_100);
+    pub const WHITE_KING: CompactCastlingIdentifier = CompactCastlingIdentifier(0b10_111_100);
+    pub const BLACK_QUEEN: CompactCastlingIdentifier = CompactCastlingIdentifier(0b11_000_100);
+    pub const BLACK_KING: CompactCastlingIdentifier = CompactCastlingIdentifier(0b11_111_100);
 
     /// Returns a Castling where no castling is posible anymore.
     pub fn forfeit() -> Self {
@@ -140,7 +142,7 @@ impl Castling {
 
         let compact_id = CompactCastlingIdentifier::new(king_file, rook_file, color);
 
-        // Assign to the appropriate field based on side and color
+        // Assign to the appropriate field based on the side and color
         if color.is_white() {
             if (rook_file as u8) < (king_file as u8) {
                 // Queen side
@@ -149,14 +151,12 @@ impl Castling {
                 // King side
                 castling.white_king_side = compact_id;
             }
+        } else if (rook_file as u8) < (king_file as u8) {
+            // Queen side
+            castling.black_queen_side = compact_id;
         } else {
-            if (rook_file as u8) < (king_file as u8) {
-                // Queen side
-                castling.black_queen_side = compact_id;
-            } else {
-                // King side
-                castling.black_king_side = compact_id;
-            }
+            // King side
+            castling.black_king_side = compact_id;
         }
 
         Ok(())
@@ -462,7 +462,7 @@ mod test {
 
     #[test]
     fn default_fen() {
-        let castling = Castling::new();
+        let castling = Castling::default();
         let fen = castling.into_fen();
         assert_eq!(fen, "AHah");
 

@@ -270,7 +270,7 @@ fn squash_notation_atoms(initial_index: usize, atoms: Vec<NotationAtom>) -> Vec<
         } else if atom.is_lift() && i >= 1 {
             result.push(HalfMoveSection {
                 action_index: i + initial_index + 1,
-                label: format!(":{}", atom.to_string()),
+                label: format!(":{}", atom),
             });
         } else {
             result.push(HalfMoveSection {

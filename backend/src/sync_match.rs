@@ -1,9 +1,12 @@
-use std::convert::TryFrom;
+//! This module implements match synchronization on top of an instance manager.
+//! That means when code in this module runs, the match it is running in is
+//! already clear, and we only implement the Paco Ŝako specific parts.
 
 use chrono::{DateTime, Utc};
 use pacosako::variants::PieceSetupParameters;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
+use std::convert::TryFrom;
 
 use pacosako::setup_options::SetupOptions;
 use pacosako::{fen, variants, PacoAction, PacoBoard, PacoError, PlayerColor};
@@ -16,9 +19,6 @@ use crate::timer::{Timer, TimerConfig, TimerState};
 use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 use crate::ServerError;
 
-/// This module implements match synchronization on top of an instance manager.
-/// That means when code in this module runs, the match it is running in is
-/// already clear, and we only implement the Paco Ŝako specific parts.
 
 /// Parameters required to initialize a new instance of the match.
 #[derive(Deserialize, Clone)]
@@ -41,8 +41,8 @@ pub struct AiSideRequest {
 }
 
 impl MatchParameters {
-    /// Ensure that all values of the timer config are below 1000000. This
-    /// ensures we don't trigger an overflow. See #85.
+    /// Ensure that all values of the timer config are below 1_000_000.
+    /// This ensures we don't trigger an overflow. See #85.
     pub fn sanitize(&self) -> Self {
         let timer = self.timer.clone().map(|timer| timer.sanitize());
         Self {
@@ -50,7 +50,7 @@ impl MatchParameters {
             safe_mode: self.safe_mode,
             draw_after_n_repetitions: self.draw_after_n_repetitions,
             ai_side_request: self.ai_side_request.clone(),
-            piece_setup: self.piece_setup.clone(),
+            piece_setup: self.piece_setup,
         }
     }
 
@@ -90,7 +90,7 @@ pub struct SynchronizedMatch {
     pub black_player: Option<UserId>,
 }
 
-/// Message that may be send by the client to the server.
+/// Message that may be sent by the client to the server.
 #[derive(Clone, Debug, Deserialize)]
 pub enum ClientMatchMessage {
     GetCurrentState { key: String },
@@ -133,10 +133,10 @@ async fn _store_to_db(
     Ok(())
 }
 
-/// A complete description of the match state. This is currently send to all
-/// clients whenever the game state changes. As it is only a list of some
-/// actions, it should be lightweight enough that sending around the whole
-/// history is not a bottleneck.
+/// A complete description of the match state.
+/// This is currently sent to all clients whenever the game state changes.
+/// As it is only a list of some actions, it should be lightweight enough
+/// that sending around the whole history is not a bottleneck.
 #[derive(Clone, Debug)]
 pub struct CurrentMatchState {
     key: String,
@@ -215,7 +215,7 @@ impl CurrentMatchState {
 }
 
 impl CurrentMatchStateClient {
-    /// For a current match state that is already prepared for export, this
+    /// For a current match state which is already prepared for export, this
     /// function loads the player metadata from the database.
     pub async fn try_new(
         data: CurrentMatchState,
@@ -427,6 +427,14 @@ impl SynchronizedMatch {
         self.update_timer(board.controlling_player());
 
         CurrentMatchState::try_new(self, &board)
+    }
+
+    /// Gives the player of the given color.
+    pub fn player(&self, color: PlayerColor) -> Option<UserId> {
+        match color {
+            PlayerColor::White => self.white_player,
+            PlayerColor::Black => self.black_player,
+        }
     }
 }
 

@@ -44,7 +44,7 @@ pub async fn to_logic(msg: LogicMsg) {
             e
         );
         log::logger().flush();
-        // We can not recover from this error, so we shut down the whole server.
+        // We cannot recover from this error, so we shut down the whole server.
         // Systemd will restart it.
         std::process::exit(4);
     }
@@ -61,7 +61,7 @@ pub fn run_server(pool: db::Pool) {
     run_logic_server(message_queue, pool);
 }
 
-/// A message that is send to the logic where the logic has then to react.
+/// A message that is sent to the logic where the logic has then to react.
 #[derive(Debug)]
 pub enum LogicMsg {
     Websocket {
@@ -193,7 +193,7 @@ pub enum ServerMessage {
 async fn handle_message(
     msg: LogicMsg,
     server_state: &mut ServerState,
-    conn: &mut db::Connection,
+    conn: &mut Connection,
 ) -> Result<(), ServerError> {
     match msg {
         LogicMsg::Websocket { data, source } => {
@@ -302,7 +302,7 @@ async fn handle_client_message(
     msg: ClientMessage,
     sender: SocketId,
     server_state: &mut ServerState,
-    conn: &mut db::Connection,
+    conn: &mut Connection,
 ) -> Result<(), ServerError> {
     let key: &str = match msg {
         ClientMessage::DoAction { ref key, .. } | ClientMessage::Rollback { ref key } => key,
@@ -361,7 +361,7 @@ async fn respond_to_time_drift_check(sent_at: DateTime<Utc>, sender: &SocketId) 
         send: sent_at,
         bounced: Utc::now(),
     };
-    send_msg(message, &sender).await
+    send_msg(message, sender).await
 }
 
 async fn handle_subscribe_to_match(
@@ -414,7 +414,7 @@ async fn ensure_uuid_is_allowed(
     room: &mut GameRoom,
     game: &mut SynchronizedMatch,
     sender_metadata: SocketAuth,
-    conn: &mut db::Connection,
+    conn: &mut Connection,
 ) -> Result<(), ServerError> {
     if !game.setup_options.safe_mode {
         return Ok(());
@@ -442,7 +442,7 @@ async fn ensure_uuid_is_allowed(
                 game.black_player = Some(user_id);
             }
         }
-        return Ok(());
+        Ok(())
     } else {
         // We are not allowed to move, but maybe we can play for the AI.
         // For this, a frontend AI must control the current player and the
@@ -458,7 +458,7 @@ async fn ensure_uuid_is_allowed(
         let other_side_control = other_side_protection.test(&sender_identity);
 
         if other_side_control.can_control_or_take_over() && is_frontend_ai {
-            return Ok(());
+            Ok(())
         } else {
             Err(ServerError::NotAllowed(
                 "Your browser is not allowed to make moves for the current player.".to_string(),
@@ -493,7 +493,7 @@ async fn broadcast_state(
                 ServerMessage::CurrentMatchState(Box::new(client_state)),
                 target,
             )
-            .await;
+                .await;
         } else {
             // If the socket is not alive, we remove it from the room.
             disconnected_sockets.push(*target);
@@ -524,7 +524,7 @@ async fn send_error(error_message: String, target: &SocketId) {
 
 async fn fetch_game(
     key: &str,
-    conn: &mut db::Connection,
+    conn: &mut Connection,
 ) -> Result<SynchronizedMatch, anyhow::Error> {
     let id = key.parse()?;
     match db::game::select(id, conn).await? {
@@ -537,7 +537,7 @@ async fn fetch_game(
 
 async fn store_game(
     game: &SynchronizedMatch,
-    conn: &mut db::Connection,
+    conn: &mut Connection,
 ) -> Result<(), anyhow::Error> {
     db::game::update(game, conn).await?;
     Ok(())

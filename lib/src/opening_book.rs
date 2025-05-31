@@ -8,15 +8,14 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{PacoAction, PlayerColor};
 use crate::ai::glue::{
     action_index_to_action_with_viewpoint, action_to_action_index_with_viewpoint,
 };
+use crate::{PacoAction, PlayerColor};
 
 /// We store an instance of the opening book in memory after getting it once.
 /// This is in some type  of cell
 /// TODO: This aspect of the module should move back to frontend-wasm.
-
 pub static OPENING_BOOK: OnceLock<OpeningBook> = OnceLock::new();
 
 #[derive(Clone)]
@@ -116,12 +115,11 @@ impl PositionData {
         let space_index = key
             .find(' ')
             .unwrap_or_else(|| panic!("Error parsing fen: {}", key));
-        let viewpoint_color = match &key[space_index + 1..space_index + 2] {
+        match &key[space_index + 1..space_index + 2] {
             "w" => PlayerColor::White,
             "b" => PlayerColor::Black,
             _ => panic!("Error parsing fen: {}", key),
-        };
-        viewpoint_color
+        }
     }
 
     fn to_raw_json_representation(&self, key: &str) -> (f32, Vec<(f32, Vec<u8>)>) {

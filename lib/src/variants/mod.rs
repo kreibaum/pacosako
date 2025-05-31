@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 pub mod fischer_random;
 
-pub const DEFAULT_STARTING_FEN: &'static str =
+pub const DEFAULT_STARTING_FEN: &str =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 0 AHah - -";
 
 #[derive(Deserialize, Copy, Clone)]

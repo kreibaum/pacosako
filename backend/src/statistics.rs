@@ -1,10 +1,10 @@
+//! Module to collect statistics about the server and to provide it as a route
+//! for the frontend.
+
 use axum::{body::Body, extract::State, response::IntoResponse};
 use hyper::header;
 
 use crate::{actors::websocket::SocketId, config::EnvironmentConfig, templates};
-
-/// Module to collect statistics about the server and to provide it as a route
-/// for the frontend.
 
 pub async fn statistics_handler(config: State<EnvironmentConfig>) -> impl IntoResponse {
     let tera = templates::get_tera(config.dev_mode);

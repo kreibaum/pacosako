@@ -216,7 +216,7 @@ impl Timer {
 
 /// Gives the current state of the timer. When the timer is running it does
 /// not know which player is currently controlling it. The time will be reduced
-/// when an action is send to the server.
+/// when an action is sent to the server.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub enum TimerState {
     /// A timer is in this state, when the game has not started yet.

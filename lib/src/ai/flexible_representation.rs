@@ -456,6 +456,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::bool_assert_comparison)]
     fn test_flexible_representation_options() {
         let mut options = FlexibleRepresentationOptions::default();
         assert_eq!(options.use_relative_perspective(), true);

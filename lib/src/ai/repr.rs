@@ -246,9 +246,9 @@ fn vertical_flip(pos: BoardPosition) -> BoardPosition {
 
 #[cfg(test)]
 mod tests {
-    use crate::{const_tile::pos, PacoAction, PacoError};
-
     use super::*;
+    use crate::const_tile::*;
+    use crate::{PacoAction, PacoError};
 
     // Examples verified manually with LibreOffice Calc:
     // scripts/board-representation-index-verification-util.ods
@@ -276,7 +276,7 @@ mod tests {
     #[test]
     fn lifting_and_en_passant() -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
-        board.execute(PacoAction::Lift(pos("e2")))?;
+        board.execute(PacoAction::Lift(E2))?;
         let mut repr = [0u32; 38];
         index_representation(&board, &mut repr);
         assert_eq!(
@@ -286,7 +286,7 @@ mod tests {
                 436, 437, 438, 439, 504, 569, 634, 699, 764, 637, 574, 511, 780, 64, 1, 1, 1, 1, 1
             ]
         );
-        board.execute(PacoAction::Place(pos("e4")))?;
+        board.execute(PacoAction::Place(E4))?;
         index_representation(&board, &mut repr);
         assert_eq!(
             repr,

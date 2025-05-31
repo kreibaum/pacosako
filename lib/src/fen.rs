@@ -36,7 +36,7 @@ use lazy_static::lazy_static;
 
 use crate::PieceType::King;
 use crate::PlayerColor::{Black, White};
-use crate::{castling::Castling, parser::Square, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoBoard, PacoError, PlayerColor, RequiredAction};
+use crate::{castling::Castling, parser::Square, substrate::Substrate, BoardPosition, DenseBoard, Hand, PacoError, PlayerColor, RequiredAction};
 
 /// This needs its own method or rustfmt gets unhappy.
 fn fen_regex(input: &str) -> Option<(&str, &str, &str, &str, &str, &str, &str)> {

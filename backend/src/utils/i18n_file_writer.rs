@@ -84,10 +84,10 @@ pub fn render_one_file(cli: Cli, config: &TranslationConfig, current_dev_lang: S
     };
 
     // Read language file and fallback file
-    let target_lang = find_language(&config, &target_lang);
+    let target_lang = find_language(config, &target_lang);
     let language_file = read_language_file(&target_lang);
 
-    let fallback_lang = find_language(&config, &config.main_language);
+    let fallback_lang = find_language(config, &config.main_language);
     let fallback_file = read_language_file(&fallback_lang);
 
     let mut merged_file = LanguageFile(HashMap::new());
@@ -95,7 +95,7 @@ pub fn render_one_file(cli: Cli, config: &TranslationConfig, current_dev_lang: S
     // We want to merge the language file with the fallback file.
     // Only the keys defined in the fallback_file are relevant.
     // Values from the language file take precedence
-    // We also want to track the total amount of keys and the amount of keys that are translated.
+    // We also want to track the total number of keys and the number of keys that are translated.
     let total_keys = fallback_file.0.len();
     let mut translated_keys = 0;
     for (key, value) in &fallback_file.0 {
@@ -133,7 +133,7 @@ pub fn render_one_file(cli: Cli, config: &TranslationConfig, current_dev_lang: S
             .parent()
             .expect("Could not get parent directory"),
     )
-    .expect("Could not create output directory");
+        .expect("Could not create output directory");
 
     std::fs::write(&config.output, elm_file).expect("Could not write Elm file");
 }
@@ -150,8 +150,7 @@ fn find_language(config: &TranslationConfig, target_lang: &str) -> Language {
     let Some(target_lang) = config
         .translated_to
         .iter()
-        .filter(|&l| l.name == target_lang)
-        .next()
+        .find(|&l| l.name == target_lang)
     else {
         eprintln!("Could not find language: {}", target_lang);
         std::process::exit(1);
