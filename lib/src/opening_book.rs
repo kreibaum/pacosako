@@ -4,7 +4,6 @@
 //! AI's decision-making and to provide a stronger opening game.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
@@ -12,11 +11,6 @@ use crate::ai::glue::{
     action_index_to_action_with_viewpoint, action_to_action_index_with_viewpoint,
 };
 use crate::{PacoAction, PlayerColor};
-
-/// We store an instance of the opening book in memory after getting it once.
-/// This is in some type  of cell
-/// TODO: This aspect of the module should move back to frontend-wasm.
-pub static OPENING_BOOK: OnceLock<OpeningBook> = OnceLock::new();
 
 #[derive(Clone)]
 pub struct OpeningBook(pub HashMap<String, PositionData>);
@@ -34,14 +28,6 @@ pub struct MoveData {
 }
 
 impl OpeningBook {
-    /// Loads the opening book from a JSON string and stores it in memory.
-    /// Future uses of the opening book won't need to provide the book.
-    pub fn load_and_remember(json_string: &str) -> Result<(), serde_json::Error> {
-        let opening_book = OpeningBook::parse(json_string)?;
-        let _ = OPENING_BOOK.set(opening_book);
-        Ok(())
-    }
-
     pub fn parse(json_string: &str) -> Result<Self, serde_json::Error> {
         let raw: RawOpeningBook = serde_json::from_str(json_string)?;
         Ok(raw.into())
@@ -50,11 +36,6 @@ impl OpeningBook {
     pub fn write(&self) -> Result<String, serde_json::Error> {
         let raw: RawOpeningBook = self.clone().into();
         serde_json::to_string(&raw)
-    }
-
-    pub fn get(key: &str) -> Option<&PositionData> {
-        let book = OPENING_BOOK.get()?;
-        book.0.get(key)
     }
 }
 

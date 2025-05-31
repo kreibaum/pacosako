@@ -3,8 +3,11 @@ extern crate console_error_panic_hook;
 use js_sys::Float32Array;
 use rand::random;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 
+use crate::ml::ModelBackendJs;
+use pacosako::ai::move_decision::decide_turn_intuition;
 use pacosako::opening_book::{MoveData, OpeningBook, PositionData};
 use pacosako::{
     analysis::{incremental_replay, puzzle, ReplayData},
@@ -92,10 +95,11 @@ impl TryFrom<&ActionHistoryBoardRepr> for DenseBoard {
     fn try_from(value: &ActionHistoryBoardRepr) -> Result<Self, Self::Error> {
         let mut board = DenseBoard::with_options(&value.setup)?;
         for action in &value.action_history {
-            console_log(format!("Executing action: {:?}", action).as_str());
             let result = board.execute(*action);
             if let Err(e) = result {
-                console_log(format!("Error executing the action {:?}: {}", action, e).as_str());
+                console_log(
+                    format!("Error executing the action {:?}: {} \n on {:?} with actions {:?}",
+                            action, e, value.setup.starting_fen, value.action_history).as_str());
                 return Err(e);
             }
             result?;
@@ -181,7 +185,7 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
 async fn determine_ai_move_inner(board: &DenseBoard) -> Result<Vec<PacoAction>, JsValue> {
     let fen = fen::write_fen(board);
     // Check if there is a move stored in the opening book. If so, then we take that.
-    if let Some(position_data) = OpeningBook::get(&fen) {
+    if let Some(position_data) = get_from_opening_book(&fen) {
         console_log("Found opening book move.");
 
         let best_move = sample_softmax(position_data)?;
@@ -190,51 +194,12 @@ async fn determine_ai_move_inner(board: &DenseBoard) -> Result<Vec<PacoAction>, 
         console_log(format!("No opening book move found for {}", fen).as_str());
     }
 
-    let actions = decide_turn_intuition(board, vec![])
+    let actions = decide_turn_intuition(ModelBackendJs, board, vec![])
         .await
         .map_err(|e| e.to_string())?;
     Ok(actions)
 }
 
-/// This is essentially a re-implementation of `decideturn` from Julia.
-async fn decide_turn_intuition(
-    board: &DenseBoard,
-    mut exclude: Vec<u64>,
-) -> Result<Vec<PacoAction>, PacoError> {
-    let ai_player = board.controlling_player;
-
-    let mut actions = vec![];
-
-    let mut game = board.clone();
-
-    while !game.victory_state().is_over() && game.controlling_player == ai_player {
-        let mut eval = ml::evaluate_model(&game).await;
-
-        let action = 'exclude: loop {
-            eval.normalize_policy();
-            let action = eval.sample();
-
-            let mut preview = game.clone();
-            preview.execute_trusted(action)?;
-
-            let hash = pacosako::calculate_interning_hash(&preview);
-            if !exclude.contains(&hash) {
-                exclude.push(hash);
-                break 'exclude action;
-            }
-            eval.policy.retain(|(a, _)| *a == action);
-            if eval.policy.is_empty() {
-                // Recursion with more forbidden states.
-                return Box::pin(decide_turn_intuition(board, exclude)).await;
-            }
-        };
-
-        game.execute_trusted(action)?;
-        actions.push(action);
-    }
-
-    Ok(actions)
-}
 
 fn sample_softmax(position_data: &PositionData) -> Result<&MoveData, JsValue> {
     // First, we apply softmax to the position_data
@@ -267,7 +232,7 @@ pub fn init_opening_book(data: String) -> Result<(), JsValue> {
 
     console_log("Initializing opening book.");
 
-    let load_and_remember = OpeningBook::load_and_remember(&data);
+    let load_and_remember = load_and_remember_opening_book(&data);
     match &load_and_remember {
         Ok(_) => console_log("Opening book loaded."),
         Err(e) => console_log(format!("Opening book failed to load: {}", e).as_str()),
@@ -277,6 +242,25 @@ pub fn init_opening_book(data: String) -> Result<(), JsValue> {
     console_log("Opening book initialized.");
 
     Ok(())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// We parse and load the opening book into wasm memory once. ///////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+static OPENING_BOOK: OnceLock<OpeningBook> = OnceLock::new();
+
+/// Loads the opening book from a JSON string and stores it in memory.
+/// Future uses of the opening book won't need to provide the book.
+/// This must be called exactly once, when bootstrapping the application.
+fn load_and_remember_opening_book(json_string: &str) -> Result<(), serde_json::Error> {
+    let opening_book = OpeningBook::parse(json_string)?;
+    let _ = OPENING_BOOK.set(opening_book);
+    Ok(())
+}
+
+fn get_from_opening_book(key: &str) -> Option<&PositionData> {
+    OPENING_BOOK.get()?.0.get(key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

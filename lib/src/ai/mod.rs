@@ -10,3 +10,5 @@ pub mod flexible_representation;
 pub mod glue;
 pub mod repr;
 mod model_targets;
+pub mod move_decision;
+pub mod model_backend;
