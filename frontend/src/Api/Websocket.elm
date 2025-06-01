@@ -1,7 +1,6 @@
 module Api.Websocket exposing
     ( ClientMessage(..)
     , ServerMessage(..)
-    , ShareStatus(..)
     , WebsocketConnectionState(..)
     , listen
     , listenToStatus
@@ -26,7 +25,6 @@ I do allow this module access to the Sako module.
 
 import Api.Decoders exposing (CurrentMatchState, decodeMatchState)
 import Api.Ports as Ports
-import Http
 import Iso8601
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -150,16 +148,3 @@ decodeWebsocketStatus code =
 listenToStatus : (WebsocketConnectionState -> msg) -> Sub msg
 listenToStatus msg =
     Ports.websocketStatus (decodeWebsocketStatus >> msg)
-
-
-{-| When sharing, this hold the game key. Otherwise this explains why we are not
-sharing right now.
-
-Note the difference between `ShareExists` and `ShareConnected`:
-When sharing a board we get back the game key but still need to connect to this
-shared board on the websocket by sending a `Connect 'PT66m8NX'` on the channel.
-Only then is the share status `ShareConnected`.
-
--}
-type ShareStatus
-    = ShareFailed Http.Error
