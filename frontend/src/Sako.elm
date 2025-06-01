@@ -27,6 +27,7 @@ module Sako exposing
     , isAt
     , isChaining
     , isColor
+    , isLift
     , isPromoting
     , liftedAtTile
     , toStringType
@@ -247,6 +248,16 @@ type Action
     = Lift Tile
     | Place Tile
     | Promote Type
+
+
+isLift : Action -> Bool
+isLift action =
+    case action of
+        Lift _ ->
+            True
+
+        _ ->
+            False
 
 
 decodeAction : Decoder Action

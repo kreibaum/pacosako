@@ -174,7 +174,7 @@ update : Shared.Model -> Msg -> Model -> ( Model, Effect Msg )
 update shared msg model =
     case msg of
         Promote pieceType ->
-            updateActionInputStep shared (Sako.Promote pieceType) model
+            updateActionInputStep shared [ Sako.Promote pieceType ] model
 
         AnimationTick now ->
             ( { model | timeline = Animation.tick now model.timeline }, Effect.none )
@@ -330,14 +330,8 @@ update shared msg model =
         AiStateUpdated ->
             triggerAiMoveIfNecessary shared model
 
-        -- TODO: This can't deal with two actions coming in at once!
-        -- https://github.com/kreibaum/pacosako/issues/123
         AiMoveResponse actions ->
-            let
-                action =
-                    List.head actions |> Maybe.withDefault (Sako.Promote Sako.Queen)
-            in
-            updateActionInputStep shared action model
+            updateActionInputStep shared actions model
 
 
 fetchHeaderSize : Cmd Msg
@@ -428,7 +422,7 @@ updateMouseDown shared pos model =
     case Maybe.andThen (liftActionAt model.currentState) pos.tile of
         Just action ->
             updateActionInputStep shared
-                action
+                [ action ]
                 { model
                     | dragState = Just { start = pos, current = pos }
                 }
@@ -479,7 +473,7 @@ updateMouseUp shared pos model =
     case Maybe.andThen (legalActionAt model.currentState) pos.tile of
         -- Check if the position is an allowed action.
         Just action ->
-            updateActionInputStep shared action { model | dragState = Nothing }
+            updateActionInputStep shared [ action ] { model | dragState = Nothing }
 
         Nothing ->
             ( { model | dragState = Nothing }
@@ -568,47 +562,71 @@ renderPlayViewDragging dragState model =
         model.board
 
 
+updateActionInputStepAnimation : List Sako.Action -> Model -> Model
+updateActionInputStepAnimation actions model =
+    case actions of
+        [] ->
+            model
+
+        action :: ls ->
+            let
+                newBoard =
+                    Sako.doAction action model.board
+                        |> Maybe.withDefault model.board
+
+                newState =
+                    addActionToCurrentMatchState action model.currentState
+            in
+            if Sako.isLift action && not (List.isEmpty ls) then
+                { model | board = newBoard, currentState = newState }
+                    |> updateActionInputStepAnimation ls
+
+            else
+                { model | board = newBoard, currentState = newState }
+                    |> softAnimateToCurrentBoard
+                    |> updateActionInputStepAnimation ls
+
+
 {-| Add the given action to the list of all actions taken and sends it to the
 server for confirmation. Will also trigger an animation.
 -}
-updateActionInputStep : Shared.Model -> Sako.Action -> Model -> ( Model, Effect Msg )
-updateActionInputStep shared action model =
+updateActionInputStep : Shared.Model -> List Sako.Action -> Model -> ( Model, Effect Msg )
+updateActionInputStep shared actions model =
     let
-        newBoard =
-            Sako.doAction action model.board
-                |> Maybe.withDefault model.board
-
-        newState =
-            addActionToCurrentMatchState action model.currentState
+        newModel =
+            updateActionInputStepAnimation actions model
     in
-    ( { model | board = newBoard, currentState = newState }
-        |> softAnimateToCurrentBoard
+    ( newModel
     , Effect.batch
-        [ Api.Websocket.DoAction
+        ([ Api.Websocket.DoAction
             { key = model.gameKey
-            , action = action
+            , action = actions
             }
             |> Api.Websocket.send
             |> Effect.fromCmd
-        , if shared.playSounds then
-            case action of
-                Sako.Place _ ->
-                    Api.Ports.playSound () |> Effect.fromCmd
-
-                Sako.Lift _ ->
-                    Effect.none
-
-                Sako.Promote _ ->
-                    Effect.none
-
-          else
-            Effect.none
-        , { action_history = newState.actionHistory, setup = model.currentState.setupOptions }
+         , { action_history = newModel.currentState.actionHistory, setup = model.currentState.setupOptions }
             |> Api.EncoderGen.determineLegalActions
             |> Api.MessageGen.determineLegalActions
             |> Effect.fromCmd
-        ]
+         ]
+            ++ List.map actionSound actions
+        )
     )
+
+
+{-| Returns the sound effect that should be played for the given action.
+-}
+actionSound : Sako.Action -> Effect Msg
+actionSound action =
+    case action of
+        Sako.Place _ ->
+            Api.Ports.playSound () |> Effect.fromCmd
+
+        Sako.Lift _ ->
+            Effect.none
+
+        Sako.Promote _ ->
+            Effect.none
 
 
 {-| Ensure that the update we got actually belongs to the game we are interested

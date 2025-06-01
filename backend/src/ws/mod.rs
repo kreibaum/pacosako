@@ -72,6 +72,7 @@ pub enum LogicMsg {
         key: String,
         timestamp: DateTime<Utc>,
     },
+    // This AI action comes over POST, not over the websocket.
     AiAction {
         key: String,
         action: PacoAction,
@@ -158,7 +159,7 @@ pub(crate) struct GameRoom {
 /// All allowed messages that may be send by the client to the server.
 #[derive(Deserialize)]
 enum ClientMessage {
-    DoAction { key: String, action: PacoAction },
+    DoAction { key: String, action: Vec<PacoAction> },
     Rollback { key: String },
     TimeDriftCheck { send: DateTime<Utc> },
 }
@@ -265,7 +266,7 @@ async fn handle_message(
             let room = server_state.room_without_websocket(&game);
             ensure_uuid_is_allowed(room, &mut game, (uuid, session_id), conn).await?;
 
-            let state = game.do_action(action)?;
+            let state = game.do_action(&[action])?;
             store_game(&game, conn).await?;
 
             broadcast_state(server_state, &game, state, conn).await;
@@ -336,7 +337,7 @@ async fn handle_client_message(
     ensure_uuid_is_allowed(room, &mut game, sender.get_owner()?, conn).await?;
 
     let state = match msg {
-        ClientMessage::DoAction { action, .. } => game.do_action(action)?,
+        ClientMessage::DoAction { action, .. } => game.do_action(&action)?,
         ClientMessage::Rollback { .. } => {
             if game.actions.is_empty() {
                 // If there are no actions yet, rolling back does nothing.

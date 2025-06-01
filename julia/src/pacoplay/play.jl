@@ -1,7 +1,7 @@
 
 function action_string(match, id, active_player :: Int) :: String
   action = Json.action(id, active_player)
-  "{\"DoAction\":{\"key\":\"$match\",\"action\":$action}}"
+  "{\"DoAction\":{\"key\":\"$match\",\"action\":[$action]}}"
 end
 
 function subscription_string(match :: Int) :: String

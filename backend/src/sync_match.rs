@@ -331,7 +331,7 @@ impl SynchronizedMatch {
     }
 
     /// Validate and execute an action.
-    pub fn do_action(&mut self, new_action: PacoAction) -> Result<CurrentMatchState, PacoError> {
+    pub fn do_action(&mut self, new_action: &[PacoAction]) -> Result<CurrentMatchState, PacoError> {
         let mut board = self.project()?;
         let controlling_player = board.controlling_player();
         self.ensure_timer_is_running();
@@ -347,15 +347,24 @@ impl SynchronizedMatch {
             }
         }
 
-        board.execute(new_action)?;
-        self.actions.push(StampedAction {
-            action: new_action,
-            timestamp: Utc::now(),
-        });
+        let mut new_controlling_player = controlling_player;
+        for &action in new_action {
+            if new_controlling_player != controlling_player || board.victory_state.is_over() {
+                // You are only allowed to submit actions for a single player.
+                // You are only allowed to submit actions if the game is not over.
+                return Err(PacoError::NotYourTurn);
+            }
+            board.execute(action)?;
+            self.actions.push(StampedAction {
+                action,
+                timestamp: Utc::now(),
+            });
+            new_controlling_player = board.controlling_player;
+        }
 
         // Check if control changed. That would indicate that we need to add a
         // timer increment for the player that just finished their turn.
-        if board.controlling_player() != controlling_player {
+        if new_controlling_player != controlling_player {
             if let Some(ref mut timer) = &mut self.timer {
                 timer.increment(controlling_player);
             }
@@ -441,6 +450,7 @@ impl SynchronizedMatch {
 #[cfg(test)]
 mod test {
     use pacosako::const_tile::*;
+    use PacoAction::*;
 
     use super::*;
 
@@ -458,8 +468,8 @@ mod test {
             },
         );
 
-        game.do_action(PacoAction::Lift(C2)).unwrap();
-        let current_state = game.do_action(PacoAction::Place(C3)).unwrap();
+        game.do_action(&[Lift(C2)]).unwrap();
+        let current_state = game.do_action(&[Place(C3)]).unwrap();
 
         // recalculating the current state does not lead to surprises.
         let current_state_2 = game.current_state().unwrap();

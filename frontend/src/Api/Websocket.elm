@@ -40,7 +40,7 @@ All allowed messages that may be send by the client to the server.
 
 -}
 type ClientMessage
-    = DoAction { key : String, action : Sako.Action }
+    = DoAction { key : String, action : List Sako.Action }
     | Rollback String
     | TimeDriftCheck Posix
 
@@ -53,7 +53,7 @@ encodeClientMessage clientMessage =
                 [ ( "DoAction"
                   , Encode.object
                         [ ( "key", Encode.string data.key )
-                        , ( "action", Sako.encodeAction data.action )
+                        , ( "action", Encode.list Sako.encodeAction data.action )
                         ]
                   )
                 ]

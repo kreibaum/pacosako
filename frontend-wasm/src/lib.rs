@@ -172,10 +172,8 @@ pub async fn determine_ai_move(data: String) -> Result<(), JsValue> {
 
     let actions = determine_ai_move_inner(&board).await?;
 
-    for action in actions {
-        let action = serde_json::to_string(&vec![action]).map_err(|e| e.to_string())?;
-        forwardToMq("aiMoveDetermined", &action);
-    }
+    let actions_json = serde_json::to_string(&actions).map_err(|e| e.to_string())?;
+    forwardToMq("aiMoveDetermined", &actions_json);
     forwardToMq("aiStateUpdated", "\"AiReadyForRequest\"");
 
     Ok(())
