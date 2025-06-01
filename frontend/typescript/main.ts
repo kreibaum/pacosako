@@ -450,10 +450,10 @@ if (app.ports.scrollTrigger) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // The library web worker provides the wasm library without blocking the main
-// thread. Since every port in elm is already async, we don't loose synchronicity.
+// thread. Since every port in elm is already async, we don't lose synchronicity.
 
-// This worker is created asynchronously, so we can't send messages to it
-// immediately. Instead we queue them up and send them once the worker is ready.
+// This worker is created asynchronously, so messages need to wait.
+// Instead, we queue them up and send them once the worker is ready.
 
 declare var lib_worker_hash: string
 
@@ -488,11 +488,6 @@ libWorker.onmessage = function (m) {
     }
 }
 
-
-function libWorkerSend(msg: any) {
-    const stringifiedMsg = JSON.stringify(msg);
-    sendToWebWorker(stringifiedMsg);
-}
 
 function sendToWebWorker(stringifiedMsg: any) {
     if (libWorkerIsReady) {

@@ -1,5 +1,6 @@
+use crate::console_log;
 use pacosako::ai::model_backend::{ModelBackend, ModelEvaluation};
-use pacosako::{DenseBoard, PacoBoard};
+use pacosako::{fen, DenseBoard, PacoBoard};
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ModelBackendJs;
@@ -14,10 +15,20 @@ impl ModelBackend for ModelBackendJs {
         // convert to Float32Array
         let input_tensor = js_sys::Float32Array::from(input_repr.as_ref());
 
+        let start_time = js_sys::Date::now();
         let result = super::evaluate_hedwig(input_tensor).await;
+        let end_time = js_sys::Date::now();
+
         let result = js_sys::Float32Array::from(result).to_vec();
         let actions = board.actions().expect("Legal actions can't be determined");
 
-        ModelEvaluation::new(actions, board.controlling_player, &result)
+        let evaluation = ModelEvaluation::new(actions, board.controlling_player, &result);
+
+        console_log(&format!(
+            "Model Evaluation for {} ({} ms) -> {:?}",
+            fen::write_fen(board), end_time - start_time, evaluation.sorted()
+        ));
+
+        evaluation
     }
 }

@@ -1,7 +1,7 @@
 //! Bindings for either the frontend or backend model evaluation.
 
 use crate::paco_action::PacoActionSet;
-use crate::{DenseBoard, PlayerColor};
+use crate::{DenseBoard, PacoAction, PlayerColor};
 use rand::random;
 
 /// Given a DenseBoard, we want to turn this into a model evaluation.
@@ -11,7 +11,7 @@ use rand::random;
 #[derive(Debug)]
 pub struct ModelEvaluation {
     pub value: f32,
-    pub policy: Vec<(crate::PacoAction, f32)>,
+    pub policy: Vec<(PacoAction, f32)>,
 }
 
 impl ModelEvaluation {
@@ -73,7 +73,7 @@ impl ModelEvaluation {
     }
 
     /// Samples a random action, assuming the policy is normalized.
-    pub fn sample(&self) -> crate::PacoAction {
+    pub fn sample(&self) -> PacoAction {
         let mut sum = 0.;
         let random = random::<f32>();
         for (action, p) in &self.policy {
@@ -84,6 +84,13 @@ impl ModelEvaluation {
         }
         // This should never happen, but if it does, we return the last action.
         self.policy.last().map(|(a, _)| *a).unwrap()
+    }
+
+    /// Returns the policy sorted by action value, highest first.
+    pub fn sorted(&self) -> Vec<(PacoAction, f32)> {
+        let mut sorted = self.policy.clone();
+        sorted.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+        sorted
     }
 }
 

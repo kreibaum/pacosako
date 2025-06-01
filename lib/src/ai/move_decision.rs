@@ -32,7 +32,11 @@ pub async fn decide_turn_intuition(
                 exclude.push(hash);
                 break 'exclude action;
             }
-            eval.policy.retain(|(a, _)| *a == action);
+
+            // Remove the offending action from the policy and sample again.
+            eval.policy.retain(|(a, _)| *a != action);
+            // Well, if there is nothing else to sample from, we have to try
+            // again, this time starting with a different first action.
             if eval.policy.is_empty() {
                 // Recursion with more forbidden states.
                 return Box::pin(decide_turn_intuition(backend, board, exclude)).await;

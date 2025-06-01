@@ -203,11 +203,11 @@ async function download_with_progress(url: string, progress_callback: any): Prom
     const reader = response.body.getReader();
     const chunks = [];
     while (true) {
-        const { done, value } = await reader.read();
+        const {done, value} = await reader.read();
         if (done) break;
         chunks.push(value);
         loaded += value.length;
-        if ( progress_callback ) {
+        if (progress_callback) {
             progress_callback(loaded, total);
         }
     }
@@ -221,7 +221,7 @@ let session: any = undefined;
 
 const hedwigInputShape = [1, 30, 8, 8];
 
-async function initAi(_data : any) {
+async function initAi(_data: any) {
     if (session !== undefined) {
         // Hedwig is already initialized. Just return the status.
         // TODO: Differentiate between running / not running.
@@ -235,7 +235,7 @@ async function initAi(_data : any) {
 
     forwardToMq("aiStateUpdated", JSON.stringify("WarmupEvaluation"))
     // Run a warmup evaluation to make sure the model is loaded.
-    await evaluate_hedwig( new Float32Array(hedwigInputShape.reduce((x, y) => x*y )));
+    await evaluate_hedwig(new Float32Array(hedwigInputShape.reduce((x, y) => x * y)));
 
     forwardToMq("aiStateUpdated", JSON.stringify("AiReadyForRequest"))
 }
@@ -243,10 +243,10 @@ async function initAi(_data : any) {
 async function downloadAndInitHedwig() {
     let hedwig: Blob = await download_as_blob(hedwigModelUrl,
         (loaded, total) => forwardToMq("aiStateUpdated", JSON.stringify({
-        state: "ModelLoading",
-        loaded: loaded,
-        total: total
-    })));
+            state: "ModelLoading",
+            loaded: loaded,
+            total: total
+        })));
     const arrayBuffer = await hedwig.arrayBuffer();  // Convert the Blob to ArrayBuffer
 
     forwardToMq("aiStateUpdated", JSON.stringify("SessionLoading"))
@@ -256,19 +256,14 @@ async function downloadAndInitHedwig() {
 /// This function is called from wasm to delegate to onnxruntime-web.
 async function evaluate_hedwig(rawInputTensor: Float32Array): Promise<Float32Array> {
     if (!session) {
-        // TODO: This should initialize earlier and get some UI.
         await downloadAndInitHedwig();
     }
 
-    const startTime = performance.now();
     const inputTensor = new ort.Tensor('float32', rawInputTensor, hedwigInputShape);
     const feeds = {};
     feeds[session.inputNames[0]] = inputTensor;
 
     const results = await session.run(feeds);
-    const endTime = performance.now();
-    const timeTaken = endTime - startTime;
-    console.log(`Model evaluation took ${timeTaken.toFixed(2)} milliseconds.`);
     return results[session.outputNames[0]].data;
 }
 
