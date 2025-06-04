@@ -7,7 +7,7 @@ use crate::{DenseBoard, PacoAction, PacoBoard, PacoError};
 
 /// This is essentially a re-implementation of `decideturn` from Julia.
 pub async fn decide_turn_intuition(
-    backend: impl ModelBackend,
+    mut backend: impl ModelBackend,
     board: &DenseBoard,
     mut exclude: Vec<u64>,
 ) -> Result<Vec<PacoAction>, PacoError> {
@@ -18,7 +18,7 @@ pub async fn decide_turn_intuition(
     let mut game = board.clone();
 
     while !game.victory_state().is_over() && game.controlling_player == ai_player {
-        let mut eval = backend.evaluate_model(&game).await;
+        let mut eval = backend.evaluate_model(&game).await?;
 
         let action = 'exclude: loop {
             eval.normalize_policy();

@@ -89,6 +89,8 @@ pub enum PacoError {
     GameIsOver,
     #[error("There are no legal actions.")]
     NoLegalActions,
+    #[error("Error evaluating the ML Model")]
+    MlModelError(String),
 }
 
 impl From<serde_json::Error> for PacoError {

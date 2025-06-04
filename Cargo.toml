@@ -3,6 +3,7 @@ members = [
     "backend",
     "lib",
     "frontend-wasm",
+    "ai-runner-rs",
     #    "python",
 ]
 resolver = "3"

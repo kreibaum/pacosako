@@ -1,12 +1,13 @@
 use crate::console_log;
-use pacosako::ai::model_backend::{ModelBackend, ModelEvaluation};
-use pacosako::{fen, DenseBoard, PacoBoard};
+use pacosako::ai::model_backend::ModelBackend;
+use pacosako::ai::model_evaluation::ModelEvaluation;
+use pacosako::{fen, DenseBoard, PacoBoard, PacoError};
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ModelBackendJs;
 
 impl ModelBackend for ModelBackendJs {
-    async fn evaluate_model(&self, board: &DenseBoard) -> ModelEvaluation {
+    async fn evaluate_model(&mut self, board: &DenseBoard) -> Result<ModelEvaluation, PacoError> {
         // Represent board for the model to consume
         let input_repr: &mut [f32; 30 * 8 * 8] = &mut [0.; 30 * 8 * 8];
         pacosako::ai::repr::tensor_representation(board, input_repr);
@@ -20,7 +21,7 @@ impl ModelBackend for ModelBackendJs {
         let end_time = js_sys::Date::now();
 
         let result = js_sys::Float32Array::from(result).to_vec();
-        let actions = board.actions().expect("Legal actions can't be determined");
+        let actions = board.actions()?;
 
         let evaluation = ModelEvaluation::new(actions, board.controlling_player, &result);
 
@@ -29,6 +30,6 @@ impl ModelBackend for ModelBackendJs {
             fen::write_fen(board), end_time - start_time, evaluation.sorted()
         ));
 
-        evaluation
+        Ok(evaluation)
     }
 }
