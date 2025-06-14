@@ -1,5 +1,6 @@
 use std::fs::File;
 
+use pacosako::substrate::Substrate;
 use pacosako::{self, DenseBoard, PacoAction, PacoBoard};
 use serde::{Deserialize, Serialize};
 use std::io::Read;

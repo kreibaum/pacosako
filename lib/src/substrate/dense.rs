@@ -11,8 +11,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::{BoardPosition, PlayerColor};
 use crate::{PacoError, PieceType};
 
-use super::{BitBoard, Substrate};
 use super::zobrist::Zobrist;
+use super::{BitBoard, Substrate};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DenseSubstrate {
@@ -152,6 +152,17 @@ impl Substrate for DenseSubstrate {
         }
         BitBoard(result)
     }
+
+    fn get_zobrist_hash(&self) -> Zobrist {
+        self.hash
+    }
+
+    fn shuffle<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+        use rand::seq::SliceRandom;
+        self.white.shuffle(rng);
+        self.black.shuffle(rng);
+        self.refresh_zobrist_hash();
+    }
 }
 
 #[allow(clippy::needless_range_loop)] // Reads nicer this way
@@ -168,17 +179,6 @@ fn find_king(
 }
 
 impl DenseSubstrate {
-    pub fn shuffle<R: Rng + ?Sized>(&mut self, rng: &mut R) {
-        use rand::seq::SliceRandom;
-        self.white.shuffle(rng);
-        self.black.shuffle(rng);
-        self.refresh_zobrist_hash();
-    }
-
-    pub fn get_zobrist_hash(&self) -> Zobrist {
-        self.hash
-    }
-
     /// This method recomputes the zobrist hash from scratch.
     /// This is really only exposed for testing, and you should just get_zobrist_hash
     /// when you need it.
@@ -207,8 +207,8 @@ fn serialize_option_array<S>(
     array: &[Option<PieceType>; 64],
     serializer: S,
 ) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     use serde::ser::SerializeSeq;
 
@@ -226,8 +226,8 @@ fn serialize_option_array<S>(
 /// and deserialization logic.
 #[allow(clippy::needless_range_loop)] // Reads nicer this way
 fn deserialize_option_array<'de, D>(deserializer: D) -> Result<[Option<PieceType>; 64], D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     use serde::de::{SeqAccess, Visitor};
     use std::fmt;
@@ -242,8 +242,8 @@ fn deserialize_option_array<'de, D>(deserializer: D) -> Result<[Option<PieceType
         }
 
         fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-            where
-                A: SeqAccess<'de>,
+        where
+            A: SeqAccess<'de>,
         {
             let mut array = [None; 64];
             for i in 0..64 {

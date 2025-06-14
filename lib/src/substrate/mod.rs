@@ -2,13 +2,16 @@
 //! avoiding as much other logic as possible. We can't call this "board",
 //! because we were already using that for the board with all the logic.
 
-use std::ops::{BitAnd, BitOr, Not};
-
+use crate::substrate::zobrist::Zobrist;
 use crate::{parser::Square, BoardPosition, PacoError, PieceType, PlayerColor};
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+use std::ops::{BitAnd, BitOr, Not};
 
 pub mod constant_bitboards;
 pub mod dense;
 pub mod zobrist;
+pub mod bitboard_substrate;
 
 pub trait Substrate {
     /// Returns the piece at the given position, if any.
@@ -59,11 +62,17 @@ pub trait Substrate {
 
     /// Finds all pieces of the given color and type and returns them as a bitboard.
     fn find_pieces(&self, player_color: PlayerColor, piece_type: PieceType) -> BitBoard;
+
+    /// Gets the Zobrist hash of a substrate so it can be used directly.
+    fn get_zobrist_hash(&self) -> Zobrist;
+
+    /// Reorders everything with a new random order.
+    fn shuffle<R: Rng + ?Sized>(&mut self, rng: &mut R);
 }
 
 // Using a u64 as a [bool; 64]. This is known as a bitboard.
 // This is a very common technique in chess programming.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct BitBoard(pub u64);
 
 impl BitBoard {
@@ -92,6 +101,20 @@ impl BitBoard {
     }
     pub const fn len(self) -> u8 {
         self.0.count_ones() as u8
+    }
+
+    /// Branchless bit swap
+    pub fn swap(&mut self, a: BoardPosition, b: BoardPosition) {
+        // This implementation first figures out if a swap is required by XORing
+        // the two position values.
+        // Then it pushes that information to the positions again and swaps
+        // using another XOR.
+        let pos_a = a.0;
+        let pos_b = b.0;
+
+        let bit_diff = ((self.0 >> pos_a) ^ (self.0 >> pos_b)) & 1;
+        let mask = (bit_diff << pos_a) | (bit_diff << pos_b);
+        self.0 ^= mask;
     }
 }
 
@@ -159,7 +182,7 @@ impl IntoIterator for BitBoard {
 }
 
 impl FromIterator<BoardPosition> for BitBoard {
-    fn from_iter<T: IntoIterator<Item = BoardPosition>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item=BoardPosition>>(iter: T) -> Self {
         let mut result = BitBoard(0);
         for pos in iter {
             result.insert(pos);
@@ -169,7 +192,7 @@ impl FromIterator<BoardPosition> for BitBoard {
 }
 
 impl<'a> FromIterator<&'a BoardPosition> for BitBoard {
-    fn from_iter<T: IntoIterator<Item = &'a BoardPosition>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item=&'a BoardPosition>>(iter: T) -> Self {
         let mut result = BitBoard(0);
         for pos in iter {
             result.insert(*pos);

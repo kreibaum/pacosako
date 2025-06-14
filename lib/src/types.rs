@@ -2,6 +2,7 @@ use std::fmt;
 use std::ops::Add;
 
 use crate::substrate::BitBoard;
+use crate::PieceType::{Bishop, King, Knight, Pawn, Queen, Rook};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fmt::Debug;
@@ -64,6 +65,10 @@ impl PieceType {
             6 => None,
             _ => panic!("Invalid piece type: {}", value),
         }
+    }
+
+    pub(crate) fn all() -> impl Iterator<Item=Self> {
+        [Pawn, Rook, Knight, Bishop, Queen, King].iter().copied()
     }
 }
 

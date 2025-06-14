@@ -1,0 +1,7 @@
+[project]
+name = "pacosako" # Replace with your project's name
+version = "0.1.0"
+dependencies = [
+    "matplotlib>=3.10.3",
+    "pandas>=2.3.0",
+] # Dependencies will be added here by uv

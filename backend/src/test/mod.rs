@@ -5,9 +5,9 @@
 
 mod all_settled_states;
 
-use std::io::Write;
-
 use pacosako::{DenseBoard, PacoAction};
+use std::io::Write;
+use tokio::runtime::Runtime;
 
 use crate::{config, db::Connection, sync_match::SynchronizedMatch};
 // Loads games MIN_GAME_ID..=MAX_GAME_ID, inclusive
@@ -25,9 +25,40 @@ const BAD_APPLES: [i64; 33] = [183, 288, 301, 374, 376, 377, 431, 484, 914,
 
 // Note that 1977, 1978, 2892 are really bad.
 
-#[tokio::test]
+//#[tokio::test]
 #[ignore] // Can't run in CI, because it needs "production" database access
-async fn paco_2_performance() {
+#[test]
+fn paco_2_performance() {
+    // Tokio block on load_games():
+    let rt = Runtime::new().unwrap();
+    let games = rt.block_on(load_games());
+    // Now everything else is sync code with no runtime.
+
+    // Now do a replay analysis on all these games
+    // Open a file to write individual performance metrics to
+    let mut perf_csv = std::fs::File::create("paco_2_performance.csv").unwrap();
+
+    let timer = PerfTimer::new();
+    let mut analysis = Vec::with_capacity(games.len());
+    for game in games {
+        let i_timer = PerfTimer::new();
+        let actions: Vec<PacoAction> = game.actions.iter().map(|a| a.into()).collect();
+        analysis.push(pacosako::analysis::history_to_replay_notation(
+            DenseBoard::new(),
+            &actions,
+        ));
+        // Write to our performance file
+        let elapsed = i_timer.stop().as_micros();
+        let key = game.key;
+        let line = format!("{}, {}\n", key, elapsed);
+        perf_csv.write_all(line.as_bytes()).unwrap();
+    }
+    println!("Analyzed {} games in {:?}", analysis.len(), timer.stop());
+    // Close the file
+    perf_csv.flush().unwrap();
+}
+
+async fn load_games() -> Vec<SynchronizedMatch> {
     let config = config::load_config();
 
     // init_logger();
@@ -58,31 +89,7 @@ async fn paco_2_performance() {
         games.len(),
         MIN_GAME_ACTION_COUNT
     );
-
-    // Now do a replay analysis on all these games
-    // Open a file to write individual performance metrics to
-    let mut perf_csv = std::fs::File::create("paco_2_performance.csv").unwrap();
-
-    let timer = PerfTimer::new();
-    let mut analysis = Vec::with_capacity(games.len());
-    for game in games {
-        let i_timer = PerfTimer::new();
-        let actions: Vec<PacoAction> = game.actions.iter().map(|a| a.into()).collect();
-        analysis.push(pacosako::analysis::history_to_replay_notation(
-            DenseBoard::new(),
-            &actions,
-        ));
-        // Write to our performance file
-        let elapsed = i_timer.stop().as_micros();
-        let key = game.key;
-        let line = format!("{}, {}\n", key, elapsed);
-        perf_csv.write_all(line.as_bytes()).unwrap();
-    }
-    println!("Analyzed {} games in {:?}", analysis.len(), timer.stop());
-    // Close the file
-    perf_csv.flush().unwrap();
-
-    // assert_eq!(1, 2);
+    games
 }
 
 async fn load_board(id: i64, conn: &mut Connection) -> SynchronizedMatch {
@@ -90,7 +97,6 @@ async fn load_board(id: i64, conn: &mut Connection) -> SynchronizedMatch {
         .await
         .unwrap_or_else(|e| panic!("Error loading game {} from database, {:?}", id, e))
         .expect("Game does not exist on database")
-    // .project()
 }
 
 struct PerfTimer(std::time::Instant);

@@ -15,11 +15,11 @@ use draw_state::DrawState;
 use paco_action::PacoActionSet;
 use setup_options::SetupOptions;
 use substrate::constant_bitboards::{KING_TARGETS, KNIGHT_TARGETS};
-use substrate::dense::DenseSubstrate;
 use substrate::{BitBoard, Substrate};
 pub use types::{BoardPosition, PieceType, PlayerColor};
 
 pub use crate::paco_action::PacoAction;
+use crate::substrate::dense::DenseSubstrate;
 
 pub mod ai;
 pub mod analysis;
@@ -36,7 +36,7 @@ pub mod progress;
 pub mod random;
 pub mod setup_options;
 mod static_include;
-mod substrate;
+pub mod substrate;
 #[cfg(test)]
 mod testdata;
 pub mod trivial_hash;
@@ -136,7 +136,7 @@ pub struct VariantSettings {
 /// In a DenseBoard we reserve memory for all positions.
 #[derive(Clone, Debug, Eq, Serialize, Deserialize)]
 pub struct DenseBoard {
-    pub substrate: DenseSubstrate,
+    pub substrate: DenseSubstrate, // Can be swapped for BBSubstrate.
     pub controlling_player: PlayerColor,
     pub required_action: RequiredAction,
     pub lifted_piece: Hand,
@@ -327,7 +327,7 @@ impl DenseBoard {
         use PieceType::*;
 
         let mut result: Self = DenseBoard {
-            substrate: DenseSubstrate::default(),
+            substrate: Default::default(),
             controlling_player: PlayerColor::White,
             required_action: RequiredAction::Lift,
             lifted_piece: Hand::Empty,
@@ -373,7 +373,7 @@ impl DenseBoard {
     /// simpler positions without all pieces.
     pub fn empty() -> Self {
         DenseBoard {
-            substrate: DenseSubstrate::default(),
+            substrate: Default::default(),
             controlling_player: PlayerColor::White,
             required_action: RequiredAction::Lift,
             lifted_piece: Hand::Empty,

@@ -10,6 +10,7 @@
       <sourceFolder url="file://$MODULE_DIR$/lib/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/python/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ai-runner-rs/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/benches" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/backend/target" />
       <excludeFolder url="file://$MODULE_DIR$/frontend-wasm/target" />
       <excludeFolder url="file://$MODULE_DIR$/lib/target" />
