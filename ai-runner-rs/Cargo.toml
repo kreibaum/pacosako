@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ort = "2.0.0-rc.9"
+ort = "2.0.0-rc.10"
 pacosako-rust = { path = "../lib" }
-tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1.44.2", features = ["rt", "rt-multi-thread", "macros"] }
