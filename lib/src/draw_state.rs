@@ -35,7 +35,7 @@ pub struct DrawState {
     ///
     /// This property is not included in the hash of the board, nor is it
     /// in equality checks.
-    draw_check_map: FxHashMap<u64, u8>,
+    pub draw_check_map: FxHashMap<u64, u8>,
 }
 
 impl DrawState {

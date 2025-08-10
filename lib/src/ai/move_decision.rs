@@ -21,7 +21,6 @@ pub async fn decide_turn_intuition(
         let mut eval = backend.evaluate_model(&game).await?;
 
         let action = 'exclude: loop {
-            eval.normalize_policy();
             let action = eval.sample();
 
             let mut preview = game.clone();
@@ -34,13 +33,12 @@ pub async fn decide_turn_intuition(
             }
 
             // Remove the offending action from the policy and sample again.
-            eval.policy.retain(|(a, _)| *a != action);
-            // Well, if there is nothing else to sample from, we have to try
-            // again, this time starting with a different first action.
-            if eval.policy.is_empty() {
-                // Recursion with more forbidden states.
+            let Some(new_eval) = eval.remove(action) else            {
+                // Well, if there is nothing else to sample from, we have to try
+                // again, this time starting with a different first action.
                 return Box::pin(decide_turn_intuition(backend, board, exclude)).await;
-            }
+            };
+            eval = new_eval;
         };
 
         game.execute_trusted(action)?;

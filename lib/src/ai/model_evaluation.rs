@@ -1,5 +1,5 @@
 use crate::paco_action::PacoActionSet;
-use crate::{PacoAction, PlayerColor};
+use crate::{PacoAction, PacoError, PlayerColor};
 use rand::random;
 
 /// Given a DenseBoard, we want to turn this into a model evaluation.
@@ -9,7 +9,7 @@ use rand::random;
 #[derive(Debug)]
 pub struct ModelEvaluation {
     pub value: f32,
-    pub policy: Vec<(PacoAction, f32)>,
+    policy: Vec<(PacoAction, f32)>,
 }
 
 impl ModelEvaluation {
@@ -18,7 +18,14 @@ impl ModelEvaluation {
         // The viewpoint_color is required to "rotate back" the policy.
         viewpoint_color: PlayerColor,
         raw_model_output: &[f32],
-    ) -> Self {
+    ) -> Result<Self, PacoError> {
+        if legal_actions.is_empty()
+        {
+            return Err(PacoError::MlModelError(
+                "Model evaluated on a position without legal actions.".to_string(),
+            ));
+        }
+
         let value = raw_model_output[0];
 
         let mut policy = Vec::with_capacity(legal_actions.len() as usize);
@@ -35,11 +42,22 @@ impl ModelEvaluation {
         let mut evaluation = ModelEvaluation { value, policy };
 
         evaluation.normalize_policy();
-        evaluation
+        Ok(evaluation)
+    }
+
+    /// Removes an action from the policy and renormalizes.
+    pub fn remove(mut self, action: PacoAction) -> Option<Self> {
+        self.policy.retain(|(a, _)| *a != action);
+        if self.policy.is_empty() {
+             None
+        } else {
+            self.normalize_policy();
+            Some(self)
+        }
     }
 
     /// Make sure all the numbers sum to 1.
-    pub fn normalize_policy(&mut self) {
+    fn normalize_policy(&mut self) {
         let sum: f32 = self.policy.iter().map(|(_, p)| p).sum();
         if sum == 0. {
             if !self.policy.is_empty() {
@@ -70,7 +88,7 @@ impl ModelEvaluation {
         evaluation
     }
 
-    /// Samples a random action, assuming the policy is normalized.
+    /// Samples a random action from the policy
     pub fn sample(&self) -> PacoAction {
         let mut sum = 0.;
         let random = random::<f32>();

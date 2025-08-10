@@ -7,7 +7,11 @@ use ort::value::{Tensor, Value};
 use pacosako::PacoError::MlModelError;
 use pacosako::ai::model_backend::ModelBackend;
 use pacosako::ai::model_evaluation::ModelEvaluation;
-use pacosako::{DenseBoard, PacoBoard, PacoError, fen};
+use pacosako::setup_options::SetupOptions;
+use pacosako::variants::PieceSetupParameters::FischerRandom;
+use pacosako::{DenseBoard, PacoBoard, PacoError, VictoryState, fen, variants};
+use std::collections::HashMap;
+use std::error::Error;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -46,7 +50,7 @@ impl ModelBackend for OrtBackend {
             )));
         }
 
-        let evaluation = ModelEvaluation::new(board.actions()?, board.controlling_player, o_data);
+        let evaluation = ModelEvaluation::new(board.actions()?, board.controlling_player, o_data)?;
 
         Ok(evaluation)
     }
@@ -84,10 +88,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:?}", backend.evaluate_model(&board).await?.sorted());
 
     // Determine a full move on this board state.
-    pacosako::ai::move_decision::decide_turn_intuition(backend, &board, vec![])
+    pacosako::ai::move_decision::decide_turn_intuition(backend.clone(), &board, vec![])
         .await?
         .into_iter()
         .for_each(|action| println!("{:?}", action));
 
-    Ok(())
+    let mut running_total: HashMap<VictoryState, i32> = HashMap::new();
+    loop {
+        let result = run_one_playout(backend.clone()).await?;
+        *running_total.entry(result).or_insert(0) += 1;
+        println!("Current running total: {:?}", running_total);
+    }
+}
+
+async fn run_one_playout(backend: OrtBackend) -> Result<VictoryState, Box<dyn Error>> {
+    // Play a full game on the default board state.
+    let mut board = DenseBoard::with_options(&SetupOptions {
+        draw_after_n_repetitions: 3,
+        starting_fen : variants::piece_setup_fen(FischerRandom),
+        ..Default::default()
+    })?;
+
+    while !board.victory_state.is_over() {
+        let actions =
+            pacosako::ai::move_decision::decide_turn_intuition(backend.clone(), &board, vec![])
+                .await?;
+
+        for action in actions {
+            //println!("Executing action: {:?}", action);
+            board.execute(action)?;
+        }
+
+        // println!("Current board state: {}", fen::write_fen(&board));
+        // println!("draw check map size is {}.", board.draw_state.draw_check_map.len());
+    }
+
+    //println!("Result: {:?}", board.victory_state);
+    Ok(board.victory_state)
 }

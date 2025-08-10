@@ -23,7 +23,7 @@ impl ModelBackend for ModelBackendJs {
         let result = js_sys::Float32Array::from(result).to_vec();
         let actions = board.actions()?;
 
-        let evaluation = ModelEvaluation::new(actions, board.controlling_player, &result);
+        let evaluation = ModelEvaluation::new(actions, board.controlling_player, &result)?;
 
         console_log(&format!(
             "Model Evaluation for {} ({} ms) -> {:?}",
