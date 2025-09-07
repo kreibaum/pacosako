@@ -162,5 +162,15 @@
     "adminUserAssignmentPageTitle": "Beheerder - Toewijzen gebruiker",
     "adminUserAssignmentL1": "Hier kunt u gebruikers aan partijen toewijzen. Dit is handig om partijen aan de juiste gebruiker te koppelen. U heeft speciale toegang nodig om dit te doen. Voorlopig heeft u ook de technische gebruiker id's nodig.",
     "adminUserAssignmentEnterId": "Voer gebruiker id in",
-    "mePagePrivacyNote": "Privacy boodschap:"
+    "mePagePrivacyNote": "Privacy boodschap:",
+    "joinGameNotFound": "Spel '{0}' bestaat niet.",
+    "createAccountPageTitle": "Creëer Account - pacoplay.com",
+    "deleteAccountDangerLoginAnnounce": "Nadat u bent ingelogd, kunt u uw account in één minuut verwijderen.",
+    "anonymousPlayerNameYou": "U (Geen Account)",
+    "unknownAiPlayerName": "Onbekende AI",
+    "playWithAi": "Speel met AI",
+    "playWithAiL1": "U kunt tegen de Hedwig AI spelen. Hedwig is een sterke AI voor Paco Ŝako. Het is niet perfect, maar het is een goede uitdaging voor de meeste spelers. U kunt de kleur kiezen waarmee Hedwig zal spelen.",
+    "playWithAiColorRandom": "Willekeurig",
+    "playWithAiRemoveAi": "Verwijder AI",
+    "aiLabelAiStuck": "AI vast? {0}s"
 }
