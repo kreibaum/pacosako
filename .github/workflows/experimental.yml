@@ -1,0 +1,67 @@
+name: Custom Docker Container CI
+
+on:
+  workflow_dispatch:  # Only runs manually
+
+jobs:
+  build_and_test:
+    name: Build and Test with Prebuilt CI Image
+    runs-on: ubuntu-24.04
+    container: ghcr.io/kreibaum/pacosako-ci-image:v25.9.16.0
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Database
+        run: scripts/setup-fresh-database.sh
+
+      - name: Run all Rust Tests
+        run: cargo test --release
+
+      - name: Compile all Binaries
+        run: cargo build --all --release
+
+      - name: Compile Frontend
+        run: scripts/compile-frontend.sh
+
+      - name: Package Deployment Artifact
+        run: scripts/package-artifact.sh
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy
+          path: deploy.tar.gz
+
+  deploy:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/master'
+    needs: [ build_and_test ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check out deployment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy
+
+      - name: Setup SSH Keys and known_hosts
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null
+          mkdir -p ~/.ssh
+          ssh-add - <<< "${{ secrets.DEPLOYMENT_KEY }}"
+          touch ~/.ssh/known_hosts
+          cat scripts/known_hosts >> ~/.ssh/known_hosts
+
+      - name: Upload to pacoplacy.com host
+        env:
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+        run: |
+          scp -v deploy.tar.gz pacosako@pacoplay.com:~
+          ssh -t pacosako@pacoplay.com "./update-stage.sh"
