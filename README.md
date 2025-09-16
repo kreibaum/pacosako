@@ -344,6 +344,23 @@ Additionally, we are also planning to implement
 
 ![A schematic drawing of the architecture when deployed.](/doc/architecture.png)
 
+# Continuous Integration
+
+## Rebuilding and Re-Publishing the Docker Image
+
+Build the image locally
+
+```sh
+docker build -t pacosako-ci-image -f ./scripts/ci.Dockerfile .
+# Version numbering is YEAR.MONTH.DAY.ATTEMPT
+docker tag pacosako-ci-image:latest ghcr.io/kreibaum/pacosako-ci-image:v25.9.16.1
+# Get a token at https://github.com/settings/tokens
+echo $GITHUB_TOKEN | docker login ghcr.io -u pacosako --password-stdin
+docker push ghcr.io/kreibaum/pacosako-ci-image:v25.9.16.0
+# Check that it is public
+# https://github.com/users/kreibaum/packages/container/pacosako-ci-image/settings
+```
+
 # Deployment and Server Management
 
 This application is set up to run using two systemd services, one for the staging environment and one for

@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     nodejs \
     npm \
     git \
+    brotli \
     && rm -rf /var/lib/apt/lists/*
 
 # Install sqlx-cli for database migrations

@@ -7,7 +7,7 @@ jobs:
   build_and_test:
     name: Build and Test with Prebuilt CI Image
     runs-on: ubuntu-24.04
-    container: ghcr.io/kreibaum/pacosako-ci-image:v25.9.16.0
+    container: ghcr.io/kreibaum/pacosako-ci-image:v25.9.16.1
 
     steps:
       - name: Checkout code
