@@ -1,4 +1,4 @@
-module Content.References exposing (discordInvite, gitHubLink, officialWebsiteLink, posterumCupInvite, twitchLink, translationSuggestion)
+module Content.References exposing (discordInvite, gitHubLink, officialWebsiteLink, twitchLink, translationSuggestion)
 
 import Element exposing (Element, centerX, clip, column, el, fill, height, image, maximum, newTabLink, padding, paragraph, px, rgba255, row, spacing, text, width)
 import Element.Background as Background
@@ -90,17 +90,6 @@ gitHubLink =
                 ]
         }
 
-
-posterumCupInvite : Element msg
-posterumCupInvite =
-    el [ width fill, height fill ]
-        (newTabLink [ width fill, height fill, centerX, Border.rounded 5 ]
-            { url = "https://forms.gle/iBrXyrfKyUvx4WK48"
-            , label =
-                image [ width fill, Border.rounded 5, clip ]
-                    { src = StaticAssets.pspcPacoplayBanner, description = "An invitation to join the Paco Sako Posterum Cup. The competition is taking place on 6th April 2025." }
-            }
-        )
 
 translationSuggestion : Element msg
 translationSuggestion =

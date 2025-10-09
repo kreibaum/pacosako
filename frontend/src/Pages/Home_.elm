@@ -388,8 +388,7 @@ matchSetupUiDesktop shared model =
                 , joinOnlineMatchUi model
                 ]
             , column [ height fill, width fill, spacing 15 ]
-                [ Content.References.posterumCupInvite
-                , Content.References.discordInvite
+                [ Content.References.discordInvite
                 , Content.References.officialWebsiteLink
                 , Content.References.twitchLink
                 , Content.References.translationSuggestion
@@ -406,7 +405,6 @@ matchSetupUiTablet shared model =
         [ setupOnlineMatchUi shared model
         , joinOnlineMatchUi model
         , configureAiUi shared model
-        , Content.References.posterumCupInvite
         , row [ width fill, spacing 10 ]
             [ Content.References.discordInvite
             , Content.References.officialWebsiteLink
@@ -426,7 +424,6 @@ matchSetupUiPhone shared model =
         [ setupOnlineMatchUi shared model
         , configureAiUi shared model
         , joinOnlineMatchUi model
-        , Content.References.posterumCupInvite
         , Content.References.discordInvite
         , Content.References.officialWebsiteLink
         , Content.References.twitchLink
