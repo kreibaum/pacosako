@@ -10,7 +10,7 @@ on:
 jobs:
   deploy:
     # The type of runner that the job will run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
