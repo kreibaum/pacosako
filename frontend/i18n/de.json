@@ -165,5 +165,20 @@
     "anonymousPlayerName": "Ohne Profil",
     "anonymousPlayerNameYou": "Du (Nicht angemeldet)",
     "freeSeatPlayerName": "Freier Platz",
-    "unknownAiPlayerName": "Unbekannte KI"
+    "unknownAiPlayerName": "Unbekannte KI",
+    "adminUserAssignmentPageTitle": "Admin - Benutzerzuweisung",
+    "adminUserAssignmentL1": "Hier kannst du Benutzerinnen Spielen zuordnen. Das ist nützlich, um sicherzustellen, dass die Spiele den richtigen Benutzerinnen zugewiesen werden. Dafür brauchst du besondere Berechtigungen. Im Moment musst du außerdem die technische Benutzer-ID der Personen kennen.",
+    "adminUserAssignmentEnterId": "User ID eingeben",
+    "adminUserAssignmentPerform": "Weise Spieler Spielen zu",
+    "playWithAi": "Spiel gegen den Computer",
+    "playWithAiL1": "Du kannst gegen die Hedwig-KI spielen. Hedwig ist eine starke KI für Paco Ŝako. Sie ist nicht perfekt, aber für die meisten Spieler*innen eine gute Herausforderung. Du kannst wählen, welche Farbe Hedwig spielen soll.",
+    "playWithAiColorRandom": "Zufall",
+    "playWithAiRemoveAi": "KI Entfernen",
+    "aiLabelAiStuck": "KI aufgehangen? {0}s",
+    "aiLabelAiNotStarted": "Nicht begonnen",
+    "aiLabelAiStartRequested": "Spielbeginn angefragt",
+    "aiLabelModelLoading": "Herunterladen des Model: {0}/{1}",
+    "aiLabelSessionLoading": "Laufzeit wird eingerichtet",
+    "aiLabelWarmup": "Aufwärmen",
+    "enableFischerRandom": "Ŝako 960-Variation"
 }
