@@ -84,7 +84,7 @@
     "match": "Partida",
     "pageNotFoundReturn": "Página no encontrada. Regresar a la página de inicio.",
     "gameTitle": "Jugar Paco Ŝako - pacoplay.com",
-    "gameCopyToClipboard": "Copiar URL para un amigo",
+    "gameCopyToClipboard": "Copiar url para un amigo",
     "gameRestartMove": "Reiniciar movida",
     "quickSettingsHeader": "Configuración rápida",
     "tutorial00ClickToEnableYoutube": "Haz clic para activar el video. Al hacer clic, cargarás contenido de YouTube.",
@@ -163,7 +163,7 @@
     "anonymousPlayerName": "Sin cuenta",
     "adminUserAssignmentPageTitle": "Administrador - Asignación de usuarios",
     "adminUserAssignmentL1": "Aquí puedes asignar usuarios a juegos. Esto es útil para asignar juegos al usuario correcto. Necesitará permisos especiales para hacer esto. Por ahora, también necesita conocer la identificación técnica de usuario de las personas.",
-    "adminUserAssignmentEnterId": "Ingresa el ID del usuario",
+    "adminUserAssignmentEnterId": "Ingresa el Id del usuario",
     "adminUserAssignmentPerform": "Asignar usuario(s) al juego",
     "playWithAi": "Jugar con una IA",
     "playWithAiL1": "Puedes jugar contra la IA de Hedwig. Hedwig es una potente IA para Paco Ŝako. No es perfecta, pero es un buen desafío para la mayoría de los jugadores. Puedes elegir el color con el que debería jugar Hedwig.",
@@ -178,5 +178,7 @@
     "aiLabelAiStartRequested": "Inicio requerido",
     "aiLabelModelLoading": "Descargando modelo: {0}/{1}",
     "aiLabelSessionLoading": "Configuración del entorno de ejecución",
-    "aiLabelWarmup": "Calentamiento"
+    "aiLabelWarmup": "Calentamiento",
+    "translationNotComplete": "Esta traducción está {0}% completa. ¡Ayúdanos a completarla!",
+    "enableFischerRandom": "Variación Ŝako 960"
 }
