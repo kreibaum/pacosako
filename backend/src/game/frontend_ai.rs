@@ -6,7 +6,7 @@ pub async fn find_user_for_model_name(model_name: &str, conn: &mut Connection) -
         "SELECT user_id from user_modelName where model_name = $1",
         model_name
     )
-        .fetch_optional(&mut *conn)
+        .fetch_optional(&mut **conn)
         .await?;
 
     Ok(res.map(|x| UserId(x.user_id)))

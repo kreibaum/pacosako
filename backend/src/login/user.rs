@@ -63,7 +63,7 @@ pub async fn set_avatar(
         avatar,
         session.user_id.0
     )
-        .execute(&mut connection)
+        .execute(&mut *connection)
         .await
         .unwrap();
 
@@ -76,7 +76,7 @@ pub async fn load_public_user_data(
     connection: &mut Connection,
 ) -> Result<PublicUserData, sqlx::Error> {
     let res = sqlx::query!("select name, avatar from user where id = ?", user_id.0)
-        .fetch_one(connection)
+        .fetch_one(&mut **connection)
         .await?;
 
     Ok(PublicUserData {
@@ -111,14 +111,14 @@ async fn load_one_ai_config_for_game(
         game_key,
         color
     )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(&mut **connection)
         .await?;
 
     if let Some(res) = res {
         Ok(Some(AiMetaData {
             model_name: res.model_name,
             model_strength: res.model_strength as usize,
-            model_temperature: res.model_temperature,
+            model_temperature: res.model_temperature as f32,
             is_frontend_ai: res.is_frontend_ai == Some(1),
         }))
     } else {
@@ -147,7 +147,7 @@ pub async fn write_one_ai_config_for_game(
         model_strength,
         ai.model_temperature,
         is_frontend_ai
-    ).execute(&mut *connection).await?;
+    ).execute(&mut **connection).await?;
     Ok(())
 }
 
@@ -162,7 +162,7 @@ pub async fn load_user_data_for_game(
         "select white_player, black_player from game where id = ?",
         game_key
     )
-        .fetch_one(&mut *connection)
+        .fetch_one(&mut **connection)
         .await?;
 
     let (white_ai, black_ai) = load_ai_config_for_game(game_key, &mut *connection).await?;
@@ -232,7 +232,7 @@ pub async fn create_user(
         name,
         avatar
     )
-        .execute(conn)
+        .execute(&mut **conn)
         .await?;
 
     Ok(UserId(res.last_insert_rowid() as i64))
@@ -305,7 +305,7 @@ pub async fn create_discord_login(
         user_id.0,
         identifier
     )
-        .execute(connection)
+        .execute(&mut **connection)
         .await?;
     Ok(())
 }

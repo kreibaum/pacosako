@@ -142,7 +142,7 @@ async fn get_user_for_login(
         "select user_id, hashed_password, id from login where identifier = ?",
         dto.username
     )
-        .fetch_one(&mut *connection)
+        .fetch_one(&mut **connection)
         .await?;
     let user_id = UserId(res.user_id);
 
@@ -169,7 +169,7 @@ pub async fn update_last_login(
         "update login set last_login = CURRENT_TIMESTAMP where user_id = ?",
         user_id.0
     )
-        .execute(connection)
+        .execute(&mut **connection)
         .await?;
     Ok(())
 }
@@ -190,7 +190,7 @@ pub async fn logout_route(
 ) -> impl IntoResponse {
     let mut connection = pool.conn().await.expect("No connection available");
     sqlx::query!("delete from session where user_id = ?", session.user_id.0)
-        .execute(&mut connection)
+        .execute(&mut *connection)
         .await
         .expect("Error removing sessions for user.");
 

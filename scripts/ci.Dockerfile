@@ -1,5 +1,5 @@
 # Start from an official Rust image with stable toolchain
-FROM rust:1.89-slim
+FROM rust:1.98-slim
 
 # Install dependencies for SQLX, wasm-pack, Node, and Elm
 RUN apt-get update && apt-get install -y \
@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install sqlx-cli for database migrations
-RUN cargo install sqlx-cli --version ^0.5
+RUN cargo install sqlx-cli --version ^0.9
 
 # Install wasm-pack for WebAssembly builds
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh

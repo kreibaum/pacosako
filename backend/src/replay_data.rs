@@ -43,7 +43,7 @@ pub async fn post_metadata(
             ele.category,
             ele.data
         )
-        .execute(&mut conn)
+        .execute(&mut *conn)
         .await?;
     }
 
@@ -62,7 +62,7 @@ pub async fn get_metadata(
         WHERE game_id = ?",
         key
     )
-    .fetch_all(&mut conn)
+    .fetch_all(&mut *conn)
     .await?;
 
     let mut result = Vec::new();

@@ -21,10 +21,10 @@ async fn all_the_games() {
 
     // select max(id) from game
     let max_game_id: i32 = sqlx::query!("select coalesce(max(id), 0) as mx from game")
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await
         .unwrap()
-        .mx;
+        .mx as i32;
 
     let mut boards_csv = std::fs::File::create("all_boards.csv").unwrap();
     boards_csv

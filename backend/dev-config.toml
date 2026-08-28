@@ -1,6 +1,5 @@
 dev_mode = true
 bind = "0.0.0.0:8000"
-websocket_port = 3010
 database_path = "data/database.sqlite"
 # Generating a string suitable for use as a secret_key configuration value
 # is usually done through tools like openssl. Using openssl, a 256-bit base64 key

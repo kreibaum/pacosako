@@ -75,7 +75,7 @@ async fn perform_backdated_user_assignment(
     sqlx::query!(
         "insert into game_assignment_audit (game_id, white_assignee, black_assignee, assigned_by) values (?, ?, ?, ?)",
         data.game_id, w, b, data.assigned_by.0,
-    ).execute(&mut *conn).await?;
+    ).execute(&mut **conn).await?;
 
     // Now we can update the game.
     if let Some(white_assignee) = data.white_assignee {

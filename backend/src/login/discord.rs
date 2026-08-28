@@ -307,8 +307,8 @@ async fn get_user_for_discord_user_id(
         "SELECT user_id FROM login WHERE type = 'discord' AND identifier = ?",
         discord_user_id
     )
-        .fetch_optional(&mut *conn)
-        .await?;
+    .fetch_optional(&mut **conn)
+    .await?;
 
     let Some(res) = res else {
         return Ok(None);
@@ -353,7 +353,7 @@ pub async fn please_create_account(
         &format!("identicon:{}", user_info.id),
         &mut conn,
     )
-        .await?;
+    .await?;
 
     // Associate the user with the discord login
     user::create_discord_login(user_id, user_info.id, &mut conn).await?;

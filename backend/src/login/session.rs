@@ -45,7 +45,7 @@ pub async fn create_session(
         user_id.0,
         can_delete
     )
-        .execute(connection)
+        .execute(&mut **connection)
         .await?;
 
     Ok(SessionId(uuid))
@@ -60,14 +60,14 @@ pub async fn load_session(
         where id = ? and can_delete = 1 and CURRENT_TIMESTAMP > datetime(created_at, '+1 minutes')",
         session_id.0
     )
-        .execute(&mut *connection)
+        .execute(&mut **connection)
         .await?;
 
     let res = sqlx::query!(
         r"select user_id, can_delete as can_delete from session where id = ?",
         session_id.0
     )
-        .fetch_one(connection)
+        .fetch_one(&mut **connection)
         .await;
     let res = res.map_err(|e| anyhow::anyhow!("Session not found: {:?}", e))?;
     res.user_id

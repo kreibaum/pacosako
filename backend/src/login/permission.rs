@@ -23,7 +23,7 @@ pub async fn is_allowed(user_id: UserId, permission: &str, conn: &mut Connection
         user_id.0,
         permission
     )
-        .fetch_one(conn)
+        .fetch_one(&mut **conn)
         .await?;
 
     Ok(result.permission_exists.is_positive())

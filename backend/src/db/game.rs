@@ -31,7 +31,7 @@ pub async fn insert(
         white_player,
         black_player
     )
-        .execute(conn)
+        .execute(&mut **conn)
         .await?
         .last_insert_rowid();
 
@@ -65,7 +65,7 @@ pub async fn update(game: &SynchronizedMatch, conn: &mut Connection) -> Result<(
         black_player,
         id
     )
-        .execute(conn)
+        .execute(&mut **conn)
         .await?;
 
     Ok(())
@@ -80,7 +80,7 @@ pub async fn select(
         "select id, action_history, timer, setup, white_player, black_player from game where id = ?",
         id
     )
-        .fetch_optional(conn)
+        .fetch_optional(&mut **conn)
         .await?;
 
     if let Some(raw_game) = raw_game {
@@ -97,7 +97,7 @@ pub async fn latest(conn: &mut Connection) -> Result<Vec<SynchronizedMatch>, Ser
         order by id desc
         limit 5"
     )
-        .fetch_all(conn)
+        .fetch_all(&mut **conn)
         .await?;
 
     raw_games.into_iter().map(|raw| raw.into_match()).collect()
@@ -120,7 +120,7 @@ pub async fn for_player(
         limit,
         offset,
     )
-        .fetch_all(conn)
+        .fetch_all(&mut **conn)
         .await?;
 
     raw_games.into_iter().map(|raw| raw.into_match()).collect()
@@ -133,10 +133,9 @@ pub async fn count_for_player(user_id: i64, conn: &mut Connection) -> Result<i32
         user_id,
         user_id
     )
-        .fetch_one(conn)
+        .fetch_one(&mut **conn)
         .await?
-        .count
-        .unwrap_or(0))
+        .count as i32)
 }
 
 // Database representation of a sync_match::SynchronizedMatch
@@ -191,7 +190,7 @@ pub async fn set_player(
             user_id.0,
             key
         )
-            .execute(conn)
+            .execute(&mut **conn)
             .await?;
     } else {
         sqlx::query!(
@@ -199,7 +198,7 @@ pub async fn set_player(
             user_id.0,
             key
         )
-            .execute(conn)
+            .execute(&mut **conn)
             .await?;
     }
 
