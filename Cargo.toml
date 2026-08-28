@@ -9,7 +9,7 @@ members = [
 resolver = "3"
 
 [profile.release]
-debug = true
+# debug = 1
 
 [profile.release.package.frontend-wasm]
 opt-level = "s"
