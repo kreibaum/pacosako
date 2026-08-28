@@ -5,14 +5,13 @@
 //! This is useful for assigning games to users that were not logged in at the time
 //! the game was played.
 
-use axum::extract::State;
 use axum::Json;
 use serde::Deserialize;
 
 use pacosako::PlayerColor;
 
 use crate::{db, ServerError};
-use crate::db::{Connection, Pool};
+use crate::db::{Conn, Connection};
 use crate::login::permission::{BACKDATED_USER_ASSIGNMENT, is_allowed};
 use crate::login::session::SessionData;
 use crate::login::UserId;
@@ -97,14 +96,13 @@ pub struct BackdatedUserAssignmentPostParameters {
 
 pub async fn backdate_user_assignment(
     session: SessionData,
-    pool: State<Pool>,
+    mut conn: Conn,
     Json(params): Json<BackdatedUserAssignmentPostParameters>,
 ) -> Result<(), ServerError> {
-    let mut conn = pool.conn().await?;
     perform_backdated_user_assignment(BackdatedUserAssignment {
         game_id: params.game_id,
         white_assignee: params.white_assignee.map(UserId),
         black_assignee: params.black_assignee.map(UserId),
         assigned_by: session.user_id,
-    }, &mut conn).await
+    }, &mut *conn).await
 }

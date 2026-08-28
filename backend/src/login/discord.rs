@@ -17,7 +17,7 @@
 
 use crate::{
     config::EnvironmentConfig,
-    db::{Connection, Pool},
+    db::{Conn, Connection},
     ServerError,
 };
 use axum::{
@@ -130,7 +130,7 @@ pub async fn back_from_discord(
     Query(BackFromDiscordQuery { code, state }): Query<BackFromDiscordQuery>,
     mut cookies: Cookies,
     State(config): State<EnvironmentConfig>,
-    pool: State<Pool>,
+    mut conn: Conn,
 ) -> Result<impl IntoResponse, ServerError> {
     let Some(state_cookie) = cookies.get(OAUTH_STATE_COOKIE_NAME) else {
         log::warn!("OAuth2 State cookie not found");
@@ -155,8 +155,7 @@ pub async fn back_from_discord(
     let user_info = request_user_info(&token_response.access_token).await?;
 
     // Check if the user is already in the database
-    let mut conn = pool.conn().await?;
-    let user_id = get_user_for_discord_user_id(&user_info.id, &mut conn).await?;
+    let user_id = get_user_for_discord_user_id(&user_info.id, &mut *conn).await?;
 
     let Some(user_id) = user_id else {
         return Ok(
@@ -169,7 +168,7 @@ pub async fn back_from_discord(
     // Check we we are in can_delete mode by testing if the state ends with "-delete"
     let can_delete = state.ends_with("-delete");
 
-    create_session_and_attach_cookie(user_id, can_delete, &config, &mut cookies, &mut conn).await?;
+    create_session_and_attach_cookie(user_id, can_delete, &config, &mut cookies, &mut *conn).await?;
 
     if can_delete {
         Ok(Redirect::to(&format!("/me?delete_user={}", user_id.0)).into_response())
@@ -331,7 +330,7 @@ pub async fn please_create_account(
     Query(query): Query<PleaseCreateAccountQuery>,
     mut cookies: Cookies,
     State(config): State<EnvironmentConfig>,
-    pool: State<Pool>,
+    mut conn: Conn,
 ) -> Result<impl IntoResponse, ServerError> {
     log::info!("Creating an account for a new user from Discord.");
     // Decrypt the access token
@@ -345,23 +344,21 @@ pub async fn please_create_account(
 
     log::info!("Creating account for user {}", user_info.display_name());
 
-    let mut conn = pool.conn().await?;
-
     // Create an account for the user
     let user_id = user::create_user(
         user_info.display_name(),
         &format!("identicon:{}", user_info.id),
-        &mut conn,
+        &mut *conn,
     )
-    .await?;
+        .await?;
 
     // Associate the user with the discord login
-    user::create_discord_login(user_id, user_info.id, &mut conn).await?;
+    user::create_discord_login(user_id, user_info.id, &mut *conn).await?;
 
     log::info!("Account created and linked to Discord.");
 
     // Set the session cookie
-    create_session_and_attach_cookie(user_id, false, &config, &mut cookies, &mut conn).await?;
+    create_session_and_attach_cookie(user_id, false, &config, &mut cookies, &mut *conn).await?;
 
     // Return to /me with a redirect. On first login, the user likely want to
     // chose a profile picture and maybe set some other options once we put them

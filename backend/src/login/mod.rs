@@ -16,7 +16,7 @@ use tower_cookies::{Cookie, cookie::SameSite, Cookies};
 
 use crate::{
     config::EnvironmentConfig,
-    db::{Connection, Pool},
+    db::{Conn, Connection},
     ServerError,
 };
 
@@ -53,12 +53,12 @@ pub struct DeleteUserQuery {
 /// Username/password is expected as a JSON object in the body.
 pub async fn username_password_route(
     Query(query): Query<DeleteUserQuery>,
-    pool: State<Pool>,
     config: State<EnvironmentConfig>,
     cookies: Cookies,
+    mut conn: Conn,
     dto: Json<UsernamePasswordDTO>,
 ) -> Response {
-    match username_password(query.delete_user, pool, config, cookies, dto).await {
+    match username_password(query.delete_user, &config, cookies, dto, &mut *conn).await {
         Ok(_) => (StatusCode::OK).into_response(),
         Err(_) => (StatusCode::UNAUTHORIZED).into_response(),
     }
@@ -66,14 +66,13 @@ pub async fn username_password_route(
 
 async fn username_password(
     delete_user: Option<UserId>,
-    pool: State<Pool>,
-    config: State<EnvironmentConfig>,
+    config: &EnvironmentConfig,
     mut cookies: Cookies,
     dto: Json<UsernamePasswordDTO>,
+    connection: &mut Connection,
 ) -> Result<impl IntoResponse, anyhow::Error> {
     info!("Login attempt for user {}", dto.username);
-    let mut connection = pool.conn().await.expect("No connection available");
-    let Ok(user_id) = get_user_for_login(&dto, &mut connection).await else {
+    let Ok(user_id) = get_user_for_login(&dto, connection).await else {
         if config.dev_mode {
             // It is important that this is only enabled in dev mode, otherwise
             // the production server would log hashes of slightly wrong passwords.
@@ -103,9 +102,9 @@ async fn username_password(
     Ok(create_session_and_attach_cookie(
         user_id,
         can_delete,
-        &config,
+        config,
         &mut cookies,
-        &mut connection,
+        connection,
     )
         .await?)
 }
@@ -186,11 +185,10 @@ fn generate_password_hash(password: &str) -> String {
 pub async fn logout_route(
     session: SessionData,
     cookies: Cookies,
-    pool: State<Pool>,
+    mut conn: Conn,
 ) -> impl IntoResponse {
-    let mut connection = pool.conn().await.expect("No connection available");
     sqlx::query!("delete from session where user_id = ?", session.user_id.0)
-        .execute(&mut *connection)
+        .execute(&mut **conn)
         .await
         .expect("Error removing sessions for user.");
 
