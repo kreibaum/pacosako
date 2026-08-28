@@ -5,7 +5,9 @@
             "es2019",
             "dom"
         ],
-        "outDir": "web-build/frontend-ts"
+        "outDir": "web-build/frontend-ts",
+        "rootDir": "frontend/typescript",
+        "strict": false
     },
     "files": [
         "frontend/typescript/main.ts",
