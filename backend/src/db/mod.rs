@@ -40,34 +40,52 @@ impl Pool {
     }
 }
 
-/// A handle to the single database connection that is lent to a request.
+/// A request-scoped database connection, shared across the whole request.
 ///
 /// The database middleware checks a connection out of the pool before the
-/// handler runs and inserts this handle into the request's extension map.
-/// `Conn` extractors take the connection out of the handle for exclusive use
-/// and put it back when they are done. The middleware commits or rolls back
-/// the transaction after the handler has finished and the connection is
-/// released to the pool once the last clone of this handle is dropped.
-#[derive(Clone)]
-pub struct RequestConnection {
-    conn: Arc<Mutex<Option<Connection>>>,
+/// handler runs and inserts a `Conn` handle into the request's extension map.
+/// `Conn` extractors clone the handle, take the connection out of it for
+/// exclusive use, and put it back when they are done. The transaction is begun
+/// on first use and the middleware commits or rolls it back based on the
+/// response status. The connection is released to the pool once the last clone
+/// of the handle is dropped.
+///
+/// Note that a handler must extract this *after* any other extractor that also
+/// uses the request connection (such as `SessionData`), because only one
+/// `Conn` may own the connection at a time.
+pub struct Conn {
+    inner: Arc<Mutex<Option<Connection>>>,
     in_transaction: Arc<AtomicBool>,
+    conn: Option<Connection>,
 }
 
-impl RequestConnection {
+impl Clone for Conn {
+    /// Clones the shared handle. The clone never carries the owned connection;
+    /// only a `Conn` that was created by the `FromRequestParts` extractor does.
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            in_transaction: Arc::clone(&self.in_transaction),
+            conn: None,
+        }
+    }
+}
+
+impl Conn {
     /// Checks a connection out of the pool and wraps it in a handle.
     pub async fn acquire(pool: &Pool) -> Result<Self, sqlx::Error> {
         let conn = pool.conn().await?;
         Ok(Self {
-            conn: Arc::new(Mutex::new(Some(conn))),
+            inner: Arc::new(Mutex::new(Some(conn))),
             in_transaction: Arc::new(AtomicBool::new(false)),
+            conn: None,
         })
     }
 
     /// Takes the connection out of the handle. Returns `None` if a `Conn`
     /// extractor currently has exclusive ownership of it.
     fn take(&self) -> Option<Connection> {
-        self.conn
+        self.inner
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .take()
@@ -76,7 +94,7 @@ impl RequestConnection {
     /// Puts the connection back into the handle.
     fn put(&self, conn: Connection) {
         *self
-            .conn
+            .inner
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(conn);
     }
@@ -117,32 +135,6 @@ impl RequestConnection {
     }
 }
 
-impl Drop for RequestConnection {
-    fn drop(&mut self) {
-        if self.in_transaction.load(Ordering::SeqCst) {
-            error!(
-                "Dropping a request connection while a transaction is still open. \
-                 This usually means a handler panicked before the transaction could be finished."
-            );
-        }
-    }
-}
-
-/// A request-scoped database connection.
-///
-/// The database middleware checks a connection out of the pool before the
-/// handler runs and this extractor takes exclusive ownership of it for the
-/// duration of the handler. The transaction is begun on first use and
-/// committed or rolled back by the middleware based on the response status.
-///
-/// Note that a handler must extract this *after* any other extractor that also
-/// uses the request connection (such as `SessionData`), because only one
-/// `Conn` may own the connection at a time.
-pub struct Conn {
-    handle: RequestConnection,
-    conn: Option<Connection>,
-}
-
 #[async_trait]
 impl FromRequestParts<AppState> for Conn {
     type Rejection = (StatusCode, &'static str);
@@ -151,22 +143,23 @@ impl FromRequestParts<AppState> for Conn {
         parts: &mut Parts,
         _state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let handle = parts.extensions.get::<RequestConnection>().cloned().ok_or((
+        let handle = parts.extensions.get::<Conn>().cloned().ok_or((
             StatusCode::INTERNAL_SERVER_ERROR,
             "No database connection available for this request",
         ))?;
-        let mut conn = handle.take().ok_or((
+        let mut extracted = handle.clone();
+        let mut conn = extracted.take().ok_or((
             StatusCode::INTERNAL_SERVER_ERROR,
             "The database connection for this request is already in use",
         ))?;
-        handle
-            .begin(&mut conn)
-            .await
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Could not start transaction"))?;
-        Ok(Self {
-            handle,
-            conn: Some(conn),
-        })
+        extracted.begin(&mut conn).await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Could not start transaction",
+            )
+        })?;
+        extracted.conn = Some(conn);
+        Ok(extracted)
     }
 }
 
@@ -191,7 +184,13 @@ impl DerefMut for Conn {
 impl Drop for Conn {
     fn drop(&mut self) {
         if let Some(conn) = self.conn.take() {
-            self.handle.put(conn);
+            self.put(conn);
+        }
+        if Arc::strong_count(&self.inner) == 1 && self.in_transaction.load(Ordering::SeqCst) {
+            error!(
+                "Dropping a request connection while a transaction is still open. \
+                 This usually means a handler panicked before the transaction could be finished."
+            );
         }
     }
 }
@@ -203,36 +202,37 @@ impl Drop for Conn {
 /// extractors can pick it up. No transaction is started here. After the
 /// handler has finished, the transaction (if any) is committed for successful
 /// responses and rolled back for error responses.
-pub async fn conn_middleware(State(pool): State<Pool>, mut request: Request, next: Next) -> Response {
-    let handle = match RequestConnection::acquire(&pool).await {
-        Ok(handle) => handle,
+pub async fn conn_middleware(
+    State(pool): State<Pool>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let conn = match Conn::acquire(&pool).await {
+        Ok(conn) => conn,
         Err(e) => {
             error!("Could not check out a database connection: {e}");
             return (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response();
         }
     };
-    request.extensions_mut().insert(handle.clone());
+    request.extensions_mut().insert(conn.clone());
     let response = next.run(request).await;
-    handle.finish(response.status()).await;
+    conn.finish(response.status()).await;
     response
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{
-        body::Body,
-        extract::Request,
-    };
+    use axum::{body::Body, extract::Request};
 
     /// Creates a request connection over an in-memory database that already
     /// contains a single table. SQLite keeps one private in-memory database per
     /// connection, so the schema is created on the very connection that the
     /// handle lends out. As long as the handle stays alive the same connection
     /// is reused and the data persists across `take`/`put` cycles.
-    async fn test_handle() -> RequestConnection {
+    async fn test_handle() -> Conn {
         let pool = Pool::new("sqlite::memory:").await.unwrap();
-        let handle = RequestConnection::acquire(&pool).await.unwrap();
+        let handle = Conn::acquire(&pool).await.unwrap();
         let mut conn = handle.take().unwrap();
         sqlx::query("CREATE TABLE test_rows (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
             .execute(&mut *conn)
@@ -242,7 +242,7 @@ mod tests {
         handle
     }
 
-    async fn insert_row(handle: &RequestConnection, value: &str) {
+    async fn insert_row(handle: &Conn, value: &str) {
         let mut conn = handle.take().unwrap();
         sqlx::query("INSERT INTO test_rows (value) VALUES (?)")
             .bind(value)
@@ -252,7 +252,7 @@ mod tests {
         handle.put(conn);
     }
 
-    async fn count_rows(handle: &RequestConnection) -> i64 {
+    async fn count_rows(handle: &Conn) -> i64 {
         let mut conn = handle.take().unwrap();
         let count: i64 = sqlx::query_scalar("SELECT count(*) FROM test_rows")
             .fetch_one(&mut *conn)
@@ -315,11 +315,8 @@ mod tests {
     #[tokio::test]
     async fn conn_extractor_reuses_the_request_connection() {
         let pool = Pool::new("sqlite::memory:").await.unwrap();
-        let handle = RequestConnection::acquire(&pool).await.unwrap();
-        let mut request = Request::builder()
-            .uri("/")
-            .body(Body::empty())
-            .unwrap();
+        let handle = Conn::acquire(&pool).await.unwrap();
+        let mut request = Request::builder().uri("/").body(Body::empty()).unwrap();
         request.extensions_mut().insert(handle);
 
         let app_state = crate::AppState {
@@ -338,11 +335,13 @@ mod tests {
         };
 
         let (mut parts, _) = request.into_parts();
-        let conn = Conn::from_request_parts(&mut parts, &app_state).await.unwrap();
+        let conn = Conn::from_request_parts(&mut parts, &app_state)
+            .await
+            .unwrap();
         // The extractor has taken exclusive ownership of the pooled connection.
-        assert!(parts.extensions.get::<RequestConnection>().unwrap().take().is_none());
+        assert!(parts.extensions.get::<Conn>().unwrap().take().is_none());
         drop(conn);
         // Dropping the extractor returns the connection to the request handle.
-        assert!(parts.extensions.get::<RequestConnection>().unwrap().take().is_some());
+        assert!(parts.extensions.get::<Conn>().unwrap().take().is_some());
     }
 }
