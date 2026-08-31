@@ -64,7 +64,7 @@ pub async fn run(state: AppState) {
         .nest("/api", api)
         .fallback(get(index))
         .layer(middleware::from_fn_with_state(
-            state.clone(),
+            state.pool.clone(),
             db::conn_middleware,
         ));
 

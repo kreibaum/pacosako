@@ -17,7 +17,7 @@ async fn all_the_games() {
     let config = config::load_config();
 
     let pool = crate::init_database_pool(config.clone()).await;
-    let mut conn = pool.0.acquire().await.unwrap();
+    let mut conn = pool.acquire().await.unwrap();
 
     // select max(id) from game
     let max_game_id: i32 = sqlx::query!("select coalesce(max(id), 0) as mx from game")

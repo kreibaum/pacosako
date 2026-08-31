@@ -7,9 +7,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-
+use sqlx::sqlite::SqlitePool;
 use config::EnvironmentConfig;
-use db::Pool;
 
 use crate::actors::websocket::SocketIdManagementError;
 
@@ -121,20 +120,20 @@ fn init_logger() {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Initialize the database Pool. This will be managed as an Axum state.
-pub async fn init_database_pool(config: EnvironmentConfig) -> Pool {
+pub async fn init_database_pool(config: EnvironmentConfig) -> SqlitePool {
     info!("Creating database pool");
     let now = std::time::Instant::now();
 
     // If there is no database specified, the server is allowed to just
     // crash. This is why we can "safely" unwrap.
 
-    let pool = db::Pool::new(&config.database_path)
+    let pool = SqlitePool::connect(&config.database_path)
         .await
         .expect("Pool can't be created.");
 
     // Apply all pending database migrations. (Important for automated updates)
     info!("Starting database migrations (if necessary)");
-    let migration_result = sqlx::migrate!().run(&pool.0).await;
+    let migration_result = sqlx::migrate!().run(&pool).await;
     if let Err(migration_error) = migration_result {
         panic!("Migration error when starting the server: {migration_error:?}");
     }
@@ -145,7 +144,7 @@ pub async fn init_database_pool(config: EnvironmentConfig) -> Pool {
 }
 
 /// Initialize the websocket server and provide it with a database connection.
-fn init_new_websocket_server(pool: Pool) {
+fn init_new_websocket_server(pool: SqlitePool) {
     info!("Starting websocket server");
     let now = std::time::Instant::now();
 
@@ -160,20 +159,13 @@ fn init_new_websocket_server(pool: Pool) {
 #[derive(Clone)]
 pub struct AppState {
     config: EnvironmentConfig,
-    pool: Pool,
+    pool: SqlitePool,
 }
 
 // support converting an `AppState` in an `EnvironmentConfig`
 impl FromRef<AppState> for EnvironmentConfig {
     fn from_ref(app_state: &AppState) -> Self {
         app_state.config.clone()
-    }
-}
-
-// support converting an `AppState` in an `Pool`
-impl FromRef<AppState> for Pool {
-    fn from_ref(app_state: &AppState) -> Self {
-        app_state.pool.clone()
     }
 }
 

@@ -8,6 +8,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json::de::from_str;
 use serde_json::ser::to_string;
+use sqlx::sqlite::SqlitePool;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use pacosako::{PacoAction, PlayerColor};
@@ -50,7 +51,7 @@ pub async fn to_logic(msg: LogicMsg) {
     }
 }
 
-pub fn run_server(pool: db::Pool) {
+pub fn run_server(pool: SqlitePool) {
     let (to_logic, message_queue) = tokio::sync::mpsc::channel(100);
     TO_LOGIC
         .set(to_logic)
@@ -82,7 +83,7 @@ pub enum LogicMsg {
 }
 
 /// Spawn a thread that handles the server logic.
-fn run_logic_server(message_queue: Receiver<LogicMsg>, pool: db::Pool) {
+fn run_logic_server(message_queue: Receiver<LogicMsg>, pool: SqlitePool) {
     std::thread::spawn(move || {
         // Create a runtime that _must_ be driven from a call
         // to `Runtime::block_on`.
@@ -100,12 +101,12 @@ fn run_logic_server(message_queue: Receiver<LogicMsg>, pool: db::Pool) {
 /// Simple loop that reacts to all the messages.
 async fn loop_logic_server(
     mut message_queue: Receiver<LogicMsg>,
-    pool: db::Pool,
+    pool: SqlitePool,
 ) -> Result<(), ServerError> {
     let mut server_state = ServerState::default();
 
     while let Some(msg) = message_queue.recv().await {
-        let mut conn = pool.0.acquire().await?;
+        let mut conn = pool.acquire().await?;
         let res = handle_message(msg, &mut server_state, &mut conn).await;
         if let Err(e) = res {
             match e {

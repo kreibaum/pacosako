@@ -22,23 +22,7 @@ use sqlx::sqlite::{Sqlite, SqlitePool};
 
 use crate::AppState;
 
-#[derive(Clone)]
-pub struct Pool(pub sqlx::pool::Pool<Sqlite>);
-
 pub type Connection = PoolConnection<Sqlite>;
-
-impl Pool {
-    pub async fn new(database_path: &str) -> Result<Self, sqlx::Error> {
-        let pool = SqlitePool::connect(database_path).await?;
-
-        Ok(Pool(pool))
-    }
-
-    /// Get a connection from the database pool.
-    pub async fn conn(&self) -> Result<Connection, sqlx::Error> {
-        self.0.acquire().await
-    }
-}
 
 /// A request-scoped database connection, shared across the whole request.
 ///
@@ -73,8 +57,8 @@ impl Clone for Conn {
 
 impl Conn {
     /// Checks a connection out of the pool and wraps it in a handle.
-    pub async fn acquire(pool: &Pool) -> Result<Self, sqlx::Error> {
-        let conn = pool.conn().await?;
+    pub async fn acquire(pool: &SqlitePool) -> Result<Self, sqlx::Error> {
+        let conn = pool.acquire().await?;
         Ok(Self {
             inner: Arc::new(Mutex::new(Some(conn))),
             in_transaction: Arc::new(AtomicBool::new(false)),
@@ -203,7 +187,7 @@ impl Drop for Conn {
 /// handler has finished, the transaction (if any) is committed for successful
 /// responses and rolled back for error responses.
 pub async fn conn_middleware(
-    State(pool): State<Pool>,
+    State(pool): State<SqlitePool>,
     mut request: Request,
     next: Next,
 ) -> Response {
@@ -231,7 +215,7 @@ mod tests {
     /// handle lends out. As long as the handle stays alive the same connection
     /// is reused and the data persists across `take`/`put` cycles.
     async fn test_handle() -> Conn {
-        let pool = Pool::new("sqlite::memory:").await.unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         let handle = Conn::acquire(&pool).await.unwrap();
         let mut conn = handle.take().unwrap();
         sqlx::query("CREATE TABLE test_rows (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
@@ -314,7 +298,7 @@ mod tests {
 
     #[tokio::test]
     async fn conn_extractor_reuses_the_request_connection() {
-        let pool = Pool::new("sqlite::memory:").await.unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         let handle = Conn::acquire(&pool).await.unwrap();
         let mut request = Request::builder().uri("/").body(Body::empty()).unwrap();
         request.extensions_mut().insert(handle);

@@ -65,7 +65,7 @@ async fn load_games() -> Vec<SynchronizedMatch> {
 
     // Setup database
     let pool = crate::init_database_pool(config.clone()).await;
-    let mut conn = pool.0.acquire().await.unwrap();
+    let mut conn = pool.acquire().await.unwrap();
 
     // Load games from database
     let timer = PerfTimer::new();
