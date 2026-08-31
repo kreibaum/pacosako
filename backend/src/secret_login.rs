@@ -7,7 +7,7 @@ use tower_cookies::Cookies;
 
 use crate::{
     config::EnvironmentConfig,
-    db::Pool,
+    db::Conn,
     login::{self, session::SessionData, user::load_public_user_data},
     templates,
 };
@@ -15,15 +15,10 @@ use crate::{
 pub async fn secret_login(
     State(config): State<EnvironmentConfig>,
     cookies: Cookies,
-    pool: State<Pool>,
     session: Option<SessionData>,
+    mut conn: Conn,
 ) -> impl IntoResponse {
     let tera = templates::get_tera(config.dev_mode);
-
-    let mut connection = pool
-        .conn()
-        .await
-        .expect("Could not get connection from pool");
 
     let mut context = tera::Context::new();
 
@@ -31,7 +26,7 @@ pub async fn secret_login(
     context.insert("avatar", "-");
 
     if let Some(session) = session {
-        if let Ok(user_data) = load_public_user_data(session.user_id, &mut connection).await {
+        if let Ok(user_data) = load_public_user_data(session.user_id, &mut *conn).await {
             context.insert("name", &user_data.name);
             context.insert("avatar", &user_data.avatar);
         }

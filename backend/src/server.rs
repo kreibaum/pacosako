@@ -19,7 +19,7 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use crate::{
     caching,
-    db::Pool,
+    db::{self, Conn},
     game, grafana, language,
     login::{
         self,
@@ -50,21 +50,32 @@ pub async fn run(state: AppState) {
         .route("/oauth/get_redirected", get(login::discord::get_redirected))
         .route("/user/:user_id", get(user::get_public_user_info));
 
-    // build our application with a single route
-    let app: Router<AppState> = Router::new();
-    let app: Router = app
+    // Routes that touch the database all share one connection per request.
+    // The database middleware checks a connection out of the pool, the `Conn`
+    // extractor uses it (starting a transaction on first use), and the
+    // middleware commits or rolls back based on the response status.
+    let app: Router<AppState> = Router::new()
         .route("/", get(index))
-        .route("/robots.txt", get(get_empty_file))
-        .route("/manifest.json", get(get_manifest))
-        .route("/js/elm.min.js", get(elm_js))
-        .route("/statistics", get(crate::statistics::statistics_handler))
         .route("/secret_login", get(secret_login::secret_login))
-        .route("/p/:avatar", get(user::proxy_avatar_route))
-        .fallback(get(index))
         .route(
             "/websocket",
             get(crate::actors::websocket::websocket_handler),
         )
+        .nest("/api", api)
+        .fallback(get(index))
+        .layer(middleware::from_fn_with_state(
+            state.pool.clone(),
+            db::conn_middleware,
+        ));
+
+    // Routes that do not need the database are served without the database
+    // middleware.
+    let app: Router = app
+        .route("/robots.txt", get(get_empty_file))
+        .route("/manifest.json", get(get_manifest))
+        .route("/js/elm.min.js", get(elm_js))
+        .route("/statistics", get(crate::statistics::statistics_handler))
+        .route("/p/:avatar", get(user::proxy_avatar_route))
         .nest_service("/a", ServeDir::new("../web-target/assets/").precompressed_br())
         .nest_service(
             "/js/lib.min.js",
@@ -82,7 +93,6 @@ pub async fn run(state: AppState) {
             "/js/main.min.js",
             ServeFile::new("../web-target/js/main.min.js").precompressed_br(),
         )
-        .nest("/api", api)
         .with_state(state.clone())
         .layer(middleware::from_fn(caching::caching_middleware_fn))
         .layer(CookieManagerLayer::new());
@@ -99,8 +109,8 @@ async fn index(
     headers: HeaderMap,
     mut cookies: Cookies,
     config: State<EnvironmentConfig>,
-    pool: State<Pool>,
     session: Option<SessionData>,
+    mut conn: Conn,
 ) -> impl IntoResponse {
     let lang = language::user_language(&headers, &mut cookies);
 
@@ -146,17 +156,12 @@ async fn index(
     );
 
     // Check data for currently logged in user.
-    let mut connection = pool
-        .conn()
-        .await
-        .expect("Could not get connection from pool");
-
     context.insert("name", "");
     context.insert("user_id", "-1");
     context.insert("avatar", "");
 
     if let Some(session) = session {
-        if let Ok(user_data) = load_public_user_data(session.user_id, &mut connection).await {
+        if let Ok(user_data) = load_public_user_data(session.user_id, &mut *conn).await {
             context.insert("name", &user_data.name);
             context.insert("user_id", &user_data.user_id);
             context.insert("avatar", &user_data.avatar);

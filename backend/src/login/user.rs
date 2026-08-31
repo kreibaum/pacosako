@@ -2,7 +2,7 @@
 
 extern crate regex;
 
-use axum::{extract::{Path, State}, Json, response::{IntoResponse, Response}};
+use axum::{extract::Path, Json, response::{IntoResponse, Response}};
 use hyper::{header, StatusCode};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use pacosako::PlayerColor;
 
-use crate::db::{Connection, Pool};
+use crate::db::{Conn, Connection};
 use crate::ServerError;
 
 use super::{session::SessionData, UserId};
@@ -44,18 +44,12 @@ pub fn is_frontend_ai(user: &Option<PublicUserData>) -> bool {
 /// Allows a logged-in user to change their avatar by calling /api/me/avatar
 pub async fn set_avatar(
     session: SessionData,
-    State(pool): State<Pool>,
+    mut conn: Conn,
     avatar: String,
 ) -> Response {
     if parse_avatar(&avatar).is_none() {
         return (StatusCode::BAD_REQUEST, "Invalid avatar").into_response();
     }
-
-    let mut connection = pool
-        .0
-        .acquire()
-        .await
-        .expect("Failed to acquire connection");
 
     // Write avatar to the database
     sqlx::query!(
@@ -63,7 +57,7 @@ pub async fn set_avatar(
         avatar,
         session.user_id.0
     )
-        .execute(&mut *connection)
+        .execute(&mut **conn)
         .await
         .unwrap();
 
@@ -238,7 +232,7 @@ pub async fn create_user(
     Ok(UserId(res.last_insert_rowid() as i64))
 }
 
-pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Response {
+pub async fn delete_user(session: SessionData, mut conn: Conn) -> Response {
     if !session.can_delete {
         return (
             StatusCode::FORBIDDEN,
@@ -246,12 +240,6 @@ pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Resp
         )
             .into_response();
     }
-
-    let mut connection = pool
-        .0
-        .acquire()
-        .await
-        .expect("Failed to acquire connection");
 
     // update game set white_player = NULL where white_player = 3;
     // update game set black_player = NULL where black_player = 3;
@@ -263,7 +251,7 @@ pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Resp
         "update game set white_player = NULL where white_player = ?",
         session.user_id.0
     )
-        .execute(&mut *connection)
+        .execute(&mut **conn)
         .await
         .expect("Error removing user from games");
 
@@ -271,22 +259,22 @@ pub async fn delete_user(session: SessionData, State(pool): State<Pool>) -> Resp
         "update game set black_player = NULL where black_player = ?",
         session.user_id.0
     )
-        .execute(&mut *connection)
+        .execute(&mut **conn)
         .await
         .expect("Error removing user from games");
 
     sqlx::query!("delete from session where user_id = ?", session.user_id.0)
-        .execute(&mut *connection)
+        .execute(&mut **conn)
         .await
         .expect("Error removing sessions for user.");
 
     sqlx::query!("delete from login where user_id = ?", session.user_id.0)
-        .execute(&mut *connection)
+        .execute(&mut **conn)
         .await
         .expect("Error removing login for user.");
 
     sqlx::query!("delete from user where id = ?", session.user_id.0)
-        .execute(&mut *connection)
+        .execute(&mut **conn)
         .await
         .expect("Error removing user.");
 
@@ -314,10 +302,8 @@ pub async fn create_discord_login(
 /// Even if you are not logged in right now.
 pub async fn get_public_user_info(
     Path(user_id): Path<i64>,
-    State(pool): State<Pool>,
+    mut conn: Conn,
 ) -> Result<Json<PublicUserData>, ServerError> {
-    let mut connection = pool.conn().await?;
-
-    let user_data = load_public_user_data(UserId(user_id), &mut connection).await?;
+    let user_data = load_public_user_data(UserId(user_id), &mut *conn).await?;
     Ok(Json(user_data))
 }

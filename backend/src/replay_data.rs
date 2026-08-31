@@ -1,12 +1,12 @@
 //! Module for managing `ReplayMetaInformation` in the backend
 
 use axum::{
-    extract::{Path, State},
+    extract::Path,
     Json,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{db::Pool, login::session::SessionData, ServerError};
+use crate::{db::Conn, login::session::SessionData, ServerError};
 
 #[derive(Serialize)]
 pub struct ReplayMetaData {
@@ -28,11 +28,9 @@ pub struct ReplayMetaDataInput {
 pub async fn post_metadata(
     _session: SessionData, // TODO: Verify that only AIs can call this.
     Path(key): Path<String>,
-    pool: State<Pool>,
+    mut conn: Conn,
     Json(data): Json<Vec<ReplayMetaDataInput>>,
 ) -> Result<(), ServerError> {
-    let mut conn = pool.conn().await?;
-
     for ele in data {
         sqlx::query!(
             r"INSERT INTO game_replay_metadata
@@ -43,7 +41,7 @@ pub async fn post_metadata(
             ele.category,
             ele.data
         )
-        .execute(&mut *conn)
+        .execute(&mut **conn)
         .await?;
     }
 
@@ -52,17 +50,16 @@ pub async fn post_metadata(
 
 // Get the replay information
 pub async fn get_metadata(
-    pool: State<Pool>,
+    mut conn: Conn,
     Path(key): Path<String>,
 ) -> Result<Json<Vec<ReplayMetaData>>, ServerError> {
-    let mut conn = pool.conn().await.unwrap();
     let data = sqlx::query!(
         r"SELECT action_index, category, metadata
         FROM game_replay_metadata
         WHERE game_id = ?",
         key
     )
-    .fetch_all(&mut *conn)
+    .fetch_all(&mut **conn)
     .await?;
 
     let mut result = Vec::new();

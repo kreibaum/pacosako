@@ -6,7 +6,7 @@ use axum::{
 };
 use tower_cookies::Cookies;
 
-use crate::{AppState, db::Connection, ServerError};
+use crate::{AppState, db::{Conn, Connection}, ServerError};
 
 use super::{crypto, SESSION_COOKIE, SessionId, UserId};
 
@@ -97,6 +97,10 @@ async fn get_session_from_request_parts(
         &state.config.secret_key,
     )?);
 
-    let mut connection = state.pool.conn().await?;
-    load_session(&session_id, &mut connection).await
+    // Reuse the single database connection that the database middleware lent
+    // to this request.
+    let mut conn = Conn::from_request_parts(parts, state)
+        .await
+        .map_err(|(_, msg)| anyhow::anyhow!("{msg}"))?;
+    load_session(&session_id, &mut *conn).await
 }
