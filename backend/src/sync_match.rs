@@ -5,8 +5,6 @@
 use chrono::{DateTime, Utc};
 use pacosako::variants::PieceSetupParameters;
 use serde::{Deserialize, Serialize};
-use serde_json::de::from_str;
-use std::convert::TryFrom;
 
 use pacosako::setup_options::SetupOptions;
 use pacosako::{fen, variants, PacoAction, PacoBoard, PacoError, PlayerColor};
@@ -18,7 +16,6 @@ use crate::protection::ControlLevel;
 use crate::timer::{Timer, TimerConfig, TimerState};
 use crate::ws::socket_auth::{SocketAuth, SocketIdentity};
 use crate::ServerError;
-
 
 /// Parameters required to initialize a new instance of the match.
 #[derive(Deserialize, Clone)]
@@ -88,29 +85,6 @@ pub struct SynchronizedMatch {
     pub setup_options: SetupOptions,
     pub white_player: Option<UserId>,
     pub black_player: Option<UserId>,
-}
-
-/// Message that may be sent by the client to the server.
-#[derive(Clone, Debug, Deserialize)]
-pub enum ClientMatchMessage {
-    GetCurrentState { key: String },
-    Subscribe { key: String },
-    DoAction { key: String, action: PacoAction },
-    Rollback { key: String },
-    SetTimer { key: String, timer: TimerConfig },
-    StartTimer { key: String },
-}
-
-impl TryFrom<&str> for ClientMatchMessage {
-    type Error = &'static str;
-
-    fn try_from(text: &str) -> Result<Self, Self::Error> {
-        if let Ok(client_message) = from_str(text) {
-            Ok(client_message)
-        } else {
-            Err("Message could not be decoded.")
-        }
-    }
 }
 
 async fn _load_from_db(
@@ -306,7 +280,11 @@ impl SynchronizedMatch {
         let setup_options = SetupOptions {
             safe_mode: params.safe_mode.unwrap_or(true),
             draw_after_n_repetitions: params.draw_after_n_repetitions.unwrap_or(3),
-            starting_fen: variants::piece_setup_fen(params.piece_setup.unwrap_or(PieceSetupParameters::DefaultPieceSetup)),
+            starting_fen: variants::piece_setup_fen(
+                params
+                    .piece_setup
+                    .unwrap_or(PieceSetupParameters::DefaultPieceSetup),
+            ),
         };
 
         Self {
@@ -392,17 +370,48 @@ impl SynchronizedMatch {
         Ok(state)
     }
 
+    pub fn revertMove(&mut self) -> Result<CurrentMatchState, PacoError> {
+        Self::revertMove_trusted_action_stack(&self.setup_options, &mut self.actions)?;
+        let mut state = self.current_state()?;
+        state.is_rollback = true;
+        Ok(state)
+    }
+
     /// Takes a board state that is provided in terms of an action history and
     /// rolls back an in-progress move. This will never change the active player.
     /// Rolling back on a settled board state does nothing.
     /// The action stack is assumed to only contain legal moves and the moves are
     /// not validated.
-    fn rollback_trusted_action_stack(setup: &SetupOptions, actions: &mut Vec<StampedAction>) -> Result<(), PacoError> {
+    fn rollback_trusted_action_stack(
+        setup: &SetupOptions,
+        actions: &mut Vec<StampedAction>,
+    ) -> Result<(), PacoError> {
         let last_checkpoint_index =
             pacosako::find_last_checkpoint_index(setup, actions.iter().map(|a| &a.action))?;
 
         // Remove all moves to get back to last_checkpoint_index
         while actions.len() > last_checkpoint_index {
+            actions.pop();
+        }
+
+        Ok(())
+    }
+
+    fn revertMove_trusted_action_stack(
+        setup: &SetupOptions,
+        actions: &mut Vec<StampedAction>,
+    ) -> Result<(), PacoError> {
+        let checkpoints =
+            pacosako::find_controlling_player_changes(setup, actions.iter().map(|a| &a.action))?;
+
+        let rollback_to = if checkpoints.len() >= 3 {
+            checkpoints[checkpoints.len() - 3]
+        } else {
+            0
+        };
+
+        // Remove all moves to get back to point we want to roll back to
+        while actions.len() > rollback_to {
             actions.pop();
         }
 

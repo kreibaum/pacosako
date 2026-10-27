@@ -159,9 +159,22 @@ pub(crate) struct GameRoom {
 /// All allowed messages that may be send by the client to the server.
 #[derive(Deserialize)]
 enum ClientMessage {
-    DoAction { key: String, action: Vec<PacoAction> },
-    Rollback { key: String },
-    TimeDriftCheck { send: DateTime<Utc> },
+    DoAction {
+        key: String,
+        action: Vec<PacoAction>,
+    },
+    /// Rolls back a partial move while it is still your turn
+    Rollback {
+        key: String,
+    },
+    /// Rolls back your turn after you have completed it and after the opponent reacted already
+    /// Initially we'll only allow this when playing against the computer.
+    RevertMove {
+        key: String,
+    },
+    TimeDriftCheck {
+        send: DateTime<Utc>,
+    },
 }
 
 #[derive(Deserialize)]
@@ -306,7 +319,9 @@ async fn handle_client_message(
     conn: &mut Connection,
 ) -> Result<(), ServerError> {
     let key: &str = match msg {
-        ClientMessage::DoAction { ref key, .. } | ClientMessage::Rollback { ref key } => key,
+        ClientMessage::DoAction { ref key, .. }
+        | ClientMessage::Rollback { ref key }
+        | ClientMessage::RevertMove { ref key } => key,
         ClientMessage::TimeDriftCheck { send } => {
             // We do not have a game for this message.
             respond_to_time_drift_check(send, &sender).await;
@@ -345,6 +360,10 @@ async fn handle_client_message(
             }
 
             game.rollback()?
+        }
+        ClientMessage::RevertMove { .. } => {
+            ensure_playing_with_computer(room, &mut game, sender.get_owner()?, conn).await?;
+            game.revertMove()?
         }
         ClientMessage::TimeDriftCheck { .. } => {
             unreachable!("We already handled the TimeDriftCheck message.");
@@ -468,6 +487,39 @@ async fn ensure_uuid_is_allowed(
     }
 }
 
+async fn ensure_playing_with_computer(
+    room: &mut GameRoom,
+    game: &mut SynchronizedMatch,
+    sender_metadata: SocketAuth,
+    conn: &mut Connection,
+) -> Result<(), ServerError> {
+    if !game.setup_options.safe_mode {
+        return Ok(());
+    }
+
+    let sender_identity = SocketIdentity::resolve_user(&sender_metadata, conn).await?;
+
+    let (white_player, black_player) = load_user_data_for_game(&game.key, &mut *conn).await?;
+
+    if (room
+        .white_player
+        .test(&sender_identity)
+        .can_control_or_take_over()
+        && user::is_frontend_ai(&black_player))
+        || (room
+            .black_player
+            .test(&sender_identity)
+            .can_control_or_take_over()
+            && user::is_frontend_ai(&white_player))
+    {
+        Ok(())
+    } else {
+        Err(ServerError::NotAllowed(
+            "Your browser is not allowed to make moves for the current player.".to_string(),
+        ))
+    }
+}
+
 /// Broadcasts the `CurrentMatchState` to all clients connected to the room.
 /// Each client gets their own view, as they have different control levels.
 async fn broadcast_state(
@@ -494,7 +546,7 @@ async fn broadcast_state(
                 ServerMessage::CurrentMatchState(Box::new(client_state)),
                 target,
             )
-                .await;
+            .await;
         } else {
             // If the socket is not alive, we remove it from the room.
             disconnected_sockets.push(*target);
@@ -523,10 +575,7 @@ async fn send_error(error_message: String, target: &SocketId) {
     send_msg(ServerMessage::Error(error_message), target).await;
 }
 
-async fn fetch_game(
-    key: &str,
-    conn: &mut Connection,
-) -> Result<SynchronizedMatch, anyhow::Error> {
+async fn fetch_game(key: &str, conn: &mut Connection) -> Result<SynchronizedMatch, anyhow::Error> {
     let id = key.parse()?;
     match db::game::select(id, conn).await? {
         Some(game) => Ok(game),
@@ -536,10 +585,7 @@ async fn fetch_game(
     }
 }
 
-async fn store_game(
-    game: &SynchronizedMatch,
-    conn: &mut Connection,
-) -> Result<(), anyhow::Error> {
+async fn store_game(game: &SynchronizedMatch, conn: &mut Connection) -> Result<(), anyhow::Error> {
     db::game::update(game, conn).await?;
     Ok(())
 }

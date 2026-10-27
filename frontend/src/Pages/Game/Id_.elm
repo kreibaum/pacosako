@@ -144,6 +144,7 @@ init params url =
 type Msg
     = Promote Sako.Type
     | Rollback
+    | RevertMove
     | AnimationTick Posix
     | MouseDown BoardMousePosition
     | MouseUp BoardMousePosition
@@ -181,7 +182,12 @@ update shared msg model =
 
         Rollback ->
             ( model
-            , Api.Websocket.send (Api.Websocket.Rollback model.gameKey) |> Effect.fromCmd
+            , sendRollback model |> Effect.fromCmd
+            )
+
+        RevertMove ->
+            ( model
+            , sendRevertMove model |> Effect.fromCmd
             )
 
         MouseDown pos ->
@@ -489,6 +495,11 @@ updateMouseUp shared pos model =
 sendRollback : Model -> Cmd msg
 sendRollback model =
     Api.Websocket.send (Api.Websocket.Rollback model.gameKey)
+
+
+sendRevertMove : Model -> Cmd msg
+sendRevertMove model =
+    Api.Websocket.send (Api.Websocket.RevertMove model.gameKey)
 
 
 {-| Determines if the current board state allows a quick rollback. This happens
@@ -1075,6 +1086,7 @@ sidebarLandscape shared model =
             (CopyToClipboard (Url.toString model.gameUrl))
             model.gameKey
         , rollbackButton model
+        , revertMoveButton model
         , aiLoadingInformation shared model
         , showIf (canPromote model.currentState.legalActions) promotionButtonGrid
         , maybeVictoryStateInfo model.currentState.gameState
@@ -1097,6 +1109,7 @@ sidebarPortrait shared model =
             (CopyToClipboard (Url.toString model.gameUrl))
             model.gameKey
         , rollbackButton model
+        , revertMoveButton model
         , maybeVictoryStateInfo model.currentState.gameState
         , maybeReplayLink model
         , Element.el [ padding 10 ] Element.none
@@ -1172,6 +1185,54 @@ getRollbackButtonState model =
 
             else
                 RollbackButtonEnabled
+
+
+revertMoveButton : Model -> Element Msg
+revertMoveButton model =
+    let
+        bg =
+            Element.rgb255 220 220 220
+
+        hbg =
+            Element.rgb255 200 200 200
+
+        fg =
+            Element.rgb255 0 0 0
+
+        event =
+            Just RevertMove
+    in
+    case getRevertMoveButtonState model of
+        RevertMoveButtonEnabled ->
+            Input.button
+                [ Background.color bg
+                , Element.mouseOver [ Background.color hbg ]
+                , width fill
+                , Border.rounded 5
+                , Font.color fg
+                ]
+                { onPress = event
+                , label =
+                    Element.el [ height fill, centerX, padding 15 ]
+                        (Element.text T.gameRevertMove)
+                }
+
+        RevertMoveButtonHidden ->
+            Element.none
+
+
+type RevertMoveButtonState
+    = RevertMoveButtonEnabled
+    | RevertMoveButtonHidden
+
+
+getRevertMoveButtonState : Model -> RevertMoveButtonState
+getRevertMoveButtonState model =
+    if isCurrentSideControlledByPlayer model && (isAiPlayer model.currentState.whitePlayer || isAiPlayer model.currentState.blackPlayer) then
+        RevertMoveButtonEnabled
+
+    else
+        RevertMoveButtonHidden
 
 
 {-| A button that is implemented via a vertical column.

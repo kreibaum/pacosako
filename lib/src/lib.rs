@@ -664,10 +664,7 @@ impl DenseBoard {
         self.en_passant = None;
     }
 
-    fn place_king(
-        &mut self,
-        place_target: BoardPosition,
-    ) -> Result<&mut Self, PacoError> {
+    fn place_king(&mut self, place_target: BoardPosition) -> Result<&mut Self, PacoError> {
         // Rook movement for castling
         let mut king_target = place_target;
         'cci: for cci in self.castling.options(self.controlling_player) {
@@ -1379,12 +1376,34 @@ pub fn execute_sequence<T: PacoBoard>(
     Ok(new_state)
 }
 
+pub fn find_controlling_player_changes<'a>(
+    setup: &SetupOptions,
+    actions: impl Iterator<Item = &'a PacoAction>,
+) -> Result<Vec<usize>, PacoError> {
+    let mut result = vec![0];
+    let mut board = DenseBoard::with_options(setup)?;
+    let mut action_counter = 0;
+    let mut last_controlling_player = board.controlling_player();
+
+    for action in actions {
+        action_counter += 1;
+        board.execute_trusted(*action)?;
+        let new_controlling_player = board.controlling_player();
+        if new_controlling_player != last_controlling_player {
+            result.push(action_counter);
+            last_controlling_player = new_controlling_player;
+        }
+    }
+
+    Ok(result)
+}
+
 /// Finds the last point in the action sequence where the active player changed.
 /// The action stack is assumed to only contain legal moves and the moves are
 /// not validated.
 pub fn find_last_checkpoint_index<'a>(
     setup: &SetupOptions,
-    actions: impl Iterator<Item=&'a PacoAction>,
+    actions: impl Iterator<Item = &'a PacoAction>,
 ) -> Result<usize, PacoError> {
     let mut board = DenseBoard::with_options(setup)?;
     let mut action_counter = 0;
@@ -1703,8 +1722,8 @@ mod tests {
             D1, D2, D3, D4, D5, D6, D7, D8,
             // Pawn threats overlap with Rook threats.
         ]
-            .iter()
-            .collect();
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1731,8 +1750,8 @@ mod tests {
             A1, A3, B4, D4, E1, E3, // Pawn threats (from d4)
             C5, E5,
         ]
-            .iter()
-            .collect();
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1758,8 +1777,8 @@ mod tests {
             // Additional knight threats
             F4, H4, E5, E7, F8, G6, F7,
         ]
-            .iter()
-            .collect();
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -1787,8 +1806,8 @@ mod tests {
             D6, F6, // Threats by en passant chain through F6
             E7, G7,
         ]
-            .iter()
-            .collect();
+        .iter()
+        .collect();
 
         assert_threats(expected_threats, received_threats);
     }
@@ -2161,10 +2180,7 @@ mod tests {
 
         execute_action!(board, lift, "e1");
 
-        assert!(!board
-            .actions()
-            .unwrap()
-            .contains(PacoAction::Place(G1)));
+        assert!(!board.actions().unwrap().contains(PacoAction::Place(G1)));
     }
 
     /// It is legal to castle if the rook moves across a field in Ŝako.
@@ -2182,10 +2198,7 @@ mod tests {
 
         execute_action!(board, lift, "e1");
 
-        assert!(board
-            .actions()
-            .unwrap()
-            .contains(PacoAction::Place(C1)));
+        assert!(board.actions().unwrap().contains(PacoAction::Place(C1)));
     }
 
     /// Tests rollback on the initial position. I expect nothing to happen.
@@ -2193,7 +2206,15 @@ mod tests {
     #[test]
     fn test_rollback_empty() -> Result<(), PacoError> {
         let actions = [];
-        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 0);
+        assert_eq!(
+            find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?,
+            0
+        );
+
+        assert_eq!(
+            find_controlling_player_changes(&SetupOptions::default(), actions.iter())?,
+            vec![0]
+        );
         Ok(())
     }
 
@@ -2201,7 +2222,15 @@ mod tests {
     fn test_rollback_single_lift() -> Result<(), PacoError> {
         use PacoAction::*;
         let actions = [Lift(D2)];
-        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 0);
+        assert_eq!(
+            find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?,
+            0
+        );
+
+        assert_eq!(
+            find_controlling_player_changes(&SetupOptions::default(), actions.iter())?,
+            vec![0]
+        );
         Ok(())
     }
 
@@ -2209,7 +2238,15 @@ mod tests {
     fn test_rollback_settled_changed() -> Result<(), PacoError> {
         use PacoAction::*;
         let actions = [Lift(E2), Place(E4)];
-        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 2);
+        assert_eq!(
+            find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?,
+            2
+        );
+
+        assert_eq!(
+            find_controlling_player_changes(&SetupOptions::default(), actions.iter())?,
+            vec![0, 2]
+        );
         Ok(())
     }
 
@@ -2223,7 +2260,15 @@ mod tests {
             Lift(C3), Place(D5), Lift(D5), Place(D4),
             Lift(B2), Place(B4), Lift(D4), Place(D3),
             Lift(D3), Place(B2), Lift(B2), Place(B1)];
-        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
+        assert_eq!(
+            find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?,
+            14
+        );
+
+        assert_eq!(
+            find_controlling_player_changes(&SetupOptions::default(), actions.iter())?,
+            vec![0, 2, 4, 6, 8, 10, 12, 14]
+        );
         Ok(())
     }
 
@@ -2237,7 +2282,15 @@ mod tests {
             Lift(C3), Place(D5), Lift(H7), Place(H6),
             Lift(D5), Place(C3), Lift(H6), Place(H5),
             Lift(C3), Place(B1)];
-        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
+        assert_eq!(
+            find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?,
+            14
+        );
+
+        assert_eq!(
+            find_controlling_player_changes(&SetupOptions::default(), actions.iter())?,
+            vec![0, 2, 4, 6, 8, 10, 12, 14]
+        );
         Ok(())
     }
 
@@ -2250,7 +2303,15 @@ mod tests {
             Lift(C3), Place(D5), Lift(H7), Place(H6),
             Lift(D5), Place(C3), Lift(H6), Place(H5),
             Lift(C3), Place(B1), Promote(PieceType::Queen), Lift(H5)];
-        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 14);
+        assert_eq!(
+            find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?,
+            14
+        );
+
+        assert_eq!(
+            find_controlling_player_changes(&SetupOptions::default(), actions.iter())?,
+            vec![0, 2, 4, 6, 8, 10, 12, 14]
+        );
         Ok(())
     }
 
@@ -2266,7 +2327,16 @@ mod tests {
             Lift(F5), Place(F6), Lift(A6), Place(A5),
             Lift(F6), Place(F7), Lift(A5), Place(A4),
             Lift(F7), Place(E8)];
-        assert_eq!(find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?, 22);
+        assert_eq!(
+            find_last_checkpoint_index(&SetupOptions::default(), actions.iter())?,
+            22
+        );
+
+        // But this does not count as a change of controll
+        assert_eq!(
+            find_controlling_player_changes(&SetupOptions::default(), actions.iter())?,
+            vec![0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+        );
         Ok(())
     }
 
@@ -2416,7 +2486,8 @@ mod tests {
     }
 
     #[test]
-    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_this_turn() -> Result<(), PacoError> {
+    fn test_moving_the_opponents_pawn_to_their_home_row_resets_no_progress_on_this_turn(
+    ) -> Result<(), PacoError> {
         let mut board = DenseBoard::new();
 
         // White

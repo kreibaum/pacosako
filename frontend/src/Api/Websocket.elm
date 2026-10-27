@@ -40,6 +40,7 @@ All allowed messages that may be send by the client to the server.
 type ClientMessage
     = DoAction { key : String, action : List Sako.Action }
     | Rollback String
+    | RevertMove String
     | TimeDriftCheck Posix
 
 
@@ -59,6 +60,15 @@ encodeClientMessage clientMessage =
         Rollback key ->
             Encode.object
                 [ ( "Rollback"
+                  , Encode.object
+                        [ ( "key", Encode.string key )
+                        ]
+                  )
+                ]
+
+        RevertMove key ->
+            Encode.object
+                [ ( "RevertMove"
                   , Encode.object
                         [ ( "key", Encode.string key )
                         ]
